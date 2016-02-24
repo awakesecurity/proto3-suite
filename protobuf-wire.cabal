@@ -1,0 +1,17 @@
+name:                protobuf-wire
+version:             0.1.0.0
+synopsis:            A low level library for writing out data in the Protocol Buffers wire format
+license:             AllRightsReserved
+author:              Phil Freeman
+maintainer:          phil@awakenetworks.com
+copyright:           2016 Awake Networks
+category:            Codec
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     Data.Protobuf.Wire
+  build-depends:       base >=4.8 && <4.9,
+                       bytestring >=0.10.6.0 && <0.11.0
+  hs-source-dirs:      src
+  default-language:    Haskell2010
