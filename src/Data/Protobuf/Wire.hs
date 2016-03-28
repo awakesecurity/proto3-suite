@@ -49,6 +49,7 @@ module Data.Protobuf.Wire
   , enum
   -- * Strings
   , string
+  , text
   , bytes
   -- * Embedded Messages
   , embedded
@@ -60,6 +61,8 @@ import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Lazy as BL
 import           Data.Int (Int32, Int64)
 import           Data.Monoid ((<>))
+import qualified Data.Text.Lazy as Text.Lazy
+import qualified Data.Text.Lazy.Encoding as Text.Lazy.Encoding
 import           Data.Word (Word8, Word32, Word64)
 
 base128Varint :: Integer -> BB.Builder
@@ -213,6 +216,15 @@ enum num e = fieldHeader num Varint <> base128Varint (fromIntegral (fromEnum e))
 -- > fieldNumber 1 `string` "testing"
 string :: FieldNumber -> String -> BB.Builder
 string num = embedded num . BB.stringUtf8
+
+-- | Encode lazy `Text` as UTF-8
+--
+-- For example:
+--
+-- > fieldNumber 1 `text` "testing"
+text :: FieldNumber -> Text.Lazy.Text -> BB.Builder
+text num txt =
+    embedded num (BB.lazyByteString (Text.Lazy.Encoding.encodeUtf8 txt))
 
 -- | Encode a collection of bytes in the form of a strict 'B.ByteString'.
 --

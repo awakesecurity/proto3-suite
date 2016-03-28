@@ -12,6 +12,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Data.Protobuf.Wire
   build-depends:       base >=4.8 && <4.9,
+                       text >= 0.2 && <1.3,
                        bytestring >=0.10.6.0 && <0.11.0
   hs-source-dirs:      src
   default-language:    Haskell2010
