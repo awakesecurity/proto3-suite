@@ -25,10 +25,12 @@
 -- > fieldNumber 1 `strings` Just "some string" <>
 -- > fieldNumber 2 `strings` [ "foo", "bar", "baz" ]
 
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Data.Protobuf.Wire
   (
   -- * Message Structure
-    FieldNumber
+    FieldNumber(..)
   , fieldNumber
   -- * Standard Integers
   , int32
@@ -51,6 +53,7 @@ module Data.Protobuf.Wire
   , string
   , text
   , bytes
+  , bytes'
   -- * Embedded Messages
   , embedded
   ) where
@@ -75,7 +78,7 @@ base128Varint i
 -- This library makes no attempt to generate these automatically, or even make
 -- sure that field numbers are provided in increasing order. Such things are
 -- left to other, higher-level libraries.
-newtype FieldNumber = FieldNumber { getFieldNumber :: Integer } deriving (Show, Eq, Ord)
+newtype FieldNumber = FieldNumber { getFieldNumber :: Integer } deriving (Show, Eq, Ord, Enum)
 
 -- | Create a 'FieldNumber' given the (one-based) integer which would label
 -- the field in the corresponding .proto file.
@@ -233,6 +236,14 @@ text num txt =
 -- > fieldNumber 1 `bytes` fromString "some bytes"
 bytes :: FieldNumber -> B.ByteString -> BB.Builder
 bytes num = embedded num . BB.byteString
+
+-- | Encode a lazy bytestring.
+--
+-- For example:
+--
+-- > fieldNumber 1 `bytes'` fromString "some bytes"
+bytes' :: FieldNumber -> BL.ByteString -> BB.Builder
+bytes' num = embedded num . BB.lazyByteString
 
 -- | Encode an embedded message.
 --
