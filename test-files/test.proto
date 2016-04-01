@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+message Trivial {
+  int32 trivialField = 1;
+}
+
+message MultipleFields {
+  double multiFieldDouble = 1;
+  float multiFieldFloat = 2;
+  int32 multiFieldInt32 = 3;
+  int64 multiFieldInt64 = 4;
+  string multiFieldString = 5;
+}
+
+message WithEnum {
+  enum TestEnum {
+    ENUM1 = 0;
+    ENUM2 = 1;
+    ENUM3 = 2;
+  }
+  TestEnum enumField = 1;
+}
+
+message WithNesting {
+  message Nested {
+    string nestedField1 = 1;
+    int32 nestedField2 = 2;
+  }
+  Nested nestedMessage = 1;
+}
+
+message WithRepetition {
+  repeated int32 repeatedField1 = 1;
+}
