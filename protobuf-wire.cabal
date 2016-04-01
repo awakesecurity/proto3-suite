@@ -11,7 +11,8 @@ cabal-version:       >=1.10
 data-files:          test-files/*.bin
 
 library
-  exposed-modules:     Data.Protobuf.Wire
+  exposed-modules:     Data.Protobuf.Wire.Encode
+                       Data.Protobuf.Wire.Shared
                        Data.Protobuf.Wire.Example
                        Data.Protobuf.Wire.Generic
   build-depends:       base >=4.8 && <4.9,

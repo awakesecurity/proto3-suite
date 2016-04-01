@@ -7,7 +7,6 @@ import TestTypes
 import qualified Data.ByteString.Lazy as BL
 import           Test.Tasty
 import           Test.Tasty.HUnit as HU
-import           Data.Protobuf.Wire
 import           Data.Protobuf.Wire.Generic
 import           Data.Int
 import qualified Data.Text.Lazy as TL
