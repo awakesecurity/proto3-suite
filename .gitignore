@@ -2,3 +2,7 @@
 Setup.hs
 cabal.sandbox.config
 dist/
+.stack-work/
+*.pyc
+test-files/test_pb2.py
+test-files/test_files/
