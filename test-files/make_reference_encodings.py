@@ -1,4 +1,9 @@
+# Generates the test-files/*.bin files used in the unit tests.
 import test_pb2
+
+def serialize_to_file(msg, fp):
+    with open(fp, 'wb') as f:
+        f.write(msg.SerializeToString())
 
 def main():
     triv = test_pb2.Trivial()
@@ -12,34 +17,28 @@ def main():
     multipleFields.multiFieldInt32 = 123
     multipleFields.multiFieldInt64 = 1234567890
     multipleFields.multiFieldString = "Hello, world!"
-    with open('multiple_fields.bin', 'wb') as f:
-        f.write(multipleFields.SerializeToString())
+    serialize_to_file(multipleFields, 'multiple_fields.bin')
 
     withEnum = test_pb2.WithEnum()
     withEnum.enumField = test_pb2.WithEnum.ENUM1
-    with open('with_enum0.bin', 'wb') as f:
-        f.write(withEnum.SerializeToString())
+    serialize_to_file(withEnum, 'with_enum0.bin')
 
     withEnum = test_pb2.WithEnum()
     withEnum.enumField = test_pb2.WithEnum.ENUM2
-    with open('with_enum1.bin', 'wb') as f:
-        f.write(withEnum.SerializeToString())
+    serialize_to_file(withEnum, 'with_enum1.bin')
 
     withNesting = test_pb2.WithNesting()
     withNesting.nestedMessage.nestedField1 = "123abc"
     withNesting.nestedMessage.nestedField2 = 123456
-    with open('with_nesting.bin', 'wb') as f:
-        f.write(withNesting.SerializeToString())
+    serialize_to_file(withNesting, 'with_nesting.bin')
 
     withRepetition = test_pb2.WithRepetition()
     withRepetition.repeatedField1.extend([1,2,3,4,5])
-    with open('with_repetition.bin', 'wb') as f:
-        f.write(withRepetition.SerializeToString())
+    serialize_to_file(withRepetition, 'with_repetition.bin')
 
     trivNeg = test_pb2.Trivial()
     trivNeg.trivialField = -1
-    with open('trivial_negative.bin', 'wb') as f:
-        f.write(trivNeg.SerializeToString())
+    serialize_to_file(trivNeg, 'trivial_negative.bin')
 
 if __name__ == '__main__':
     main()
