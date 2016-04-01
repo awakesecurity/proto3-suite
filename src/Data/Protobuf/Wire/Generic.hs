@@ -229,7 +229,7 @@ instance forall f g. ( KnownNat (GenericFieldCount f)
   type GenericFieldCount (f :*: g) = GenericFieldCount f + GenericFieldCount g
   genericEncode num (x :*: y) = genericEncode num x <> genericEncode (FieldNumber (getFieldNumber num + offset)) y
     where
-      offset = natVal (Proxy :: Proxy (GenericFieldCount f))
+      offset = fromIntegral $ natVal (Proxy :: Proxy (GenericFieldCount f))
 
 instance forall i c. ( HasEncoding c
                      , Embedded (GetMemberType c)
