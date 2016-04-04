@@ -2,6 +2,7 @@ module Data.Protobuf.Wire.Decode.Internal where
 
 import           Data.Bits
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
 import           Data.Protobuf.Wire.Shared
 import           Data.Serialize.Get
 import           Data.Word (Word8, Word32, Word64)
@@ -10,33 +11,34 @@ import           Control.Applicative
 
 -- | Decode a ByteString containing a base128 varint,
 -- assuming that the ByteString contains only a valid varint and
--- nothing else. Warning: partial!
-base128Varint :: [Word8] -> Word64
-base128Varint [] = error "tried to decode base128Varint of empty string"
-base128Varint bs = foldr1 (.|.) shiftedBytes
+-- nothing else.
+decodeBase128Varint :: [Word8] -> Get Word64
+decodeBase128Varint [] = fail "tried to decode base128Varint of empty string"
+decodeBase128Varint bs = return $ foldr1 (.|.) shiftedBytes
   where rawBytes = map (fromIntegral . flip clearBit 7) bs
         shifts = map (flip shiftL . (*7)) [0..]
         shiftedBytes = zipWith ($) shifts rawBytes
 
 getBase128Varint :: Get Word64
-getBase128Varint = base128Varint <$> untilM peek base128Terminal
+getBase128Varint = untilM peek base128Terminal >>= decodeBase128Varint
   where peek = lookAhead getWord8 :: Get Word8
         base128Terminal = (not . (`testBit` 7)) <$> getWord8
 
-wireType :: Word8 -> WireType
-wireType 0 = Varint
-wireType 5 = Fixed32
-wireType 1 = Fixed64
-wireType 2 = LengthDelimited
-wireType wt = error $ "Decode got unknown wire type: " ++ (show wt)
+wireType :: Word8 -> Get WireType
+wireType 0 = return Varint
+wireType 5 = return Fixed32
+wireType 1 = return Fixed64
+wireType 2 = return LengthDelimited
+wireType wt = fail $ "Decode got unknown wire type: " ++ (show wt)
 
-fieldHeader :: Word64 -> (FieldNumber, WireType)
-fieldHeader word = (decodeFieldNumber word, decodeWireType word)
+fieldHeader :: Word64 -> Get (FieldNumber, WireType)
+fieldHeader word = do
+  wt <- wireType $ fromIntegral $ (word .&. 7)
+  return (decodeFieldNumber word, wt)
   where decodeFieldNumber = FieldNumber . (flip shiftR 3)
-        decodeWireType = wireType . fromIntegral . (.&. 7)
 
 getFieldHeader :: Get (FieldNumber, WireType)
-getFieldHeader = getBase128Varint >>= (return . fieldHeader)
+getFieldHeader = getBase128Varint >>= fieldHeader
 
 zigZagDecode :: (Num a, Bits a) => a -> a
 zigZagDecode i = (shiftR i 1) `xor` (-(i .&. 1))
@@ -63,4 +65,4 @@ getKeyVal = do (fn, wt) <- getFieldHeader
                return (fn, parsedField)
 
 getTuples :: Get [(FieldNumber, ParsedField)]
-getTuples = getListOf getKeyVal
+getTuples = many getKeyVal
