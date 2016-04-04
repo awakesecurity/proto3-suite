@@ -2,17 +2,44 @@
 
 module Main where
 
-import TestTypes
-
+import           Control.Applicative
+import           TestTypes
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Builder as BB
 import           Test.Tasty
 import           Test.Tasty.HUnit as HU
+import           Test.Tasty.QuickCheck as QC
+import           Test.QuickCheck
+import qualified Data.Protobuf.Wire.Encode.Internal as Enc
+import qualified Data.Protobuf.Wire.Decode.Internal as Dec
+import           Data.Protobuf.Wire.Shared
 import           Data.Protobuf.Wire.Generic
 import           Data.Int
+import           Data.Word (Word64)
 import qualified Data.Text.Lazy as TL
 
 main :: IO ()
-main = defaultMain unitTests
+main = defaultMain tests
+
+tests :: TestTree
+tests = testGroup "Tests" [scProperties, unitTests]
+
+instance Arbitrary WireType where
+  arbitrary = oneof $ map return [Varint, Fixed32, Fixed64, LengthDelimited]
+
+instance Arbitrary FieldNumber where
+  arbitrary = liftA FieldNumber arbitrary
+
+scProperties = testGroup "QuickCheck properties"
+  [QC.testProperty "fieldHeader encode/decode inverses" $
+   \fieldnum -> \wt -> let encoded = BL.toStrict $ BB.toLazyByteString $
+                                     Enc.fieldHeader fieldnum wt
+                           decoded = Dec.fieldHeader encoded
+                           in (fieldnum, wt) == decoded,
+   QC.testProperty "base128Varint encode/decode inverses" $
+   \w64 -> let encode = BB.toLazyByteString . Enc.base128Varint
+               decode = Dec.base128Varint . BL.toStrict
+               in (w64 :: Word64) == (decode $ encode w64)]
 
 unitTests :: TestTree
 unitTests = testGroup "Unit tests"
