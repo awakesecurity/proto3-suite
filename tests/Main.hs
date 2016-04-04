@@ -17,6 +17,7 @@ import           Data.Protobuf.Wire.Generic
 import           Data.Int
 import           Data.Word (Word64)
 import qualified Data.Text.Lazy as TL
+import           Data.Serialize.Get(runGet)
 
 main :: IO ()
 main = defaultMain tests
@@ -34,11 +35,15 @@ scProperties = testGroup "QuickCheck properties"
   [QC.testProperty "fieldHeader encode/decode inverses" $
    \fieldnum -> \wt -> let encoded = BL.toStrict $ BB.toLazyByteString $
                                      Enc.fieldHeader fieldnum wt
-                           decoded = Dec.fieldHeader encoded
+                           decoded = case runGet Dec.getFieldHeader encoded of
+                                     Left e -> error e
+                                     Right x -> x
                            in (fieldnum, wt) == decoded,
    QC.testProperty "base128Varint encode/decode inverses" $
-   \w64 -> let encode = BB.toLazyByteString . Enc.base128Varint
-               decode = Dec.base128Varint . BL.toStrict
+   \w64 -> let encode = BL.toStrict . BB.toLazyByteString . Enc.base128Varint
+               decode bs = case runGet Dec.getBase128Varint bs of
+                           Left e -> error e
+                           Right x -> x
                in (w64 :: Word64) == (decode $ encode w64)]
 
 unitTests :: TestTree
