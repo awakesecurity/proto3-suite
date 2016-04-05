@@ -4,6 +4,7 @@ module Main where
 
 import           Control.Applicative
 import           TestTypes
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Builder as BB
 import           Test.Tasty
@@ -18,12 +19,13 @@ import           Data.Int
 import           Data.Word (Word64)
 import qualified Data.Text.Lazy as TL
 import           Data.Serialize.Get(runGet)
+import           Data.Either (isRight)
 
 main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [scProperties, unitTests]
+tests = testGroup "Tests" [scProperties, encodeUnitTests, decodeUnitTests]
 
 instance Arbitrary WireType where
   arbitrary = oneof $ map return [Varint, Fixed32, Fixed64, LengthDelimited]
@@ -46,15 +48,15 @@ scProperties = testGroup "QuickCheck properties"
                            Right x -> x
                in (w64 :: Word64) == (decode $ encode w64)]
 
-unitTests :: TestTree
-unitTests = testGroup "Unit tests"
-            [encodeTrivialMessage,
-             encodeNegativeInt,
-             encodeMultipleFields,
-             encodeNestedMessage,
-             encodeEnumFirstAlternative,
-             encodeEnumSecondAlternative,
-             encodeRepetition]
+encodeUnitTests :: TestTree
+encodeUnitTests = testGroup "Encoding unit tests"
+                  [encodeTrivialMessage,
+                   encodeNegativeInt,
+                   encodeMultipleFields,
+                   encodeNestedMessage,
+                   encodeEnumFirstAlternative,
+                   encodeEnumSecondAlternative,
+                   encodeRepetition]
 
 checkEncoding :: HasEncoding a => FilePath -> a -> IO ()
 checkEncoding fp x = do let ourEncoding = toLazyByteString x
@@ -97,3 +99,48 @@ encodeRepetition :: TestTree
 encodeRepetition = testCase
   "Encoding a message with repetition matches the official implementation" $
   checkEncoding "test-files/with_repetition.bin" $ WithRepetition [1..5]
+
+decodeUnitTests :: TestTree
+decodeUnitTests = testGroup "Decode unit tests"
+                  [decodeKeyValsTrivial,
+                   decodeKeyValsMultipleFields,
+                   decodeKeyValsNestedMessage,
+                   decodeKeyValsEnumFirstAlternative,
+                   decodeKeyValsEnumSecondAlternative,
+                   decodeKeyValsRepetition]
+
+decodeKeyValsTest :: FilePath -> IO ()
+decodeKeyValsTest fp = do
+  bs <- B.readFile fp
+  let kvs = runGet Dec.getTuples bs
+  assertBool "parsing failed" (isRight kvs)
+
+decodeKeyValsTrivial :: TestTree
+decodeKeyValsTrivial = testCase
+  "Decoding a trivial message to a key/val list succeeds" $
+  decodeKeyValsTest "test-files/trivial.bin"
+
+decodeKeyValsMultipleFields :: TestTree
+decodeKeyValsMultipleFields = testCase
+  "Decoding a multi-field message to a key/val list succeeds" $
+  decodeKeyValsTest "test-files/multiple_fields.bin"
+
+decodeKeyValsNestedMessage :: TestTree
+decodeKeyValsNestedMessage = testCase
+  "Decoding a nested message to a key/val list succeeds" $
+  decodeKeyValsTest "test-files/with_nesting.bin"
+
+decodeKeyValsEnumFirstAlternative :: TestTree
+decodeKeyValsEnumFirstAlternative = testCase
+  "Decoding an Enum (set to the first alternative) to a key/val list succeeds" $
+  decodeKeyValsTest "test-files/with_enum0.bin"
+
+decodeKeyValsEnumSecondAlternative :: TestTree
+decodeKeyValsEnumSecondAlternative = testCase
+  "Decoding an Enum (set to 2nd alternative) to a key/val list succeeds" $
+  decodeKeyValsTest "test-files/with_enum1.bin"
+
+decodeKeyValsRepetition :: TestTree
+decodeKeyValsRepetition = testCase
+  "Decoding a message with a repeated field to a key/val list succeeds" $
+  decodeKeyValsTest "test-files/with_repetition.bin"
