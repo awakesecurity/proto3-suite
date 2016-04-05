@@ -50,6 +50,7 @@ module Data.Protobuf.Wire.Generic
   , Embedded(..)
   ) where
 
+import           Control.DeepSeq (NFData)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Lazy as BL
@@ -73,12 +74,12 @@ class Embedded (mt :: MemberType) where
   embed :: Proxy mt -> (FieldNumber -> a -> BB.Builder) -> FieldNumber -> a -> BB.Builder
 
 -- | Primitive members get embedded trivially, by just inserting their fields normally.
-instance Embedded Primitive where
+instance Embedded 'Primitive where
   embed _ = id
 
 -- | Non-primitive members get serialized and embedded into a single field in the
 -- larger message.
-instance Embedded NonPrimitive where
+instance Embedded 'NonPrimitive where
   embed _ f num = embedded num . f (fieldNumber 1)
 
 -- | This class captures those types which can be serialized as protobuf messages.
@@ -89,7 +90,7 @@ class HasEncoding a where
   -- | A member is either 'Primitive' or 'NonPrimitive', and this affects the binary
   -- encoding. This is tracked by the 'GetMemberType' associated type.
   type GetMemberType a :: MemberType
-  type GetMemberType a = NonPrimitive
+  type GetMemberType a = 'NonPrimitive
 
   -- | The number of protobuf fields in a message.
   type FieldCount a :: Nat
@@ -105,97 +106,97 @@ toLazyByteString :: HasEncoding a => a -> BL.ByteString
 toLazyByteString = BB.toLazyByteString . encode (fieldNumber 1)
 
 instance HasEncoding Int32 where
-  type GetMemberType Int32 = Primitive
+  type GetMemberType Int32 = 'Primitive
   type FieldCount Int32 = 1
   encode = int32
 
 instance HasEncoding Int64 where
-  type GetMemberType Int64 = Primitive
+  type GetMemberType Int64 = 'Primitive
   type FieldCount Int64 = 1
   encode = int64
 
 instance HasEncoding Word32 where
-  type GetMemberType Word32 = Primitive
+  type GetMemberType Word32 = 'Primitive
   type FieldCount Word32 = 1
   encode = uint32
 
 instance HasEncoding Word64 where
-  type GetMemberType Word64 = Primitive
+  type GetMemberType Word64 = 'Primitive
   type FieldCount Word64 = 1
   encode = uint64
 
 -- | 'Signed' provides a way to encode integers in the signed wire formats.
-newtype Signed a = Signed { signed :: a } deriving (Show, Eq, Ord, Generic)
+newtype Signed a = Signed { signed :: a } deriving (Show, Eq, Ord, Generic, NFData)
 
 instance HasEncoding (Signed Int32) where
-  type GetMemberType (Signed Int32) = Primitive
+  type GetMemberType (Signed Int32) = 'Primitive
   type FieldCount (Signed Int32) = 1
   encode num = sint32 num . signed
 
 instance HasEncoding (Signed Int64) where
-  type GetMemberType (Signed Int64) = Primitive
+  type GetMemberType (Signed Int64) = 'Primitive
   type FieldCount (Signed Int64) = 1
   encode num = sint64 num . signed
 
 -- | 'Fixed' provides a way to encode integers in the fixed-width wire formats.
-newtype Fixed a = Fixed { fixed :: a } deriving (Show, Eq, Ord, Generic)
+newtype Fixed a = Fixed { fixed :: a } deriving (Show, Eq, Ord, Generic, NFData)
 
 instance HasEncoding (Fixed Word32) where
-  type GetMemberType (Fixed Word32) = Primitive
+  type GetMemberType (Fixed Word32) = 'Primitive
   type FieldCount (Fixed Word32) = 1
   encode num = fixed32 num . fixed
 
 instance HasEncoding (Fixed Word64) where
-  type GetMemberType (Fixed Word64) = Primitive
+  type GetMemberType (Fixed Word64) = 'Primitive
   type FieldCount (Fixed Word64) = 1
   encode num = fixed64 num . fixed
 
 instance HasEncoding (Signed (Fixed Int32)) where
-  type GetMemberType (Signed (Fixed Int32)) = Primitive
+  type GetMemberType (Signed (Fixed Int32)) = 'Primitive
   type FieldCount (Signed (Fixed Int32)) = 1
   encode num = sfixed32 num . fixed . signed
 
 instance HasEncoding (Signed (Fixed Int64)) where
-  type GetMemberType (Signed (Fixed Int64)) = Primitive
+  type GetMemberType (Signed (Fixed Int64)) = 'Primitive
   type FieldCount (Signed (Fixed Int64)) = 1
   encode num = sfixed64 num . fixed . signed
 
 instance HasEncoding Bool where
-  type GetMemberType Bool = Primitive
+  type GetMemberType Bool = 'Primitive
   type FieldCount Bool = 1
   encode = Wire.enum
 
 instance HasEncoding Float where
-  type GetMemberType Float = Primitive
+  type GetMemberType Float = 'Primitive
   type FieldCount Float = 1
   encode = float
 
 instance HasEncoding Double where
-  type GetMemberType Double = Primitive
+  type GetMemberType Double = 'Primitive
   type FieldCount Double = 1
   encode = double
 
 instance HasEncoding TL.Text where
-  type GetMemberType TL.Text = Primitive
+  type GetMemberType TL.Text = 'Primitive
   type FieldCount TL.Text = 1
   encode = text
 
 instance HasEncoding B.ByteString where
-  type GetMemberType B.ByteString = Primitive
+  type GetMemberType B.ByteString = 'Primitive
   type FieldCount B.ByteString = 1
   encode = bytes
 
 instance HasEncoding BL.ByteString where
-  type GetMemberType BL.ByteString = Primitive
+  type GetMemberType BL.ByteString = 'Primitive
   type FieldCount BL.ByteString = 1
   encode = bytes'
 
 -- | 'Enumerated' lifts any type with an 'IsEnum' instance so that it can be encoded
 -- with 'HasEncoding'.
-newtype Enumerated a = Enumerated { enumerated :: a } deriving (Show, Eq, Ord, Generic)
+newtype Enumerated a = Enumerated { enumerated :: a } deriving (Show, Eq, Ord, Generic, NFData)
 
 instance Enum e => HasEncoding (Enumerated e) where
-  type GetMemberType (Enumerated e) = Primitive
+  type GetMemberType (Enumerated e) = 'Primitive
   type FieldCount (Enumerated e) = 1
   encode num = Wire.enum num . enumerated
 
