@@ -1,3 +1,4 @@
+.stack-work/
 .cabal-sandbox/
 Setup.hs
 cabal.sandbox.config
