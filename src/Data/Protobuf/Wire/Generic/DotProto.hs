@@ -112,7 +112,7 @@ data DotProtoType
 data DotProtoMessagePart = DotProtoMessagePart
   { dotProtoMessagePartFieldNumber :: FieldNumber
   , dotProtoMessagePartFieldName :: Maybe FieldName
-  , dotProtoMessagePartFieldType :: DotProtoType
+  , _dotProtoMessagePartFieldType :: DotProtoType
   } deriving Show
 
 newtype DotProtoMessage = DotProtoMessage
