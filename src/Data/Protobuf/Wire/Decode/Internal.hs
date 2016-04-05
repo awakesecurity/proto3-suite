@@ -3,6 +3,8 @@ module Data.Protobuf.Wire.Decode.Internal where
 import           Data.Bits
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
+import           Data.List(groupBy)
+import qualified Data.Map.Strict as M
 import           Data.Protobuf.Wire.Shared
 import           Data.Serialize.Get
 import           Data.Word (Word8, Word32, Word64)
@@ -69,8 +71,17 @@ getKeyVal = do (fn, wt) <- getFieldHeader
                parsedField <- getParsedField wt
                return (fn, parsedField)
 
--- | Deserializes a protobuf message into a list of field number, field tuples.
+-- | Deserializes a protobuf message into a map from field number to all fields
+-- labeled with that field number, in their original order. This is necessary
+-- because of repeated fields, as well as the protobuf requirement that we honor
+-- only the last element with a given field number.
 -- This is as much structure as we can recover without knowing the type of the
 -- message.
-getTuples :: Get [(FieldNumber, ParsedField)]
-getTuples = many getKeyVal
+getTuples :: Get (M.Map FieldNumber [ParsedField])
+getTuples = do
+  keyvals <- many getKeyVal
+  let grouped = groupBy (\kv1 kv2 -> (fst kv1) == (fst kv2)) keyvals
+  return $ M.fromList $ map (\(kv:kvs) -> (fst kv, map snd kvs)) grouped
+
+parseTuples :: B.ByteString -> Either String (M.Map FieldNumber [ParsedField])
+parseTuples = runGet getTuples
