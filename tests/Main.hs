@@ -153,9 +153,8 @@ parserUnitTests = testGroup "Parsing unit tests"
                    ,parseMultipleFields
                    ,parseNestedMessage
 {-}                   ,parseEnumFirstAlternative
-                   ,parseEnumSecondAlternative
+                   ,parseEnumSecondAlternative -}
                    ,parseRepetition
--}
                    ]
 
 testParser :: (Show a, Eq a) => FilePath -> Parser a -> a -> IO ()
@@ -213,4 +212,10 @@ parseEnumSecondAlternative :: TestTree
 parseEnumSecondAlternative = undefined
 
 parseRepetition :: TestTree
-parseRepetition = undefined
+parseRepetition = testCase
+  "Parsing a message with a repeated field produces the correct message" $
+  let parser = do
+        xs <- repeatedUnpacked int32 $ FieldNumber 1
+        return $ WithRepetition xs
+      in testParser "test-files/with_repetition.bin" parser $
+          WithRepetition [1..5]

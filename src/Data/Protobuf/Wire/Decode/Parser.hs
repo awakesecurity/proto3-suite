@@ -5,10 +5,11 @@ Parser,
 -- * General functions
 parse,
 
--- * Requiring fields
+-- * Combinators
 require,
 requireMsg,
 one,
+repeatedUnpacked,
 
 -- * Basic types
 int32,
@@ -27,11 +28,13 @@ embedded
 
 import           Control.Applicative
 import           Control.Monad.Except
+import           Control.Monad.Loops (whileJust)
 import           Control.Monad.State.Strict
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import           Data.Functor.Identity(runIdentity)
 import qualified Data.Map.Strict as M
+import           Data.Maybe (catMaybes, isNothing)
 import           Data.Protobuf.Wire.Decode.Internal
 import           Data.Protobuf.Wire.Shared
 import           Data.Serialize.Get(runGet, getWord32le, getWord64le)
@@ -129,10 +132,16 @@ throwCerealError expected cerealErr =
   throwError $ "Failed to parse contents of " ++ expected ++ " field. "
                ++ "Error from cereal was: " ++ cerealErr
 
---TODO: make these parse functions private
 parseVarInt :: Integral a => ParsedField -> Parser a
 parseVarInt (VarintField i) = return $ fromIntegral i
 parseVarInt wrong = throwWireTypeError "varint" wrong
+
+parsePackedVarInt :: Integral a => ParsedField -> Parser [a]
+parsePackedVarInt (LengthDelimitedField bs) =
+  case runGet (many getBase128Varint) bs of
+    Left e -> throwCerealError "packed varints" e
+    Right xs -> return $ map fromIntegral xs
+parsePackedVarInt wrong = throwWireTypeError "packed varints" wrong
 
 parseFixed32 :: Integral a => ParsedField -> Parser a
 parseFixed32 (Fixed32Field bs) =
@@ -228,3 +237,7 @@ embedded parser fn = do
   case parsedResults of
     [] -> return Nothing
     xs -> return $ Just $ foldl1 protobufMerge xs
+
+repeatedUnpacked :: (FieldNumber -> Parser (Maybe a))
+                    -> FieldNumber -> Parser [a]
+repeatedUnpacked single fn = whileJust (single fn) return
