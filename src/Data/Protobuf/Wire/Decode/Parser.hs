@@ -38,6 +38,24 @@ parsedField fn = do
                       return $ Just x
     _ -> return Nothing
 
+-- |
+-- Requires a field to be present.
+require :: Parser (Maybe a) -> Parser a
+require p = do
+  result <- p
+  case result of
+    Nothing -> throwError "Required field missing."
+    Just x -> return x
+
+-- |
+-- Requires a field to be present, with custom error message.
+requireMsg :: Parser (Maybe a) -> String -> Parser a
+requireMsg p str = do
+  result <- p
+  case result of
+    Nothing -> throwError str
+    Just x -> return x
+
 throwWireTypeError :: Show a => String -> a -> Parser b
 throwWireTypeError expected wrong =
   throwError $ "Wrong wiretype. Expected " ++ expected ++
