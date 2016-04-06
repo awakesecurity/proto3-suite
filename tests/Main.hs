@@ -167,7 +167,7 @@ testParser fp parser reference = do
 
 parseKeyValsTrivial :: TestTree
 parseKeyValsTrivial = testCase
-  "Parsing a trivial message produces the correct message." $
+  "Parsing a trivial message produces the correct message" $
   let parser = do
         i <- int32 $ FieldNumber 1
         case i of
@@ -177,15 +177,15 @@ parseKeyValsTrivial = testCase
 
 parseKeyValsMultipleFields :: TestTree
 parseKeyValsMultipleFields = testCase
-  "Parsing a message with multiple fields produces the correct message." $
+  "Parsing a message with multiple fields produces the correct message" $
   let parser = do
-        mfDouble <- double (FieldNumber 1)
+        mfDouble <- one double (FieldNumber 1)
                    `requireMsg` "Failed to parse double."
-        mfFloat <- float (FieldNumber 2)
+        mfFloat <- one float (FieldNumber 2)
                    `requireMsg` "Failed to parse float."
-        mfInt32 <- int32 (FieldNumber 3)
+        mfInt32 <- one int32 (FieldNumber 3)
                    `requireMsg` "Failed to parse int32."
-        mfInt64 <- int64 (FieldNumber 4)
+        mfInt64 <- one int64 (FieldNumber 4)
                    `requireMsg` "Failed to parse int64"
         mfString <- return "Hello, world!" --TODO: fix when implemented
         return $ MultipleFields mfDouble mfFloat mfInt32 mfInt64 mfString

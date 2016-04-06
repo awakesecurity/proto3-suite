@@ -1,6 +1,27 @@
 {-# LANGUAGE RankNTypes #-}
 
-module Data.Protobuf.Wire.Decode.Parser where
+module Data.Protobuf.Wire.Decode.Parser (
+Parser,
+-- * General functions
+parse,
+
+-- * Requiring fields
+require,
+requireMsg,
+one,
+
+-- * Basic types
+int32,
+int64,
+uint32,
+uint64,
+fixed32,
+fixed64,
+sfixed32,
+sfixed64,
+float,
+double
+) where
 
 import           Control.Applicative
 import           Control.Monad.Except
@@ -39,6 +60,20 @@ parsedField fn = do
     _ -> return Nothing
 
 -- |
+-- The protobuf standard specifies that if a recipient is expecting only one
+-- value in a single field (i.e., not a list of values), but it receives more
+-- than one, then the last value should be kept. This function implements that
+-- functionality. Discards all but the last value for the given 'FieldNumber'.
+dropInits :: FieldNumber -> Parser ()
+dropInits fn = do
+  currMap <- get
+  case M.lookup fn currMap of
+    Nothing -> return ()
+    Just pfs -> do let pfs' = drop (length pfs - 1) pfs
+                   let newMap = M.insert fn pfs' currMap
+                   put newMap
+
+-- |
 -- Requires a field to be present.
 require :: Parser (Maybe a) -> Parser a
 require p = do
@@ -55,6 +90,13 @@ requireMsg p str = do
   case result of
     Nothing -> throwError str
     Just x -> return x
+
+-- |
+-- Specify that one value is expected from this field. Used to ensure that we
+-- return the last value with the given field number in the message, in
+-- compliance with the protobuf standard.
+one :: (FieldNumber -> Parser a) -> (FieldNumber -> Parser a)
+one parser fn = dropInits fn >> parser fn
 
 throwWireTypeError :: Show a => String -> a -> Parser b
 throwWireTypeError expected wrong =
