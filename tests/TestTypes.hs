@@ -3,7 +3,9 @@
 module TestTypes where
 
 import           Data.Int
+import           Data.Monoid
 import           Data.Protobuf.Wire.Generic
+import           Data.Protobuf.Wire.Shared
 import qualified Data.Text.Lazy as TL
 import           GHC.Generics
 
@@ -32,6 +34,9 @@ data Nested = Nested {nestedField1 :: TL.Text,
                       nestedField2 :: Int32}
                       deriving (Show, Generic, Eq)
 instance HasEncoding Nested
+
+instance ProtobufMerge Nested where
+  protobufMerge (Nested x1 y1) (Nested x2 y2) = Nested (x1 <> x2) y2
 
 data WithNesting = WithNesting {nestedMessage :: Nested}
                     deriving (Show, Generic, Eq)

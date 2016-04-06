@@ -5,6 +5,7 @@ module Data.Protobuf.Wire.Shared (
   FieldNumber(..)
 , fieldNumber
 , WireType(..)
+, ProtobufMerge(..)
   ) where
 
 import           Data.Word (Word8, Word32, Word64)
@@ -27,3 +28,11 @@ data WireType
   | Fixed64
   | LengthDelimited
   deriving (Show, Eq, Ord)
+
+-- | Class for merging protobuf messages. Merging protobuf messages must satisfy
+-- the following:
+-- 1. `protobufMerge x y` overwrites the singular fields of x with those of y.
+-- 2. `protobufMerge x y` recurses on the embedded messages in x and y.
+-- 3. `protobufMerge x y` concatenates all list fields in x and y.
+class ProtobufMerge a where
+  protobufMerge :: a -> a -> a

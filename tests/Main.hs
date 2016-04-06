@@ -13,7 +13,7 @@ import           Test.Tasty.QuickCheck as QC
 import           Test.QuickCheck
 import qualified Data.Protobuf.Wire.Encode.Internal as Enc
 import qualified Data.Protobuf.Wire.Decode.Internal as Dec
-import           Data.Protobuf.Wire.Decode.Parser
+import           Data.Protobuf.Wire.Decode.Parser as P
 import           Data.Protobuf.Wire.Shared
 import           Data.Protobuf.Wire.Generic
 import           Data.Int
@@ -149,12 +149,12 @@ decodeKeyValsRepetition = testCase
 
 parserUnitTests :: TestTree
 parserUnitTests = testGroup "Parsing unit tests"
-                  [parseKeyValsTrivial
-                   ,parseKeyValsMultipleFields
-{-                 ,parseKeyValsNestedMessage
-                   ,parseKeyValsEnumFirstAlternative
-                   ,parseKeyValsEnumSecondAlternative
-                   ,parseKeyValsRepetition
+                  [parseTrivial
+                   ,parseMultipleFields
+                   ,parseNestedMessage
+{-}                   ,parseEnumFirstAlternative
+                   ,parseEnumSecondAlternative
+                   ,parseRepetition
 -}
                    ]
 
@@ -165,8 +165,8 @@ testParser fp parser reference = do
     Left err -> error $ "Got error: " ++ show err
     Right ourResult -> ourResult @?= reference
 
-parseKeyValsTrivial :: TestTree
-parseKeyValsTrivial = testCase
+parseTrivial :: TestTree
+parseTrivial = testCase
   "Parsing a trivial message produces the correct message" $
   let parser = do
         i <- int32 $ FieldNumber 1
@@ -175,8 +175,8 @@ parseKeyValsTrivial = testCase
           Just x -> return $ Trivial x
       in testParser "test-files/trivial.bin" parser $ Trivial 123
 
-parseKeyValsMultipleFields :: TestTree
-parseKeyValsMultipleFields = testCase
+parseMultipleFields :: TestTree
+parseMultipleFields = testCase
   "Parsing a message with multiple fields produces the correct message" $
   let parser = do
         mfDouble <- one double (FieldNumber 1)
@@ -186,20 +186,31 @@ parseKeyValsMultipleFields = testCase
         mfInt32 <- one int32 (FieldNumber 3)
                    `requireMsg` "Failed to parse int32."
         mfInt64 <- one int64 (FieldNumber 4)
-                   `requireMsg` "Failed to parse int64"
-        mfString <- return "Hello, world!" --TODO: fix when implemented
+                   `requireMsg` "Failed to parse int64."
+        mfString <- one P.text (FieldNumber 5)
+                    `requireMsg` "Failed to parse string."
         return $ MultipleFields mfDouble mfFloat mfInt32 mfInt64 mfString
     in testParser "test-files/multiple_fields.bin" parser $
         MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!"
 
-parseKeyValsNestedMessage :: TestTree
-parseKeyValsNestedMessage = undefined
+parseNestedMessage :: TestTree
+parseNestedMessage = testCase
+  "Parsing a nested message produces the correct message" $
+  let embeddedParser = do
+        x <- require $ one P.text $ FieldNumber 1
+        y <- require $ one int32 $ FieldNumber 2
+        return $ Nested x y
+      parser = do
+        x <- require $ one (embedded embeddedParser) (FieldNumber 1)
+        return $ WithNesting x
+      in testParser "test-files/with_nesting.bin" parser $
+          WithNesting $ Nested "123abc" 123456
 
-parseKeyValsEnumFirstAlternative :: TestTree
-parseKeyValsEnumFirstAlternative = undefined
+parseEnumFirstAlternative :: TestTree
+parseEnumFirstAlternative = undefined
 
-parseKeyValsEnumSecondAlternative :: TestTree
-parseKeyValsEnumSecondAlternative = undefined
+parseEnumSecondAlternative :: TestTree
+parseEnumSecondAlternative = undefined
 
-parseKeyValsRepetition :: TestTree
-parseKeyValsRepetition = undefined
+parseRepetition :: TestTree
+parseRepetition = undefined

@@ -20,19 +20,24 @@ fixed64,
 sfixed32,
 sfixed64,
 float,
-double
+double,
+text,
+embedded
 ) where
 
 import           Control.Applicative
 import           Control.Monad.Except
 import           Control.Monad.State.Strict
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
 import           Data.Functor.Identity(runIdentity)
 import qualified Data.Map.Strict as M
 import           Data.Protobuf.Wire.Decode.Internal
 import           Data.Protobuf.Wire.Shared
 import           Data.Serialize.Get(runGet, getWord32le, getWord64le)
 import           Data.Serialize.IEEE754(getFloat32le, getFloat64le)
+import           Data.Text.Lazy (Text)
+import           Data.Text.Lazy.Encoding (decodeUtf8')
 import           Data.Int (Int32, Int64)
 import           Data.Word (Word32, Word64)
 
@@ -58,6 +63,22 @@ parsedField fn = do
                       put newMap
                       return $ Just x
     _ -> return Nothing
+
+-- |
+-- Consumes all fields with the given field number. This is primarily for
+-- unpacked repeated fields. This is also useful for parsing
+-- embedded messages, where the spec says that if more than one instance of an
+-- embedded message for a given field number is present in the outer message,
+-- then they must all be merged.
+parsedFields :: FieldNumber -> Parser [ParsedField]
+parsedFields fn = do
+  currMap <- get
+  let pfs = M.lookup fn currMap
+  case pfs of
+    Just xs -> do let newMap = M.insert fn [] currMap
+                  put newMap
+                  return xs
+    Nothing -> return []
 
 -- |
 -- The protobuf standard specifies that if a recipient is expecting only one
@@ -141,6 +162,20 @@ parseFixed64Double (Fixed64Field bs) =
     Right f -> return f
 parseFixed64Double wrong = throwWireTypeError "fixed64" wrong
 
+parseText :: ParsedField -> Parser Text
+parseText (LengthDelimitedField bs) =
+  case decodeUtf8' $ BL.fromStrict bs of
+    Left err -> throwError $ "Failed to decode UTF-8: " ++ show err
+    Right txt -> return txt
+parseText wrong = throwWireTypeError "string" wrong
+
+parseEmbedded :: Parser a -> ParsedField -> Parser a
+parseEmbedded parser (LengthDelimitedField bs) =
+  case parse parser bs of
+    Left err -> throwError $ "Failed to parse embedded message: " ++ show err
+    Right result -> return result
+parseEmbedded _ wrong = throwWireTypeError "embedded" wrong
+
 int32 :: FieldNumber -> Parser (Maybe Int32)
 int32 fn = parsedField fn >>= mapM parseVarInt
 
@@ -170,3 +205,26 @@ float fn = parsedField fn >>= mapM parseFixed32Float
 
 double :: FieldNumber -> Parser (Maybe Double)
 double fn = parsedField fn >>= mapM parseFixed64Double
+
+text :: FieldNumber -> Parser (Maybe Text)
+text fn = parsedField fn >>= mapM parseText
+
+-- | Parses an embedded message. The ProtobufMerge constraint is to satisfy the
+-- specification, which states that if the field number of the embedded message
+-- is repeated (i.e., multiple embedded messages are provided), the messages
+-- are merged.
+--
+-- Specifically, the protobufs specification states
+-- that the latter singular fields should overwrite the former, singular
+-- embedded messages are merged, and repeated fields are concatenated.
+
+-- TODO: it's currently possible for someone to try to decode embedded fields
+-- incorrectly by just binding 'parser' without using 'embedded', causing an
+-- error at runtime. Can we do anything to prevent that with the types?
+embedded :: ProtobufMerge a => Parser a -> FieldNumber -> Parser (Maybe a)
+embedded parser fn = do
+  pfs <-parsedFields fn
+  parsedResults <- mapM (parseEmbedded parser) pfs
+  case parsedResults of
+    [] -> return Nothing
+    xs -> return $ Just $ foldl1 protobufMerge xs
