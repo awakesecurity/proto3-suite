@@ -81,7 +81,7 @@ getTuples :: Get (M.Map FieldNumber [ParsedField])
 getTuples = do
   keyvals <- many getKeyVal
   let grouped = groupBy (\kv1 kv2 -> (fst kv1) == (fst kv2)) keyvals
-  return $ M.fromList $ map (\(kv:kvs) -> (fst kv, map snd kvs)) grouped
+  return $ M.fromList $ map (\kvs@(kv:_) -> (fst kv, map snd kvs)) grouped
 
 parseTuples :: B.ByteString -> Either String (M.Map FieldNumber [ParsedField])
 parseTuples = runGet getTuples
