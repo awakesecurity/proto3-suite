@@ -168,7 +168,7 @@ parseTrivial :: TestTree
 parseTrivial = testCase
   "Parsing a trivial message produces the correct message" $
   let parser = do
-        i <- int32 $ FieldNumber 1
+        i <- field $ FieldNumber 1
         case i of
           Nothing -> error "Parsing library thought field number 1 was missing."
           Just x -> return $ Trivial x
@@ -178,15 +178,15 @@ parseMultipleFields :: TestTree
 parseMultipleFields = testCase
   "Parsing a message with multiple fields produces the correct message" $
   let parser = do
-        mfDouble <- one double (FieldNumber 1)
+        mfDouble <- field (FieldNumber 1)
                    `requireMsg` "Failed to parse double."
-        mfFloat <- one float (FieldNumber 2)
+        mfFloat <- field (FieldNumber 2)
                    `requireMsg` "Failed to parse float."
-        mfInt32 <- one int32 (FieldNumber 3)
+        mfInt32 <- field (FieldNumber 3)
                    `requireMsg` "Failed to parse int32."
-        mfInt64 <- one int64 (FieldNumber 4)
+        mfInt64 <- field (FieldNumber 4)
                    `requireMsg` "Failed to parse int64."
-        mfString <- one P.text (FieldNumber 5)
+        mfString <- field (FieldNumber 5)
                     `requireMsg` "Failed to parse string."
         return $ MultipleFields mfDouble mfFloat mfInt32 mfInt64 mfString
     in testParser "test-files/multiple_fields.bin" parser $
@@ -196,11 +196,11 @@ parseNestedMessage :: TestTree
 parseNestedMessage = testCase
   "Parsing a nested message produces the correct message" $
   let embeddedParser = do
-        x <- require $ one P.text $ FieldNumber 1
-        y <- require $ one int32 $ FieldNumber 2
+        x <- require $ field $ FieldNumber 1
+        y <- require $ field $ FieldNumber 2
         return $ Nested x y
       parser = do
-        x <- require $ one (embedded embeddedParser) (FieldNumber 1)
+        x <- require $ (embedded embeddedParser) (FieldNumber 1)
         return $ WithNesting x
       in testParser "test-files/with_nesting.bin" parser $
           WithNesting $ Nested "123abc" 123456
@@ -215,7 +215,7 @@ parseRepetition :: TestTree
 parseRepetition = testCase
   "Parsing a message with a repeated field produces the correct message" $
   let parser = do
-        xs <- repeatedUnpacked int32 $ FieldNumber 1
+        xs <- repeatedUnpacked $ FieldNumber 1
         return $ WithRepetition xs
       in testParser "test-files/with_repetition.bin" parser $
           WithRepetition [1..5]

@@ -172,7 +172,16 @@ newtype Fixed a = Fixed {getFixed :: a} deriving (Show, Eq, Ord)
 class ProtobufParsable a where
   fromField :: ParsedField -> Parser a
 
-instance (Integral a) => ProtobufParsable a where
+instance ProtobufParsable Int32 where
+  fromField = parseVarInt
+
+instance ProtobufParsable Word32 where
+  fromField = parseVarInt
+
+instance ProtobufParsable Int64 where
+  fromField = parseVarInt
+
+instance ProtobufParsable Word64 where
   fromField = parseVarInt
 
 instance ProtobufParsable (Fixed Word32) where
@@ -219,6 +228,5 @@ embedded parser fn = do
     [] -> return Nothing
     xs -> return $ Just $ foldl1 protobufMerge xs
 
-repeatedUnpacked :: (FieldNumber -> Parser (Maybe a))
-                    -> FieldNumber -> Parser [a]
-repeatedUnpacked single fn = whileJust (single fn) return
+repeatedUnpacked :: ProtobufParsable a => FieldNumber -> Parser [a]
+repeatedUnpacked fn = parsedFields fn >>= mapM fromField
