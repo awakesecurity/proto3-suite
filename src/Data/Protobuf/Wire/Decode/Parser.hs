@@ -1,7 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
---TODO: are these really needed for `instance Integral a => Parsable a`?
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 module Data.Protobuf.Wire.Decode.Parser (
 Parser,
@@ -13,10 +10,12 @@ require,
 requireMsg,
 one,
 repeatedUnpacked,
+repeatedPacked,
 parseEmbedded,
 
 -- * Basic types
 ProtobufParsable(..),
+ProtobufPackable,
 Fixed(..),
 field,
 embedded
@@ -24,13 +23,11 @@ embedded
 
 import           Control.Applicative
 import           Control.Monad.Except
-import           Control.Monad.Loops (whileJust)
 import           Control.Monad.Reader
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import           Data.Functor.Identity(runIdentity)
 import qualified Data.Map.Strict as M
-import           Data.Maybe (catMaybes, isNothing)
 import           Data.Protobuf.Wire.Decode.Internal
 import           Data.Protobuf.Wire.Shared
 import           Data.Serialize.Get(runGet, getWord32le, getWord64le)
@@ -119,12 +116,26 @@ parsePackedVarInt (LengthDelimitedField bs) =
     Right xs -> return $ map fromIntegral xs
 parsePackedVarInt wrong = throwWireTypeError "packed varints" wrong
 
+parsePackedFixed32 :: Integral a => ParsedField -> Parser [a]
+parsePackedFixed32 (LengthDelimitedField bs) =
+  case runGet (many getWord32le) bs of
+    Left e -> throwCerealError "fixed32 packed" e
+    Right xs -> return $ map fromIntegral xs
+parsePackedFixed32 wrong = throwWireTypeError "fixed32 packed" wrong
+
 parseFixed32 :: Integral a => ParsedField -> Parser a
 parseFixed32 (Fixed32Field bs) =
   case runGet getWord32le bs of
     Left e -> throwCerealError "fixed32" e
     Right i -> return $ fromIntegral i
 parseFixed32 wrong = throwWireTypeError "fixed32" wrong
+
+parsePackedFixed32Float :: ParsedField -> Parser [Float]
+parsePackedFixed32Float (LengthDelimitedField bs) =
+  case runGet (many getFloat32le) bs of
+    Left e -> throwCerealError "fixed32 packed" e
+    Right xs -> return xs
+parsePackedFixed32Float wrong = throwWireTypeError "fixed32 packed" wrong
 
 parseFixed32Float :: ParsedField -> Parser Float
 parseFixed32Float (Fixed32Field bs) =
@@ -133,12 +144,26 @@ parseFixed32Float (Fixed32Field bs) =
     Right f -> return f
 parseFixed32Float wrong = throwWireTypeError "fixed32" wrong
 
+parsePackedFixed64 :: Integral a => ParsedField -> Parser [a]
+parsePackedFixed64 (LengthDelimitedField bs) =
+  case runGet (many getWord64le) bs of
+    Left e -> throwCerealError "fixed64 packed" e
+    Right xs -> return $ map fromIntegral xs
+parsePackedFixed64 wrong = throwWireTypeError "fixed 64 packed" wrong
+
 parseFixed64 :: Integral a => ParsedField -> Parser a
 parseFixed64 (Fixed64Field bs) =
   case runGet getWord64le bs of
     Left e -> throwCerealError "fixed64" e
     Right i -> return $ fromIntegral i
 parseFixed64 wrong = throwWireTypeError "fixed64" wrong
+
+parsePackedFixed64Double :: ParsedField -> Parser [Double]
+parsePackedFixed64Double (LengthDelimitedField bs) =
+  case runGet (many getFloat64le) bs of
+    Left e -> throwCerealError "fixed64 doubles packed" e
+    Right xs -> return xs
+parsePackedFixed64Double wrong = throwWireTypeError "doubles packed" wrong
 
 parseFixed64Double :: ParsedField -> Parser Double
 parseFixed64Double (Fixed64Field bs) =
@@ -172,6 +197,29 @@ one :: (ParsedField -> Parser a) -> FieldNumber -> Parser (Maybe a)
 one rawParser fn = parsedField fn >>= mapM rawParser
 
 newtype Fixed a = Fixed {getFixed :: a} deriving (Show, Eq, Ord)
+
+-- The instances below are to make it easier to define ProtobufParsable
+-- and ProtobufPackable instances for Fixed numeric types.
+
+instance Num a => Num (Fixed a) where
+  x + y = Fixed $ (getFixed x) + (getFixed y)
+  x * y = Fixed $ (getFixed x) + (getFixed y)
+  abs = Fixed . abs . getFixed
+  signum = Fixed . signum . getFixed
+  fromInteger = Fixed . fromInteger
+  negate = Fixed . negate . getFixed
+
+instance Real a => Real (Fixed a) where
+  toRational = toRational . getFixed
+
+instance Enum a => Enum (Fixed a) where
+  toEnum = Fixed . toEnum
+  fromEnum = fromEnum . getFixed
+
+instance Integral a => Integral (Fixed a) where
+  quotRem x y = (\(p,q) -> (Fixed p, Fixed q)) $
+                (getFixed x) `quotRem` (getFixed y)
+  toInteger = toInteger . getFixed
 
 class ProtobufParsable a where
   fromField :: ParsedField -> Parser a
@@ -212,6 +260,41 @@ instance ProtobufParsable Text where
 field :: ProtobufParsable a => FieldNumber -> Parser (Maybe a)
 field = one fromField
 
+-- | Type class for fields that can be repeated in the more efficient packed
+-- format. This is limited to primitive numeric types.
+class ProtobufPackable a where
+  parsePacked :: ParsedField -> Parser [a]
+
+instance ProtobufPackable Word32 where
+  parsePacked = parsePackedVarInt
+
+instance ProtobufPackable Word64 where
+  parsePacked = parsePackedVarInt
+
+instance ProtobufPackable Int32 where
+  parsePacked = parsePackedVarInt
+
+instance ProtobufPackable Int64 where
+  parsePacked = parsePackedVarInt
+
+instance ProtobufPackable (Fixed Word32) where
+  parsePacked = parsePackedFixed32
+
+instance ProtobufPackable (Fixed Int32) where
+  parsePacked = parsePackedFixed32
+
+instance ProtobufPackable (Fixed Word64) where
+  parsePacked = parsePackedFixed64
+
+instance ProtobufPackable (Fixed Int64) where
+  parsePacked = parsePackedFixed64
+
+instance ProtobufPackable Float where
+  parsePacked = parsePackedFixed32Float
+
+instance ProtobufPackable Double where
+  parsePacked = parsePackedFixed64Double
+
 -- | Parses an embedded message. The ProtobufMerge constraint is to satisfy the
 -- specification, which states that if the field number of the embedded message
 -- is repeated (i.e., multiple embedded messages are provided), the messages
@@ -234,3 +317,6 @@ embedded parser fn = do
 
 repeatedUnpacked :: ProtobufParsable a => FieldNumber -> Parser [a]
 repeatedUnpacked fn = parsedFields fn >>= mapM fromField
+
+repeatedPacked :: ProtobufPackable a => FieldNumber -> Parser [a]
+repeatedPacked fn = parsedFields fn >>= mapM parsePacked >>= (return . concat)

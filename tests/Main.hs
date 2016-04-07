@@ -211,7 +211,7 @@ parseRepetition :: TestTree
 parseRepetition = testCase
   "Parsing a message with a repeated field produces the correct message" $
   let parser = do
-        xs <- repeatedUnpacked $ FieldNumber 1
+        xs <- repeatedPacked $ FieldNumber 1
         return $ WithRepetition xs
       in testParser "test-files/with_repetition.bin" parser $
           WithRepetition [1..5]
