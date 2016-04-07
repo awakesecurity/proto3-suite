@@ -159,6 +159,10 @@ parseText (LengthDelimitedField bs) =
     Right txt -> return txt
 parseText wrong = throwWireTypeError "string" wrong
 
+parseBytes :: ParsedField -> Parser B.ByteString
+parseBytes (LengthDelimitedField bs) = return bs
+parseBytes wrong = throwWireTypeError "bytes" wrong
+
 -- | Create a parser for embedded fields from a message parser. This can
 -- be used to easily create an instance of 'ProtobufParsable' for a user-defined
 -- type.
@@ -251,6 +255,10 @@ instance ProtobufParsable Double where
 
 instance ProtobufParsable Text where
   fromField = parseText
+  protoDefault = mempty
+
+instance ProtobufParsable B.ByteString where
+  fromField = parseBytes
   protoDefault = mempty
 
 field :: ProtobufParsable a => FieldNumber -> Parser a
