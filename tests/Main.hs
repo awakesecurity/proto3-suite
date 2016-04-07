@@ -167,7 +167,7 @@ testParser fp parser reference = do
 parseTrivial :: TestTree
 parseTrivial = testCase
   "Parsing a trivial message matches the official implementation" $
-  let parser = Trivial <$> requireMsg (field (FieldNumber 1)) "int missing"
+  let parser = Trivial <$> field (FieldNumber 1)
       in testParser "test-files/trivial.bin" parser $ Trivial 123
 
 parseMultipleFields :: TestTree
@@ -175,18 +175,18 @@ parseMultipleFields = testCase
   "Parsing a message with multiple fields matches the official implementation" $
   let parser =
         MultipleFields
-        <$> requireMsg (field (FieldNumber 1)) "Failed to parse double."
-        <*> requireMsg (field (FieldNumber 2)) "Failed to parse float."
-        <*> requireMsg (field (FieldNumber 3)) "Failed to parse int32."
-        <*> requireMsg (field (FieldNumber 4)) "Failed to parse int64."
-        <*> requireMsg (field (FieldNumber 5)) "Failed to parse string."
+        <$> field (FieldNumber 1)
+        <*> field (FieldNumber 2)
+        <*> field (FieldNumber 3)
+        <*> field (FieldNumber 4)
+        <*> field (FieldNumber 5)
     in testParser "test-files/multiple_fields.bin" parser $
         MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!"
 
 parseNestedMessage :: TestTree
 parseNestedMessage = testCase
   "Parsing a nested message matches the official implementation" $
-  let parser = WithNesting <$> require (field (FieldNumber 1))
+  let parser = WithNesting <$> field (FieldNumber 1)
       in testParser "test-files/with_nesting.bin" parser $
           WithNesting $ Nested "123abc" 123456
 

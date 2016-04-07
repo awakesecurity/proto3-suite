@@ -6,9 +6,6 @@ Parser,
 parse,
 
 -- * Combinators
-require,
-requireMsg,
-one,
 repeatedUnpacked,
 repeatedPacked,
 parseEmbedded,
@@ -77,24 +74,6 @@ parsedFields fn = do
   case pfs of
     Just xs -> return xs
     Nothing -> return []
-
--- |
--- Requires a field to be present.
-require :: Parser (Maybe a) -> Parser a
-require p = do
-  result <- p
-  case result of
-    Nothing -> throwError "Required field missing."
-    Just x -> return x
-
--- |
--- Requires a field to be present, with custom error message.
-requireMsg :: Parser (Maybe a) -> String -> Parser a
-requireMsg p str = do
-  result <- p
-  case result of
-    Nothing -> throwError str
-    Just x -> return x
 
 throwWireTypeError :: Show a => String -> a -> Parser b
 throwWireTypeError expected wrong =
@@ -224,44 +203,60 @@ instance Integral a => Integral (Fixed a) where
 
 class ProtobufParsable a where
   fromField :: ParsedField -> Parser a
+  protoDefault :: a
+
+instance ProtobufParsable Bool where
+  fromField = liftM toEnum . parseVarInt
+  protoDefault = False
 
 instance ProtobufParsable Int32 where
   fromField = parseVarInt
+  protoDefault = 0
 
 instance ProtobufParsable Word32 where
   fromField = parseVarInt
+  protoDefault = 0
 
 instance ProtobufParsable Int64 where
   fromField = parseVarInt
+  protoDefault = 0
 
 instance ProtobufParsable Word64 where
   fromField = parseVarInt
+  protoDefault = 0
 
 instance ProtobufParsable (Fixed Word32) where
   fromField = parseFixed32
+  protoDefault = 0
 
 instance ProtobufParsable (Fixed Int32) where
   fromField = parseFixed32
+  protoDefault = 0
 
 instance ProtobufParsable (Fixed Word64) where
   fromField = parseFixed64
+  protoDefault = 0
 
 instance ProtobufParsable (Fixed Int64) where
   fromField = parseFixed64
+  protoDefault = 0
 
 instance ProtobufParsable Float where
   fromField = parseFixed32Float
+  protoDefault = 0
 
 instance ProtobufParsable Double where
   fromField = parseFixed64Double
+  protoDefault = 0
 
 instance ProtobufParsable Text where
   fromField = parseText
+  protoDefault = mempty
 
-field :: ProtobufParsable a => FieldNumber -> Parser (Maybe a)
-field = one fromField
+field :: ProtobufParsable a => FieldNumber -> Parser a
+field fn = one fromField fn >>= (return . fromMaybe protoDefault)
 
---TODO: should we do this or do 'instance Enum a => ProtobufParsable a'?
+--TODO: 'enumField' function, or 'instance Enum a => ProtobufParsable a'?
 
 -- | Parses an enumerated field. Because it seems that Google's implementation
 -- always serializes the 0th case as a missing field (for compactness), we

@@ -38,8 +38,8 @@ instance HasEncoding Nested
 
 instance ProtobufParsable Nested where
   fromField = parseEmbedded $ do
-    x <- require $ field $ FieldNumber 1
-    y <- require $ field $ FieldNumber 2
+    x <- field $ FieldNumber 1
+    y <- field $ FieldNumber 2
     return $ Nested x y
 
 instance ProtobufMerge Nested where
