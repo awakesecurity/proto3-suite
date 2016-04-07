@@ -1,4 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
+--TODO: are these really needed for `instance Integral a => Parsable a`?
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Data.Protobuf.Wire.Decode.Parser (
 Parser,
@@ -12,24 +15,16 @@ one,
 repeatedUnpacked,
 
 -- * Basic types
-int32,
-int64,
-uint32,
-uint64,
-fixed32,
-fixed64,
-sfixed32,
-sfixed64,
-float,
-double,
-text,
+ProtobufParsable(..),
+Fixed(..),
+field,
 embedded
 ) where
 
 import           Control.Applicative
 import           Control.Monad.Except
 import           Control.Monad.Loops (whileJust)
-import           Control.Monad.State.Strict
+import           Control.Monad.Reader
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import           Data.Functor.Identity(runIdentity)
@@ -44,27 +39,30 @@ import           Data.Text.Lazy.Encoding (decodeUtf8')
 import           Data.Int (Int32, Int64)
 import           Data.Word (Word32, Word64)
 
-type Parser a = StateT (M.Map FieldNumber [ParsedField]) (Except String) a
+type Parser a = ReaderT (M.Map FieldNumber [ParsedField]) (Except String) a
 
 parse :: Parser a -> B.ByteString -> Either String a
 parse parser bs = do
   tuples <- parseTuples bs
-  result <- runIdentity $ runExceptT $ runStateT parser tuples
-  return $ fst result
+  result <- runIdentity $ runExceptT $ runReaderT parser tuples
+  return result
 
 -- |
 -- = Decoding 'ParsedField'
 -- It is assumed that decisions about how to handle missing data will be handled
 -- at a higher level, so our results are in 'Maybe', rather than erroring out.
+-- To comply with the protobuf spec, if there are multiple fields with the same
+-- field number, this will always return the last one. While this is worst case
+-- O(n), in practice the worst case will only happen when a field in the .proto
+-- file has been changed from singular to repeated, but the deserializer hasn't
+-- been made aware of the change.
 
 parsedField :: FieldNumber -> Parser (Maybe ParsedField)
 parsedField fn = do
-  currMap <- get
+  currMap <- ask
   let pfs = M.lookup fn currMap
   case pfs of
-    Just (x:xs) -> do let newMap = M.insert fn xs currMap
-                      put newMap
-                      return $ Just x
+    Just xs@(_:_) -> return $ Just $ last xs
     _ -> return Nothing
 
 -- |
@@ -75,27 +73,11 @@ parsedField fn = do
 -- then they must all be merged.
 parsedFields :: FieldNumber -> Parser [ParsedField]
 parsedFields fn = do
-  currMap <- get
+  currMap <- ask
   let pfs = M.lookup fn currMap
   case pfs of
-    Just xs -> do let newMap = M.insert fn [] currMap
-                  put newMap
-                  return xs
+    Just xs -> return xs
     Nothing -> return []
-
--- |
--- The protobuf standard specifies that if a recipient is expecting only one
--- value in a single field (i.e., not a list of values), but it receives more
--- than one, then the last value should be kept. This function implements that
--- functionality. Discards all but the last value for the given 'FieldNumber'.
-dropInits :: FieldNumber -> Parser ()
-dropInits fn = do
-  currMap <- get
-  case M.lookup fn currMap of
-    Nothing -> return ()
-    Just pfs -> do let pfs' = drop (length pfs - 1) pfs
-                   let newMap = M.insert fn pfs' currMap
-                   put newMap
 
 -- |
 -- Requires a field to be present.
@@ -114,13 +96,6 @@ requireMsg p str = do
   case result of
     Nothing -> throwError str
     Just x -> return x
-
--- |
--- Specify that one value is expected from this field. Used to ensure that we
--- return the last value with the given field number in the message, in
--- compliance with the protobuf standard.
-one :: (FieldNumber -> Parser a) -> (FieldNumber -> Parser a)
-one parser fn = dropInits fn >> parser fn
 
 throwWireTypeError :: Show a => String -> a -> Parser b
 throwWireTypeError expected wrong =
@@ -185,38 +160,44 @@ parseEmbedded parser (LengthDelimitedField bs) =
     Right result -> return result
 parseEmbedded _ wrong = throwWireTypeError "embedded" wrong
 
-int32 :: FieldNumber -> Parser (Maybe Int32)
-int32 fn = parsedField fn >>= mapM parseVarInt
+-- |
+-- Specify that one value is expected from this field. Used to ensure that we
+-- return the last value with the given field number in the message, in
+-- compliance with the protobuf standard.
+one :: (ParsedField -> Parser a) -> FieldNumber -> Parser (Maybe a)
+one rawParser fn = parsedField fn >>= mapM rawParser
 
-int64 :: FieldNumber -> Parser (Maybe Int64)
-int64 fn = parsedField fn >>= mapM parseVarInt
+newtype Fixed a = Fixed {getFixed :: a} deriving (Show, Eq, Ord)
 
-uint32 :: FieldNumber -> Parser (Maybe Word32)
-uint32 fn = parsedField fn >>= mapM parseVarInt
+class ProtobufParsable a where
+  fromField :: ParsedField -> Parser a
 
-uint64:: FieldNumber -> Parser (Maybe Word64)
-uint64 fn = parsedField fn >>= mapM parseVarInt
+instance (Integral a) => ProtobufParsable a where
+  fromField = parseVarInt
 
-fixed32 :: FieldNumber -> Parser (Maybe Word32)
-fixed32 fn = parsedField fn >>= mapM parseFixed32
+instance ProtobufParsable (Fixed Word32) where
+  fromField = liftM (liftM Fixed) parseFixed32
 
-sfixed32 :: FieldNumber -> Parser (Maybe Int32)
-sfixed32 fn = parsedField fn >>= mapM parseFixed32
+instance ProtobufParsable (Fixed Int32) where
+  fromField = liftM (liftM Fixed) parseFixed32
 
-fixed64 :: FieldNumber -> Parser (Maybe Word64)
-fixed64 fn = parsedField fn >>= mapM parseFixed64
+instance ProtobufParsable (Fixed Word64) where
+  fromField = liftM (liftM Fixed) parseFixed64
 
-sfixed64 :: FieldNumber -> Parser (Maybe Int64)
-sfixed64 fn = parsedField fn >>= mapM parseFixed64
+instance ProtobufParsable (Fixed Int64) where
+  fromField = liftM (liftM Fixed) parseFixed64
 
-float :: FieldNumber -> Parser (Maybe Float)
-float fn = parsedField fn >>= mapM parseFixed32Float
+instance ProtobufParsable Float where
+  fromField = parseFixed32Float
 
-double :: FieldNumber -> Parser (Maybe Double)
-double fn = parsedField fn >>= mapM parseFixed64Double
+instance ProtobufParsable Double where
+  fromField = parseFixed64Double
 
-text :: FieldNumber -> Parser (Maybe Text)
-text fn = parsedField fn >>= mapM parseText
+instance ProtobufParsable Text where
+  fromField = parseText
+
+field :: ProtobufParsable a => FieldNumber -> Parser (Maybe a)
+field = one fromField
 
 -- | Parses an embedded message. The ProtobufMerge constraint is to satisfy the
 -- specification, which states that if the field number of the embedded message
