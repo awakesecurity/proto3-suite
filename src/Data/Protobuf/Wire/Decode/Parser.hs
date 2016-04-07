@@ -13,6 +13,7 @@ require,
 requireMsg,
 one,
 repeatedUnpacked,
+parseEmbedded,
 
 -- * Basic types
 ProtobufParsable(..),
@@ -153,6 +154,9 @@ parseText (LengthDelimitedField bs) =
     Right txt -> return txt
 parseText wrong = throwWireTypeError "string" wrong
 
+-- | Create a parser for embedded fields from a message parser. This can
+-- be used to easily create an instance of 'ProtobufParsable' for a user-defined
+-- type.
 parseEmbedded :: Parser a -> ParsedField -> Parser a
 parseEmbedded parser (LengthDelimitedField bs) =
   case parse parser bs of

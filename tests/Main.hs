@@ -195,12 +195,8 @@ parseMultipleFields = testCase
 parseNestedMessage :: TestTree
 parseNestedMessage = testCase
   "Parsing a nested message produces the correct message" $
-  let embeddedParser = do
-        x <- require $ field $ FieldNumber 1
-        y <- require $ field $ FieldNumber 2
-        return $ Nested x y
-      parser = do
-        x <- require $ (embedded embeddedParser) (FieldNumber 1)
+  let parser = do
+        x <- require $ field (FieldNumber 1)
         return $ WithNesting x
       in testParser "test-files/with_nesting.bin" parser $
           WithNesting $ Nested "123abc" 123456
