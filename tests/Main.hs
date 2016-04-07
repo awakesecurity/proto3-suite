@@ -152,8 +152,8 @@ parserUnitTests = testGroup "Parsing unit tests"
                   [parseTrivial
                    ,parseMultipleFields
                    ,parseNestedMessage
-{-}                   ,parseEnumFirstAlternative
-                   ,parseEnumSecondAlternative -}
+                   ,parseEnumFirstAlternative
+                   ,parseEnumSecondAlternative
                    ,parseRepetition
                    ]
 
@@ -191,10 +191,18 @@ parseNestedMessage = testCase
           WithNesting $ Nested "123abc" 123456
 
 parseEnumFirstAlternative :: TestTree
-parseEnumFirstAlternative = undefined
+parseEnumFirstAlternative = testCase
+  "Parsing an enum (first case) message matches the official implementation" $
+  let parser = WithEnum <$> P.enumField (FieldNumber 1)
+      in testParser "test-files/with_enum0.bin" parser $
+          WithEnum ENUM1
 
 parseEnumSecondAlternative :: TestTree
-parseEnumSecondAlternative = undefined
+parseEnumSecondAlternative = testCase
+  "Parsing an enum (2nd case) message matches the official implementation" $
+  let parser = WithEnum <$> P.enumField (FieldNumber 1)
+      in testParser "test-files/with_enum1.bin" parser $
+          WithEnum ENUM2
 
 parseRepetition :: TestTree
 parseRepetition = testCase

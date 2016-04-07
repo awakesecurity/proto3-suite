@@ -18,7 +18,7 @@ ProtobufParsable(..),
 ProtobufPackable,
 Fixed(..),
 field,
-embedded
+enumField
 ) where
 
 import           Control.Applicative
@@ -28,6 +28,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import           Data.Functor.Identity(runIdentity)
 import qualified Data.Map.Strict as M
+import           Data.Maybe (fromMaybe)
 import           Data.Protobuf.Wire.Decode.Internal
 import           Data.Protobuf.Wire.Shared
 import           Data.Serialize.Get(runGet, getWord32le, getWord64le)
@@ -237,16 +238,16 @@ instance ProtobufParsable Word64 where
   fromField = parseVarInt
 
 instance ProtobufParsable (Fixed Word32) where
-  fromField = liftM (liftM Fixed) parseFixed32
+  fromField = parseFixed32
 
 instance ProtobufParsable (Fixed Int32) where
-  fromField = liftM (liftM Fixed) parseFixed32
+  fromField = parseFixed32
 
 instance ProtobufParsable (Fixed Word64) where
-  fromField = liftM (liftM Fixed) parseFixed64
+  fromField = parseFixed64
 
 instance ProtobufParsable (Fixed Int64) where
-  fromField = liftM (liftM Fixed) parseFixed64
+  fromField = parseFixed64
 
 instance ProtobufParsable Float where
   fromField = parseFixed32Float
@@ -259,6 +260,17 @@ instance ProtobufParsable Text where
 
 field :: ProtobufParsable a => FieldNumber -> Parser (Maybe a)
 field = one fromField
+
+--TODO: should we do this or do 'instance Enum a => ProtobufParsable a'?
+
+-- | Parses an enumerated field. Because it seems that Google's implementation
+-- always serializes the 0th case as a missing field (for compactness), we
+-- handle that within this function. Thus, this function returns 'a' instead of
+-- 'Maybe a' like the other functions.
+enumField :: Enum a => FieldNumber -> Parser a
+enumField fn = do
+  varint <- one parseVarInt fn
+  return $ fromMaybe (toEnum 0) (toEnum <$> varint)
 
 -- | Type class for fields that can be repeated in the more efficient packed
 -- format. This is limited to primitive numeric types.
@@ -294,26 +306,6 @@ instance ProtobufPackable Float where
 
 instance ProtobufPackable Double where
   parsePacked = parsePackedFixed64Double
-
--- | Parses an embedded message. The ProtobufMerge constraint is to satisfy the
--- specification, which states that if the field number of the embedded message
--- is repeated (i.e., multiple embedded messages are provided), the messages
--- are merged.
---
--- Specifically, the protobufs specification states
--- that the latter singular fields should overwrite the former, singular
--- embedded messages are merged, and repeated fields are concatenated.
-
--- TODO: it's currently possible for someone to try to decode embedded fields
--- incorrectly by just binding 'parser' without using 'embedded', causing an
--- error at runtime. Can we do anything to prevent that with the types?
-embedded :: ProtobufMerge a => Parser a -> FieldNumber -> Parser (Maybe a)
-embedded parser fn = do
-  pfs <-parsedFields fn
-  parsedResults <- mapM (parseEmbedded parser) pfs
-  case parsedResults of
-    [] -> return Nothing
-    xs -> return $ Just $ foldl1 protobufMerge xs
 
 repeatedUnpacked :: ProtobufParsable a => FieldNumber -> Parser [a]
 repeatedUnpacked fn = parsedFields fn >>= mapM fromField
