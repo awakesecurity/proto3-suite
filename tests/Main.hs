@@ -167,37 +167,26 @@ testParser fp parser reference = do
 parseTrivial :: TestTree
 parseTrivial = testCase
   "Parsing a trivial message matches the official implementation" $
-  let parser = do
-        i <- field $ FieldNumber 1
-        case i of
-          Nothing -> error "Parsing library thought field number 1 was missing."
-          Just x -> return $ Trivial x
+  let parser = Trivial <$> requireMsg (field (FieldNumber 1)) "int missing"
       in testParser "test-files/trivial.bin" parser $ Trivial 123
 
 parseMultipleFields :: TestTree
 parseMultipleFields = testCase
   "Parsing a message with multiple fields matches the official implementation" $
-  let parser = do
-        mfDouble <- field (FieldNumber 1)
-                   `requireMsg` "Failed to parse double."
-        mfFloat <- field (FieldNumber 2)
-                   `requireMsg` "Failed to parse float."
-        mfInt32 <- field (FieldNumber 3)
-                   `requireMsg` "Failed to parse int32."
-        mfInt64 <- field (FieldNumber 4)
-                   `requireMsg` "Failed to parse int64."
-        mfString <- field (FieldNumber 5)
-                    `requireMsg` "Failed to parse string."
-        return $ MultipleFields mfDouble mfFloat mfInt32 mfInt64 mfString
+  let parser =
+        MultipleFields
+        <$> requireMsg (field (FieldNumber 1)) "Failed to parse double."
+        <*> requireMsg (field (FieldNumber 2)) "Failed to parse float."
+        <*> requireMsg (field (FieldNumber 3)) "Failed to parse int32."
+        <*> requireMsg (field (FieldNumber 4)) "Failed to parse int64."
+        <*> requireMsg (field (FieldNumber 5)) "Failed to parse string."
     in testParser "test-files/multiple_fields.bin" parser $
         MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!"
 
 parseNestedMessage :: TestTree
 parseNestedMessage = testCase
   "Parsing a nested message matches the official implementation" $
-  let parser = do
-        x <- require $ field (FieldNumber 1)
-        return $ WithNesting x
+  let parser = WithNesting <$> require (field (FieldNumber 1))
       in testParser "test-files/with_nesting.bin" parser $
           WithNesting $ Nested "123abc" 123456
 
@@ -211,8 +200,6 @@ parseRepetition :: TestTree
 parseRepetition = testCase
   "Parsing a message with a repeated field matches the official implementation"
   $
-  let parser = do
-        xs <- repeatedPacked $ FieldNumber 1
-        return $ WithRepetition xs
+  let parser = WithRepetition <$> repeatedPacked (FieldNumber 1)
       in testParser "test-files/with_repetition.bin" parser $
           WithRepetition [1..5]
