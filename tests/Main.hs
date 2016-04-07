@@ -166,7 +166,7 @@ testParser fp parser reference = do
 
 parseTrivial :: TestTree
 parseTrivial = testCase
-  "Parsing a trivial message produces the correct message" $
+  "Parsing a trivial message matches the official implementation" $
   let parser = do
         i <- field $ FieldNumber 1
         case i of
@@ -176,7 +176,7 @@ parseTrivial = testCase
 
 parseMultipleFields :: TestTree
 parseMultipleFields = testCase
-  "Parsing a message with multiple fields produces the correct message" $
+  "Parsing a message with multiple fields matches the official implementation" $
   let parser = do
         mfDouble <- field (FieldNumber 1)
                    `requireMsg` "Failed to parse double."
@@ -194,7 +194,7 @@ parseMultipleFields = testCase
 
 parseNestedMessage :: TestTree
 parseNestedMessage = testCase
-  "Parsing a nested message produces the correct message" $
+  "Parsing a nested message matches the official implementation" $
   let parser = do
         x <- require $ field (FieldNumber 1)
         return $ WithNesting x
@@ -209,7 +209,8 @@ parseEnumSecondAlternative = undefined
 
 parseRepetition :: TestTree
 parseRepetition = testCase
-  "Parsing a message with a repeated field produces the correct message" $
+  "Parsing a message with a repeated field matches the official implementation"
+  $
   let parser = do
         xs <- repeatedPacked $ FieldNumber 1
         return $ WithRepetition xs
