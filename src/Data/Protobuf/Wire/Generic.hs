@@ -125,9 +125,6 @@ instance HasEncoding Word64 where
   type FieldCount Word64 = 1
   encode = uint64
 
--- | 'Signed' provides a way to encode integers in the signed wire formats.
-newtype Signed a = Signed { signed :: a } deriving (Show, Eq, Ord, Generic)
-
 instance HasEncoding (Signed Int32) where
   type GetMemberType (Signed Int32) = Primitive
   type FieldCount (Signed Int32) = 1

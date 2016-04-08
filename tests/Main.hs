@@ -11,12 +11,12 @@ import qualified Data.ByteString.Char8 as BC
 import           Test.Tasty
 import           Test.Tasty.HUnit as HU
 import           Test.Tasty.QuickCheck as QC
-import           Test.QuickCheck
+import           Test.QuickCheck (Arbitrary, arbitrary, oneof)
 import qualified Data.Protobuf.Wire.Encode.Internal as Enc
 import qualified Data.Protobuf.Wire.Decode.Internal as Dec
 import           Data.Protobuf.Wire.Decode.Parser as P
-import           Data.Protobuf.Wire.Shared
-import           Data.Protobuf.Wire.Generic
+import           Data.Protobuf.Wire.Shared as P
+import           Data.Protobuf.Wire.Generic as P
 import           Data.Int
 import           Data.Word (Word64)
 import qualified Data.Text.Lazy as TL
@@ -74,9 +74,8 @@ qcProperties = testGroup "QuickCheck properties"
   QC.testProperty "decode inverts encode for repeated field messages" $
   qcInverses withRepetitionParser,
 
-  {- TODO: fixed field decoding types don't match encoding yet.
   QC.testProperty "decode inverts encode for messages with fixed fields" $
-  qcInverses withFixedParser, -}
+  qcInverses withFixedParser,
 
   QC.testProperty "decode inverts encode for messages with bytes fields" $
   qcInverses withBytesParser
@@ -244,7 +243,8 @@ parseFixed :: TestTree
 parseFixed = testCase
   "Parsing a message with fixed types matches the official implementation" $
   testParser "test-files/with_fixed.bin" withFixedParser $
-             WithFixed 16 (-123) 4096 (-4096)
+             WithFixed (P.Fixed 16) (Signed $ P.Fixed (-123))
+                       (P.Fixed 4096) (Signed $ P.Fixed (-4096))
 
 parseBytes :: TestTree
 parseBytes = testCase

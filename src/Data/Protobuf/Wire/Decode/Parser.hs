@@ -207,20 +207,20 @@ instance ProtobufParsable Word64 where
   protoDefault = 0
 
 instance ProtobufParsable (Fixed Word32) where
-  fromField = parseFixed32
-  protoDefault = 0
+  fromField = fmap (Fixed . fromIntegral) . parseFixed32
+  protoDefault = Fixed 0
 
-instance ProtobufParsable (Fixed Int32) where
-  fromField = parseFixed32
-  protoDefault = 0
+instance ProtobufParsable (Signed (Fixed Int32)) where
+  fromField = fmap (Signed . Fixed . fromIntegral) . parseFixed32
+  protoDefault = Signed $ Fixed 0
 
 instance ProtobufParsable (Fixed Word64) where
-  fromField = parseFixed64
-  protoDefault = 0
+  fromField = fmap (Fixed . fromIntegral) . parseFixed64
+  protoDefault = Fixed 0
 
-instance ProtobufParsable (Fixed Int64) where
-  fromField = parseFixed64
-  protoDefault = 0
+instance ProtobufParsable (Signed (Fixed Int64)) where
+  fromField = fmap (Signed . Fixed . fromIntegral) . parseFixed64
+  protoDefault = Signed $ Fixed 0
 
 instance ProtobufParsable Float where
   fromField = parseFixed32Float
@@ -271,16 +271,16 @@ instance ProtobufPackable Int64 where
   parsePacked = parsePackedVarInt
 
 instance ProtobufPackable (Fixed Word32) where
-  parsePacked = parsePackedFixed32
+  parsePacked = fmap (fmap (Fixed . fromIntegral)) . parsePackedFixed32
 
-instance ProtobufPackable (Fixed Int32) where
-  parsePacked = parsePackedFixed32
+instance ProtobufPackable (Signed (Fixed Int32)) where
+  parsePacked = fmap (fmap (Signed . Fixed . fromIntegral)) . parsePackedFixed32
 
 instance ProtobufPackable (Fixed Word64) where
-  parsePacked = parsePackedFixed64
+  parsePacked = fmap (fmap (Fixed . fromIntegral)) . parsePackedFixed64
 
-instance ProtobufPackable (Fixed Int64) where
-  parsePacked = parsePackedFixed64
+instance ProtobufPackable (Signed (Fixed Int64)) where
+  parsePacked = fmap (fmap (Signed . Fixed . fromIntegral)) . parsePackedFixed64
 
 instance ProtobufPackable Float where
   parsePacked = parsePackedFixed32Float

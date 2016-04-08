@@ -106,13 +106,17 @@ withRepetitionParser :: Parser WithRepetition
 withRepetitionParser = WithRepetition <$> repeatedPacked (FieldNumber 1)
 
 data WithFixed = WithFixed {fixed1 :: (Fixed Word32),
-                            fixed2 :: (Fixed Int32),
+                            fixed2 :: (Signed (Fixed Int32)),
                             fixed3 :: (Fixed Word64),
-                            fixed4 :: (Fixed Int64)}
+                            fixed4 :: (Signed (Fixed Int64))}
                             deriving (Show, Generic, Eq)
+instance HasEncoding WithFixed
 
 instance Arbitrary a => Arbitrary (Fixed a) where
   arbitrary = Fixed <$> arbitrary
+
+instance Arbitrary a => Arbitrary (Signed a) where
+  arbitrary = Signed <$> arbitrary
 
 instance Arbitrary WithFixed where
   arbitrary = WithFixed <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
