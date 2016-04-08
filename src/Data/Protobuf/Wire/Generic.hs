@@ -138,9 +138,6 @@ instance HasEncoding (Signed Int64) where
   type FieldCount (Signed Int64) = 1
   encode num = sint64 num . signed
 
--- | 'Fixed' provides a way to encode integers in the fixed-width wire formats.
-newtype Fixed a = Fixed { fixed :: a } deriving (Show, Eq, Ord, Generic)
-
 instance HasEncoding (Fixed Word32) where
   type GetMemberType (Fixed Word32) = Primitive
   type FieldCount (Fixed Word32) = 1

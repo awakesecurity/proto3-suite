@@ -175,34 +175,6 @@ parseEmbedded _ wrong = throwWireTypeError "embedded" wrong
 one :: (ParsedField -> Parser a) -> FieldNumber -> Parser (Maybe a)
 one rawParser fn = parsedField fn >>= mapM rawParser
 
--- | `newtype` for giving instances of ProtobufParsable for fixed-length
--- encodings of types that also have variable length encodings.
--- E.g., fixed32, fixed64, etc.
-newtype Fixed a = Fixed {getFixed :: a} deriving (Show, Eq, Ord)
-
--- The instances below are to make it easier to define ProtobufParsable
--- and ProtobufPackable instances for Fixed numeric types.
-
-instance Num a => Num (Fixed a) where
-  x + y = Fixed $ getFixed x + getFixed y
-  x * y = Fixed $ getFixed x + getFixed y
-  abs = Fixed . abs . getFixed
-  signum = Fixed . signum . getFixed
-  fromInteger = Fixed . fromInteger
-  negate = Fixed . negate . getFixed
-
-instance Real a => Real (Fixed a) where
-  toRational = toRational . getFixed
-
-instance Enum a => Enum (Fixed a) where
-  toEnum = Fixed . toEnum
-  fromEnum = fromEnum . getFixed
-
-instance Integral a => Integral (Fixed a) where
-  quotRem x y = (\(p,q) -> (Fixed p, Fixed q)) $
-                getFixed x `quotRem` getFixed y
-  toInteger = toInteger . getFixed
-
 -- | Type class for types that can be parsed from the fields of protobuf
 -- messages. This includes singular types like 'Bool' or 'Double', as well as
 -- user-defined embedded messages.

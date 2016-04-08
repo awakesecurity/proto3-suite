@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Data.Protobuf.Wire.Shared (
 -- * Message Structure
@@ -6,9 +7,11 @@ module Data.Protobuf.Wire.Shared (
 , fieldNumber
 , WireType(..)
 , ProtobufMerge(..)
+, Fixed(..)
   ) where
 
 import           Data.Word (Word8, Word32, Word64)
+import           GHC.Generics
 
 -- | A 'FieldNumber' identifies a field inside a protobufs message.
 --
@@ -36,3 +39,29 @@ data WireType
 -- 3. `protobufMerge x y` concatenates all list fields in x and y.
 class ProtobufMerge a where
   protobufMerge :: a -> a -> a
+
+  -- | 'Fixed' provides a way to encode integers in the fixed-width wire formats.
+newtype Fixed a = Fixed { fixed :: a } deriving (Show, Eq, Ord, Generic)
+
+-- The instances below are to make it easier to define ProtobufParsable
+-- and ProtobufPackable instances for Fixed numeric types.
+
+instance Num a => Num (Fixed a) where
+  x + y = Fixed $ fixed x + fixed y
+  x * y = Fixed $ fixed x + fixed y
+  abs = Fixed . abs . fixed
+  signum = Fixed . signum . fixed
+  fromInteger = Fixed . fromInteger
+  negate = Fixed . negate . fixed
+
+instance Real a => Real (Fixed a) where
+  toRational = toRational . fixed
+
+instance Enum a => Enum (Fixed a) where
+  toEnum = Fixed . toEnum
+  fromEnum = fromEnum . fixed
+
+instance Integral a => Integral (Fixed a) where
+  quotRem x y = (\(p,q) -> (Fixed p, Fixed q)) $
+                fixed x `quotRem` fixed y
+  toInteger = toInteger . fixed
