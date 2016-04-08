@@ -17,6 +17,7 @@ def main():
     multipleFields.multiFieldInt32 = 123
     multipleFields.multiFieldInt64 = 1234567890
     multipleFields.multiFieldString = "Hello, world!"
+    multipleFields.multiFieldBool = True
     serialize_to_file(multipleFields, 'multiple_fields.bin')
 
     withEnum = test_pb2.WithEnum()

@@ -80,7 +80,7 @@ encodeMultipleFields :: TestTree
 encodeMultipleFields = testCase
   "Encoding a message with many fields matches the official implementation" $
   checkEncoding "test-files/multiple_fields.bin" $
-  MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!"
+  MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
 
 encodeNestedMessage :: TestTree
 encodeNestedMessage = testCase
@@ -183,8 +183,9 @@ parseMultipleFields = testCase
         <*> field (FieldNumber 3)
         <*> field (FieldNumber 4)
         <*> field (FieldNumber 5)
+        <*> field (FieldNumber 6)
     in testParser "test-files/multiple_fields.bin" parser $
-        MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!"
+        MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
 
 parseNestedMessage :: TestTree
 parseNestedMessage = testCase

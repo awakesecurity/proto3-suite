@@ -21,7 +21,8 @@ data MultipleFields =
                   multiFieldFloat :: Float,
                   multiFieldInt32 :: Int32,
                   multiFieldInt64 :: Int64,
-                  multiFieldString :: TL.Text}
+                  multiFieldString :: TL.Text,
+                  multiFieldBool :: Bool}
                   deriving (Show, Generic, Eq)
 instance HasEncoding MultipleFields
 

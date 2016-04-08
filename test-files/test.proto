@@ -10,6 +10,7 @@ message MultipleFields {
   int32 multiFieldInt32 = 3;
   int64 multiFieldInt64 = 4;
   string multiFieldString = 5;
+  bool multiFieldBool = 6;
 }
 
 message WithEnum {
