@@ -7,6 +7,7 @@ import           TestTypes
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Char8 as BC
 import           Test.Tasty
 import           Test.Tasty.HUnit as HU
 import           Test.Tasty.QuickCheck as QC
@@ -155,6 +156,8 @@ parserUnitTests = testGroup "Parsing unit tests"
                    ,parseEnumFirstAlternative
                    ,parseEnumSecondAlternative
                    ,parseRepetition
+                   ,parseFixed
+                   ,parseBytes
                    ]
 
 testParser :: (Show a, Eq a) => FilePath -> Parser a -> a -> IO ()
@@ -211,3 +214,23 @@ parseRepetition = testCase
   let parser = WithRepetition <$> repeatedPacked (FieldNumber 1)
       in testParser "test-files/with_repetition.bin" parser $
           WithRepetition [1..5]
+
+parseFixed :: TestTree
+parseFixed = testCase
+  "Parsing a message with fixed types matches the official implementation" $
+  let parser = WithFixed
+               <$> field (FieldNumber 1)
+               <*> field (FieldNumber 2)
+               <*> field (FieldNumber 3)
+               <*> field (FieldNumber 4)
+      in testParser "test-files/with_fixed.bin" parser $
+          WithFixed 16 (-123) 4096 (-4096)
+
+parseBytes :: TestTree
+parseBytes = testCase
+  "Parsing a message containing bytes matches the official implementation" $
+  let parser = WithBytes
+               <$> field (FieldNumber 1)
+               <*> repeatedUnpacked (FieldNumber 2)
+      in testParser "test-files/with_bytes.bin" parser $
+          WithBytes (BC.pack "abc")  (map BC.pack ["abc","123"])

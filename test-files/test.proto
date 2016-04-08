@@ -32,3 +32,15 @@ message WithNesting {
 message WithRepetition {
   repeated int32 repeatedField1 = 1;
 }
+
+message WithFixedTypes {
+  fixed32 fixed1 = 1;
+  sfixed32 fixed2 = 2;
+  fixed64 fixed3 = 3;
+  sfixed64 fixed4 = 4;
+}
+
+message WithBytes {
+  bytes bytes1 = 1;
+  repeated bytes bytes2 = 2;
+}

@@ -40,5 +40,17 @@ def main():
     trivNeg.trivialField = -1
     serialize_to_file(trivNeg, 'trivial_negative.bin')
 
+    withFixed = test_pb2.WithFixedTypes()
+    withFixed.fixed1 = 16
+    withFixed.fixed2 = -123
+    withFixed.fixed3 = 4096
+    withFixed.fixed4 = -4096
+    serialize_to_file(withFixed, 'with_fixed.bin')
+
+    withBytes = test_pb2.WithBytes()
+    withBytes.bytes1 = "abc"
+    withBytes.bytes2.extend(["abc", "123"])
+    serialize_to_file(withBytes, "with_bytes.bin")
+
 if __name__ == '__main__':
     main()

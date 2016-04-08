@@ -2,12 +2,14 @@
 
 module TestTypes where
 
+import qualified Data.ByteString as B
 import           Data.Int
 import           Data.Monoid
 import           Data.Protobuf.Wire.Generic
 import           Data.Protobuf.Wire.Shared
-import           Data.Protobuf.Wire.Decode.Parser
+import           Data.Protobuf.Wire.Decode.Parser as P
 import qualified Data.Text.Lazy as TL
+import           Data.Word (Word32, Word64)
 import           GHC.Generics
 
 data Trivial = Trivial {trivialField :: Int32}
@@ -52,3 +54,14 @@ instance HasEncoding WithNesting
 data WithRepetition = WithRepetition {repeatedField1 :: [Int32]}
                       deriving (Show, Generic, Eq)
 instance HasEncoding WithRepetition
+
+data WithFixed = WithFixed {fixed1 :: (P.Fixed Word32),
+                            fixed2 :: (P.Fixed Int32),
+                            fixed3 :: (P.Fixed Word64),
+                            fixed4 :: (P.Fixed Int64)}
+                            deriving (Show, Generic, Eq)
+
+data WithBytes = WithBytes {bytes1 :: B.ByteString,
+                            bytes2 :: [B.ByteString]}
+                            deriving (Show, Generic, Eq)
+instance HasEncoding WithBytes
