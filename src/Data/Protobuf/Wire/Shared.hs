@@ -7,6 +7,8 @@ module Data.Protobuf.Wire.Shared (
 , fieldNumber
 , WireType(..)
 , ProtobufMerge(..)
+
+-- * Integral Types
 , Fixed(..)
 , Signed(..)
   ) where

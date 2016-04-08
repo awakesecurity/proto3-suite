@@ -51,8 +51,8 @@ import qualified Data.ByteString.Lazy as BL
 import           Data.Int (Int32, Int64)
 import           Data.Functor (($>))
 import           Data.Monoid ((<>))
-import           Data.Protobuf.Wire.Encode as Wire
-import           Data.Protobuf.Wire.Shared(FieldNumber(..), fieldNumber)
+import           Data.Protobuf.Wire.Shared(FieldNumber(..), fieldNumber,
+                                           Fixed(..), Signed(..))
 import           Data.Protobuf.Wire.Generic
 import           Data.Proxy (Proxy(..))
 import           Data.String (IsString)

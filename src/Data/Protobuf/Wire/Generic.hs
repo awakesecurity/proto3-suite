@@ -37,10 +37,6 @@ module Data.Protobuf.Wire.Generic
   -- * Encoding
   , toLazyByteString
 
-  -- * Integral Types
-  , Signed(..)
-  , Fixed(..)
-
   -- * Enumerable Types
   , Enumerated(..)
 
