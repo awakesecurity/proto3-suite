@@ -27,7 +27,7 @@ main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [scProperties, encodeUnitTests, decodeUnitTests,
+tests = testGroup "Tests" [qcProperties, encodeUnitTests, decodeUnitTests,
                            parserUnitTests]
 
 instance Arbitrary WireType where
@@ -36,7 +36,14 @@ instance Arbitrary WireType where
 instance Arbitrary FieldNumber where
   arbitrary = liftA FieldNumber arbitrary
 
-scProperties = testGroup "QuickCheck properties"
+qcInverses :: (HasEncoding a, Arbitrary a, Eq a) => Parser a -> a -> Bool
+qcInverses parser msg = msg == (decode $ encode msg)
+  where decode x = case parse parser x of
+                    Left e -> error $ "got error parsing: " ++ show e
+                    Right r -> r
+        encode = BL.toStrict . toLazyByteString
+
+qcProperties = testGroup "QuickCheck properties"
   [QC.testProperty "fieldHeader encode/decode inverses" $
    \fieldnum -> \wt -> let encoded = BL.toStrict $ BB.toLazyByteString $
                                      Enc.fieldHeader fieldnum wt
@@ -44,12 +51,41 @@ scProperties = testGroup "QuickCheck properties"
                                      Left e -> error e
                                      Right x -> x
                            in (fieldnum, wt) == decoded,
+
    QC.testProperty "base128Varint encode/decode inverses" $
    \w64 -> let encode = BL.toStrict . BB.toLazyByteString . Enc.base128Varint
                decode bs = case runGet Dec.getBase128Varint bs of
                            Left e -> error e
                            Right x -> x
-               in (w64 :: Word64) == (decode $ encode w64)]
+               in (w64 :: Word64) == (decode $ encode w64),
+
+  QC.testProperty "decode inverts encode for trivial messages" $
+  qcInverses trivialParser,
+
+  QC.testProperty "decode inverts encode for multi-field messages" $
+  qcInverses multipleFieldsParser,
+
+  QC.testProperty "decode inverts encode for enum messages" $
+  qcInverses withEnumParser,
+
+  QC.testProperty "decode inverts encode for nested messages" $
+  qcInverses withNestingParser,
+
+  QC.testProperty "decode inverts encode for repeated field messages" $
+  qcInverses withRepetitionParser,
+
+  {- TODO: fixed field decoding types don't match encoding yet.
+  QC.testProperty "decode inverts encode for messages with fixed fields" $
+  qcInverses withFixedParser, -}
+
+  QC.testProperty "decode inverts encode for messages with bytes fields" $
+  qcInverses withBytesParser
+
+  {- TODO: encoding of packed fields not implemented, I think.
+  QC.testProperty "decode inverts encode for messages with packed fields" $
+  qcInverses withPackingParser -}
+
+  ]
 
 encodeUnitTests :: TestTree
 encodeUnitTests = testGroup "Encoding unit tests"
@@ -171,77 +207,53 @@ testParser fp parser reference = do
 parseTrivial :: TestTree
 parseTrivial = testCase
   "Parsing a trivial message matches the official implementation" $
-  let parser = Trivial <$> field (FieldNumber 1)
-      in testParser "test-files/trivial.bin" parser $ Trivial 123
+  testParser "test-files/trivial.bin" trivialParser $ Trivial 123
 
 parseMultipleFields :: TestTree
 parseMultipleFields = testCase
   "Parsing a message with multiple fields matches the official implementation" $
-  let parser =
-        MultipleFields
-        <$> field (FieldNumber 1)
-        <*> field (FieldNumber 2)
-        <*> field (FieldNumber 3)
-        <*> field (FieldNumber 4)
-        <*> field (FieldNumber 5)
-        <*> field (FieldNumber 6)
-    in testParser "test-files/multiple_fields.bin" parser $
-        MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
+  testParser "test-files/multiple_fields.bin" multipleFieldsParser $
+    MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
 
 parseNestedMessage :: TestTree
 parseNestedMessage = testCase
   "Parsing a nested message matches the official implementation" $
-  let parser = WithNesting <$> field (FieldNumber 1)
-      in testParser "test-files/with_nesting.bin" parser $
-          WithNesting $ Nested "123abc" 123456
+  testParser "test-files/with_nesting.bin" withNestingParser $
+    WithNesting $ Nested "123abc" 123456
 
 parseEnumFirstAlternative :: TestTree
 parseEnumFirstAlternative = testCase
   "Parsing an enum (first case) message matches the official implementation" $
-  let parser = WithEnum <$> P.enumField (FieldNumber 1)
-      in testParser "test-files/with_enum0.bin" parser $
-          WithEnum ENUM1
+  testParser "test-files/with_enum0.bin" withEnumParser $
+    WithEnum ENUM1
 
 parseEnumSecondAlternative :: TestTree
 parseEnumSecondAlternative = testCase
   "Parsing an enum (2nd case) message matches the official implementation" $
-  let parser = WithEnum <$> P.enumField (FieldNumber 1)
-      in testParser "test-files/with_enum1.bin" parser $
-          WithEnum ENUM2
+  testParser "test-files/with_enum1.bin" withEnumParser $
+    WithEnum ENUM2
 
 parseRepetition :: TestTree
 parseRepetition = testCase
   "Parsing a message with a repeated field matches the official implementation"
   $
-  let parser = WithRepetition <$> repeatedPacked (FieldNumber 1)
-      in testParser "test-files/with_repetition.bin" parser $
-          WithRepetition [1..5]
+  testParser "test-files/with_repetition.bin" withRepetitionParser $
+    WithRepetition [1..5]
 
 parseFixed :: TestTree
 parseFixed = testCase
   "Parsing a message with fixed types matches the official implementation" $
-  let parser = WithFixed
-               <$> field (FieldNumber 1)
-               <*> field (FieldNumber 2)
-               <*> field (FieldNumber 3)
-               <*> field (FieldNumber 4)
-      in testParser "test-files/with_fixed.bin" parser $
-          WithFixed 16 (-123) 4096 (-4096)
+  testParser "test-files/with_fixed.bin" withFixedParser $
+             WithFixed 16 (-123) 4096 (-4096)
 
 parseBytes :: TestTree
 parseBytes = testCase
   "Parsing a message containing bytes matches the official implementation" $
-  let parser = WithBytes
-               <$> field (FieldNumber 1)
-               <*> repeatedUnpacked (FieldNumber 2)
-      in testParser "test-files/with_bytes.bin" parser $
-          WithBytes (BC.pack "abc")  (map BC.pack ["abc","123"])
+  testParser "test-files/with_bytes.bin" withBytesParser $
+    WithBytes (BC.pack "abc") (map BC.pack ["abc","123"])
 
 parsePackedUnpacked :: TestTree
 parsePackedUnpacked = testCase
   "Parsing packed and unpacked fields matches the official implementation" $
-  let parser = WithPacking
-               <$> repeatedUnpacked (FieldNumber 1)
-               <*> repeatedPacked (FieldNumber 2)
-      in testParser "test-files/with_packing.bin" parser $
-          WithPacking ([1,2,3] :: [Int32]) ([1,2,3] :: [Int32])
+  testParser "test-files/with_packing.bin" withPackingParser $
+    WithPacking ([1,2,3] :: [Int32]) ([1,2,3] :: [Int32])

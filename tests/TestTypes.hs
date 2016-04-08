@@ -7,7 +7,7 @@ import           Data.Int
 import           Data.Monoid
 import           Data.Protobuf.Wire.Generic
 import           Data.Protobuf.Wire.Shared
-import           Data.Protobuf.Wire.Decode.Parser
+import           Data.Protobuf.Wire.Decode.Parser as P
 import qualified Data.Text.Lazy as TL
 import           Data.Word (Word32, Word64)
 import           GHC.Generics
@@ -16,6 +16,12 @@ import           Test.QuickCheck (Arbitrary, arbitrary)
 data Trivial = Trivial {trivialField :: Int32}
                 deriving (Show, Generic, Eq)
 instance HasEncoding Trivial
+
+instance Arbitrary Trivial where
+  arbitrary = Trivial <$> arbitrary
+
+trivialParser :: Parser Trivial
+trivialParser = Trivial <$> field (FieldNumber 1)
 
 data MultipleFields =
   MultipleFields {multiFieldDouble :: Double,
@@ -36,6 +42,15 @@ instance Arbitrary MultipleFields where
               <*> fmap TL.pack arbitrary
               <*> arbitrary
 
+multipleFieldsParser :: Parser MultipleFields
+multipleFieldsParser = MultipleFields
+                       <$> field (FieldNumber 1)
+                       <*> field (FieldNumber 2)
+                       <*> field (FieldNumber 3)
+                       <*> field (FieldNumber 4)
+                       <*> field (FieldNumber 5)
+                       <*> field (FieldNumber 6)
+
 data TestEnum = ENUM1 | ENUM2 | ENUM3
                 deriving (Show, Generic, Enum, Eq)
 instance HasEncoding TestEnum
@@ -49,6 +64,9 @@ instance HasEncoding WithEnum
 
 instance Arbitrary WithEnum where
   arbitrary = WithEnum <$> arbitrary
+
+withEnumParser :: Parser WithEnum
+withEnumParser = WithEnum <$> P.enumField (FieldNumber 1)
 
 data Nested = Nested {nestedField1 :: TL.Text,
                       nestedField2 :: Int32}
@@ -74,12 +92,18 @@ instance HasEncoding WithNesting
 instance Arbitrary WithNesting where
   arbitrary = WithNesting <$> arbitrary
 
+withNestingParser :: Parser WithNesting
+withNestingParser = WithNesting <$> field (FieldNumber 1)
+
 data WithRepetition = WithRepetition {repeatedField1 :: [Int32]}
                       deriving (Show, Generic, Eq)
 instance HasEncoding WithRepetition
 
 instance Arbitrary WithRepetition where
   arbitrary = WithRepetition <$> arbitrary
+
+withRepetitionParser :: Parser WithRepetition
+withRepetitionParser = WithRepetition <$> repeatedPacked (FieldNumber 1)
 
 data WithFixed = WithFixed {fixed1 :: (Fixed Word32),
                             fixed2 :: (Fixed Int32),
@@ -93,6 +117,13 @@ instance Arbitrary a => Arbitrary (Fixed a) where
 instance Arbitrary WithFixed where
   arbitrary = WithFixed <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
+withFixedParser :: Parser WithFixed
+withFixedParser = WithFixed
+                  <$> field (FieldNumber 1)
+                  <*> field (FieldNumber 2)
+                  <*> field (FieldNumber 3)
+                  <*> field (FieldNumber 4)
+
 data WithBytes = WithBytes {bytes1 :: B.ByteString,
                             bytes2 :: [B.ByteString]}
                             deriving (Show, Generic, Eq)
@@ -104,6 +135,10 @@ instance Arbitrary B.ByteString where
 instance Arbitrary WithBytes where
   arbitrary = WithBytes <$> arbitrary <*> arbitrary
 
+withBytesParser = WithBytes
+                  <$> field (FieldNumber 1)
+                  <*> repeatedUnpacked (FieldNumber 2)
+
 data WithPacking = WithPacking {packing1 :: [Int32],
                                 packing2 :: [Int32]}
                                 deriving (Show, Generic, Eq)
@@ -111,3 +146,7 @@ instance HasEncoding WithPacking
 
 instance Arbitrary WithPacking where
   arbitrary = WithPacking <$> arbitrary <*> arbitrary
+
+withPackingParser = WithPacking
+                    <$> repeatedUnpacked (FieldNumber 1)
+                    <*> repeatedPacked (FieldNumber 2)
