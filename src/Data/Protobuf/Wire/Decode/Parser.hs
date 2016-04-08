@@ -37,22 +37,18 @@ import           Data.Word (Word32, Word64)
 
 type Parser a = ReaderT (M.Map FieldNumber [ParsedField]) (Except String) a
 
+
+-- | Runs a 'Parser'.
 parse :: Parser a -> B.ByteString -> Either String a
-parse parser bs = do
-  tuples <- parseTuples bs
-  result <- runIdentity $ runExceptT $ runReaderT parser tuples
-  return result
+parse parser bs = parseTuples bs >>=
+                  runIdentity . runExceptT . runReaderT parser
 
 -- |
--- = Decoding 'ParsedField'
--- It is assumed that decisions about how to handle missing data will be handled
--- at a higher level, so our results are in 'Maybe', rather than erroring out.
 -- To comply with the protobuf spec, if there are multiple fields with the same
 -- field number, this will always return the last one. While this is worst case
 -- O(n), in practice the worst case will only happen when a field in the .proto
 -- file has been changed from singular to repeated, but the deserializer hasn't
 -- been made aware of the change.
-
 parsedField :: FieldNumber -> Parser (Maybe ParsedField)
 parsedField fn = do
   currMap <- ask
@@ -173,21 +169,23 @@ parseEmbedded parser (LengthDelimitedField bs) =
     Right result -> return result
 parseEmbedded _ wrong = throwWireTypeError "embedded" wrong
 
--- |
--- Specify that one value is expected from this field. Used to ensure that we
+-- | Specify that one value is expected from this field. Used to ensure that we
 -- return the last value with the given field number in the message, in
 -- compliance with the protobuf standard.
 one :: (ParsedField -> Parser a) -> FieldNumber -> Parser (Maybe a)
 one rawParser fn = parsedField fn >>= mapM rawParser
 
+-- | `newtype` for giving instances of ProtobufParsable for fixed-length
+-- encodings of types that also have variable length encodings.
+-- E.g., fixed32, fixed64, etc.
 newtype Fixed a = Fixed {getFixed :: a} deriving (Show, Eq, Ord)
 
 -- The instances below are to make it easier to define ProtobufParsable
 -- and ProtobufPackable instances for Fixed numeric types.
 
 instance Num a => Num (Fixed a) where
-  x + y = Fixed $ (getFixed x) + (getFixed y)
-  x * y = Fixed $ (getFixed x) + (getFixed y)
+  x + y = Fixed $ getFixed x + getFixed y
+  x * y = Fixed $ getFixed x + getFixed y
   abs = Fixed . abs . getFixed
   signum = Fixed . signum . getFixed
   fromInteger = Fixed . fromInteger
@@ -202,15 +200,23 @@ instance Enum a => Enum (Fixed a) where
 
 instance Integral a => Integral (Fixed a) where
   quotRem x y = (\(p,q) -> (Fixed p, Fixed q)) $
-                (getFixed x) `quotRem` (getFixed y)
+                getFixed x `quotRem` getFixed y
   toInteger = toInteger . getFixed
 
+-- | Type class for types that can be parsed from the fields of protobuf
+-- messages. This includes singular types like 'Bool' or 'Double', as well as
+-- user-defined embedded messages.
 class ProtobufParsable a where
+  -- | Parse a type from a field. To implement this for embedded messages, see
+  -- the helper function 'parseEmbedded'.
   fromField :: ParsedField -> Parser a
+  -- | Specifies the default value when a field is missing from the message.
+  -- Note: this is used by protobufs to save space on messages by omitting them
+  -- if they happen to be set to the default.
   protoDefault :: a
 
 instance ProtobufParsable Bool where
-  fromField = liftM toEnum . parseVarInt
+  fromField = fmap toEnum . parseVarInt
   protoDefault = False
 
 instance ProtobufParsable Int32 where
@@ -262,9 +268,10 @@ instance ProtobufParsable B.ByteString where
   protoDefault = mempty
 
 field :: ProtobufParsable a => FieldNumber -> Parser a
-field fn = one fromField fn >>= (return . fromMaybe protoDefault)
+field = fmap (fromMaybe protoDefault) . one fromField
 
---TODO: 'enumField' function, or 'instance Enum a => ProtobufParsable a'?
+--TODO: 'enumField' function, or 'instance ProtoEnum a => ProtobufParsable a'?
+--      Or something else?
 
 -- | Parses an enumerated field. Because it seems that Google's implementation
 -- always serializes the 0th case as a missing field (for compactness), we
@@ -310,8 +317,11 @@ instance ProtobufPackable Float where
 instance ProtobufPackable Double where
   parsePacked = parsePackedFixed64Double
 
+-- | Parses an unpacked repeated field.
 repeatedUnpacked :: ProtobufParsable a => FieldNumber -> Parser [a]
 repeatedUnpacked fn = parsedFields fn >>= mapM fromField
 
+-- | Parses a packed repeated field. Correctly handles the case where a packed
+-- field has been split across multiple key/value pairs in the encoded message.
 repeatedPacked :: ProtobufPackable a => FieldNumber -> Parser [a]
-repeatedPacked fn = parsedFields fn >>= mapM parsePacked >>= (return . concat)
+repeatedPacked fn = fmap concat $ parsedFields fn >>= mapM parsePacked
