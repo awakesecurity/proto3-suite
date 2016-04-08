@@ -13,7 +13,6 @@ parseEmbedded,
 -- * Basic types
 ProtobufParsable(..),
 ProtobufPackable,
-Fixed(..),
 field,
 enumField
 ) where
