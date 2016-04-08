@@ -2,15 +2,10 @@
 
 module Data.Protobuf.Wire.Decode.Parser (
 Parser,
--- * General functions
 parse,
-
--- * Combinators
 repeatedUnpacked,
 repeatedPacked,
 parseEmbedded,
-
--- * Basic types
 ProtobufParsable(..),
 ProtobufPackable,
 field,
@@ -35,7 +30,6 @@ import           Data.Int (Int32, Int64)
 import           Data.Word (Word32, Word64)
 
 type Parser a = ReaderT (M.Map FieldNumber [ParsedField]) (Except String) a
-
 
 -- | Runs a 'Parser'.
 parse :: Parser a -> B.ByteString -> Either String a
@@ -244,10 +238,7 @@ field = fmap (fromMaybe protoDefault) . one fromField
 --TODO: 'enumField' function, or 'instance ProtoEnum a => ProtobufParsable a'?
 --      Or something else?
 
--- | Parses an enumerated field. Because it seems that Google's implementation
--- always serializes the 0th case as a missing field (for compactness), we
--- handle that within this function. Thus, this function returns 'a' instead of
--- 'Maybe a' like the other functions.
+-- | Parses an enumerated field.
 enumField :: Enum a => FieldNumber -> Parser a
 enumField fn = do
   varint <- one parseVarInt fn
@@ -290,9 +281,13 @@ instance ProtobufPackable Double where
 
 -- | Parses an unpacked repeated field.
 repeatedUnpacked :: ProtobufParsable a => FieldNumber -> Parser [a]
-repeatedUnpacked fn = parsedFields fn >>= mapM fromField
+repeatedUnpacked fn = (parsedFields fn >>= mapM fromField)
 
 -- | Parses a packed repeated field. Correctly handles the case where a packed
 -- field has been split across multiple key/value pairs in the encoded message.
-repeatedPacked :: ProtobufPackable a => FieldNumber -> Parser [a]
-repeatedPacked fn = fmap concat $ parsedFields fn >>= mapM parsePacked
+-- Falls back to trying to parse the field as unpacked if packed parsing fails,
+-- matching the official implementation's behavior.
+repeatedPacked :: (ProtobufParsable a, ProtobufPackable a)
+                  => FieldNumber -> Parser [a]
+repeatedPacked fn = (fmap concat $ parsedFields fn >>= mapM parsePacked)
+                    <|> repeatedUnpacked fn
