@@ -158,6 +158,7 @@ parserUnitTests = testGroup "Parsing unit tests"
                    ,parseRepetition
                    ,parseFixed
                    ,parseBytes
+                   ,parsePackedUnpacked
                    ]
 
 testParser :: (Show a, Eq a) => FilePath -> Parser a -> a -> IO ()
@@ -235,3 +236,12 @@ parseBytes = testCase
                <*> repeatedUnpacked (FieldNumber 2)
       in testParser "test-files/with_bytes.bin" parser $
           WithBytes (BC.pack "abc")  (map BC.pack ["abc","123"])
+
+parsePackedUnpacked :: TestTree
+parsePackedUnpacked = testCase
+  "Parsing packed and unpacked fields matches the official implementation" $
+  let parser = WithPacking
+               <$> repeatedUnpacked (FieldNumber 1)
+               <*> repeatedPacked (FieldNumber 2)
+      in testParser "test-files/with_packing.bin" parser $
+          WithPacking ([1,2,3] :: [Int32]) ([1,2,3] :: [Int32])

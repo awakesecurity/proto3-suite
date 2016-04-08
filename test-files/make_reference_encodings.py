@@ -53,5 +53,10 @@ def main():
     withBytes.bytes2.extend(["abc", "123"])
     serialize_to_file(withBytes, "with_bytes.bin")
 
+    withPacking = test_pb2.WithPacking()
+    withPacking.packing1.extend([1,2,3])
+    withPacking.packing2.extend([1,2,3])
+    serialize_to_file(withPacking, "with_packing.bin")
+
 if __name__ == '__main__':
     main()

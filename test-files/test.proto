@@ -45,3 +45,8 @@ message WithBytes {
   bytes bytes1 = 1;
   repeated bytes bytes2 = 2;
 }
+
+message WithPacking {
+  repeated int32 packing1 = 1 [packed=false];
+  repeated int32 packing2 = 2 [packed=true];
+}

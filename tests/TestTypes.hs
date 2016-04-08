@@ -7,7 +7,7 @@ import           Data.Int
 import           Data.Monoid
 import           Data.Protobuf.Wire.Generic
 import           Data.Protobuf.Wire.Shared
-import           Data.Protobuf.Wire.Decode.Parser as P
+import           Data.Protobuf.Wire.Decode.Parser
 import qualified Data.Text.Lazy as TL
 import           Data.Word (Word32, Word64)
 import           GHC.Generics
@@ -56,13 +56,18 @@ data WithRepetition = WithRepetition {repeatedField1 :: [Int32]}
                       deriving (Show, Generic, Eq)
 instance HasEncoding WithRepetition
 
-data WithFixed = WithFixed {fixed1 :: (P.Fixed Word32),
-                            fixed2 :: (P.Fixed Int32),
-                            fixed3 :: (P.Fixed Word64),
-                            fixed4 :: (P.Fixed Int64)}
+data WithFixed = WithFixed {fixed1 :: (Fixed Word32),
+                            fixed2 :: (Fixed Int32),
+                            fixed3 :: (Fixed Word64),
+                            fixed4 :: (Fixed Int64)}
                             deriving (Show, Generic, Eq)
 
 data WithBytes = WithBytes {bytes1 :: B.ByteString,
                             bytes2 :: [B.ByteString]}
                             deriving (Show, Generic, Eq)
 instance HasEncoding WithBytes
+
+data WithPacking = WithPacking {packing1 :: [Int32],
+                                packing2 :: [Int32]}
+                                deriving (Show, Generic, Eq)
+instance HasEncoding WithPacking
