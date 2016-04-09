@@ -37,9 +37,6 @@ module Data.Protobuf.Wire.Generic
   -- * Encoding
   , toLazyByteString
 
-  -- * Enumerable Types
-  , Enumerated(..)
-
   -- * Supporting Classes
   , GenericHasEncoding(..)
   , MemberType(..)
@@ -181,10 +178,6 @@ instance HasEncoding BL.ByteString where
   type GetMemberType BL.ByteString = 'Primitive
   type FieldCount BL.ByteString = 1
   encode = bytes'
-
--- | 'Enumerated' lifts any type with an 'IsEnum' instance so that it can be encoded
--- with 'HasEncoding'.
-newtype Enumerated a = Enumerated { enumerated :: a } deriving (Show, Eq, Ord, Generic, NFData)
 
 instance Enum e => HasEncoding (Enumerated e) where
   type GetMemberType (Enumerated e) = 'Primitive

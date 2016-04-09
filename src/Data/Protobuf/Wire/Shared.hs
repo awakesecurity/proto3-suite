@@ -11,6 +11,9 @@ module Data.Protobuf.Wire.Shared (
 -- * Integral Types
 , Fixed(..)
 , Signed(..)
+
+-- * Enumerable Types
+, Enumerated(..)
   ) where
 
 import           Control.DeepSeq (NFData)
@@ -49,3 +52,7 @@ newtype Fixed a = Fixed { fixed :: a } deriving (Show, Eq, Ord, Generic, NFData)
 
 -- | 'Signed' provides a way to encode integers in the signed wire formats.
 newtype Signed a = Signed { signed :: a } deriving (Show, Eq, Ord, Generic, NFData)
+
+-- | 'Enumerated' lifts any type with an 'IsEnum' instance so that it can be encoded
+-- with 'HasEncoding'.
+newtype Enumerated a = Enumerated { enumerated :: a } deriving (Show, Eq, Ord, Generic, NFData)

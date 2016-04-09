@@ -8,8 +8,7 @@ repeatedPacked,
 parseEmbedded,
 ProtobufParsable(..),
 ProtobufPackable,
-field,
-enumField
+field
 ) where
 
 import           Control.Applicative
@@ -232,17 +231,12 @@ instance ProtobufParsable B.ByteString where
   fromField = parseBytes
   protoDefault = mempty
 
+instance Enum e => ProtobufParsable (Enumerated e) where
+  fromField = fmap (Enumerated . toEnum . fromIntegral) . parseVarInt
+  protoDefault = Enumerated $ toEnum 0
+
 field :: ProtobufParsable a => FieldNumber -> Parser a
 field = fmap (fromMaybe protoDefault) . one fromField
-
---TODO: 'enumField' function, or 'instance ProtoEnum a => ProtobufParsable a'?
---      Or something else?
-
--- | Parses an enumerated field.
-enumField :: Enum a => FieldNumber -> Parser a
-enumField fn = do
-  varint <- one parseVarInt fn
-  return $ fromMaybe (toEnum 0) (toEnum <$> varint)
 
 -- | Type class for fields that can be repeated in the more efficient packed
 -- format. This is limited to primitive numeric types.

@@ -58,15 +58,18 @@ instance HasEncoding TestEnum
 instance Arbitrary TestEnum where
   arbitrary = fmap toEnum arbitrary
 
-data WithEnum = WithEnum {enumField :: TestEnum}
+data WithEnum = WithEnum {enumField :: Enumerated (TestEnum)}
                 deriving (Show, Generic, Eq)
 instance HasEncoding WithEnum
+
+instance Arbitrary e => Arbitrary (Enumerated e) where
+  arbitrary = Enumerated <$> arbitrary
 
 instance Arbitrary WithEnum where
   arbitrary = WithEnum <$> arbitrary
 
 withEnumParser :: Parser WithEnum
-withEnumParser = WithEnum <$> P.enumField (FieldNumber 1)
+withEnumParser = WithEnum <$> field (FieldNumber 1)
 
 data Nested = Nested {nestedField1 :: TL.Text,
                       nestedField2 :: Int32}
