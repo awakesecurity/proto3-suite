@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Data.Protobuf.Wire.Decode.Internal where
 
 import           Data.Bits
@@ -9,24 +11,22 @@ import qualified Data.Map.Strict as M
 import           Data.Protobuf.Wire.Shared
 import           Data.Serialize.Get
 import           Data.Word (Word8, Word32, Word64)
-import           Control.Monad.Loops (untilM)
 import           Control.Applicative
-
--- | Decode a ByteString containing a base128 varint,
--- assuming that the input list contains only a valid varint and
--- nothing else. Called by 'getBase128Varint', which handles delimitation.
-decodeBase128Varint :: [Word8] -> Get Word64
-decodeBase128Varint [] = fail "tried to decode base128Varint of empty string"
-decodeBase128Varint bs = return $ foldr1 (.|.) shiftedBytes
-  where rawBytes = map (fromIntegral . flip clearBit 7) bs
-        shifts = map (flip shiftL . (*7)) [0..]
-        shiftedBytes = zipWith ($) shifts rawBytes
 
 -- | Get a base128 varint. Handles delimitation by MSB.
 getBase128Varint :: Get Word64
-getBase128Varint = untilM peek base128Terminal >>= decodeBase128Varint
-  where peek = lookAhead getWord8 :: Get Word8
-        base128Terminal = (not . (`testBit` 7)) <$> getWord8
+getBase128Varint = loop 0 0 --untilM peek base128Terminal >>= decodeBase128Varint
+  where loop !i !w64 = do
+          w8 <- getWord8
+          if base128Terminal w8
+              then return $ combine i w64 w8
+              else loop
+                   (i + 1)
+                   (combine i w64 w8)
+        base128Terminal w8 = (not . (`testBit` 7)) $ w8
+        combine i w64 w8 = (w64 .|. (fromIntegral (w8 `clearBit` 7)
+                           `shiftL`
+                           (i * 7)))
 
 -- | Parse a WireType. Call 'fail' if the parsed wire type is unknown.
 wireType :: Word8 -> Get WireType
