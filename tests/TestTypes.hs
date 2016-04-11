@@ -11,7 +11,7 @@ import           Data.Protobuf.Wire.Decode.Parser as P
 import qualified Data.Text.Lazy as TL
 import           Data.Word (Word32, Word64)
 import           GHC.Generics
-import           Test.QuickCheck (Arbitrary, arbitrary)
+import           Test.QuickCheck (Arbitrary, arbitrary, oneof)
 
 data Trivial = Trivial {trivialField :: Int32}
                 deriving (Show, Generic, Eq)
@@ -56,7 +56,7 @@ data TestEnum = ENUM1 | ENUM2 | ENUM3
 instance HasEncoding TestEnum
 
 instance Arbitrary TestEnum where
-  arbitrary = fmap toEnum arbitrary
+  arbitrary = oneof $ fmap return [ENUM1, ENUM2, ENUM3]
 
 data WithEnum = WithEnum {enumField :: Enumerated (TestEnum)}
                 deriving (Show, Generic, Eq)
