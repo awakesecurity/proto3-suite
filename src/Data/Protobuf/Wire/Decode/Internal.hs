@@ -34,14 +34,13 @@ wireType 0 = return Varint
 wireType 5 = return Fixed32
 wireType 1 = return Fixed64
 wireType 2 = return LengthDelimited
-wireType wt = fail $ "Decode got unknown wire type: " ++ show wt
+wireType wt = fail $ "wireType got unknown wire type: " ++ show wt
 
 getFieldHeader :: Get (FieldNumber, WireType)
-getFieldHeader = getBase128Varint >>= fieldHeader
-  where fieldHeader word = do
-          wt <- wireType $ fromIntegral (word .&. 7)
-          return (decodeFieldNumber word, wt)
-          where decodeFieldNumber = FieldNumber . (`shiftR` 3)
+getFieldHeader = do
+  word <- getBase128Varint
+  wt <- wireType $ fromIntegral (word .&. 7)
+  return (FieldNumber (word `shiftR` 3), wt)
 
 -- | Decode a zigzag-encoded numeric type.
 -- See: http://stackoverflow.com/questions/2210923/zig-zag-decoding
