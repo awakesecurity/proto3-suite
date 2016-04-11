@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Data.Protobuf.Wire.Decode.Parser (
 Parser,
@@ -23,17 +24,24 @@ import           Data.Protobuf.Wire.Decode.Internal
 import           Data.Protobuf.Wire.Shared
 import           Data.Serialize.Get(runGet, getWord32le, getWord64le)
 import           Data.Serialize.IEEE754(getFloat32le, getFloat64le)
-import           Data.Text.Lazy (Text)
+import           Data.Text.Lazy (Text, pack)
 import           Data.Text.Lazy.Encoding (decodeUtf8')
 import           Data.Int (Int32, Int64)
 import           Data.Word (Word32, Word64)
 
-type Parser a = ReaderT (M.Map FieldNumber [ParsedField]) (Except String) a
+data ParseError = WireTypeError Text
+                  | BinaryError Text
+                  | EmbeddedError Text [ParseError]
+  deriving (Show, Eq, Ord)
+
+type Parser a = ReaderT (M.Map FieldNumber [ParsedField])
+                (Except [ParseError]) a
 
 -- | Runs a 'Parser'.
-parse :: Parser a -> B.ByteString -> Either String a
-parse parser bs = parseTuples bs >>=
-                  runIdentity . runExceptT . runReaderT parser
+parse :: Parser a -> B.ByteString -> Either [ParseError] a
+parse parser bs = case parseTuples bs of
+                  Left err -> throwError $ [BinaryError $ pack err]
+                  Right res -> runIdentity $ runExceptT $ runReaderT parser res
 
 -- |
 -- To comply with the protobuf spec, if there are multiple fields with the same
@@ -65,13 +73,15 @@ parsedFields fn = do
 
 throwWireTypeError :: Show a => String -> a -> Parser b
 throwWireTypeError expected wrong =
-  throwError $ "Wrong wiretype. Expected " ++ expected ++
-               " but got " ++ show wrong
+  throwError $ [WireTypeError $ pack $
+                "Wrong wiretype. Expected "
+                ++ expected ++ " but got " ++ show wrong]
 
 throwCerealError :: String -> String -> Parser b
 throwCerealError expected cerealErr =
-  throwError $ "Failed to parse contents of " ++ expected ++ " field. "
-               ++ "Error from cereal was: " ++ cerealErr
+  throwError $ [BinaryError $ pack $
+                "Failed to parse contents of " ++ expected ++ " field. "
+                ++ "Error from cereal was: " ++ cerealErr]
 
 parseVarInt :: Integral a => ParsedField -> Parser a
 parseVarInt (VarintField i) = return $ fromIntegral i
@@ -143,7 +153,8 @@ parseFixed64Double wrong = throwWireTypeError "fixed64" wrong
 parseText :: ParsedField -> Parser Text
 parseText (LengthDelimitedField bs) =
   case decodeUtf8' $ BL.fromStrict bs of
-    Left err -> throwError $ "Failed to decode UTF-8: " ++ show err
+    Left err -> throwError $ [BinaryError $ pack $
+                              "Failed to decode UTF-8: " ++ show err]
     Right txt -> return txt
 parseText wrong = throwWireTypeError "string" wrong
 
@@ -157,7 +168,8 @@ parseBytes wrong = throwWireTypeError "bytes" wrong
 parseEmbedded :: Parser a -> ParsedField -> Parser a
 parseEmbedded parser (LengthDelimitedField bs) =
   case parse parser bs of
-    Left err -> throwError $ "Failed to parse embedded message: " ++ show err
+    Left err -> throwError $
+                  [EmbeddedError "Failed to parse embedded message." err]
     Right result -> return result
 parseEmbedded _ wrong = throwWireTypeError "embedded" wrong
 
