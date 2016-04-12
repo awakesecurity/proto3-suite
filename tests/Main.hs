@@ -34,7 +34,7 @@ instance Arbitrary WireType where
   arbitrary = oneof $ map return [Varint, Fixed32, Fixed64, LengthDelimited]
 
 instance Arbitrary FieldNumber where
-  arbitrary = liftA FieldNumber arbitrary
+  arbitrary = liftA FieldNumber $ choose (1,536870911)
 
 qcInverses :: (HasEncoding a, Arbitrary a, Eq a) => Parser a -> a -> Bool
 qcInverses parser msg = msg == (decode $ encode msg)
