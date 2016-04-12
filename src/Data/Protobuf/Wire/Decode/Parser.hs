@@ -55,9 +55,7 @@ parse parser bs = case parseTuples bs of
 parsedField :: FieldNumber -> Parser (Maybe ParsedField)
 parsedField fn = do
   currMap <- ask
-  case M.lookup fn currMap >>= lastMay of
-    Just x -> return $ Just x
-    Nothing -> return Nothing
+  return $ M.lookup fn currMap >>= lastMay
 
 -- |
 -- Consumes all fields with the given field number. This is primarily for
