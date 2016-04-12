@@ -8,6 +8,7 @@ import           Data.Monoid
 import           Data.Protobuf.Wire.Generic
 import           Data.Protobuf.Wire.Shared
 import           Data.Protobuf.Wire.Decode.Parser as P
+import qualified Data.Semigroup as S
 import qualified Data.Text.Lazy as TL
 import           Data.Word (Word32, Word64)
 import           GHC.Generics
@@ -79,6 +80,9 @@ instance HasEncoding Nested
 instance Arbitrary Nested where
   arbitrary = Nested <$> fmap TL.pack arbitrary <*> arbitrary
 
+instance S.Semigroup Nested where
+  (Nested t1 i1) <> (Nested t2 i2) = Nested (t1 <> t2) i2
+
 instance ProtobufParsable Nested where
   fromField = parseEmbedded $ do
     x <- field $ FieldNumber 1
@@ -96,7 +100,7 @@ instance Arbitrary WithNesting where
   arbitrary = WithNesting <$> arbitrary
 
 withNestingParser :: Parser WithNesting
-withNestingParser = WithNesting <$> field (FieldNumber 1)
+withNestingParser = WithNesting <$> embedded (FieldNumber 1)
 
 data WithRepetition = WithRepetition {repeatedField1 :: [Int32]}
                       deriving (Show, Generic, Eq)

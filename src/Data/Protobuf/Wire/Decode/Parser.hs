@@ -7,6 +7,7 @@ parse,
 repeatedUnpacked,
 repeatedPacked,
 parseEmbedded,
+embedded,
 ProtobufParsable(..),
 ProtobufPackable,
 field
@@ -22,6 +23,7 @@ import qualified Data.Map.Strict as M
 import           Data.Maybe (fromMaybe)
 import           Data.Protobuf.Wire.Decode.Internal
 import           Data.Protobuf.Wire.Shared
+import           Data.Semigroup (Semigroup, (<>))
 import           Data.Serialize.Get(runGet, getWord32le, getWord64le)
 import           Data.Serialize.IEEE754(getFloat32le, getFloat64le)
 import           Data.Text.Lazy (Text, pack)
@@ -165,13 +167,29 @@ parseBytes wrong = throwWireTypeError "bytes" wrong
 -- | Create a parser for embedded fields from a message parser. This can
 -- be used to easily create an instance of 'ProtobufParsable' for a user-defined
 -- type.
-parseEmbedded :: Parser a -> ParsedField -> Parser a
+parseEmbedded :: Semigroup a => Parser a -> ParsedField -> Parser a
 parseEmbedded parser (LengthDelimitedField bs) =
   case parse parser bs of
     Left err -> throwError $
                   [EmbeddedError "Failed to parse embedded message." err]
     Right result -> return result
 parseEmbedded _ wrong = throwWireTypeError "embedded" wrong
+
+-- | The protobuf spec requires that embedded messages be mergeable, so that
+-- protobuf encoding has the flexibility to transmit embedded messages in
+-- pieces. This function reassembles the pieces, and must be used to parse all
+-- embedded non-repeated messages. The rules for the Semigroup instance (as
+-- stated in the protobuf spec) are:
+-- 1. `x <> y` overwrites the singular fields of x with those of y.
+-- 2. `x <> y` recurses on the embedded messages in x and y.
+-- 3. `x <> y` concatenates all list fields in x and y.
+embedded :: (Semigroup a, ProtobufParsable a) => FieldNumber -> Parser a
+embedded fn = do
+  pfs <- parsedFields fn
+  parsed <- mapM fromField pfs
+  case parsed of
+    [] -> return protoDefault
+    xs -> return $ foldl1 (<>) xs
 
 -- | Specify that one value is expected from this field. Used to ensure that we
 -- return the last value with the given field number in the message, in
