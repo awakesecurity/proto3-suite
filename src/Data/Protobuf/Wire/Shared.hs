@@ -38,7 +38,7 @@ data WireType
   | LengthDelimited
   deriving (Show, Eq, Ord)
 
-  -- | 'Fixed' provides a way to encode integers in the fixed-width wire formats.
+-- | 'Fixed' provides a way to encode integers in the fixed-width wire formats.
 newtype Fixed a = Fixed { fixed :: a } deriving (Show, Eq, Ord, Generic, NFData)
 
 -- | 'Signed' provides a way to encode integers in the signed wire formats.
