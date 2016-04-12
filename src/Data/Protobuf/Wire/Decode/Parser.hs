@@ -30,6 +30,7 @@ import           Data.Text.Lazy (Text, pack)
 import           Data.Text.Lazy.Encoding (decodeUtf8')
 import           Data.Int (Int32, Int64)
 import           Data.Word (Word32, Word64)
+import           Safe
 
 data ParseError = WireTypeError Text
                   | BinaryError Text
@@ -54,10 +55,9 @@ parse parser bs = case parseTuples bs of
 parsedField :: FieldNumber -> Parser (Maybe ParsedField)
 parsedField fn = do
   currMap <- ask
-  let pfs = M.lookup fn currMap
-  case pfs of
-    Just xs@(_:_) -> return $ Just $ last xs
-    _ -> return Nothing
+  case M.lookup fn currMap >>= lastMay of
+    Just x -> return $ Just x
+    Nothing -> return Nothing
 
 -- |
 -- Consumes all fields with the given field number. This is primarily for

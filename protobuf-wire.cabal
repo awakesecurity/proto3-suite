@@ -28,7 +28,8 @@ library
                        cereal >= 0.5.1 && <0.6,
                        mtl ==2.2.*,
                        containers ==0.5.*,
-                       semigroups ==0.18.*
+                       semigroups ==0.18.*,
+                       safe
 
   hs-source-dirs:      src
   default-language:    Haskell2010
