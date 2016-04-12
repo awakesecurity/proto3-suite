@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -30,6 +31,7 @@ import           Data.Text.Lazy (Text, pack)
 import           Data.Text.Lazy.Encoding (decodeUtf8')
 import           Data.Int (Int32, Int64)
 import           Data.Word (Word32, Word64)
+import           Pipes
 import           Safe
 
 data ParseError = WireTypeError Text
@@ -37,14 +39,19 @@ data ParseError = WireTypeError Text
                   | EmbeddedError Text [ParseError]
   deriving (Show, Eq, Ord)
 
-type Parser a = ReaderT (M.Map FieldNumber [ParsedField])
-                (Except [ParseError]) a
+newtype Parser a = Parser
+  { unParser :: ReaderT
+                  (M.Map FieldNumber [ParsedField]) (Except [ParseError]) a}
+  deriving (Functor, Applicative, Monad, Alternative, MonadPlus,
+            MonadReader (M.Map FieldNumber [ParsedField]),
+            MonadError [ParseError])
 
 -- | Runs a 'Parser'.
 parse :: Parser a -> B.ByteString -> Either [ParseError] a
 parse parser bs = case parseTuples bs of
                   Left err -> throwError $ [BinaryError $ pack err]
-                  Right res -> runIdentity $ runExceptT $ runReaderT parser res
+                  Right res -> runIdentity $ runExceptT $
+                                runReaderT (unParser parser) res
 
 -- |
 -- To comply with the protobuf spec, if there are multiple fields with the same
