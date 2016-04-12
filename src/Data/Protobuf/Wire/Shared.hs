@@ -6,7 +6,6 @@ module Data.Protobuf.Wire.Shared (
   FieldNumber(..)
 , fieldNumber
 , WireType(..)
-, ProtobufMerge(..)
 
 -- * Integral Types
 , Fixed(..)

@@ -89,9 +89,6 @@ instance ProtobufParsable Nested where
     y <- field $ FieldNumber 2
     return $ Nested x y
 
-instance ProtobufMerge Nested where
-  protobufMerge (Nested x1 y1) (Nested x2 y2) = Nested (x1 <> x2) y2
-
 data WithNesting = WithNesting {nestedMessage :: Nested}
                     deriving (Show, Generic, Eq)
 instance HasEncoding WithNesting
