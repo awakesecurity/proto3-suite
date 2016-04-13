@@ -266,45 +266,37 @@ field = fmap (fromMaybe protoDefault) . one fromField
 -- | Type class for fields that can be repeated in the more efficient packed
 -- format. This is limited to primitive numeric types.
 class ProtobufPackable a where
-  parsePacked :: ParsedField -> ListT Parser a
+  parsePacked :: ParsedField -> Parser [a]
 
 instance ProtobufPackable Word32 where
-  parsePacked = delistify . parsePackedVarInt
+  parsePacked = parsePackedVarInt
 
 instance ProtobufPackable Word64 where
-  parsePacked = delistify . parsePackedVarInt
+  parsePacked = parsePackedVarInt
 
 instance ProtobufPackable Int32 where
-  parsePacked = delistify . parsePackedVarInt
+  parsePacked = parsePackedVarInt
 
 instance ProtobufPackable Int64 where
-  parsePacked = delistify . parsePackedVarInt
+  parsePacked = parsePackedVarInt
 
 instance ProtobufPackable (Fixed Word32) where
-  parsePacked = delistify
-                . fmap (fmap (Fixed . fromIntegral))
-                . parsePackedFixed32
+  parsePacked = fmap (fmap (Fixed . fromIntegral)) . parsePackedFixed32
 
 instance ProtobufPackable (Signed (Fixed Int32)) where
-  parsePacked = delistify
-                . fmap (fmap (Signed . Fixed . fromIntegral))
-                . parsePackedFixed32
+  parsePacked = fmap (fmap (Signed . Fixed . fromIntegral)) . parsePackedFixed32
 
 instance ProtobufPackable (Fixed Word64) where
-  parsePacked = delistify
-                . fmap (fmap (Fixed . fromIntegral))
-                . parsePackedFixed64
+  parsePacked = fmap (fmap (Fixed . fromIntegral)) . parsePackedFixed64
 
 instance ProtobufPackable (Signed (Fixed Int64)) where
-  parsePacked = delistify
-                . fmap (fmap (Signed . Fixed . fromIntegral))
-                . parsePackedFixed64
+  parsePacked = fmap (fmap (Signed . Fixed . fromIntegral)) . parsePackedFixed64
 
 instance ProtobufPackable Float where
-  parsePacked = delistify . parsePackedFixed32Float
+  parsePacked = parsePackedFixed32Float
 
 instance ProtobufPackable Double where
-  parsePacked = delistify . parsePackedFixed64Double
+  parsePacked = parsePackedFixed64Double
 
 -- | Parses an unpacked repeated field.
 repeatedUnpacked :: ProtobufParsable a => FieldNumber -> ListT Parser a
@@ -327,7 +319,7 @@ repeatedUnpackedList = P.toListM . enumerate . repeatedUnpacked
 -- matching the official implementation's behavior.
 repeatedPacked' :: (ProtobufParsable a, ProtobufPackable a)
                   => FieldNumber -> ListT Parser a
-repeatedPacked' fn = (delistify $ parsedFields fn) >>= parsePacked
+repeatedPacked' fn = (delistify $ parsedFields fn) >>= (delistify . parsePacked)
 
 repeatedPacked :: (ProtobufParsable a, ProtobufPackable a)
                   => FieldNumber -> ListT Parser a
