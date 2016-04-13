@@ -6,7 +6,9 @@ module Data.Protobuf.Wire.Decode.Parser (
 Parser,
 parse,
 repeatedUnpacked,
+repeatedUnpackedList,
 repeatedPacked,
+repeatedPackedList,
 parseEmbedded,
 embedded,
 ProtobufParsable(..),
@@ -25,13 +27,14 @@ import           Data.Maybe (fromMaybe)
 import           Data.Protobuf.Wire.Decode.Internal
 import           Data.Protobuf.Wire.Shared
 import           Data.Semigroup (Semigroup, (<>))
-import           Data.Serialize.Get(runGet, getWord32le, getWord64le)
+import           Data.Serialize.Get(Get, runGet, getWord32le, getWord64le)
 import           Data.Serialize.IEEE754(getFloat32le, getFloat64le)
 import           Data.Text.Lazy (Text, pack)
 import           Data.Text.Lazy.Encoding (decodeUtf8')
 import           Data.Int (Int32, Int64)
 import           Data.Word (Word32, Word64)
 import           Pipes
+import qualified Pipes.Prelude as P
 import           Safe
 
 data ParseError = WireTypeError Text
@@ -74,9 +77,13 @@ parsedFields :: FieldNumber -> Parser [ParsedField]
 parsedFields fn = do
   currMap <- ask
   let pfs = M.lookup fn currMap
-  case pfs of
-    Just xs -> return xs
-    Nothing -> return []
+  return $ concat pfs
+
+parsedFields' :: FieldNumber -> ListT Parser ParsedField
+parsedFields' fn = do
+  currMap <- lift ask
+  let pfs = M.lookup fn currMap
+  Select $ each $ concat pfs
 
 throwWireTypeError :: Show a => String -> a -> Parser b
 throwWireTypeError expected wrong =
@@ -94,19 +101,28 @@ parseVarInt :: Integral a => ParsedField -> Parser a
 parseVarInt (VarintField i) = return $ fromIntegral i
 parseVarInt wrong = throwWireTypeError "varint" wrong
 
-parsePackedVarInt :: Integral a => ParsedField -> Parser [a]
-parsePackedVarInt (LengthDelimitedField bs) =
-  case runGet (many getBase128Varint) bs of
-    Left e -> throwCerealError "packed varints" e
-    Right xs -> return $ map fromIntegral xs
-parsePackedVarInt wrong = throwWireTypeError "packed varints" wrong
+runGetPacked :: Get [a] -> ParsedField -> ListT Parser a
+runGetPacked g (LengthDelimitedField bs) =
+  case runGet g bs of
+    Left e -> lift $ throwCerealError "packed repeated field" e
+    Right xs -> Select $ each $ xs
+runGetPacked g wrong =
+  lift $ throwWireTypeError "packed repeated field" wrong
 
-parsePackedFixed32 :: Integral a => ParsedField -> Parser [a]
-parsePackedFixed32 (LengthDelimitedField bs) =
-  case runGet (many getWord32le) bs of
-    Left e -> throwCerealError "fixed32 packed" e
-    Right xs -> return $ map fromIntegral xs
-parsePackedFixed32 wrong = throwWireTypeError "fixed32 packed" wrong
+parsePackedVarInt :: Integral a => ParsedField -> ListT Parser a
+parsePackedVarInt = fmap fromIntegral . runGetPacked (many getBase128Varint)
+
+parsePackedFixed32 :: Integral a => ParsedField -> ListT Parser a
+parsePackedFixed32 = fmap fromIntegral . runGetPacked (many getWord32le)
+
+parsePackedFixed32Float :: ParsedField -> ListT Parser Float
+parsePackedFixed32Float = runGetPacked (many getFloat32le)
+
+parsePackedFixed64 :: Integral a => ParsedField -> ListT Parser a
+parsePackedFixed64 = fmap fromIntegral . runGetPacked (many getWord64le)
+
+parsePackedFixed64Double :: ParsedField -> ListT Parser Double
+parsePackedFixed64Double = runGetPacked (many getFloat64le)
 
 parseFixed32 :: Integral a => ParsedField -> Parser a
 parseFixed32 (Fixed32Field bs) =
@@ -115,13 +131,6 @@ parseFixed32 (Fixed32Field bs) =
     Right i -> return $ fromIntegral i
 parseFixed32 wrong = throwWireTypeError "fixed32" wrong
 
-parsePackedFixed32Float :: ParsedField -> Parser [Float]
-parsePackedFixed32Float (LengthDelimitedField bs) =
-  case runGet (many getFloat32le) bs of
-    Left e -> throwCerealError "fixed32 packed" e
-    Right xs -> return xs
-parsePackedFixed32Float wrong = throwWireTypeError "fixed32 packed" wrong
-
 parseFixed32Float :: ParsedField -> Parser Float
 parseFixed32Float (Fixed32Field bs) =
   case runGet getFloat32le bs of
@@ -129,26 +138,12 @@ parseFixed32Float (Fixed32Field bs) =
     Right f -> return f
 parseFixed32Float wrong = throwWireTypeError "fixed32" wrong
 
-parsePackedFixed64 :: Integral a => ParsedField -> Parser [a]
-parsePackedFixed64 (LengthDelimitedField bs) =
-  case runGet (many getWord64le) bs of
-    Left e -> throwCerealError "fixed64 packed" e
-    Right xs -> return $ map fromIntegral xs
-parsePackedFixed64 wrong = throwWireTypeError "fixed 64 packed" wrong
-
 parseFixed64 :: Integral a => ParsedField -> Parser a
 parseFixed64 (Fixed64Field bs) =
   case runGet getWord64le bs of
     Left e -> throwCerealError "fixed64" e
     Right i -> return $ fromIntegral i
 parseFixed64 wrong = throwWireTypeError "fixed64" wrong
-
-parsePackedFixed64Double :: ParsedField -> Parser [Double]
-parsePackedFixed64Double (LengthDelimitedField bs) =
-  case runGet (many getFloat64le) bs of
-    Left e -> throwCerealError "fixed64 doubles packed" e
-    Right xs -> return xs
-parsePackedFixed64Double wrong = throwWireTypeError "doubles packed" wrong
 
 parseFixed64Double :: ParsedField -> Parser Double
 parseFixed64Double (Fixed64Field bs) =
@@ -276,7 +271,7 @@ field = fmap (fromMaybe protoDefault) . one fromField
 -- | Type class for fields that can be repeated in the more efficient packed
 -- format. This is limited to primitive numeric types.
 class ProtobufPackable a where
-  parsePacked :: ParsedField -> Parser [a]
+  parsePacked :: ParsedField -> ListT Parser a
 
 instance ProtobufPackable Word32 where
   parsePacked = parsePackedVarInt
@@ -291,16 +286,16 @@ instance ProtobufPackable Int64 where
   parsePacked = parsePackedVarInt
 
 instance ProtobufPackable (Fixed Word32) where
-  parsePacked = fmap (fmap (Fixed . fromIntegral)) . parsePackedFixed32
+  parsePacked = fmap (Fixed . fromIntegral) . parsePackedFixed32
 
 instance ProtobufPackable (Signed (Fixed Int32)) where
-  parsePacked = fmap (fmap (Signed . Fixed . fromIntegral)) . parsePackedFixed32
+  parsePacked = fmap (Signed . Fixed . fromIntegral) . parsePackedFixed32
 
 instance ProtobufPackable (Fixed Word64) where
-  parsePacked = fmap (fmap (Fixed . fromIntegral)) . parsePackedFixed64
+  parsePacked = fmap (Fixed . fromIntegral) . parsePackedFixed64
 
 instance ProtobufPackable (Signed (Fixed Int64)) where
-  parsePacked = fmap (fmap (Signed . Fixed . fromIntegral)) . parsePackedFixed64
+  parsePacked = fmap (Signed . Fixed . fromIntegral) . parsePackedFixed64
 
 instance ProtobufPackable Float where
   parsePacked = parsePackedFixed32Float
@@ -309,14 +304,29 @@ instance ProtobufPackable Double where
   parsePacked = parsePackedFixed64Double
 
 -- | Parses an unpacked repeated field.
-repeatedUnpacked :: ProtobufParsable a => FieldNumber -> Parser [a]
-repeatedUnpacked fn = (parsedFields fn >>= mapM fromField)
+repeatedUnpacked :: ProtobufParsable a => FieldNumber -> ListT Parser a
+repeatedUnpacked fn = do
+  pf <- parsedFields' fn
+  lift (fromField pf)
+
+listify :: ListT Parser a -> Parser [a]
+listify = P.toListM . enumerate
+
+delistify :: Parser [a] -> ListT Parser a
+delistify x = lift x >>= (Select . each)
+
+repeatedUnpackedList :: ProtobufParsable a => FieldNumber -> Parser [a]
+repeatedUnpackedList = P.toListM . enumerate . repeatedUnpacked
 
 -- | Parses a packed repeated field. Correctly handles the case where a packed
 -- field has been split across multiple key/value pairs in the encoded message.
 -- Falls back to trying to parse the field as unpacked if packed parsing fails,
 -- matching the official implementation's behavior.
 repeatedPacked :: (ProtobufParsable a, ProtobufPackable a)
-                  => FieldNumber -> Parser [a]
-repeatedPacked fn = (fmap concat $ parsedFields fn >>= mapM parsePacked)
-                    <|> repeatedUnpacked fn
+                  => FieldNumber -> ListT Parser a
+repeatedPacked fn = delistify $ (listify (parsedFields' fn >>= parsePacked))
+                                <|> (listify (repeatedUnpacked fn))
+
+repeatedPackedList :: (ProtobufParsable a, ProtobufPackable a)
+                      => FieldNumber -> Parser [a]
+repeatedPackedList = P.toListM . enumerate . repeatedPacked

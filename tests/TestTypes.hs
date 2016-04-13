@@ -107,7 +107,7 @@ instance Arbitrary WithRepetition where
   arbitrary = WithRepetition <$> arbitrary
 
 withRepetitionParser :: Parser WithRepetition
-withRepetitionParser = WithRepetition <$> repeatedPacked (FieldNumber 1)
+withRepetitionParser = WithRepetition <$> repeatedPackedList (FieldNumber 1)
 
 data WithFixed = WithFixed {fixed1 :: (Fixed Word32),
                             fixed2 :: (Signed (Fixed Int32)),
@@ -145,7 +145,7 @@ instance Arbitrary WithBytes where
 
 withBytesParser = WithBytes
                   <$> field (FieldNumber 1)
-                  <*> repeatedUnpacked (FieldNumber 2)
+                  <*> repeatedUnpackedList (FieldNumber 2)
 
 data WithPacking = WithPacking {packing1 :: [Int32],
                                 packing2 :: [Int32]}
@@ -156,5 +156,5 @@ instance Arbitrary WithPacking where
   arbitrary = WithPacking <$> arbitrary <*> arbitrary
 
 withPackingParser = WithPacking
-                    <$> repeatedUnpacked (FieldNumber 1)
-                    <*> repeatedPacked (FieldNumber 2)
+                    <$> repeatedUnpackedList (FieldNumber 1)
+                    <*> repeatedPackedList (FieldNumber 2)
