@@ -88,6 +88,7 @@ instance ProtobufParsable Nested where
     x <- field $ FieldNumber 1
     y <- field $ FieldNumber 2
     return $ Nested x y
+  protoDefault = Nested mempty 0
 
 data WithNesting = WithNesting {nestedMessage :: Nested}
                     deriving (Show, Generic, Eq)

@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Data.Protobuf.Wire.Decode.Parser (
 Parser,
@@ -17,6 +18,7 @@ field
 ) where
 
 import           Control.Applicative
+import           Control.Monad (join)
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import qualified Data.ByteString as B
@@ -52,7 +54,7 @@ newtype Parser a = Parser
 -- | Runs a 'Parser'.
 parse :: Parser a -> B.ByteString -> Either [ParseError] a
 parse parser bs = case parseTuples bs of
-                  Left err -> throwError $ [BinaryError $ pack err]
+                  Left err -> throwError [BinaryError $ pack err]
                   Right res -> runIdentity $ runExceptT $
                                 runReaderT (unParser parser) res
 
@@ -79,49 +81,44 @@ parsedFields fn = do
   let pfs = M.lookup fn currMap
   return $ concat pfs
 
-parsedFields' :: FieldNumber -> ListT Parser ParsedField
-parsedFields' fn = do
-  currMap <- lift ask
-  let pfs = M.lookup fn currMap
-  Select $ each $ concat pfs
-
 throwWireTypeError :: Show a => String -> a -> Parser b
 throwWireTypeError expected wrong =
-  throwError $ [WireTypeError $ pack $
-                "Wrong wiretype. Expected "
-                ++ expected ++ " but got " ++ show wrong]
+  throwError [WireTypeError $ pack $
+              "Wrong wiretype. Expected "
+              ++ expected ++ " but got " ++ show wrong]
 
 throwCerealError :: String -> String -> Parser b
 throwCerealError expected cerealErr =
-  throwError $ [BinaryError $ pack $
-                "Failed to parse contents of " ++ expected ++ " field. "
-                ++ "Error from cereal was: " ++ cerealErr]
+  throwError [BinaryError $ pack $
+              "Failed to parse contents of " ++ expected ++ " field. "
+              ++ "Error from cereal was: " ++ cerealErr]
 
 parseVarInt :: Integral a => ParsedField -> Parser a
 parseVarInt (VarintField i) = return $ fromIntegral i
 parseVarInt wrong = throwWireTypeError "varint" wrong
 
-runGetPacked :: Get [a] -> ParsedField -> ListT Parser a
+runGetPacked :: Get [a] -> ParsedField -> Parser [a]
 runGetPacked g (LengthDelimitedField bs) =
   case runGet g bs of
-    Left e -> lift $ throwCerealError "packed repeated field" e
-    Right xs -> Select $ each $ xs
+    Left e -> throwCerealError "packed repeated field" e
+    Right xs -> return xs
 runGetPacked g wrong =
-  lift $ throwWireTypeError "packed repeated field" wrong
+  throwWireTypeError "packed repeated field" wrong
 
-parsePackedVarInt :: Integral a => ParsedField -> ListT Parser a
-parsePackedVarInt = fmap fromIntegral . runGetPacked (many getBase128Varint)
+parsePackedVarInt :: Integral a => ParsedField -> Parser [a]
+parsePackedVarInt = fmap (fmap fromIntegral)
+                    . runGetPacked (many getBase128Varint)
 
-parsePackedFixed32 :: Integral a => ParsedField -> ListT Parser a
-parsePackedFixed32 = fmap fromIntegral . runGetPacked (many getWord32le)
+parsePackedFixed32 :: Integral a => ParsedField -> Parser [a]
+parsePackedFixed32 = fmap (fmap fromIntegral) . runGetPacked (many getWord32le)
 
-parsePackedFixed32Float :: ParsedField -> ListT Parser Float
+parsePackedFixed32Float :: ParsedField -> Parser [Float]
 parsePackedFixed32Float = runGetPacked (many getFloat32le)
 
-parsePackedFixed64 :: Integral a => ParsedField -> ListT Parser a
-parsePackedFixed64 = fmap fromIntegral . runGetPacked (many getWord64le)
+parsePackedFixed64 :: Integral a => ParsedField -> Parser [a]
+parsePackedFixed64 = fmap (fmap fromIntegral) . runGetPacked (many getWord64le)
 
-parsePackedFixed64Double :: ParsedField -> ListT Parser Double
+parsePackedFixed64Double :: ParsedField -> Parser [Double]
 parsePackedFixed64Double = runGetPacked (many getFloat64le)
 
 parseFixed32 :: Integral a => ParsedField -> Parser a
@@ -155,8 +152,8 @@ parseFixed64Double wrong = throwWireTypeError "fixed64" wrong
 parseText :: ParsedField -> Parser Text
 parseText (LengthDelimitedField bs) =
   case decodeUtf8' $ BL.fromStrict bs of
-    Left err -> throwError $ [BinaryError $ pack $
-                              "Failed to decode UTF-8: " ++ show err]
+    Left err -> throwError [BinaryError $ pack $
+                            "Failed to decode UTF-8: " ++ show err]
     Right txt -> return txt
 parseText wrong = throwWireTypeError "string" wrong
 
@@ -170,7 +167,7 @@ parseBytes wrong = throwWireTypeError "bytes" wrong
 parseEmbedded :: Semigroup a => Parser a -> ParsedField -> Parser a
 parseEmbedded parser (LengthDelimitedField bs) =
   case parse parser bs of
-    Left err -> throwError $
+    Left err -> throwError
                   [EmbeddedError "Failed to parse embedded message." err]
     Right result -> return result
 parseEmbedded _ wrong = throwWireTypeError "embedded" wrong
@@ -178,18 +175,16 @@ parseEmbedded _ wrong = throwWireTypeError "embedded" wrong
 -- | The protobuf spec requires that embedded messages be mergeable, so that
 -- protobuf encoding has the flexibility to transmit embedded messages in
 -- pieces. This function reassembles the pieces, and must be used to parse all
--- embedded non-repeated messages. The rules for the Semigroup instance (as
+-- embedded non-repeated messages. The rules for the Monoid instance (as
 -- stated in the protobuf spec) are:
 -- 1. `x <> y` overwrites the singular fields of x with those of y.
 -- 2. `x <> y` recurses on the embedded messages in x and y.
 -- 3. `x <> y` concatenates all list fields in x and y.
 embedded :: (Semigroup a, ProtobufParsable a) => FieldNumber -> Parser a
-embedded fn = do
-  pfs <- parsedFields fn
-  parsed <- mapM fromField pfs
-  case parsed of
-    [] -> return protoDefault
-    xs -> return $ foldl1 (<>) xs
+embedded = P.foldM ugh (return protoDefault) return . enumerate . delistify . parsedFields
+  where ugh x pf = do
+          y <- fromField pf
+          return $ x <> y
 
 -- | Specify that one value is expected from this field. Used to ensure that we
 -- return the last value with the given field number in the message, in
@@ -274,39 +269,47 @@ class ProtobufPackable a where
   parsePacked :: ParsedField -> ListT Parser a
 
 instance ProtobufPackable Word32 where
-  parsePacked = parsePackedVarInt
+  parsePacked = delistify . parsePackedVarInt
 
 instance ProtobufPackable Word64 where
-  parsePacked = parsePackedVarInt
+  parsePacked = delistify . parsePackedVarInt
 
 instance ProtobufPackable Int32 where
-  parsePacked = parsePackedVarInt
+  parsePacked = delistify . parsePackedVarInt
 
 instance ProtobufPackable Int64 where
-  parsePacked = parsePackedVarInt
+  parsePacked = delistify . parsePackedVarInt
 
 instance ProtobufPackable (Fixed Word32) where
-  parsePacked = fmap (Fixed . fromIntegral) . parsePackedFixed32
+  parsePacked = delistify
+                . fmap (fmap (Fixed . fromIntegral))
+                . parsePackedFixed32
 
 instance ProtobufPackable (Signed (Fixed Int32)) where
-  parsePacked = fmap (Signed . Fixed . fromIntegral) . parsePackedFixed32
+  parsePacked = delistify
+                . fmap (fmap (Signed . Fixed . fromIntegral))
+                . parsePackedFixed32
 
 instance ProtobufPackable (Fixed Word64) where
-  parsePacked = fmap (Fixed . fromIntegral) . parsePackedFixed64
+  parsePacked = delistify
+                . fmap (fmap (Fixed . fromIntegral))
+                . parsePackedFixed64
 
 instance ProtobufPackable (Signed (Fixed Int64)) where
-  parsePacked = fmap (Signed . Fixed . fromIntegral) . parsePackedFixed64
+  parsePacked = delistify
+                . fmap (fmap (Signed . Fixed . fromIntegral))
+                . parsePackedFixed64
 
 instance ProtobufPackable Float where
-  parsePacked = parsePackedFixed32Float
+  parsePacked = delistify . parsePackedFixed32Float
 
 instance ProtobufPackable Double where
-  parsePacked = parsePackedFixed64Double
+  parsePacked = delistify . parsePackedFixed64Double
 
 -- | Parses an unpacked repeated field.
 repeatedUnpacked :: ProtobufParsable a => FieldNumber -> ListT Parser a
 repeatedUnpacked fn = do
-  pf <- parsedFields' fn
+  pf <- delistify $ parsedFields fn
   lift (fromField pf)
 
 listify :: ListT Parser a -> Parser [a]
@@ -322,11 +325,15 @@ repeatedUnpackedList = P.toListM . enumerate . repeatedUnpacked
 -- field has been split across multiple key/value pairs in the encoded message.
 -- Falls back to trying to parse the field as unpacked if packed parsing fails,
 -- matching the official implementation's behavior.
+repeatedPacked' :: (ProtobufParsable a, ProtobufPackable a)
+                  => FieldNumber -> ListT Parser a
+repeatedPacked' fn = (delistify $ parsedFields fn) >>= parsePacked
+
 repeatedPacked :: (ProtobufParsable a, ProtobufPackable a)
                   => FieldNumber -> ListT Parser a
-repeatedPacked fn = delistify $ (listify (parsedFields' fn >>= parsePacked))
-                                <|> (listify (repeatedUnpacked fn))
+repeatedPacked fn = delistify $ listify (repeatedPacked' fn)
+                                <|> listify (repeatedUnpacked fn)
 
 repeatedPackedList :: (ProtobufParsable a, ProtobufPackable a)
                       => FieldNumber -> Parser [a]
-repeatedPackedList = P.toListM . enumerate . repeatedPacked
+repeatedPackedList = listify . repeatedPacked
