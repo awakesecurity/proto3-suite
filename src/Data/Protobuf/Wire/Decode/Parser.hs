@@ -213,7 +213,7 @@ parseEmbedded _ wrong = throwWireTypeError "embedded" wrong
 -- | The protobuf spec requires that embedded messages be mergeable, so that
 -- protobuf encoding has the flexibility to transmit embedded messages in
 -- pieces. This function reassembles the pieces, and must be used to parse all
--- embedded non-repeated messages. The rules for the Monoid instance (as
+-- embedded non-repeated messages. The rules for the Semigroup instance (as
 -- stated in the protobuf spec) are:
 -- 1. `x <> y` overwrites the singular fields of x with those of y.
 -- 2. `x <> y` recurses on the embedded messages in x and y.
