@@ -181,8 +181,9 @@ parseEmbedded _ wrong = throwWireTypeError "embedded" wrong
 -- 2. `x <> y` recurses on the embedded messages in x and y.
 -- 3. `x <> y` concatenates all list fields in x and y.
 embedded :: (Semigroup a, ProtobufParsable a) => FieldNumber -> Parser a
-embedded = P.foldM ugh (return protoDefault) return . enumerate . delistify . parsedFields
-  where ugh x pf = do
+embedded = P.foldM f (return protoDefault) return
+           . enumerate . delistify . parsedFields
+  where f x pf = do
           y <- fromField pf
           return $ x <> y
 
