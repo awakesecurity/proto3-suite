@@ -4,17 +4,24 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Data.Protobuf.Wire.Decode.Parser (
+
+-- * The Parser type
 Parser,
 parse,
+ParseError(..),
+
+-- * Helper type classes
+ProtobufParsable(..),
+ProtobufPackable,
+parseEmbedded,
+
+-- * Parsing fields
+field,
+embedded,
 repeatedUnpacked,
 repeatedUnpackedList,
 repeatedPacked,
-repeatedPackedList,
-parseEmbedded,
-embedded,
-ProtobufParsable(..),
-ProtobufPackable,
-field
+repeatedPackedList
 ) where
 
 import           Control.Applicative
@@ -39,11 +46,42 @@ import           Pipes
 import qualified Pipes.Prelude as P
 import           Safe
 
-data ParseError = WireTypeError Text
-                  | BinaryError Text
-                  | EmbeddedError Text [ParseError]
+-- | Type describing possible errors that can be encountered while parsing.
+data ParseError
+  -- | A 'WireTypeError' occurs when the type of the data in the protobuf
+  -- binary format does not match the type encountered by the parser. This can
+  -- indicate that the type of a field has changed or is incorrect.
+  = WireTypeError Text
+  -- | A 'BinaryError' occurs when we can't successfully parse the contents of
+  -- the field.
+  | BinaryError Text
+  -- | An 'EmbeddedError' occurs when we encounter an error while parsing an
+  -- | embedded message.
+  | EmbeddedError Text [ParseError]
   deriving (Show, Eq, Ord)
 
+-- | Parser of protobuf messages and their fields. Intended for use primarily
+-- in an Applicative style. For example:
+--
+--
+-- > data MultipleFields =
+-- >   MultipleFields {multiFieldDouble :: Double,
+-- >                   multiFieldFloat :: Float,
+-- >                   multiFieldInt32 :: Int32,
+-- >                   multiFieldInt64 :: Int64,
+-- >                   multiFieldString :: Text,
+-- >                   multiFieldBool :: Bool}
+-- >                   deriving (Show, Generic, Eq)
+-- >
+-- > multipleFieldsParser :: Parser MultipleFields
+-- > multipleFieldsParser = MultipleFields
+-- >                        <$> field (FieldNumber 1)
+-- >                        <*> field (FieldNumber 2)
+-- >                        <*> field (FieldNumber 3)
+-- >                        <*> field (FieldNumber 4)
+-- >                        <*> field (FieldNumber 5)
+-- >                        <*> field (FieldNumber 6)
+--
 newtype Parser a = Parser
   { unParser :: ReaderT
                   (M.Map FieldNumber [ParsedField]) (Except [ParseError]) a}
@@ -202,7 +240,9 @@ class ProtobufParsable a where
   fromField :: ParsedField -> Parser a
   -- | Specifies the default value when a field is missing from the message.
   -- Note: this is used by protobufs to save space on messages by omitting them
-  -- if they happen to be set to the default.
+  -- if they happen to be set to the default. For more information on default
+  -- values in protobufs, see the
+  -- <https://developers.google.com/protocol-buffers/docs/proto3#default official docs>.
   protoDefault :: a
 
 instance ProtobufParsable Bool where
@@ -261,6 +301,7 @@ instance Enum e => ProtobufParsable (Enumerated e) where
   fromField = fmap (Enumerated . toEnum . fromIntegral) . parseVarInt
   protoDefault = Enumerated $ toEnum 0
 
+-- | Parse a singular protobuf message field, such as a Bool or Fixed32.
 field :: ProtobufParsable a => FieldNumber -> Parser a
 field = fmap (fromMaybe protoDefault) . one fromField
 
@@ -299,7 +340,8 @@ instance ProtobufPackable Float where
 instance ProtobufPackable Double where
   parsePacked = parsePackedFixed64Double
 
--- | Parses an unpacked repeated field.
+-- | Parses an unpacked repeated field. See 'repeatedUnpackedList' for a
+-- non-streaming version.
 repeatedUnpacked :: ProtobufParsable a => FieldNumber -> ListT Parser a
 repeatedUnpacked fn = do
   pf <- delistify $ parsedFields fn
@@ -317,15 +359,14 @@ repeatedUnpackedList = P.toListM . enumerate . repeatedUnpacked
 -- | Parses a packed repeated field. Correctly handles the case where a packed
 -- field has been split across multiple key/value pairs in the encoded message.
 -- Falls back to trying to parse the field as unpacked if packed parsing fails,
--- matching the official implementation's behavior.
-repeatedPacked' :: (ProtobufParsable a, ProtobufPackable a)
-                  => FieldNumber -> ListT Parser a
-repeatedPacked' fn = (delistify $ parsedFields fn) >>= (delistify . parsePacked)
-
+-- matching the official implementation's behavior. See 'repeatedPackedList' for
+-- a non-streaming version.
 repeatedPacked :: (ProtobufParsable a, ProtobufPackable a)
                   => FieldNumber -> ListT Parser a
 repeatedPacked fn = delistify $ listify (repeatedPacked' fn)
                                 <|> listify (repeatedUnpacked fn)
+  where repeatedPacked' fn = (delistify $ parsedFields fn)
+                             >>= (delistify . parsePacked)
 
 repeatedPackedList :: (ProtobufParsable a, ProtobufPackable a)
                       => FieldNumber -> Parser [a]
