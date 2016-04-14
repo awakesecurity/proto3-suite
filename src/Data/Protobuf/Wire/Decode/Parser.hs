@@ -215,9 +215,10 @@ parseEmbedded _ wrong = throwWireTypeError "embedded" wrong
 -- pieces. This function reassembles the pieces, and must be used to parse all
 -- embedded non-repeated messages. The rules for the Semigroup instance (as
 -- stated in the protobuf spec) are:
--- 1. `x <> y` overwrites the singular fields of x with those of y.
--- 2. `x <> y` recurses on the embedded messages in x and y.
--- 3. `x <> y` concatenates all list fields in x and y.
+--
+-- * @x <> y@ overwrites the singular fields of @x@ with those of @y@.
+-- * @x <> y@ recurses on the embedded messages in @x@ and @y@.
+-- * @x <> y@ concatenates all list fields in @x@ and @y@.
 embedded :: (Semigroup a, ProtobufParsable a) => FieldNumber -> Parser a
 embedded = P.foldM f (return protoDefault) return
            . enumerate . delistify . parsedFields
