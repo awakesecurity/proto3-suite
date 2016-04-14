@@ -105,6 +105,22 @@ runGetPacked g (LengthDelimitedField bs) =
 runGetPacked g wrong =
   throwWireTypeError "packed repeated field" wrong
 
+runGetFixed32 :: Get a -> ParsedField -> Parser a
+runGetFixed32 g (Fixed32Field bs) =
+  case runGet g bs of
+    Left e -> throwCerealError "fixed32 field" e
+    Right x -> return x
+runGetFixed32 g wrong =
+  throwWireTypeError "fixed 32 field" wrong
+
+runGetFixed64 :: Get a -> ParsedField -> Parser a
+runGetFixed64 g (Fixed64Field bs) =
+  case runGet g bs of
+    Left e -> throwCerealError "fixed 64 field" e
+    Right x -> return x
+runGetFixed64 g wrong =
+  throwWireTypeError "fixed 64 field" wrong
+
 parsePackedVarInt :: Integral a => ParsedField -> Parser [a]
 parsePackedVarInt = fmap (fmap fromIntegral)
                     . runGetPacked (many getBase128Varint)
@@ -122,32 +138,16 @@ parsePackedFixed64Double :: ParsedField -> Parser [Double]
 parsePackedFixed64Double = runGetPacked (many getFloat64le)
 
 parseFixed32 :: Integral a => ParsedField -> Parser a
-parseFixed32 (Fixed32Field bs) =
-  case runGet getWord32le bs of
-    Left e -> throwCerealError "fixed32" e
-    Right i -> return $ fromIntegral i
-parseFixed32 wrong = throwWireTypeError "fixed32" wrong
+parseFixed32 = fmap fromIntegral . runGetFixed32 getWord32le
 
 parseFixed32Float :: ParsedField -> Parser Float
-parseFixed32Float (Fixed32Field bs) =
-  case runGet getFloat32le bs of
-    Left e -> throwCerealError "fixed32" e
-    Right f -> return f
-parseFixed32Float wrong = throwWireTypeError "fixed32" wrong
+parseFixed32Float = runGetFixed32 getFloat32le
 
 parseFixed64 :: Integral a => ParsedField -> Parser a
-parseFixed64 (Fixed64Field bs) =
-  case runGet getWord64le bs of
-    Left e -> throwCerealError "fixed64" e
-    Right i -> return $ fromIntegral i
-parseFixed64 wrong = throwWireTypeError "fixed64" wrong
+parseFixed64 = fmap fromIntegral . runGetFixed64 getWord64le
 
 parseFixed64Double :: ParsedField -> Parser Double
-parseFixed64Double (Fixed64Field bs) =
-  case runGet getFloat64le bs of
-    Left e -> throwCerealError "fixed64" e
-    Right f -> return f
-parseFixed64Double wrong = throwWireTypeError "fixed64" wrong
+parseFixed64Double = runGetFixed64 getFloat64le
 
 parseText :: ParsedField -> Parser Text
 parseText (LengthDelimitedField bs) =
