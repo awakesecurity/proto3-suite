@@ -39,6 +39,7 @@ module Data.Protobuf.Wire.Generic.DotProto
   , GenericHasMessage(..)
   , MessageName(..)
   , FieldName(..)
+  , PackageName(..)
   , HasMessageName(..)
   , HasEnum(..)
   , HasPrimType(..)
@@ -53,7 +54,9 @@ import           Data.Functor (($>))
 import           Data.Monoid ((<>))
 import           Data.Protobuf.Wire.Shared(FieldNumber(..), fieldNumber,
                                            Fixed(..), Signed(..),
-                                           Enumerated(..))
+                                           Enumerated(..),
+                                           UnpackedVec(..),
+                                           PackedVec(..))
 import           Data.Protobuf.Wire.Generic
 import           Data.Proxy (Proxy(..))
 import           Data.String (IsString)
@@ -80,6 +83,13 @@ newtype FieldName = FieldName
 instance Show FieldName where
   show = show . getFieldName
 
+newtype PackageName = PackageName
+  { getPackageName :: String
+  } deriving (Eq, Ord, IsString)
+
+instance Show PackageName where
+  show = show . getPackageName
+
 data DotProtoPart = DotProtoPart MessageName (Either DotProtoMessage DotProtoEnum) deriving Show
 
 -- | This data structure represents a .proto file
@@ -105,10 +115,15 @@ data DotProtoPrimType
   | Named MessageName -- ^ A named type, referring to another message or enum defined in the same file
   deriving Show
 
+data Packing
+  = Packed
+    | Unpacked
+    deriving Show
+
 data DotProtoType
   = Prim DotProtoPrimType
   | Optional DotProtoPrimType
-  | Repeated DotProtoPrimType
+  | Repeated DotProtoPrimType Packing
   deriving Show
 
 data DotProtoMessagePart = DotProtoMessagePart
@@ -145,9 +160,17 @@ enum pr =
   $ enumFields (Proxy :: Proxy e)
 
 -- | Render a 'DotProto' structure as a .proto file
-renderDotProto :: DotProto -> PP.Doc
-renderDotProto = PP.vcat . map renderPart . runDotProto
+renderDotProto :: PackageName -> DotProto -> PP.Doc
+renderDotProto pn = PP.vcat
+                    . prependPackageInfo pn
+                    . map renderPart
+                    . runDotProto
   where
+    prependPackageInfo :: PackageName -> [PP.Doc] -> [PP.Doc]
+    prependPackageInfo pn xs = (PP.text "package "
+                                <> PP.text (getPackageName pn) <> PP.text ";")
+                               : PP.text "syntax = \"proto3\";"
+                               : xs
     renderPart :: DotProtoPart -> PP.Doc
     renderPart (DotProtoPart name e) = either (renderMessage name) (renderEnum name) e
 
@@ -161,8 +184,13 @@ renderDotProto = PP.vcat . map renderPart . runDotProto
           , maybe (PP.text (getMessageName msgName <> "_") <> PP.int (fromIntegral i)) (PP.text . getFieldName) fieldName
           , PP.text " = "
           , PP.int (fromIntegral i)
+          , renderPackedOption ty
           , PP.text ";"
           ]
+        renderPackedOption (Repeated _ Packed) = PP.text " [packed=true]"
+        renderPackedOption (Repeated _ Unpacked) = PP.text " [packed=false]"
+        renderPackedOption (Optional _) = PP.text " [packed=false] // 0..1"
+        renderPackedOption _ = mempty
 
         wrap :: PP.Doc -> PP.Doc
         wrap = ((PP.text "message " <> PP.text (getMessageName msgName) <> PP.text " {") $+$) . ($+$ (PP.text "}")) . PP.nest 2
@@ -187,11 +215,11 @@ renderDotProto = PP.vcat . map renderPart . runDotProto
 
         renderType :: DotProtoType -> PP.Doc
         renderType (Prim ty)      = renderPrimType ty
-        renderType (Optional ty)  = PP.text "/* optional */ " <> renderPrimType ty
-        renderType (Repeated ty)  = PP.text "repeated " <> renderPrimType ty
+        renderType (Optional ty)  = PP.text "repeated " <> renderPrimType ty
+        renderType (Repeated ty _)  = PP.text "repeated " <> renderPrimType ty
 
     renderEnum :: MessageName -> DotProtoEnum -> PP.Doc
-    renderEnum msgName = wrap . PP.vcat . zipWith renderField [1..] . runDotProtoEnum
+    renderEnum msgName = wrap . PP.vcat . zipWith renderField [0..] . runDotProtoEnum
       where
         renderField :: Int -> FieldName -> PP.Doc
         renderField i memberName = PP.hcat
@@ -205,8 +233,8 @@ renderDotProto = PP.vcat . map renderPart . runDotProto
         wrap = ((PP.text "enum " <> PP.text (getMessageName msgName) <> PP.text " {") $+$) . ($+$ (PP.text "}")) . PP.nest 2
 
 -- | Render protobufs metadata as a .proto file string
-toProtoFile :: DotProto -> String
-toProtoFile = PP.render . renderDotProto
+toProtoFile :: PackageName -> DotProto -> String
+toProtoFile pn = PP.render . renderDotProto pn
 
 -- | This class captures those types which correspond to .proto messages.
 --
@@ -341,8 +369,11 @@ instance HasMessageName e => HasType (Enumerated e)
 instance HasPrimType a => HasType (Maybe a) where
   protoType _ = Optional (primType (Proxy :: Proxy a))
 
-instance HasPrimType a => HasType [a] where
-  protoType _ = Repeated (primType (Proxy :: Proxy a))
+instance HasPrimType a => HasType (UnpackedVec a) where
+  protoType _ = Repeated (primType (Proxy :: Proxy a)) Unpacked
+
+instance HasPrimType a => HasType (PackedVec a) where
+  protoType _ = Repeated (primType (Proxy :: Proxy a)) Packed
 
 -- | This class captures those types which can represent .proto messages and
 -- be used to generate a message entry in a .proto file.
@@ -378,7 +409,7 @@ instance ( KnownNat (GenericFieldCount f)
       adjust = DotProtoMessage . map adjustPart . runDotProtoMessage
       adjustPart part = part { dotProtoMessagePartFieldNumber = (FieldNumber . (offset +) . getFieldNumber . dotProtoMessagePartFieldNumber) part }
 
-instance (HasEncoding c, Embedded (GetMemberType c), HasType c) => GenericHasMessage (K1 i c) where
+instance (HasEncoding c, HasType c) => GenericHasMessage (K1 i c) where
   genericDotProto _ = primDotProto (protoType (Proxy :: Proxy c))
 
 instance (Selector s, GenericHasMessage f) => GenericHasMessage (M1 S s f) where

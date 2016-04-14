@@ -30,6 +30,14 @@ message WithNesting {
   Nested nestedMessage = 1;
 }
 
+message WithNestingRepeated {
+  message Nested {
+    string nestedField1 = 1;
+    int32 nestedField2 = 2;
+  }
+  repeated Nested nestedMessages = 1;
+}
+
 message WithRepetition {
   repeated int32 repeatedField1 = 1;
 }
@@ -49,4 +57,17 @@ message WithBytes {
 message WithPacking {
   repeated int32 packing1 = 1 [packed=false];
   repeated int32 packing2 = 2 [packed=true];
+}
+
+message AllPackedTypes {
+  repeated uint32 packedWord32 = 1 [packed=true];
+  repeated uint64 packedWord64 = 2 [packed=true];
+  repeated int32 packedInt32 = 3 [packed=true];
+  repeated int64 packedInt64 = 4 [packed=true];
+  repeated fixed32 packedFixed32 = 5 [packed=true];
+  repeated fixed64 packedFixed64 = 6 [packed=true];
+  repeated float packedFloat = 7 [packed=true];
+  repeated double packedDouble = 8 [packed=true];
+  repeated sfixed32 packedSFixed32 = 9 [packed=true];
+  repeated sfixed64 packedSFixed64 = 10 [packed=true];
 }

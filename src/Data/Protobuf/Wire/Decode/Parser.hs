@@ -1,27 +1,31 @@
+-- | Module containing the means to build parsers that decode protobuf messages.
+-- Usually, one should avoid writing these parsers by hand. Instead, use the
+-- generic interface in "Data.Protobuf.Wire.Generic".
+
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Data.Protobuf.Wire.Decode.Parser (
 
--- * The Parser type
-Parser,
-parse,
-ParseError(..),
+  -- * The Parser type
+  Parser,
+  parse,
+  ParseError(..),
 
--- * Helper type classes
-ProtobufParsable(..),
-ProtobufPackable,
-parseEmbedded,
+  -- * Decoding fields
+  disembed,
+  atomicEmbedded,
+  field,
+  repeatedUnpackedList,
+  repeatedPackedList,
+  parseEmbeddedList,
 
--- * Parsing fields
-field,
-embedded,
-repeatedUnpacked,
-repeatedUnpackedList,
-repeatedPacked,
-repeatedPackedList
+  -- * Helper types
+  AtomicParsable(..),
+  Packable(..)
 ) where
 
 import           Control.Applicative
@@ -33,9 +37,9 @@ import qualified Data.ByteString.Lazy as BL
 import           Data.Functor.Identity(runIdentity)
 import qualified Data.Map.Strict as M
 import           Data.Maybe (fromMaybe)
+import           Data.Monoid
 import           Data.Protobuf.Wire.Decode.Internal
 import           Data.Protobuf.Wire.Shared
-import           Data.Semigroup (Semigroup, (<>))
 import           Data.Serialize.Get(Get, runGet, getWord32le, getWord64le)
 import           Data.Serialize.IEEE754(getFloat32le, getFloat64le)
 import           Data.Text.Lazy (Text, pack)
@@ -200,30 +204,47 @@ parseBytes (LengthDelimitedField bs) = return bs
 parseBytes wrong = throwWireTypeError "bytes" wrong
 
 -- | Create a parser for embedded fields from a message parser. This can
--- be used to easily create an instance of 'ProtobufParsable' for a user-defined
--- type.
-parseEmbedded :: Semigroup a => Parser a -> ParsedField -> Parser a
-parseEmbedded parser (LengthDelimitedField bs) =
+-- be used to easily create an instance of 'AtomicParsable' for a user-defined
+-- type. For embedded messages, this does not handle combining messages in the
+-- way that 'disembed' does. This function is simply a helper function for
+-- parsing lists of embedded messages.
+atomicEmbedded :: Parser a -> ParsedField -> Parser a
+atomicEmbedded parser (LengthDelimitedField bs) =
   case parse parser bs of
     Left err -> throwError
                   [EmbeddedError "Failed to parse embedded message." err]
     Right result -> return result
-parseEmbedded _ wrong = throwWireTypeError "embedded" wrong
+atomicEmbedded _ wrong = throwWireTypeError "embedded" wrong
 
--- | The protobuf spec requires that embedded messages be mergeable, so that
+parseEmbeddedListT :: Monoid a => (ParsedField -> Parser a)
+                                 -> FieldNumber -> ListT Parser a
+parseEmbeddedListT p fn = do x <- delistify $ parsedFields fn
+                             y <- lift (p x)
+                             return y
+
+parseEmbeddedList :: Monoid a => (ParsedField -> Parser a)
+                                 -> FieldNumber -> Parser [a]
+parseEmbeddedList p fn = listify $ parseEmbeddedListT p fn
+
+-- | Helper function for making user-defined types instances of 'HasDecoding'.
+--
+-- The protobuf spec requires that embedded messages be mergeable, so that
 -- protobuf encoding has the flexibility to transmit embedded messages in
 -- pieces. This function reassembles the pieces, and must be used to parse all
--- embedded non-repeated messages. The rules for the Semigroup instance (as
+-- embedded non-repeated messages. The rules for the Monoid instance (as
 -- stated in the protobuf spec) are:
 --
 -- * @x <> y@ overwrites the singular fields of @x@ with those of @y@.
 -- * @x <> y@ recurses on the embedded messages in @x@ and @y@.
 -- * @x <> y@ concatenates all list fields in @x@ and @y@.
-embedded :: (Semigroup a, ProtobufParsable a) => FieldNumber -> Parser a
-embedded = P.foldM f (return protoDefault) return
-           . enumerate . delistify . parsedFields
+--
+-- If the embedded message is not found in the outer message, this function
+-- returns 'mempty'.
+disembed :: Monoid a => Parser a -> FieldNumber -> Parser a
+disembed parser =
+  P.foldM f (return mempty) return . enumerate . delistify . parsedFields
   where f x pf = do
-          y <- fromField pf
+          y <- atomicEmbedded parser pf
           return $ x <> y
 
 -- | Specify that one value is expected from this field. Used to ensure that we
@@ -232,12 +253,13 @@ embedded = P.foldM f (return protoDefault) return
 one :: (ParsedField -> Parser a) -> FieldNumber -> Parser (Maybe a)
 one rawParser fn = parsedField fn >>= mapM rawParser
 
--- | Type class for types that can be parsed from the fields of protobuf
--- messages. This includes singular types like 'Bool' or 'Double', as well as
+-- | Type class for types that can be parsed from a single field from a single
+-- key/value pair in a wire-encoded protobuf
+-- message. This includes singular types like 'Bool' or 'Double', as well as
 -- user-defined embedded messages.
-class ProtobufParsable a where
-  -- | Parse a type from a field. To implement this for embedded messages, see
-  -- the helper function 'parseEmbedded'.
+class AtomicParsable a where
+  -- | Parse a type from one field. To implement this for embedded messages, see
+  -- the helper function 'atomicEmbedded'.
   fromField :: ParsedField -> Parser a
   -- | Specifies the default value when a field is missing from the message.
   -- Note: this is used by protobufs to save space on messages by omitting them
@@ -246,104 +268,124 @@ class ProtobufParsable a where
   -- <https://developers.google.com/protocol-buffers/docs/proto3#default official docs>.
   protoDefault :: a
 
-instance ProtobufParsable Bool where
+instance AtomicParsable Bool where
   fromField = fmap toEnum . parseVarInt
   protoDefault = False
 
-instance ProtobufParsable Int32 where
+instance AtomicParsable Int32 where
   fromField = parseVarInt
   protoDefault = 0
 
-instance ProtobufParsable Word32 where
+instance AtomicParsable Word32 where
   fromField = parseVarInt
   protoDefault = 0
 
-instance ProtobufParsable Int64 where
+instance AtomicParsable Int64 where
   fromField = parseVarInt
   protoDefault = 0
 
-instance ProtobufParsable Word64 where
+instance AtomicParsable Word64 where
   fromField = parseVarInt
   protoDefault = 0
 
-instance ProtobufParsable (Fixed Word32) where
+instance AtomicParsable (Signed Int32) where
+  fromField = fmap (Signed . fromIntegral
+                    . (zigZagDecode :: Word32 -> Word32) . fromIntegral)
+              . parseVarInt
+  protoDefault = Signed 0
+
+instance AtomicParsable (Signed Int64) where
+  fromField = fmap (Signed . fromIntegral
+                    . (zigZagDecode :: Word64 -> Word64) . fromIntegral)
+              . parseVarInt
+  protoDefault = Signed 0
+
+instance AtomicParsable (Fixed Word32) where
   fromField = fmap (Fixed . fromIntegral) . parseFixed32
   protoDefault = Fixed 0
 
-instance ProtobufParsable (Signed (Fixed Int32)) where
+instance AtomicParsable (Signed (Fixed Int32)) where
   fromField = fmap (Signed . Fixed . fromIntegral) . parseFixed32
   protoDefault = Signed $ Fixed 0
 
-instance ProtobufParsable (Fixed Word64) where
+instance AtomicParsable (Fixed Word64) where
   fromField = fmap (Fixed . fromIntegral) . parseFixed64
   protoDefault = Fixed 0
 
-instance ProtobufParsable (Signed (Fixed Int64)) where
+instance AtomicParsable (Signed (Fixed Int64)) where
   fromField = fmap (Signed . Fixed . fromIntegral) . parseFixed64
   protoDefault = Signed $ Fixed 0
 
-instance ProtobufParsable Float where
+instance AtomicParsable Float where
   fromField = parseFixed32Float
   protoDefault = 0
 
-instance ProtobufParsable Double where
+instance AtomicParsable Double where
   fromField = parseFixed64Double
   protoDefault = 0
 
-instance ProtobufParsable Text where
+instance AtomicParsable Text where
   fromField = parseText
   protoDefault = mempty
 
-instance ProtobufParsable B.ByteString where
+instance AtomicParsable B.ByteString where
   fromField = parseBytes
   protoDefault = mempty
 
-instance Enum e => ProtobufParsable (Enumerated e) where
+instance AtomicParsable BL.ByteString where
+  fromField = fmap BL.fromStrict . parseBytes
+  protoDefault = mempty
+
+instance Enum e => AtomicParsable (Enumerated e) where
   fromField = fmap (Enumerated . toEnum . fromIntegral) . parseVarInt
   protoDefault = Enumerated $ toEnum 0
 
+instance AtomicParsable a => AtomicParsable (Maybe a) where
+  fromField = fmap Just . fromField
+  protoDefault = Nothing
+
 -- | Parse a singular protobuf message field, such as a Bool or Fixed32.
-field :: ProtobufParsable a => FieldNumber -> Parser a
+field :: AtomicParsable a => FieldNumber -> Parser a
 field = fmap (fromMaybe protoDefault) . one fromField
 
 -- | Type class for fields that can be repeated in the more efficient packed
 -- format. This is limited to primitive numeric types.
-class ProtobufPackable a where
+class Packable a where
   parsePacked :: ParsedField -> Parser [a]
 
-instance ProtobufPackable Word32 where
+instance Packable Word32 where
   parsePacked = parsePackedVarInt
 
-instance ProtobufPackable Word64 where
+instance Packable Word64 where
   parsePacked = parsePackedVarInt
 
-instance ProtobufPackable Int32 where
+instance Packable Int32 where
   parsePacked = parsePackedVarInt
 
-instance ProtobufPackable Int64 where
+instance Packable Int64 where
   parsePacked = parsePackedVarInt
 
-instance ProtobufPackable (Fixed Word32) where
+instance Packable (Fixed Word32) where
   parsePacked = fmap (fmap (Fixed . fromIntegral)) . parsePackedFixed32
 
-instance ProtobufPackable (Signed (Fixed Int32)) where
+instance Packable (Signed (Fixed Int32)) where
   parsePacked = fmap (fmap (Signed . Fixed . fromIntegral)) . parsePackedFixed32
 
-instance ProtobufPackable (Fixed Word64) where
+instance Packable (Fixed Word64) where
   parsePacked = fmap (fmap (Fixed . fromIntegral)) . parsePackedFixed64
 
-instance ProtobufPackable (Signed (Fixed Int64)) where
+instance Packable (Signed (Fixed Int64)) where
   parsePacked = fmap (fmap (Signed . Fixed . fromIntegral)) . parsePackedFixed64
 
-instance ProtobufPackable Float where
+instance Packable Float where
   parsePacked = parsePackedFixed32Float
 
-instance ProtobufPackable Double where
+instance Packable Double where
   parsePacked = parsePackedFixed64Double
 
 -- | Parses an unpacked repeated field. See 'repeatedUnpackedList' for a
 -- non-streaming version.
-repeatedUnpacked :: ProtobufParsable a => FieldNumber -> ListT Parser a
+repeatedUnpacked :: AtomicParsable a => FieldNumber -> ListT Parser a
 repeatedUnpacked fn = do
   pf <- delistify $ parsedFields fn
   lift (fromField pf)
@@ -354,7 +396,7 @@ listify = P.toListM . enumerate
 delistify :: Parser [a] -> ListT Parser a
 delistify x = lift x >>= (Select . each)
 
-repeatedUnpackedList :: ProtobufParsable a => FieldNumber -> Parser [a]
+repeatedUnpackedList :: AtomicParsable a => FieldNumber -> Parser [a]
 repeatedUnpackedList = P.toListM . enumerate . repeatedUnpacked
 
 -- | Parses a packed repeated field. Correctly handles the case where a packed
@@ -362,13 +404,76 @@ repeatedUnpackedList = P.toListM . enumerate . repeatedUnpacked
 -- Falls back to trying to parse the field as unpacked if packed parsing fails,
 -- matching the official implementation's behavior. See 'repeatedPackedList' for
 -- a non-streaming version.
-repeatedPacked :: (ProtobufParsable a, ProtobufPackable a)
+repeatedPacked :: (AtomicParsable a, Packable a)
                   => FieldNumber -> ListT Parser a
 repeatedPacked fn = delistify $ listify (repeatedPacked' fn)
                                 <|> listify (repeatedUnpacked fn)
   where repeatedPacked' fn = (delistify $ parsedFields fn)
                              >>= (delistify . parsePacked)
 
-repeatedPackedList :: (ProtobufParsable a, ProtobufPackable a)
+repeatedPackedList :: (AtomicParsable a, Packable a)
                       => FieldNumber -> Parser [a]
 repeatedPackedList = listify . repeatedPacked
+
+-- | Higher-level class for handling decoding any field type in a protobuf
+-- message.
+class Deserializable a where
+  deserialize :: FieldNumber -> Parser a
+
+instance Deserializable Bool where
+  deserialize = field
+
+instance Deserializable Int32 where
+  deserialize = field
+
+instance Deserializable (Signed Int32) where
+  deserialize = field
+
+instance Deserializable Word32 where
+  deserialize = field
+
+instance Deserializable Int64 where
+  deserialize = field
+
+instance Deserializable (Signed Int64) where
+  deserialize = field
+
+instance Deserializable Word64 where
+  deserialize = field
+
+instance Deserializable (Fixed Word32) where
+  deserialize = field
+
+instance Deserializable (Signed (Fixed Int32)) where
+  deserialize = field
+
+instance Deserializable (Fixed Word64) where
+  deserialize = field
+
+instance Deserializable (Signed (Fixed Int64)) where
+  deserialize = field
+
+instance Deserializable Float where
+  deserialize = field
+
+instance Deserializable Double where
+  deserialize = field
+
+instance Deserializable Text where
+  deserialize = field
+
+instance Deserializable B.ByteString where
+  deserialize = field
+
+instance Deserializable BL.ByteString where
+  deserialize = field
+
+instance Enum e => Deserializable (Enumerated e) where
+  deserialize = field
+
+instance AtomicParsable a => Deserializable [a] where
+  deserialize = repeatedUnpackedList
+
+instance (AtomicParsable a, Packable a)
+         => Deserializable (Packed [a]) where
+  deserialize = fmap Packed . repeatedPackedList
