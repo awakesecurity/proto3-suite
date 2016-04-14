@@ -27,36 +27,7 @@
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Data.Protobuf.Wire
-  (
-  -- * Message Structure
-    FieldNumber(..)
-  , fieldNumber
-  -- * Standard Integers
-  , int32
-  , int64
-  -- * Unsigned Integers
-  , uint32
-  , uint64
-  -- * Signed Integers
-  , sint32
-  , sint64
-  -- * Non-varint Numbers
-  , fixed32
-  , fixed64
-  , sfixed32
-  , sfixed64
-  , float
-  , double
-  , enum
-  -- * Strings
-  , string
-  , text
-  , bytes
-  , bytes'
-  -- * Embedded Messages
-  , embedded
-  ) where
+module Data.Protobuf.Wire.Encode.Internal where
 
 import           Data.Bits ((.|.), (.&.), shiftL, shiftR, xor)
 import qualified Data.ByteString as B
@@ -64,33 +35,15 @@ import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Lazy as BL
 import           Data.Int (Int32, Int64)
 import           Data.Monoid ((<>))
+import           Data.Protobuf.Wire.Shared
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Encoding as Text.Lazy.Encoding
 import           Data.Word (Word8, Word32, Word64)
 
-base128Varint :: Integer -> BB.Builder
+base128Varint :: Word64 -> BB.Builder
 base128Varint i
-  | i < 128 = BB.word8 (fromIntegral i)
+  | i .&. 0x7f == i = BB.word8 (fromIntegral i)
   | otherwise = BB.word8 (0x80 .|. (fromIntegral i .&. 0x7f)) <> base128Varint (i `shiftR` 7)
-
--- | A 'FieldNumber' identifies a field inside a protobufs message.
---
--- This library makes no attempt to generate these automatically, or even make
--- sure that field numbers are provided in increasing order. Such things are
--- left to other, higher-level libraries.
-newtype FieldNumber = FieldNumber { getFieldNumber :: Integer } deriving (Show, Eq, Ord, Enum)
-
--- | Create a 'FieldNumber' given the (one-based) integer which would label
--- the field in the corresponding .proto file.
-fieldNumber :: Integer -> FieldNumber
-fieldNumber = FieldNumber
-
-data WireType
-  = Varint
-  | Fixed32
-  | Fixed64
-  | LengthDelimited
-  deriving (Show, Eq, Ord)
 
 wireType :: WireType -> Word8
 wireType Varint           = 0

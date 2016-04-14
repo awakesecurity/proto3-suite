@@ -51,7 +51,9 @@ import qualified Data.ByteString.Lazy as BL
 import           Data.Int (Int32, Int64)
 import           Data.Functor (($>))
 import           Data.Monoid ((<>))
-import           Data.Protobuf.Wire as Wire
+import           Data.Protobuf.Wire.Shared(FieldNumber(..), fieldNumber,
+                                           Fixed(..), Signed(..),
+                                           Enumerated(..))
 import           Data.Protobuf.Wire.Generic
 import           Data.Proxy (Proxy(..))
 import           Data.String (IsString)
@@ -372,7 +374,7 @@ instance ( KnownNat (GenericFieldCount f)
          ) => GenericHasMessage (f :*: g) where
   genericDotProto _ = genericDotProto (Proxy :: Proxy f) <> adjust (genericDotProto (Proxy :: Proxy g))
     where
-      offset = natVal (Proxy :: Proxy (GenericFieldCount f))
+      offset = fromIntegral $ natVal (Proxy :: Proxy (GenericFieldCount f))
       adjust = DotProtoMessage . map adjustPart . runDotProtoMessage
       adjustPart part = part { dotProtoMessagePartFieldNumber = (FieldNumber . (offset +) . getFieldNumber . dotProtoMessagePartFieldNumber) part }
 

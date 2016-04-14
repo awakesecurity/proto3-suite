@@ -17,6 +17,7 @@ def main():
     multipleFields.multiFieldInt32 = 123
     multipleFields.multiFieldInt64 = 1234567890
     multipleFields.multiFieldString = "Hello, world!"
+    multipleFields.multiFieldBool = True
     serialize_to_file(multipleFields, 'multiple_fields.bin')
 
     withEnum = test_pb2.WithEnum()
@@ -39,6 +40,23 @@ def main():
     trivNeg = test_pb2.Trivial()
     trivNeg.trivialField = -1
     serialize_to_file(trivNeg, 'trivial_negative.bin')
+
+    withFixed = test_pb2.WithFixedTypes()
+    withFixed.fixed1 = 16
+    withFixed.fixed2 = -123
+    withFixed.fixed3 = 4096
+    withFixed.fixed4 = -4096
+    serialize_to_file(withFixed, 'with_fixed.bin')
+
+    withBytes = test_pb2.WithBytes()
+    withBytes.bytes1 = "abc"
+    withBytes.bytes2.extend(["abc", "123"])
+    serialize_to_file(withBytes, "with_bytes.bin")
+
+    withPacking = test_pb2.WithPacking()
+    withPacking.packing1.extend([1,2,3])
+    withPacking.packing2.extend([1,2,3])
+    serialize_to_file(withPacking, "with_packing.bin")
 
 if __name__ == '__main__':
     main()

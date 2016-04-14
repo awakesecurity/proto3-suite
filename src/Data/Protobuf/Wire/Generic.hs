@@ -37,13 +37,6 @@ module Data.Protobuf.Wire.Generic
   -- * Encoding
   , toLazyByteString
 
-  -- * Integral Types
-  , Signed(..)
-  , Fixed(..)
-
-  -- * Enumerable Types
-  , Enumerated(..)
-
   -- * Supporting Classes
   , GenericHasEncoding(..)
   , MemberType(..)
@@ -56,7 +49,8 @@ import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Lazy as BL
 import           Data.Int (Int32, Int64)
 import           Data.Monoid ((<>))
-import           Data.Protobuf.Wire as Wire
+import           Data.Protobuf.Wire.Encode as Wire
+import           Data.Protobuf.Wire.Shared as Wire
 import           Data.Proxy (Proxy(..))
 import           Data.Word (Word32, Word64)
 import qualified Data.Text.Lazy as TL
@@ -125,9 +119,6 @@ instance HasEncoding Word64 where
   type FieldCount Word64 = 1
   encode = uint64
 
--- | 'Signed' provides a way to encode integers in the signed wire formats.
-newtype Signed a = Signed { signed :: a } deriving (Show, Eq, Ord, Generic, NFData)
-
 instance HasEncoding (Signed Int32) where
   type GetMemberType (Signed Int32) = 'Primitive
   type FieldCount (Signed Int32) = 1
@@ -137,9 +128,6 @@ instance HasEncoding (Signed Int64) where
   type GetMemberType (Signed Int64) = 'Primitive
   type FieldCount (Signed Int64) = 1
   encode num = sint64 num . signed
-
--- | 'Fixed' provides a way to encode integers in the fixed-width wire formats.
-newtype Fixed a = Fixed { fixed :: a } deriving (Show, Eq, Ord, Generic, NFData)
 
 instance HasEncoding (Fixed Word32) where
   type GetMemberType (Fixed Word32) = 'Primitive
@@ -191,10 +179,6 @@ instance HasEncoding BL.ByteString where
   type FieldCount BL.ByteString = 1
   encode = bytes'
 
--- | 'Enumerated' lifts any type with an 'IsEnum' instance so that it can be encoded
--- with 'HasEncoding'.
-newtype Enumerated a = Enumerated { enumerated :: a } deriving (Show, Eq, Ord, Generic, NFData)
-
 instance Enum e => HasEncoding (Enumerated e) where
   type GetMemberType (Enumerated e) = 'Primitive
   type FieldCount (Enumerated e) = 1
@@ -241,7 +225,7 @@ instance ( KnownNat (GenericFieldCount f)
   type GenericFieldCount (f :*: g) = GenericFieldCount f + GenericFieldCount g
   genericEncode num (x :*: y) = genericEncode num x <> genericEncode (FieldNumber (getFieldNumber num + offset)) y
     where
-      offset = natVal (Proxy :: Proxy (GenericFieldCount f))
+      offset = fromIntegral $ natVal (Proxy :: Proxy (GenericFieldCount f))
 
 instance ( HasEncoding c
          , Embedded (GetMemberType c)
