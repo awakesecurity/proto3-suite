@@ -8,21 +8,31 @@ import           Data.Monoid
 import           Data.Protobuf.Wire.Generic
 import           Data.Protobuf.Wire.Shared
 import           Data.Protobuf.Wire.Decode.Parser as P
-import qualified Data.Semigroup as S
 import qualified Data.Text.Lazy as TL
 import           Data.Word (Word32, Word64)
 import           GHC.Generics
-import           Test.QuickCheck (Arbitrary, arbitrary, oneof)
+import           GHC.Exts (toList, fromList)
+import           Test.QuickCheck (Arbitrary, Gen, arbitrary, oneof)
+
+instance Arbitrary a => Arbitrary (PackedVec a) where
+  arbitrary = fromList <$> arbitrary
+
+instance Arbitrary a => Arbitrary (UnpackedVec a) where
+  arbitrary = fromList <$> arbitrary
+
+instance Arbitrary a => Arbitrary (NestedVec a) where
+  arbitrary = fromList <$> arbitrary
+
+instance Arbitrary a => Arbitrary (Nested a) where
+  arbitrary = Nested <$> arbitrary
 
 data Trivial = Trivial {trivialField :: Int32}
                 deriving (Show, Generic, Eq)
 instance HasEncoding Trivial
+instance HasDecoding Trivial
 
 instance Arbitrary Trivial where
   arbitrary = Trivial <$> arbitrary
-
-trivialParser :: Parser Trivial
-trivialParser = Trivial <$> field (FieldNumber 1)
 
 data MultipleFields =
   MultipleFields {multiFieldDouble :: Double,
@@ -33,6 +43,7 @@ data MultipleFields =
                   multiFieldBool :: Bool}
                   deriving (Show, Generic, Eq)
 instance HasEncoding MultipleFields
+instance HasDecoding MultipleFields
 
 instance Arbitrary MultipleFields where
   arbitrary = MultipleFields
@@ -43,18 +54,8 @@ instance Arbitrary MultipleFields where
               <*> fmap TL.pack arbitrary
               <*> arbitrary
 
-multipleFieldsParser :: Parser MultipleFields
-multipleFieldsParser = MultipleFields
-                       <$> field (FieldNumber 1)
-                       <*> field (FieldNumber 2)
-                       <*> field (FieldNumber 3)
-                       <*> field (FieldNumber 4)
-                       <*> field (FieldNumber 5)
-                       <*> field (FieldNumber 6)
-
 data TestEnum = ENUM1 | ENUM2 | ENUM3
                 deriving (Show, Generic, Enum, Eq)
-instance HasEncoding TestEnum
 
 instance Arbitrary TestEnum where
   arbitrary = oneof $ fmap return [ENUM1, ENUM2, ENUM3]
@@ -62,6 +63,7 @@ instance Arbitrary TestEnum where
 data WithEnum = WithEnum {enumField :: Enumerated (TestEnum)}
                 deriving (Show, Generic, Eq)
 instance HasEncoding WithEnum
+instance HasDecoding WithEnum
 
 instance Arbitrary e => Arbitrary (Enumerated e) where
   arbitrary = Enumerated <$> arbitrary
@@ -69,46 +71,42 @@ instance Arbitrary e => Arbitrary (Enumerated e) where
 instance Arbitrary WithEnum where
   arbitrary = WithEnum <$> arbitrary
 
-withEnumParser :: Parser WithEnum
-withEnumParser = WithEnum <$> field (FieldNumber 1)
-
-data Nested = Nested {nestedField1 :: TL.Text,
+data NestedMsg = NestedMsg {nestedField1 :: TL.Text,
                       nestedField2 :: Int32}
                       deriving (Show, Generic, Eq)
-instance HasEncoding Nested
+instance HasEncoding NestedMsg
+instance HasDecoding NestedMsg
 
-instance Arbitrary Nested where
-  arbitrary = Nested <$> fmap TL.pack arbitrary <*> arbitrary
+instance Arbitrary NestedMsg where
+  arbitrary = NestedMsg <$> fmap TL.pack arbitrary <*> arbitrary
 
-instance S.Semigroup Nested where
-  (Nested t1 i1) <> (Nested t2 i2) = Nested (t1 <> t2) i2
+instance Monoid NestedMsg where
+  (NestedMsg t1 i1) `mappend` (NestedMsg t2 i2) = NestedMsg (t1 <> t2) i2
+  mempty = NestedMsg mempty 0
 
-instance ProtobufParsable Nested where
-  fromField = parseEmbedded $ do
-    x <- field $ FieldNumber 1
-    y <- field $ FieldNumber 2
-    return $ Nested x y
-  protoDefault = Nested mempty 0
+{-
+instance HasDecoding NestedMsg where
+  decode = disembed $ do
+    x <- decode $ FieldNumber 1
+    y <- decode $ FieldNumber 2
+    return $ NestedMsg x y
+-}
 
-data WithNesting = WithNesting {nestedMessage :: Nested}
+data WithNesting = WithNesting {nestedMessage :: Nested NestedMsg}
                     deriving (Show, Generic, Eq)
 instance HasEncoding WithNesting
+instance HasDecoding WithNesting
 
 instance Arbitrary WithNesting where
   arbitrary = WithNesting <$> arbitrary
 
-withNestingParser :: Parser WithNesting
-withNestingParser = WithNesting <$> embedded (FieldNumber 1)
-
-data WithRepetition = WithRepetition {repeatedField1 :: [Int32]}
+data WithRepetition = WithRepetition {repeatedField1 :: PackedVec Int32}
                       deriving (Show, Generic, Eq)
 instance HasEncoding WithRepetition
+instance HasDecoding WithRepetition
 
 instance Arbitrary WithRepetition where
   arbitrary = WithRepetition <$> arbitrary
-
-withRepetitionParser :: Parser WithRepetition
-withRepetitionParser = WithRepetition <$> repeatedPackedList (FieldNumber 1)
 
 data WithFixed = WithFixed {fixed1 :: (Fixed Word32),
                             fixed2 :: (Signed (Fixed Int32)),
@@ -116,6 +114,7 @@ data WithFixed = WithFixed {fixed1 :: (Fixed Word32),
                             fixed4 :: (Signed (Fixed Int64))}
                             deriving (Show, Generic, Eq)
 instance HasEncoding WithFixed
+instance HasDecoding WithFixed
 
 instance Arbitrary a => Arbitrary (Fixed a) where
   arbitrary = Fixed <$> arbitrary
@@ -126,17 +125,11 @@ instance Arbitrary a => Arbitrary (Signed a) where
 instance Arbitrary WithFixed where
   arbitrary = WithFixed <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-withFixedParser :: Parser WithFixed
-withFixedParser = WithFixed
-                  <$> field (FieldNumber 1)
-                  <*> field (FieldNumber 2)
-                  <*> field (FieldNumber 3)
-                  <*> field (FieldNumber 4)
-
 data WithBytes = WithBytes {bytes1 :: B.ByteString,
-                            bytes2 :: [B.ByteString]}
+                            bytes2 :: UnpackedVec B.ByteString}
                             deriving (Show, Generic, Eq)
 instance HasEncoding WithBytes
+instance HasDecoding WithBytes
 
 instance Arbitrary B.ByteString where
   arbitrary = fmap B.pack arbitrary
@@ -144,18 +137,60 @@ instance Arbitrary B.ByteString where
 instance Arbitrary WithBytes where
   arbitrary = WithBytes <$> arbitrary <*> arbitrary
 
-withBytesParser = WithBytes
-                  <$> field (FieldNumber 1)
-                  <*> repeatedUnpackedList (FieldNumber 2)
-
-data WithPacking = WithPacking {packing1 :: [Int32],
-                                packing2 :: [Int32]}
+data WithPacking = WithPacking {packing1 :: UnpackedVec Int32,
+                                packing2 :: PackedVec Int32}
                                 deriving (Show, Generic, Eq)
 instance HasEncoding WithPacking
+instance HasDecoding WithPacking
 
 instance Arbitrary WithPacking where
   arbitrary = WithPacking <$> arbitrary <*> arbitrary
 
-withPackingParser = WithPacking
-                    <$> repeatedUnpackedList (FieldNumber 1)
-                    <*> repeatedPackedList (FieldNumber 2)
+data AllPackedTypes =
+  AllPackedTypes {packedWord32 :: PackedVec Word32,
+                  packedWord64 :: PackedVec Word64,
+                  packedInt32 :: PackedVec Int32,
+                  packedInt64 :: PackedVec Int64,
+                  packedFixed32 :: PackedVec (Fixed Word32),
+                  packedFixed64 :: PackedVec (Fixed Word64),
+                  packedFloat :: PackedVec Float,
+                  packedDouble :: PackedVec Double,
+                  packedSFixed32 :: PackedVec (Signed (Fixed Int32)),
+                  packedSFixed64 :: PackedVec (Signed (Fixed Int64))}
+                  deriving (Show, Generic, Eq)
+instance HasEncoding AllPackedTypes
+instance HasDecoding AllPackedTypes
+
+instance Arbitrary AllPackedTypes where
+  arbitrary = AllPackedTypes <$> arbitrary <*> arbitrary <*> arbitrary
+                             <*> arbitrary <*> arbitrary <*> arbitrary
+                             <*> arbitrary <*> arbitrary <*> arbitrary
+                             <*> arbitrary
+
+data SignedInts =
+  SignedInts {signed32 :: Signed Int32,
+              signed64 :: Signed Int64}
+              deriving (Show, Generic, Eq)
+instance HasEncoding SignedInts
+instance HasDecoding SignedInts
+
+instance Arbitrary SignedInts where
+  arbitrary = SignedInts <$> arbitrary <*> arbitrary
+
+data WithNestingRepeated =
+  WithNestingRepeated {nestedMessages :: NestedVec NestedMsg}
+    deriving (Show, Eq, Generic)
+instance HasEncoding WithNestingRepeated
+instance HasDecoding WithNestingRepeated
+
+instance Arbitrary WithNestingRepeated where
+  arbitrary = WithNestingRepeated <$> arbitrary
+
+data WithMaybe =
+  WithMaybe {maybeMsg :: Maybe Int32}
+  deriving (Show, Generic, Eq)
+instance HasEncoding WithMaybe
+instance HasDecoding WithMaybe
+
+instance Arbitrary WithMaybe where
+  arbitrary = WithMaybe <$> arbitrary

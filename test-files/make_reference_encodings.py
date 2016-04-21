@@ -33,6 +33,15 @@ def main():
     withNesting.nestedMessage.nestedField2 = 123456
     serialize_to_file(withNesting, 'with_nesting.bin')
 
+    withNestingRepeated = test_pb2.WithNestingRepeated()
+    msg1 = withNestingRepeated.nestedMessages.add()
+    msg1.nestedField1 = "123abc"
+    msg1.nestedField2 = 123456
+    msg2 = withNestingRepeated.nestedMessages.add()
+    msg2.nestedField1 = "abc123"
+    msg2.nestedField2 = 654321
+    serialize_to_file(withNestingRepeated, "with_nesting_repeated.bin")
+
     withRepetition = test_pb2.WithRepetition()
     withRepetition.repeatedField1.extend([1,2,3,4,5])
     serialize_to_file(withRepetition, 'with_repetition.bin')
@@ -57,6 +66,19 @@ def main():
     withPacking.packing1.extend([1,2,3])
     withPacking.packing2.extend([1,2,3])
     serialize_to_file(withPacking, "with_packing.bin")
+
+    allPackedTypes = test_pb2.AllPackedTypes()
+    allPackedTypes.packedWord32.extend([1,2,3])
+    allPackedTypes.packedWord64.extend([1,2,3])
+    allPackedTypes.packedInt32.extend([-1,-2,-3])
+    allPackedTypes.packedInt64.extend([-1,-2,-3])
+    allPackedTypes.packedFixed32.extend([1,2,3])
+    allPackedTypes.packedFixed64.extend([1,2,3])
+    allPackedTypes.packedFloat.extend([1.0,2.0])
+    allPackedTypes.packedDouble.extend([1.0,-1.0])
+    allPackedTypes.packedSFixed32.extend([1,2,3])
+    allPackedTypes.packedSFixed64.extend([1,2,3])
+    serialize_to_file(allPackedTypes, "all_packed_types.bin")
 
 if __name__ == '__main__':
     main()

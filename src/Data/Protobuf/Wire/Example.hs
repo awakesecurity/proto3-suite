@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Data.Protobuf.Wire.Example where
 
@@ -34,7 +35,7 @@ data Shape
 -- "\b*\DC2\EOT\b\NUL\DC2\NUL"
 data Foo = Foo
   { fooID   :: Word32
-  , fooBars :: [Bar]
+  , fooBars :: UnpackedVec Bar
   }
   deriving Generic
 
@@ -73,8 +74,8 @@ instance HasMessageName Bar
 --   /* optional */ Foo barFoo = 2;
 -- }
 protoFile :: String
-protoFile = toProtoFile $ fold
-  [ enum    (Proxy :: Proxy Shape)
-  , message (Proxy :: Proxy Foo)
-  , message (Proxy :: Proxy Bar)
-  ]
+protoFile = toProtoFile "examplePackageName" $ fold
+  ([ enum    (Proxy :: Proxy Shape)
+   , message (Proxy :: Proxy Foo)
+   , message (Proxy :: Proxy Bar)
+   ] :: [DotProto])

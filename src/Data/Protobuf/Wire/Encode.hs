@@ -24,6 +24,12 @@ module Data.Protobuf.Wire.Encode
 , bytes'
 -- * Embedded Messages
 , embedded
+-- * Packed repeated fields
+, packedVarints
+, packedFixed32s
+, packedFixed64s
+, packedFloats
+, packedDoubles
 ) where
 
 import Data.Protobuf.Wire.Encode.Internal

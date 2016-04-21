@@ -198,6 +198,26 @@ bytes num = embedded num . BB.byteString
 bytes' :: FieldNumber -> BL.ByteString -> BB.Builder
 bytes' num = embedded num . BB.lazyByteString
 
+-- | Encode varints in the space-efficient packed format.
+packedVarints :: Traversable t => FieldNumber -> t Word64 -> BB.Builder
+packedVarints num = embedded num . foldMap base128Varint
+
+-- | Encode fixed-width Word32s in the space-efficient packed format.
+packedFixed32s :: Traversable t => FieldNumber -> t Word32 -> BB.Builder
+packedFixed32s num = embedded num . foldMap BB.word32LE
+
+-- | Encode fixed-width Word64s in the space-efficient packed format.
+packedFixed64s :: Traversable t => FieldNumber -> t Word64 -> BB.Builder
+packedFixed64s num = embedded num . foldMap BB.word64LE
+
+-- | Encode floats in the space-efficient packed format.
+packedFloats :: Traversable t => FieldNumber -> t Float -> BB.Builder
+packedFloats num = embedded num . foldMap BB.floatLE
+
+-- | Encode doubles in the space-efficient packed format.
+packedDoubles :: Traversable t => FieldNumber -> t Double -> BB.Builder
+packedDoubles num = embedded num . foldMap BB.doubleLE
+
 -- | Encode an embedded message.
 --
 -- The message is represented as a 'BB.Builder', so it is possible to chain
