@@ -64,7 +64,7 @@ newtype Enumerated a = Enumerated { enumerated :: a } deriving (Show, Eq, Ord, G
 newtype Packed a = Packed { packed :: a } deriving (Show, Eq, Ord, Generic, NFData)
 
 newtype PackedVec a = PackedVec { packedvec :: V.Vector a }
-  deriving (Show, Eq, Functor, Foldable, Traversable)
+  deriving (Show, Eq, Functor, Foldable, Traversable, Ord)
 
 instance IsList (PackedVec a) where
   type Item (PackedVec a) = a
@@ -72,7 +72,7 @@ instance IsList (PackedVec a) where
   toList = V.toList . packedvec
 
 newtype UnpackedVec a = UnpackedVec {unpackedvec :: V.Vector a }
-  deriving (Show, Eq, Functor, Foldable, Traversable)
+  deriving (Show, Eq, Functor, Foldable, Traversable, Ord)
 
 instance IsList (UnpackedVec a) where
   type Item (UnpackedVec a) = a
@@ -81,7 +81,7 @@ instance IsList (UnpackedVec a) where
 
 newtype NestedVec a =
   NestedVec { nestedvec :: V.Vector a }
-  deriving (Show, Eq, Functor, Foldable, Traversable)
+  deriving (Show, Eq, Functor, Foldable, Traversable, Ord)
 
 instance IsList (NestedVec a) where
   type Item (NestedVec a) = a
