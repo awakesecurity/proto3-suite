@@ -167,9 +167,9 @@ renderDotProto pn = PP.vcat
                     . runDotProto
   where
     prependPackageInfo :: PackageName -> [PP.Doc] -> [PP.Doc]
-    prependPackageInfo pn xs = (PP.text "package "
-                                <> PP.text (getPackageName pn) <> PP.text ";")
-                               : PP.text "syntax = \"proto3\";"
+    prependPackageInfo pn xs = PP.text "syntax = \"proto3\";"
+                               :(PP.text "package "
+                                 <> PP.text (getPackageName pn) <> PP.text ";")
                                : xs
     renderPart :: DotProtoPart -> PP.Doc
     renderPart (DotProtoPart name e) = either (renderMessage name) (renderEnum name) e
@@ -185,12 +185,15 @@ renderDotProto pn = PP.vcat
           , PP.text " = "
           , PP.int (fromIntegral i)
           , renderPackedOption ty
-          , PP.text ";"
+          , renderLineEnding ty
           ]
         renderPackedOption (Repeated _ Packed) = PP.text " [packed=true]"
         renderPackedOption (Repeated _ Unpacked) = PP.text " [packed=false]"
-        renderPackedOption (Optional _) = PP.text " [packed=false] // 0..1"
+        renderPackedOption (Optional _) = PP.text " [packed=false]"
         renderPackedOption _ = mempty
+
+        renderLineEnding (Optional _) = PP.text "; // 0..1"
+        renderLineEnding _ = PP.text ";"
 
         wrap :: PP.Doc -> PP.Doc
         wrap = ((PP.text "message " <> PP.text (getMessageName msgName) <> PP.text " {") $+$) . ($+$ (PP.text "}")) . PP.nest 2
