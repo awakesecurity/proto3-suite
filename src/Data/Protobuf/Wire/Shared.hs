@@ -29,6 +29,7 @@ import           GHC.Exts (IsList(..))
 import           GHC.Generics
 import qualified Data.Vector.Unboxed as UV
 import qualified Data.Vector as V
+import qualified Data.Vector.Strategies
 
 -- | A 'FieldNumber' identifies a field inside a protobufs message.
 --
@@ -64,7 +65,7 @@ newtype Enumerated a = Enumerated { enumerated :: a } deriving (Show, Eq, Ord, G
 newtype Packed a = Packed { packed :: a } deriving (Show, Eq, Ord, Generic, NFData)
 
 newtype PackedVec a = PackedVec { packedvec :: V.Vector a }
-  deriving (Show, Eq, Functor, Foldable, Traversable, Ord)
+  deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData)
 
 instance IsList (PackedVec a) where
   type Item (PackedVec a) = a
@@ -72,7 +73,7 @@ instance IsList (PackedVec a) where
   toList = V.toList . packedvec
 
 newtype UnpackedVec a = UnpackedVec {unpackedvec :: V.Vector a }
-  deriving (Show, Eq, Functor, Foldable, Traversable, Ord)
+  deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData)
 
 instance IsList (UnpackedVec a) where
   type Item (UnpackedVec a) = a
@@ -81,7 +82,7 @@ instance IsList (UnpackedVec a) where
 
 newtype NestedVec a =
   NestedVec { nestedvec :: V.Vector a }
-  deriving (Show, Eq, Functor, Foldable, Traversable, Ord)
+  deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData)
 
 instance IsList (NestedVec a) where
   type Item (NestedVec a) = a
