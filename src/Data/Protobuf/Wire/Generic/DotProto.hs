@@ -56,7 +56,8 @@ import           Data.Protobuf.Wire.Shared(FieldNumber(..), fieldNumber,
                                            Fixed(..), Signed(..),
                                            Enumerated(..),
                                            UnpackedVec(..),
-                                           PackedVec(..))
+                                           PackedVec(..),
+                                           NestedVec(..))
 import           Data.Protobuf.Wire.Generic
 import           Data.Proxy (Proxy(..))
 import           Data.String (IsString)
@@ -341,6 +342,9 @@ instance HasPrimType BL.ByteString where
 instance HasMessageName e => HasPrimType (Enumerated e) where
   primType _ = Named (messageName (Proxy :: Proxy e))
 
+instance HasMessageName a => HasPrimType (NestedVec a) where
+  primType _ = Named (messageName (Proxy :: Proxy a))
+
 -- | This class captures those types which correspond to message field types.
 --
 -- It has a default implementation for any data type which is an instance of the
@@ -377,6 +381,8 @@ instance HasPrimType a => HasType (UnpackedVec a) where
 
 instance HasPrimType a => HasType (PackedVec a) where
   protoType _ = Repeated (primType (Proxy :: Proxy a)) Packed
+
+instance HasMessageName a => HasType (NestedVec a)
 
 -- | This class captures those types which can represent .proto messages and
 -- be used to generate a message entry in a .proto file.
