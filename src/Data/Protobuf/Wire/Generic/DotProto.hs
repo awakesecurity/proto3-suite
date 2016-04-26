@@ -125,6 +125,7 @@ data DotProtoType
   = Prim DotProtoPrimType
   | Optional DotProtoPrimType
   | Repeated DotProtoPrimType Packing
+  | NestedRepeated DotProtoType
   deriving Show
 
 data DotProtoMessagePart = DotProtoMessagePart
@@ -191,6 +192,7 @@ renderDotProto pn = PP.vcat
         renderPackedOption (Repeated _ Packed) = PP.text " [packed=true]"
         renderPackedOption (Repeated _ Unpacked) = PP.text " [packed=false]"
         renderPackedOption (Optional _) = PP.text " [packed=false]"
+        renderPackedOption (NestedRepeated _) = PP.text " [packed=false]"
         renderPackedOption _ = mempty
 
         renderLineEnding (Optional _) = PP.text "; // 0..1"
@@ -221,6 +223,7 @@ renderDotProto pn = PP.vcat
         renderType (Prim ty)      = renderPrimType ty
         renderType (Optional ty)  = PP.text "repeated " <> renderPrimType ty
         renderType (Repeated ty _)  = PP.text "repeated " <> renderPrimType ty
+        renderType (NestedRepeated ty) = PP.text "repeated " <> renderType ty
 
     renderEnum :: MessageName -> DotProtoEnum -> PP.Doc
     renderEnum msgName = wrap . PP.vcat . zipWith renderField [0..] . runDotProtoEnum
@@ -382,7 +385,8 @@ instance HasPrimType a => HasType (UnpackedVec a) where
 instance HasPrimType a => HasType (PackedVec a) where
   protoType _ = Repeated (primType (Proxy :: Proxy a)) Packed
 
-instance HasMessageName a => HasType (NestedVec a)
+instance HasType a => HasType (NestedVec a) where
+  protoType _ = NestedRepeated (protoType (Proxy :: Proxy a))
 
 -- | This class captures those types which can represent .proto messages and
 -- be used to generate a message entry in a .proto file.

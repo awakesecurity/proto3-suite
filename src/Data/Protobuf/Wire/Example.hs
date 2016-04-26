@@ -48,6 +48,7 @@ instance HasMessageName Foo
 data Bar = Bar
   { barShape :: Enumerated Shape
   , barFoo   :: Maybe Foo
+  , foos :: NestedVec Foo
   }
   deriving Generic
 
