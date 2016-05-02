@@ -31,7 +31,11 @@ module Data.Protobuf.Wire.Generic.DotProto
   , Data.Protobuf.Wire.Generic.DotProto.enum
 
   -- * Rendering
+  , RenderingOptions(..)
+  , defRenderingOptions
+  , defSelectorName
   , toProtoFile
+  , toProtoFileDef
   , renderDotProto
 
   -- * Supporting Classes
@@ -161,18 +165,47 @@ enum pr =
   . Right
   $ enumFields (Proxy :: Proxy e)
 
+-- | Options for rendering a @.proto@ file.
+data RenderingOptions = RenderingOptions
+  { roSelectorName :: MessageName -> Maybe FieldName -> FieldNumber -> String
+  -- ^ This function will be applied to each
+  -- record selector name to turn it into a protobuf
+  -- field name (default: uses the selector name, unchanged).
+  , roEnumMemberName :: MessageName -> FieldName -> String
+  -- ^ This function will be applied to each
+  -- enum member name to turn it into a protobuf
+  -- field name (default: uses the field name, unchanged).
+  }
+
+-- | Default rendering options.
+defRenderingOptions :: RenderingOptions
+defRenderingOptions =
+    RenderingOptions { roSelectorName = defSelectorName
+                     , roEnumMemberName = const getFieldName
+                     }
+
+-- | The default choice of field name for a selector.
+defSelectorName :: MessageName -> Maybe FieldName -> FieldNumber -> String
+defSelectorName msgName fieldName fieldNum =
+  maybe (getMessageName msgName <> "_" <> show (getFieldNumber fieldNum))
+        getFieldName
+        fieldName
+
 -- | Render a 'DotProto' structure as a .proto file
-renderDotProto :: PackageName -> DotProto -> PP.Doc
-renderDotProto pn = PP.vcat
-                    . prependPackageInfo pn
-                    . map renderPart
-                    . runDotProto
+renderDotProto :: RenderingOptions -> PackageName -> DotProto -> PP.Doc
+renderDotProto RenderingOptions{..} pn =
+    PP.vcat
+    . prependPackageInfo
+    . map renderPart
+    . runDotProto
   where
-    prependPackageInfo :: PackageName -> [PP.Doc] -> [PP.Doc]
-    prependPackageInfo pn xs = PP.text "syntax = \"proto3\";"
-                               :(PP.text "package "
-                                 <> PP.text (getPackageName pn) <> PP.text ";")
-                               : xs
+    prependPackageInfo :: [PP.Doc] -> [PP.Doc]
+    prependPackageInfo xs = PP.text "syntax = \"proto3\";"
+                            : PP.hcat [ PP.text "package "
+                                      , PP.text (getPackageName pn)
+                                      , PP.text ";"
+                                      ]
+                            : xs
     renderPart :: DotProtoPart -> PP.Doc
     renderPart (DotProtoPart name e) = either (renderMessage name) (renderEnum name) e
 
@@ -180,12 +213,12 @@ renderDotProto pn = PP.vcat
     renderMessage msgName = wrap . PP.vcat . map renderField . runDotProtoMessage
       where
         renderField :: DotProtoMessagePart -> PP.Doc
-        renderField (DotProtoMessagePart (FieldNumber i) fieldName ty) = PP.hcat
+        renderField (DotProtoMessagePart fieldNum fieldName ty) = PP.hcat
           [ renderType ty
           , PP.text " "
-          , maybe (PP.text (getMessageName msgName <> "_") <> PP.int (fromIntegral i)) (PP.text . getFieldName) fieldName
+          , PP.text (roSelectorName msgName fieldName fieldNum)
           , PP.text " = "
-          , PP.int (fromIntegral i)
+          , PP.int (fromIntegral (getFieldNumber fieldNum))
           , renderPackedOption ty
           , renderLineEnding ty
           ]
@@ -230,7 +263,7 @@ renderDotProto pn = PP.vcat
       where
         renderField :: Int -> FieldName -> PP.Doc
         renderField i memberName = PP.hcat
-          [ PP.text (getFieldName memberName)
+          [ PP.text (roEnumMemberName msgName memberName)
           , PP.text " = "
           , PP.int i
           , PP.text ";"
@@ -240,8 +273,13 @@ renderDotProto pn = PP.vcat
         wrap = ((PP.text "enum " <> PP.text (getMessageName msgName) <> PP.text " {") $+$) . ($+$ (PP.text "}")) . PP.nest 2
 
 -- | Render protobufs metadata as a .proto file string
-toProtoFile :: PackageName -> DotProto -> String
-toProtoFile pn = PP.render . renderDotProto pn
+toProtoFile :: RenderingOptions -> PackageName -> DotProto -> String
+toProtoFile opts pn = PP.render . renderDotProto opts pn
+
+-- | Render protobufs metadata as a .proto file string,
+-- using the default rendering options.
+toProtoFileDef :: PackageName -> DotProto -> String
+toProtoFileDef = toProtoFile defRenderingOptions
 
 -- | This class captures those types which correspond to .proto messages.
 --

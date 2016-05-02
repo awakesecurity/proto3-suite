@@ -75,7 +75,7 @@ instance HasMessageName Bar
 --   /* optional */ Foo barFoo = 2;
 -- }
 protoFile :: String
-protoFile = toProtoFile "examplePackageName" $ fold
+protoFile = toProtoFileDef "examplePackageName" $ fold
   ([ enum    (Proxy :: Proxy Shape)
    , message (Proxy :: Proxy Foo)
    , message (Proxy :: Proxy Bar)
