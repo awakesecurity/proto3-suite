@@ -105,7 +105,9 @@ encodeUnitTests = testGroup "Encoding unit tests"
                    encodeNestedMessage,
                    encodeEnumFirstAlternative,
                    encodeEnumSecondAlternative,
-                   encodeRepetition]
+                   encodeRepetition,
+                   encodeBytes,
+                   encodeNestedMaybe]
 
 checkEncoding :: HasEncoding a => FilePath -> a -> IO ()
 checkEncoding fp x = do let ourEncoding = toLazyByteString x
@@ -148,6 +150,18 @@ encodeRepetition :: TestTree
 encodeRepetition = testCase
   "Encoding a message with repetition matches the official implementation" $
   checkEncoding "test-files/with_repetition.bin" $ WithRepetition [1..5]
+
+encodeBytes :: TestTree
+encodeBytes = testCase
+  "Encoding a message with bytes fields matches the official implementation" $
+  checkEncoding "test-files/with_bytes.bin" $
+  WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
+
+encodeNestedMaybe :: TestTree
+encodeNestedMaybe = testCase
+  "Encoding a nested message within Maybe matches the official implementation" $
+  checkEncoding "test-files/with_nesting_maybe.bin" $
+  WithNestingMaybe $ Just $ Nested (NestedMsg "123abc" 123456)
 
 decodeUnitTests :: TestTree
 decodeUnitTests = testGroup "Decode unit tests"

@@ -61,7 +61,8 @@ import           Data.Protobuf.Wire.Shared(FieldNumber(..), fieldNumber,
                                            Enumerated(..),
                                            UnpackedVec(..),
                                            PackedVec(..),
-                                           NestedVec(..))
+                                           NestedVec(..),
+                                           Nested(..))
 import           Data.Protobuf.Wire.Generic
 import           Data.Proxy (Proxy(..))
 import           Data.String (IsString)
@@ -384,6 +385,9 @@ instance HasMessageName e => HasPrimType (Enumerated e) where
   primType _ = Named (messageName (Proxy :: Proxy e))
 
 instance HasMessageName a => HasPrimType (NestedVec a) where
+  primType _ = Named (messageName (Proxy :: Proxy a))
+
+instance HasMessageName a => HasPrimType (Nested a) where
   primType _ = Named (messageName (Proxy :: Proxy a))
 
 -- | This class captures those types which correspond to message field types.

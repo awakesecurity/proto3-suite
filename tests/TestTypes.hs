@@ -194,3 +194,12 @@ instance HasDecoding WithMaybe
 
 instance Arbitrary WithMaybe where
   arbitrary = WithMaybe <$> arbitrary
+
+data WithNestingMaybe =
+  WithNestingMaybe {nestedMaybe :: Maybe (Nested NestedMsg)}
+  deriving (Show, Generic, Eq)
+instance HasEncoding WithNestingMaybe
+--instance HasDecoding WithNestingMaybe
+
+instance Arbitrary WithNestingMaybe where
+  arbitrary = WithNestingMaybe <$> arbitrary
