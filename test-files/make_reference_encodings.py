@@ -42,6 +42,12 @@ def main():
     msg2.nestedField2 = 654321
     serialize_to_file(withNestingRepeated, "with_nesting_repeated.bin")
 
+    withNestingMaybe = test_pb2.WithNestingMaybe()
+    msg1 = withNestingMaybe.nestedMaybe.add()
+    msg1.nestedField1 = "123abc"
+    msg1.nestedField2 = 123456
+    serialize_to_file(withNestingMaybe, "with_nesting_maybe.bin")
+
     withRepetition = test_pb2.WithRepetition()
     withRepetition.repeatedField1.extend([1,2,3,4,5])
     serialize_to_file(withRepetition, 'with_repetition.bin')
@@ -79,6 +85,7 @@ def main():
     allPackedTypes.packedSFixed32.extend([1,2,3])
     allPackedTypes.packedSFixed64.extend([1,2,3])
     serialize_to_file(allPackedTypes, "all_packed_types.bin")
+
 
 if __name__ == '__main__':
     main()
