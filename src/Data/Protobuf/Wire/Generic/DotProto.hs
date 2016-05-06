@@ -430,6 +430,9 @@ instance HasPrimType a => HasType (PackedVec a) where
 instance HasType a => HasType (NestedVec a) where
   protoType _ = NestedRepeated (protoType (Proxy :: Proxy a))
 
+instance HasPrimType a => HasType (Nested a) where
+  protoType _ = Prim (primType (Proxy :: Proxy a))
+
 -- | This class captures those types which can represent .proto messages and
 -- be used to generate a message entry in a .proto file.
 --
