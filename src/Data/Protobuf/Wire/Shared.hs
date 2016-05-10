@@ -31,13 +31,15 @@ import           GHC.Generics
 import qualified Data.Vector.Unboxed as UV
 import qualified Data.Vector as V
 import qualified Data.Vector.Strategies
+import           Test.QuickCheck (Arbitrary(..))
 
 -- | A 'FieldNumber' identifies a field inside a protobufs message.
 --
 -- This library makes no attempt to generate these automatically, or even make
 -- sure that field numbers are provided in increasing order. Such things are
 -- left to other, higher-level libraries.
-newtype FieldNumber = FieldNumber { getFieldNumber :: Word64 } deriving (Show, Eq, Ord, Enum, NFData)
+newtype FieldNumber = FieldNumber { getFieldNumber :: Word64 }
+  deriving (Show, Eq, Ord, Enum, NFData, Arbitrary)
 
 -- | Create a 'FieldNumber' given the (one-based) integer which would label
 -- the field in the corresponding .proto file.
@@ -52,18 +54,22 @@ data WireType
   deriving (Show, Eq, Ord)
 
 -- | 'Fixed' provides a way to encode integers in the fixed-width wire formats.
-newtype Fixed a = Fixed { fixed :: a } deriving (Show, Eq, Ord, Generic, NFData)
+newtype Fixed a = Fixed { fixed :: a }
+  deriving (Show, Eq, Ord, Generic, NFData, Arbitrary)
 
 -- | 'Signed' provides a way to encode integers in the signed wire formats.
-newtype Signed a = Signed { signed :: a } deriving (Show, Eq, Ord, Generic, NFData)
+newtype Signed a = Signed { signed :: a }
+  deriving (Show, Eq, Ord, Generic, NFData, Arbitrary)
 
 -- | 'Enumerated' lifts any type with an 'IsEnum' instance so that it can be encoded
 -- with 'HasEncoding'.
-newtype Enumerated a = Enumerated { enumerated :: a } deriving (Show, Eq, Ord, Generic, NFData)
+newtype Enumerated a = Enumerated { enumerated :: a }
+  deriving (Show, Eq, Ord, Generic, NFData, Arbitrary)
 
 -- | 'Packed' provides a way to encode packed lists of basic protobuf types into
 -- the wire format.
-newtype Packed a = Packed { packed :: a } deriving (Show, Eq, Ord, Generic, NFData)
+newtype Packed a = Packed { packed :: a }
+  deriving (Show, Eq, Ord, Generic, NFData, Arbitrary)
 
 newtype PackedVec a = PackedVec { packedvec :: V.Vector a }
   deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData, Applicative,
@@ -74,6 +80,9 @@ instance IsList (PackedVec a) where
   fromList = PackedVec . V.fromList
   toList = V.toList . packedvec
 
+instance Arbitrary a => Arbitrary (PackedVec a) where
+  arbitrary = fmap (PackedVec . V.fromList) arbitrary
+
 newtype UnpackedVec a = UnpackedVec {unpackedvec :: V.Vector a }
   deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData, Applicative,
             Alternative, Monoid)
@@ -82,6 +91,9 @@ instance IsList (UnpackedVec a) where
   type Item (UnpackedVec a) = a
   fromList = UnpackedVec . V.fromList
   toList = V.toList . unpackedvec
+
+instance Arbitrary a => Arbitrary (UnpackedVec a) where
+  arbitrary = fmap (UnpackedVec . V.fromList) arbitrary
 
 newtype NestedVec a =
   NestedVec { nestedvec :: V.Vector a }
@@ -93,5 +105,9 @@ instance IsList (NestedVec a) where
   fromList = NestedVec . V.fromList
   toList = V.toList . nestedvec
 
+instance Arbitrary a => Arbitrary (NestedVec a) where
+  arbitrary = fmap (NestedVec . V.fromList) arbitrary
+
 -- | 'Nested' provides a way to nest protobuf messages within protobuf messages.
-newtype Nested a = Nested { nested :: a } deriving (Show, Eq, Ord, Generic, NFData, Monoid)
+newtype Nested a = Nested { nested :: a }
+  deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary)
