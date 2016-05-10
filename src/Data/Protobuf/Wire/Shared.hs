@@ -23,6 +23,7 @@ module Data.Protobuf.Wire.Shared (
 , NestedVec(..)
   ) where
 
+import           Control.Applicative
 import           Control.DeepSeq (NFData)
 import           Data.Word (Word8, Word32, Word64)
 import           GHC.Exts (IsList(..))
@@ -65,7 +66,8 @@ newtype Enumerated a = Enumerated { enumerated :: a } deriving (Show, Eq, Ord, G
 newtype Packed a = Packed { packed :: a } deriving (Show, Eq, Ord, Generic, NFData)
 
 newtype PackedVec a = PackedVec { packedvec :: V.Vector a }
-  deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData)
+  deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData, Applicative,
+            Alternative, Monoid)
 
 instance IsList (PackedVec a) where
   type Item (PackedVec a) = a
@@ -73,7 +75,8 @@ instance IsList (PackedVec a) where
   toList = V.toList . packedvec
 
 newtype UnpackedVec a = UnpackedVec {unpackedvec :: V.Vector a }
-  deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData)
+  deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData, Applicative,
+            Alternative, Monoid)
 
 instance IsList (UnpackedVec a) where
   type Item (UnpackedVec a) = a
@@ -82,7 +85,8 @@ instance IsList (UnpackedVec a) where
 
 newtype NestedVec a =
   NestedVec { nestedvec :: V.Vector a }
-  deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData)
+  deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData, Applicative,
+            Alternative, Monoid)
 
 instance IsList (NestedVec a) where
   type Item (NestedVec a) = a
