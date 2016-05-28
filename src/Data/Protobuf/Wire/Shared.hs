@@ -30,7 +30,6 @@ import           GHC.Exts (IsList(..))
 import           GHC.Generics
 import qualified Data.Vector.Unboxed as UV
 import qualified Data.Vector as V
-import qualified Data.Vector.Strategies
 import           Test.QuickCheck (Arbitrary(..))
 
 -- | A 'FieldNumber' identifies a field inside a protobufs message.

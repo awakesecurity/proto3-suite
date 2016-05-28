@@ -32,7 +32,6 @@ library
                        safe ==0.3.*,
                        pipes ==4.1.*,
                        vector ==0.11.*,
-                       vector-strategies == 0.4,
                        QuickCheck >=2.8 && <2.9
 
   hs-source-dirs:      src
