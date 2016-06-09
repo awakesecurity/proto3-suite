@@ -34,16 +34,18 @@ message WithNestingRepeated {
   message Nested {
     string nestedField1 = 1;
     int32 nestedField2 = 2;
+    repeated int32 nestedPacked = 3 [packed=true];
+    repeated int32 nestedUnpacked = 4 [packed=false];
   }
   repeated Nested nestedMessages = 1;
 }
 
-message WithNestingMaybe {
-  message Nested {
-    string nestedField1 = 1;
-    int32 nestedField2 = 2;
+message WithNestingRepeatedInts {
+  message NestedInts {
+    int32 nestedInt1 = 1;
+    int32 nestedInt2 = 2;
   }
-  repeated Nested nestedMaybe = 1 [packed=false]; //0..1
+  repeated NestedInts nestedInts = 1;
 }
 
 message WithRepetition {

@@ -4,13 +4,13 @@ module Data.Protobuf.Wire.Decode.Internal where
 
 import           Data.Bits
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
 import           Data.Function (on)
 import           Data.List (groupBy)
 import qualified Data.Map.Strict as M
 import           Data.Protobuf.Wire.Shared
+import qualified Data.Sequence as S
 import           Data.Serialize.Get
-import           Data.Word (Word8, Word32, Word64)
+import           Data.Word (Word8, Word64)
 import           Control.Applicative
 
 -- | Get a base128 varint. Handles delimitation by MSB.
@@ -81,13 +81,15 @@ getKeyVal = do (fn, wt) <- getFieldHeader
 -- only the last element with a given field number.
 -- This is as much structure as we can recover without knowing the type of the
 -- message.
-getTuples :: Get (M.Map FieldNumber [ParsedField])
+getTuples :: Get (M.Map FieldNumber (S.Seq ParsedField))
 getTuples = do
   keyvals <- many getKeyVal
   let grouped = groupBy ((==) `on` fst) keyvals
-  return $ M.fromList $ map (\kvs@(kv:_) -> (fst kv, map snd kvs)) grouped
+  return $ M.fromList $ map (\kvs@(kv:_) -> (fst kv, S.fromList $ map snd kvs))
+                            grouped
 
 -- | Turns a raw protobuf message into a map from 'FieldNumber' to a list
 -- of all 'ParsedField' values that are labeled with that number.
-parseTuples :: B.ByteString -> Either String (M.Map FieldNumber [ParsedField])
+parseTuples :: B.ByteString -> Either String
+                                      (M.Map FieldNumber (S.Seq ParsedField))
 parseTuples = runGet getTuples

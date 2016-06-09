@@ -14,8 +14,8 @@ module Data.Protobuf.Wire.Example where
 
 import Data.Foldable (fold)
 import Data.Protobuf.Wire.Generic
-import Data.Protobuf.Wire.Generic.DotProto
 import Data.Protobuf.Wire.Shared
+import Data.Protobuf.Wire.DotProto
 import Data.Proxy
 import Data.Word (Word32)
 import GHC.Generics
@@ -25,7 +25,7 @@ data Shape
   = Circle
   | Square
   | Triangle
-  deriving (Eq, Ord, Enum, Generic, HasEnum, HasMessageName)
+  deriving (Eq, Enum, Finite, Generic, Named, Ord)
 
 -- | We can encode a value of type 'Foo' using 'toLazyByteString'.
 --
@@ -35,28 +35,21 @@ data Shape
 -- "\b*\DC2\EOT\b\NUL\DC2\NUL"
 data Foo = Foo
   { fooID   :: Word32
-  , fooBars :: UnpackedVec Bar
-  }
-  deriving Generic
+  , fooBars :: NestedVec Bar
+  } deriving (Eq, Generic)
 
-instance HasEncoding Foo
-instance HasPrimType Foo
-instance HasType Foo
-instance HasMessage Foo
-instance HasMessageName Foo
+instance Message Foo
+instance Named Foo
 
 data Bar = Bar
   { barShape :: Enumerated Shape
-  , barFoo   :: Maybe Foo
-  , foos :: NestedVec Foo
+  , barFoo   :: Nested Foo
+  , foos     :: NestedVec Foo
   }
-  deriving Generic
+  deriving (Eq, Generic)
 
-instance HasEncoding Bar
-instance HasPrimType Bar
-instance HasType Bar
-instance HasMessage Bar
-instance HasMessageName Bar
+instance Message Bar
+instance Named Bar
 
 -- | Generates the .proto file for the 'Foo' and 'Bar' data types.
 --

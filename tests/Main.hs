@@ -35,13 +35,9 @@ tests = testGroup "Tests" [qcProperties, encodeUnitTests, decodeUnitTests,
 instance Arbitrary WireType where
   arbitrary = oneof $ map return [Varint, Fixed32, Fixed64, LengthDelimited]
 
-instance Arbitrary FieldNumber where
-  arbitrary = fmap FieldNumber $ choose (1,536870911)
-
-qcInverses :: (HasEncoding a, Arbitrary a, Eq a, Show a) =>
-              Parser a -> a -> Property
-qcInverses parser msg = msg === (decode $ encode msg)
-  where decode x = case parse parser x of
+qcInverses :: (Message a, Arbitrary a, Eq a, Show a) => a -> Property
+qcInverses msg = msg === (decode $ encode msg)
+  where decode x = case parser x of
                     Left e -> error $ "got error parsing: " ++ show e
                     Right r -> r
         encode = BL.toStrict . toLazyByteString
@@ -63,37 +59,37 @@ qcProperties = testGroup "QuickCheck properties"
                in (w64 :: Word64) == (decode $ encode w64),
 
   QC.testProperty "decode inverts encode for trivial messages" $
-  qcInverses (parser :: Parser Trivial),
+  (qcInverses :: Trivial -> Property),
 
   QC.testProperty "decode inverts encode for multi-field messages" $
-  qcInverses (parser :: Parser MultipleFields),
+  (qcInverses :: MultipleFields -> Property),
 
   QC.testProperty "decode inverts encode for enum messages" $
-  qcInverses (parser :: Parser WithEnum),
+  (qcInverses :: WithEnum -> Property),
 
   QC.testProperty "decode inverts encode for nested messages" $
-  qcInverses (parser :: Parser WithNesting),
+  (qcInverses :: WithNesting -> Property),
 
   QC.testProperty "decode inverts encode for repeated field messages" $
-  qcInverses (parser :: Parser WithRepetition),
+  (qcInverses :: WithRepetition -> Property),
 
   QC.testProperty "decode inverts encode for messages with fixed fields" $
-  qcInverses (parser :: Parser WithFixed),
+  (qcInverses :: WithFixed -> Property),
 
   QC.testProperty "decode inverts encode for messages with bytes fields" $
-  qcInverses (parser :: Parser WithBytes),
+  (qcInverses :: WithBytes -> Property),
 
   QC.testProperty "decode inverts encode for all packed repeated types" $
-  qcInverses (parser :: Parser AllPackedTypes),
+  (qcInverses :: AllPackedTypes -> Property),
 
   QC.testProperty "decode inverts encode for signed int types" $
-  qcInverses (parser :: Parser SignedInts),
+  (qcInverses :: SignedInts -> Property),
 
   QC.testProperty "decode inverts encode for repeated messages" $
-  qcInverses (parser :: Parser WithNestingRepeated),
+  (qcInverses :: WithNestingRepeated -> Property)
 
-  QC.testProperty "decode inverts encode for messages containing Maybe" $
-  qcInverses (parser :: Parser WithMaybe)
+  --QC.testProperty "decode inverts encode for messages containing Maybe" $
+  --qcInverses (parser :: Parser WithMaybe)
 
   ]
 
@@ -107,9 +103,11 @@ encodeUnitTests = testGroup "Encoding unit tests"
                    encodeEnumSecondAlternative,
                    encodeRepetition,
                    encodeBytes,
-                   encodeNestedMaybe]
+                   --encodeNestedMaybe
+                   encodeWithNestingRepeated
+                   ]
 
-checkEncoding :: HasEncoding a => FilePath -> a -> IO ()
+checkEncoding :: Message a => FilePath -> a -> IO ()
 checkEncoding fp x = do let ourEncoding = toLazyByteString x
                         referenceEncoding <- BL.readFile fp
                         ourEncoding @?= referenceEncoding
@@ -134,7 +132,7 @@ encodeNestedMessage :: TestTree
 encodeNestedMessage = testCase
   "Encoding a message with nesting matches the official implementation" $
   checkEncoding "test-files/with_nesting.bin" $
-  WithNesting $ Nested $ NestedMsg "123abc" 123456
+  WithNesting $ Nested $ Just $ NestedMsg "123abc" 123456 [] []
 
 encodeEnumFirstAlternative :: TestTree
 encodeEnumFirstAlternative = testCase
@@ -157,11 +155,12 @@ encodeBytes = testCase
   checkEncoding "test-files/with_bytes.bin" $
   WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
 
-encodeNestedMaybe :: TestTree
-encodeNestedMaybe = testCase
-  "Encoding a nested message within Maybe matches the official implementation" $
-  checkEncoding "test-files/with_nesting_maybe.bin" $
-  WithNestingMaybe $ Just $ Nested (NestedMsg "123abc" 123456)
+encodeWithNestingRepeated :: TestTree
+encodeWithNestingRepeated = testCase
+  "Encoding repeated embedded messages matches the official implementation" $
+  checkEncoding "test-files/with_nesting_repeated.bin" $
+  WithNestingRepeated [NestedMsg "123abc" 123456 [1,2,3,4] [5,6,7,8],
+                       NestedMsg "abc123" 654321 [0,9,8,7] [6,5,4,3]]
 
 decodeUnitTests :: TestTree
 decodeUnitTests = testGroup "Decode unit tests"
@@ -221,12 +220,16 @@ parserUnitTests = testGroup "Parsing unit tests"
                    ,parsePackedUnpacked
                    ,parseAllPackedTypes
                    ,parseWithNestingRepeated
+                   ,parseWithNestingRepeatedAbsent
+                   ,parseWithNestingInt
                    ]
 
-testParser :: (Show a, Eq a) => FilePath -> Parser a -> a -> IO ()
-testParser fp parser reference = do
+testParser :: (Show a, Eq a) =>
+              FilePath
+              -> (B.ByteString -> Either [ParseError] a) -> a -> IO ()
+testParser fp p reference = do
   bs <- B.readFile fp
-  case parse parser bs of
+  case p bs of
     Left err -> error $ "Got error: " ++ show err
     Right ourResult -> ourResult @?= reference
 
@@ -245,7 +248,7 @@ parseNestedMessage :: TestTree
 parseNestedMessage = testCase
   "Parsing a nested message matches the official implementation" $
   testParser "test-files/with_nesting.bin" parser $
-    WithNesting $ Nested $ NestedMsg "123abc" 123456
+    WithNesting $ Nested $ Just $ NestedMsg "123abc" 123456 [] []
 
 parseEnumFirstAlternative :: TestTree
 parseEnumFirstAlternative = testCase
@@ -304,5 +307,18 @@ parseWithNestingRepeated :: TestTree
 parseWithNestingRepeated = testCase
   "Parsing repeated embedded messages matches the official implementation" $
   testParser "test-files/with_nesting_repeated.bin" parser $
-  WithNestingRepeated [NestedMsg "123abc" 123456,
-                       NestedMsg "abc123" 654321]
+  WithNestingRepeated [NestedMsg "123abc" 123456 [1,2,3,4] [5,6,7,8],
+                       NestedMsg "abc123" 654321 [0,9,8,7] [6,5,4,3]]
+
+parseWithNestingRepeatedAbsent :: TestTree
+parseWithNestingRepeatedAbsent = testCase
+  "Parsing repeated embedded messages when one is expected: correct merging" $
+  testParser "test-files/with_nesting_repeated.bin" parser $
+  WithNestingRepeatedAbsent $ Nested $
+    Just $ NestedMsg "abc123" 654321 [1,2,3,4,0,9,8,7] [5,6,7,8,6,5,4,3]
+
+parseWithNestingInt :: TestTree
+parseWithNestingInt = testCase
+  "Embedded message merging works correctly when fields have default values" $
+  testParser "test-files/with_nesting_ints.bin" parser $
+  WithNestingRepeatedInts $ Nested $ Just $ NestedInt 2 2

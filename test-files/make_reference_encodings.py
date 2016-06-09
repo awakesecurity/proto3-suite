@@ -37,16 +37,23 @@ def main():
     msg1 = withNestingRepeated.nestedMessages.add()
     msg1.nestedField1 = "123abc"
     msg1.nestedField2 = 123456
+    msg1.nestedPacked.extend([1,2,3,4])
+    msg1.nestedUnpacked.extend([5,6,7,8])
     msg2 = withNestingRepeated.nestedMessages.add()
     msg2.nestedField1 = "abc123"
     msg2.nestedField2 = 654321
+    msg2.nestedPacked.extend([0,9,8,7])
+    msg2.nestedUnpacked.extend([6,5,4,3])
     serialize_to_file(withNestingRepeated, "with_nesting_repeated.bin")
 
-    withNestingMaybe = test_pb2.WithNestingMaybe()
-    msg1 = withNestingMaybe.nestedMaybe.add()
-    msg1.nestedField1 = "123abc"
-    msg1.nestedField2 = 123456
-    serialize_to_file(withNestingMaybe, "with_nesting_maybe.bin")
+    nestingRepeatedMissingFields = test_pb2.WithNestingRepeatedInts()
+    msg1 = nestingRepeatedMissingFields.nestedInts.add()
+    msg1.nestedInt1 = 0
+    msg1.nestedInt2 = 2
+    msg2 = nestingRepeatedMissingFields.nestedInts.add()
+    msg2.nestedInt1 = 2
+    msg2.nestedInt2 = 0
+    serialize_to_file(nestingRepeatedMissingFields, "with_nesting_ints.bin")
 
     withRepetition = test_pb2.WithRepetition()
     withRepetition.repeatedField1.extend([1,2,3,4,5])

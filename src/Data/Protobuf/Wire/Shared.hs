@@ -3,34 +3,34 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Data.Protobuf.Wire.Shared (
--- * Message Structure
-  FieldNumber(..)
-, fieldNumber
-, WireType(..)
+module Data.Protobuf.Wire.Shared
+  (
+  -- * Message Structure
+    FieldNumber(..)
+  , fieldNumber
+  , WireType(..)
 
--- * Integral Types
-, Fixed(..)
-, Signed(..)
+  -- * Integral Types
+  , Fixed(..)
+  , Signed(..)
 
--- * Enumerable Types
-, Enumerated(..)
+  -- * Enumerable Types
+  , Enumerated(..)
 
-, Packed(..)
-, Nested(..)
-, UnpackedVec(..)
-, PackedVec(..)
-, NestedVec(..)
+  , Packed(..)
+  , Nested(..)
+  , UnpackedVec(..)
+  , PackedVec(..)
+  , NestedVec(..)
   ) where
 
 import           Control.Applicative
 import           Control.DeepSeq (NFData)
-import           Data.Word (Word8, Word32, Word64)
+import           Data.Word (Word64)
 import           GHC.Exts (IsList(..))
 import           GHC.Generics
-import qualified Data.Vector.Unboxed as UV
 import qualified Data.Vector as V
-import           Test.QuickCheck (Arbitrary(..))
+import           Test.QuickCheck (Arbitrary(..), choose)
 
 -- | A 'FieldNumber' identifies a field inside a protobufs message.
 --
@@ -38,7 +38,10 @@ import           Test.QuickCheck (Arbitrary(..))
 -- sure that field numbers are provided in increasing order. Such things are
 -- left to other, higher-level libraries.
 newtype FieldNumber = FieldNumber { getFieldNumber :: Word64 }
-  deriving (Show, Eq, Ord, Enum, NFData, Arbitrary)
+  deriving (Show, Eq, Ord, Enum, NFData)
+
+instance Arbitrary FieldNumber where
+  arbitrary = fmap FieldNumber $ choose (1,536870911)
 
 -- | Create a 'FieldNumber' given the (one-based) integer which would label
 -- the field in the corresponding .proto file.
@@ -54,11 +57,11 @@ data WireType
 
 -- | 'Fixed' provides a way to encode integers in the fixed-width wire formats.
 newtype Fixed a = Fixed { fixed :: a }
-  deriving (Show, Eq, Ord, Generic, NFData, Arbitrary)
+  deriving (Show, Eq, Ord, Num, Generic, NFData, Arbitrary)
 
 -- | 'Signed' provides a way to encode integers in the signed wire formats.
 newtype Signed a = Signed { signed :: a }
-  deriving (Show, Eq, Ord, Generic, NFData, Arbitrary)
+  deriving (Show, Eq, Ord, Num, Generic, NFData, Arbitrary)
 
 -- | 'Enumerated' lifts any type with an 'IsEnum' instance so that it can be encoded
 -- with 'HasEncoding'.
@@ -108,5 +111,5 @@ instance Arbitrary a => Arbitrary (NestedVec a) where
   arbitrary = fmap (NestedVec . V.fromList) arbitrary
 
 -- | 'Nested' provides a way to nest protobuf messages within protobuf messages.
-newtype Nested a = Nested { nested :: a }
+newtype Nested a = Nested { nested :: Maybe a }
   deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary)

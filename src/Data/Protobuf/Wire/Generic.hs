@@ -53,339 +53,501 @@
 {-# LANGUAGE OverloadedLists #-}
 
 module Data.Protobuf.Wire.Generic
-  ( HasEncoding(..)
-  , HasDecoding(..)
+  ( Primitive(..)
+  , MessageField(..)
+  , Message(..)
 
   -- * Encoding
   , toLazyByteString
 
   -- * Decoding
+  , HasDefault(..)
   , parser
 
-  -- * Supporting Classes
-  , GenericHasEncoding(..)
-  , GenericHasDecoding(..)
+  -- * Documentation
+  , Named(..)
+  , Finite(..)
+  , message
+  , Data.Protobuf.Wire.Generic.enum
+
+  -- * Generic Classes
+  , GenericMessage(..)
   ) where
 
+import           Control.Arrow (second)
 import           Control.Monad
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.Foldable as F
+import           Data.Function (on)
+import           Data.Functor (($>))
 import           Data.Int (Int32, Int64)
-import           Data.Maybe (maybeToList)
+import           Data.Maybe (fromMaybe)
 import           Data.Monoid ((<>))
-import qualified Data.Vector as V
+import           Data.Sequence (Seq)
+import           Data.String (IsString(..))
 import           Data.Protobuf.Wire.Encode as Wire
 import           Data.Protobuf.Wire.Decode.Parser
 import           Data.Protobuf.Wire.Shared as Wire
+import           Data.Protobuf.Wire.DotProto as DotProto
 import           Data.Proxy (Proxy(..))
+import           Data.Vector (Vector)
 import           Data.Word (Word32, Word64)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text as T
+import qualified Data.Traversable as TR
 import           GHC.Generics
 import           GHC.TypeLits
 import           GHC.Exts (fromList)
 
--- | This class captures those types which can be serialized as protobuf messages.
+-- | A class for types with default values per the protocol buffers spec.
+class HasDefault a where
+  -- | The default value for this type.
+  def :: a
+
+  -- | Numeric types default to zero
+  default def :: Num a => a
+  def = 0
+
+  isDefault :: a -> Bool
+
+  default isDefault :: Eq a => a -> Bool
+  isDefault = (== def)
+
+instance HasDefault Int32
+instance HasDefault Int64
+instance HasDefault Word32
+instance HasDefault Word64
+instance HasDefault (Signed Int32)
+instance HasDefault (Signed Int64)
+instance HasDefault (Fixed Word32)
+instance HasDefault (Fixed Word64)
+instance HasDefault (Signed (Fixed Int32))
+instance HasDefault (Signed (Fixed Int64))
+instance HasDefault Float
+instance HasDefault Double
+
+instance HasDefault Bool where
+  def = False
+
+instance HasDefault T.Text where
+  def = mempty
+
+instance HasDefault TL.Text where
+  def = mempty
+
+instance HasDefault B.ByteString where
+  def = mempty
+
+instance HasDefault BL.ByteString where
+  def = mempty
+
+instance (Enum e) => HasDefault (Enumerated e) where
+  def = Enumerated (toEnum 0)
+  isDefault = on (==) fromEnum (enumerated def) . enumerated
+
+instance Eq a => HasDefault (UnpackedVec a) where
+  def = mempty
+
+instance Eq a => HasDefault (PackedVec a) where
+  def = mempty
+
+instance Eq a => HasDefault (NestedVec a) where
+  def = mempty
+
+instance (Eq a, Message a) => HasDefault (Nested a) where
+  def = Nested Nothing
+
+-- | This class captures those types whose names need to appear in .proto files.
 --
--- Instances are provides for supported primitive types, and instances can be derived
--- for other types.
-class HasEncoding a where
+-- It has a default implementation for any data type which is an instance of the
+-- 'Generic' class, which will extract the name of the type constructor.
+class Named a where
+  -- | Get the name of a type constructor
+  nameOf :: IsString string => Proxy a -> string
 
-  -- | The number of protobuf fields in a message.
-  type FieldCount a :: Nat
-  type FieldCount a = GenericFieldCount (Rep a)
+  default nameOf :: (IsString string, Generic a, GenericNamed (Rep a)) => Proxy a -> string
+  nameOf _ = genericNameOf (Proxy :: Proxy (Rep a))
 
-  -- | Encode a message as a binary protobuf message, starting at the specified 'FieldNumber'.
-  encode :: FieldNumber -> a -> BB.Builder
-  default encode :: (Generic a, GenericHasEncoding (Rep a)) => FieldNumber -> a -> BB.Builder
-  encode num = genericEncode num . from
+class GenericNamed (f :: * -> *) where
+  genericNameOf :: IsString string => Proxy f -> string
+
+instance Datatype d => GenericNamed (M1 D d f) where
+  genericNameOf _ = fromString (datatypeName (undefined :: M1 D d f ()))
+
+-- | Enumerable types with finitely many values.
+--
+-- This class can be derived whenever a sum type is an instance of 'Generic',
+-- and only consists of zero-argument constructors. The derived instance should
+-- be compatible with derived `Enum` instances, in the sense that
+--
+-- > map (toEnum . fst) enumerate
+--
+-- should enumerate all values of the type without runtime errors.
+class Enum a => Finite a where
+  -- | Enumerate values of a finite type, along with names of constructors.
+  enumerate :: IsString string => Proxy a -> [(Int, string)]
+
+  default enumerate :: (IsString string, Generic a, GenericFinite (Rep a)) => Proxy a -> [(Int, string)]
+  enumerate _ = snd (genericEnumerate (Proxy :: Proxy (Rep a)) 0)
+
+-- | Generate metadata for an enum type.
+enum :: forall e. (Finite e, Named e) => Proxy e -> DotProto
+enum pr =
+  DotProto
+  . (: [])
+  . DotProtoPart (MessageName (nameOf pr))
+  . Right
+  . DotProtoEnum
+  . map (second FieldName)
+  $ enumerate (Proxy :: Proxy e)
+
+class GenericFinite (f :: * -> *) where
+  genericEnumerate :: IsString string => Proxy f -> Int -> (Int, [(Int, string)])
+
+instance ( GenericFinite f
+         , GenericFinite g
+         ) => GenericFinite (f :+: g) where
+  genericEnumerate _ i =
+    let (j, e1) = genericEnumerate (Proxy :: Proxy f) i
+        (k, e2) = genericEnumerate (Proxy :: Proxy g) j
+    in (k, e1 <> e2)
+
+instance Constructor c => GenericFinite (M1 C c f) where
+  genericEnumerate _ i = (i + 1, [ (i, fromString name) ])
+    where
+      name = conName (undefined :: M1 C c f ())
+
+instance GenericFinite f => GenericFinite (M1 D t f) where
+  genericEnumerate _ = genericEnumerate (Proxy :: Proxy f)
+
+instance GenericFinite f => GenericFinite (M1 S t f) where
+  genericEnumerate _ = genericEnumerate (Proxy :: Proxy f)
+
+-- | This class captures those types which correspond to primitives in
+-- the protocol buffers specification.
+--
+-- It should be possible to fully reconstruct values of these types from
+-- a single 'ParsedField'. Notably, then, `Nested` is not `Primitive` even
+-- though it can be 'embedded', since a nested message may by split up over
+-- multiple 'embedded' fields.
+class Primitive a where
+  -- | Encode a primitive value
+  encodePrimitive :: FieldNumber -> a -> BB.Builder
+  -- | Decode a primitive value
+  decodePrimitive :: Parser ParsedField a
+  -- | Get the type which represents this type inside another message.
+  primType :: Proxy a -> DotProtoPrimType
+
+  default primType :: Named a => Proxy a -> DotProtoPrimType
+  primType pr = Named (MessageName (nameOf pr))
 
 -- | Serialize a message as a lazy 'BL.ByteString'.
-toLazyByteString :: HasEncoding a => a -> BL.ByteString
-toLazyByteString = BB.toLazyByteString . encode (fieldNumber 1)
+toLazyByteString :: Message a => a -> BL.ByteString
+toLazyByteString = BB.toLazyByteString . encodeMessage (fieldNumber 1)
 
 -- | A parser for any message that can be decoded. For use with 'parse'.
-parser :: HasDecoding a => Parser a
-parser = decode (fieldNumber 1)
+parser :: Message a => B.ByteString -> Either [ParseError] a
+parser = parse (decodeMessage (fieldNumber 1))
 
-instance HasEncoding Int32 where
-  type FieldCount Int32 = 1
-  encode = int32
+instance Primitive Int32 where
+  encodePrimitive = int32
+  decodePrimitive = parseInt32
+  primType _ = Int32
 
-instance HasEncoding Int64 where
-  type FieldCount Int64 = 1
-  encode = int64
+instance Primitive Int64 where
+  encodePrimitive = int64
+  decodePrimitive = parseInt64
+  primType _ = Int64
 
-instance HasEncoding Word32 where
-  type FieldCount Word32 = 1
-  encode = uint32
+instance Primitive Word32 where
+  encodePrimitive = uint32
+  decodePrimitive = parseWord32
+  primType _ = UInt32
 
-instance HasEncoding Word64 where
-  type FieldCount Word64 = 1
-  encode = uint64
+instance Primitive Word64 where
+  encodePrimitive = uint64
+  decodePrimitive = parseWord64
+  primType _ = UInt64
 
-instance HasEncoding (Signed Int32) where
-  type FieldCount (Signed Int32) = 1
-  encode num = sint32 num . signed
+instance Primitive (Signed Int32) where
+  encodePrimitive num = sint32 num . signed
+  decodePrimitive = parseSignedInt32
+  primType _ = SInt32
 
-instance HasEncoding (Signed Int64) where
-  type FieldCount (Signed Int64) = 1
-  encode num = sint64 num . signed
+instance Primitive (Signed Int64) where
+  encodePrimitive num = sint64 num . signed
+  decodePrimitive = parseSignedInt64
+  primType _ = SInt64
 
-instance HasEncoding (Fixed Word32) where
-  type FieldCount (Fixed Word32) = 1
-  encode num = fixed32 num . fixed
+instance Primitive (Fixed Word32) where
+  encodePrimitive num = fixed32 num . fixed
+  decodePrimitive = fmap Fixed . parseFixed32
+  primType _ = DotProto.Fixed32
 
-instance HasEncoding (Fixed Word64) where
-  type FieldCount (Fixed Word64) = 1
-  encode num = fixed64 num . fixed
+instance Primitive (Fixed Word64) where
+  encodePrimitive num = fixed64 num . fixed
+  decodePrimitive = fmap Fixed . parseFixed64
+  primType _ = DotProto.Fixed64
 
-instance HasEncoding (Signed (Fixed Int32)) where
-  type FieldCount (Signed (Fixed Int32)) = 1
-  encode num = sfixed32 num . fixed . signed
+instance Primitive (Signed (Fixed Int32)) where
+  encodePrimitive num = sfixed32 num . fixed . signed
+  decodePrimitive = parseFixedInt32
+  primType _ = SFixed32
 
-instance HasEncoding (Signed (Fixed Int64)) where
-  type FieldCount (Signed (Fixed Int64)) = 1
-  encode num = sfixed64 num . fixed . signed
+instance Primitive (Signed (Fixed Int64)) where
+  encodePrimitive num = sfixed64 num . fixed . signed
+  decodePrimitive = parseFixedInt64
+  primType _ = SFixed64
 
-instance HasEncoding Bool where
-  type FieldCount Bool = 1
-  encode = Wire.enum
+instance Primitive Bool where
+  encodePrimitive = Wire.enum
+  decodePrimitive = parseBool
+  primType _ = Bool
 
-instance HasEncoding Float where
-  type FieldCount Float = 1
-  encode = float
+instance Primitive Float where
+  encodePrimitive = float
+  decodePrimitive = parseFixed32Float
+  primType _ = Float
 
-instance HasEncoding Double where
-  type FieldCount Double = 1
-  encode = double
+instance Primitive Double where
+  encodePrimitive = double
+  decodePrimitive = parseFixed64Double
+  primType _ = Double
 
-instance HasEncoding TL.Text where
-  type FieldCount TL.Text = 1
-  encode = text
+instance Primitive T.Text where
+  encodePrimitive fn = text fn . TL.fromStrict
+  decodePrimitive = fmap TL.toStrict . parseText
+  primType _ = String
 
-instance HasEncoding B.ByteString where
-  type FieldCount B.ByteString = 1
-  encode = bytes
+instance Primitive TL.Text where
+  encodePrimitive = text
+  decodePrimitive = parseText
+  primType _ = String
 
-instance HasEncoding BL.ByteString where
-  type FieldCount BL.ByteString = 1
-  encode = bytes'
+instance Primitive B.ByteString where
+  encodePrimitive = bytes
+  decodePrimitive = parseByteString
+  primType _ = Bytes
 
-instance Enum e => HasEncoding (Enumerated e) where
-  type FieldCount (Enumerated e) = 1
-  encode num = Wire.enum num . enumerated
+instance Primitive BL.ByteString where
+  encodePrimitive = bytes'
+  decodePrimitive = parseLazyByteString
+  primType _ = Bytes
 
-instance HasEncoding a => HasEncoding (Maybe a) where
-  type FieldCount (Maybe a) = FieldCount a
-  encode fn = encode fn . UnpackedVec . V.fromList . maybeToList
+instance (Named e, Enum e) => Primitive (Enumerated e) where
+  encodePrimitive num = Wire.enum num . enumerated
+  decodePrimitive = parseEnum
+  primType _ = Named (MessageName (nameOf (Proxy :: Proxy e)))
 
-instance HasEncoding a => HasEncoding (UnpackedVec a) where
-  type FieldCount (UnpackedVec a) = FieldCount a
-  encode fn = foldMap (encode fn)
+-- | This class captures those types which can appear as message fields in
+-- the protocol buffers specification, i.e. 'Primitive' types, or lists of
+-- 'Primitive' types
+class MessageField a where
+  -- | Encode a message field
+  encodeMessageField :: FieldNumber -> a -> BB.Builder
+  -- | Decode a message field
+  decodeMessageField :: Parser (Seq ParsedField) a
 
-instance HasEncoding a => HasEncoding (NestedVec a) where
-  type FieldCount (NestedVec a) = FieldCount a
-  encode fn xs = foldMap (encode fn) $ fmap Nested xs
+  default encodeMessageField :: Primitive a => FieldNumber -> a -> BB.Builder
+  encodeMessageField = encodePrimitive
 
-instance HasEncoding (PackedVec Word32) where
-  type FieldCount (PackedVec Word32) = FieldCount Word32
-  encode fn = packedVarints fn . fmap fromIntegral
+  default decodeMessageField :: (HasDefault a, Primitive a) => Parser (Seq ParsedField) a
+  decodeMessageField = fmap (fromMaybe def) . one decodePrimitive
 
-instance HasEncoding (PackedVec Word64) where
-  type FieldCount (PackedVec Word64) = FieldCount Word64
-  encode fn = packedVarints fn . fmap fromIntegral
+  -- | Get the type which represents this type inside another message.
+  protoType :: Proxy a -> DotProtoType
+  default protoType :: Primitive a => Proxy a -> DotProtoType
+  protoType = Prim . primType
 
-instance HasEncoding (PackedVec Int32) where
-  type FieldCount (PackedVec Int32) = FieldCount Int32
-  encode fn = packedVarints fn . fmap fromIntegral
+primDotProto :: DotProtoType -> DotProtoMessage
+primDotProto ty = DotProtoMessage [ DotProtoMessagePart (fieldNumber 1) Nothing ty ]
 
-instance HasEncoding (PackedVec Int64) where
-  type FieldCount (PackedVec Int64) = FieldCount Int64
-  encode fn = packedVarints fn . fmap fromIntegral
+instance MessageField Int32
+instance MessageField Int64
+instance MessageField Word32
+instance MessageField Word64
+instance MessageField (Signed Int32)
+instance MessageField (Signed Int64)
+instance MessageField (Fixed Word32)
+instance MessageField (Fixed Word64)
+instance MessageField (Signed (Fixed Int32))
+instance MessageField (Signed (Fixed Int64))
+instance MessageField Bool
+instance MessageField Float
+instance MessageField Double
+instance MessageField T.Text
+instance MessageField TL.Text
+instance MessageField B.ByteString
+instance MessageField BL.ByteString
+instance (Named e, Enum e) => MessageField (Enumerated e)
 
-instance HasEncoding (PackedVec (Fixed Word32)) where
-  type FieldCount (PackedVec (Fixed Word32)) = FieldCount (Fixed Word32)
-  encode fn = packedFixed32s fn . fmap fixed
+seqToVec :: Seq a -> Vector a
+seqToVec = fromList . F.toList
 
-instance HasEncoding (PackedVec (Fixed Word64)) where
-  type FieldCount (PackedVec (Fixed Word64)) = FieldCount (Fixed Word64)
-  encode fn = packedFixed64s fn . fmap fixed
+instance (Named a, Message a) => MessageField (Nested a) where
+  encodeMessageField _ (Nested Nothing) = mempty
+  encodeMessageField fn (Nested (Just x)) = embedded fn . encodeMessage (fieldNumber 1) $ x
+  decodeMessageField = fmap Nested
+                       . disembed (decodeMessage (fieldNumber 1))
+  protoType _ = Prim (Named (MessageName (nameOf (Proxy :: Proxy a))))
 
-instance HasEncoding (PackedVec (Fixed Int32)) where
-  type FieldCount (PackedVec (Fixed Int32)) = FieldCount (Fixed Int32)
-  encode fn = packedFixed32s fn . fmap (fromIntegral . fixed)
+instance Primitive a => MessageField (UnpackedVec a) where
+  encodeMessageField fn = foldMap (encodePrimitive fn)
+  decodeMessageField = fmap (UnpackedVec . seqToVec) . repeatedUnpackedList decodePrimitive
+  protoType _ = Repeated (primType (Proxy :: Proxy a)) DotProto.Unpacked
 
-instance HasEncoding (PackedVec (Fixed Int64)) where
-  type FieldCount (PackedVec (Fixed Int64)) = FieldCount (Fixed Int64)
-  encode fn = packedFixed64s fn . fmap (fromIntegral . fixed)
+instance (Named a, Message a) => MessageField (NestedVec a) where
+  encodeMessageField fn = foldMap (embedded fn . encodeMessage (fieldNumber 1))
+                          . nestedvec
+  decodeMessageField = fmap (NestedVec . seqToVec) . parseEmbeddedList oneMsg
+    where oneMsg = atomicEmbedded (decodeMessage (fieldNumber 1))
+  protoType _ = NestedRepeated (Named (MessageName (nameOf (Proxy :: Proxy a))))
 
-instance HasEncoding (PackedVec (Signed (Fixed Int32))) where
-  type FieldCount (PackedVec (Signed (Fixed Int32)))
-        = FieldCount (Signed (Fixed Int32))
-  encode fn = packedFixed32s fn . fmap (fromIntegral . fixed . signed)
+instance MessageField (PackedVec Word32) where
+  encodeMessageField fn = packedVarints fn . fmap fromIntegral
+  decodeMessageField = parsePackedVec parsePackedVarInt
+  protoType _ = Repeated UInt32 DotProto.Packed
 
-instance HasEncoding (PackedVec (Signed (Fixed Int64))) where
-  type FieldCount (PackedVec (Signed (Fixed Int64)))
-        = FieldCount (Signed (Fixed Int64))
-  encode fn = packedFixed64s fn . fmap (fromIntegral . fixed . signed)
+instance MessageField (PackedVec Word64) where
+  encodeMessageField fn = packedVarints fn . fmap fromIntegral
+  decodeMessageField = parsePackedVec parsePackedVarInt
+  protoType _ = Repeated UInt64 DotProto.Packed
 
-instance HasEncoding (PackedVec Float) where
-  type FieldCount (PackedVec Float) = FieldCount (Float)
-  encode fn = packedFloats fn
+instance MessageField (PackedVec Int32) where
+  encodeMessageField fn = packedVarints fn . fmap fromIntegral
+  decodeMessageField = parsePackedVec parsePackedVarInt
+  protoType _ = Repeated Int32 DotProto.Packed
 
-instance HasEncoding (PackedVec Double) where
-  type FieldCount (PackedVec Double) = FieldCount (Double)
-  encode fn = packedDoubles fn
+instance MessageField (PackedVec Int64) where
+  encodeMessageField fn = packedVarints fn . fmap fromIntegral
+  decodeMessageField = parsePackedVec parsePackedVarInt
+  protoType _ = Repeated Int64 DotProto.Packed
 
-instance HasEncoding a => HasEncoding (Nested a) where
-  type FieldCount (Nested a) = 1
-  encode fn = embedded fn . encode (fieldNumber 1) . nested
+instance MessageField (PackedVec (Fixed Word32)) where
+  encodeMessageField fn = packedFixed32s fn . fmap fixed
+  decodeMessageField = fmap (fmap Fixed) . parsePackedVec parsePackedFixed32
+  protoType _ = Repeated DotProto.Fixed32 DotProto.Packed
 
-class GenericHasEncoding f where
+instance MessageField (PackedVec (Fixed Word64)) where
+  encodeMessageField fn = packedFixed64s fn . fmap fixed
+  decodeMessageField = fmap (fmap Fixed) . parsePackedVec parsePackedFixed64
+  protoType _ = Repeated DotProto.Fixed64 DotProto.Packed
+
+instance MessageField (PackedVec (Signed (Fixed Int32))) where
+  encodeMessageField fn = packedFixed32s fn . fmap (fromIntegral . fixed . signed)
+  decodeMessageField = fmap (fmap (Signed . Fixed)) . parsePackedVec parsePackedFixed32
+  protoType _ = Repeated SFixed32 DotProto.Packed
+
+instance MessageField (PackedVec (Signed (Fixed Int64))) where
+  encodeMessageField fn = packedFixed64s fn . fmap (fromIntegral . fixed . signed)
+  decodeMessageField = fmap (fmap (Signed . Fixed)) . parsePackedVec parsePackedFixed64
+  protoType _ = Repeated SFixed64 DotProto.Packed
+
+instance MessageField (PackedVec Float) where
+  encodeMessageField fn = packedFloats fn
+  decodeMessageField = parsePackedVec parsePackedFixed32Float
+  protoType _ = Repeated Float DotProto.Packed
+
+instance MessageField (PackedVec Double) where
+  encodeMessageField fn = packedDoubles fn
+  decodeMessageField = parsePackedVec parsePackedFixed64Double
+  protoType _ = Repeated Double DotProto.Packed
+
+parsePackedVec :: Parser ParsedField [a] -> Parser (Seq ParsedField) (PackedVec a)
+parsePackedVec p = fmap (PackedVec . seqToVec . (join . fmap fromList)) . TR.mapM p
+
+-- | This class captures those types which correspond to protocol buffer messages.
+class Message a where
+  -- | Encode a message
+  encodeMessage :: FieldNumber -> a -> BB.Builder
+  -- | Decode a message
+  decodeMessage :: FieldNumber -> Parser ParsedFields a
+  -- | Generate a .proto message from the type information.
+  dotProto :: Proxy a -> DotProtoMessage
+
+  default encodeMessage :: (Generic a, GenericMessage (Rep a)) => FieldNumber -> a -> BB.Builder
+  encodeMessage num = genericEncodeMessage num . from
+
+  default decodeMessage :: (Generic a, GenericMessage (Rep a)) => FieldNumber -> Parser ParsedFields a
+  decodeMessage = (fmap to .) . genericDecodeMessage
+
+  default dotProto :: (Generic a, GenericMessage (Rep a)) => Proxy a -> DotProtoMessage
+  dotProto _ = genericDotProto (Proxy :: Proxy (Rep a))
+
+-- | Generate metadata for a message type.
+message :: (Message a, Named a) => Proxy a -> DotProto
+message pr =
+  DotProto
+  . (: [])
+  . DotProtoPart (MessageName (nameOf pr))
+  . Left
+  . dotProto
+  $ pr
+
+-- * Generic Instances
+
+class GenericMessage f where
   type GenericFieldCount f :: Nat
 
-  genericEncode :: FieldNumber -> f a -> BB.Builder
+  genericEncodeMessage :: FieldNumber -> f a -> BB.Builder
+  genericDecodeMessage :: FieldNumber -> Parser ParsedFields (f a)
+  genericDotProto      :: Proxy f -> DotProtoMessage
 
-instance GenericHasEncoding V1 where
-  type GenericFieldCount V1 = 0
-  genericEncode _ _ = error "genericEncode: empty type"
-
-instance GenericHasEncoding U1 where
+instance GenericMessage U1 where
   type GenericFieldCount U1 = 0
-  genericEncode _ _ = mempty
+  genericEncodeMessage _ _ = mempty
+  genericDecodeMessage _ _ = return U1
+  genericDotProto _ = mempty
 
--- | Because of the lack of a type-level 'max' operation, we make the
--- somewhat artifical restriction that the first summand should have the most
--- fields.
-instance ( KnownNat (GenericFieldCount f)
-         , GenericHasEncoding f
-         , GenericHasEncoding g
-         ) => GenericHasEncoding (f :*: g) where
+instance (KnownNat (GenericFieldCount f), GenericMessage f, GenericMessage g) => GenericMessage (f :*: g) where
   type GenericFieldCount (f :*: g) = GenericFieldCount f + GenericFieldCount g
-  genericEncode num (x :*: y) = genericEncode num x <> genericEncode (FieldNumber (getFieldNumber num + offset)) y
+  genericEncodeMessage num (x :*: y) = genericEncodeMessage num x <> genericEncodeMessage (FieldNumber (getFieldNumber num + offset)) y
     where
       offset = fromIntegral $ natVal (Proxy :: Proxy (GenericFieldCount f))
-
-instance ( HasEncoding c
-         ) => GenericHasEncoding (K1 i c) where
-  type GenericFieldCount (K1 i c) = 1
-  genericEncode num (K1 x) = encode num x
-
-instance GenericHasEncoding f => GenericHasEncoding (M1 i t f) where
-  type GenericFieldCount (M1 i t f) = GenericFieldCount f
-  genericEncode num (M1 x) = genericEncode num x
-
--- | Class of all types which can be deserialized from protobuf messages.
--- Instances can be derived generically.
-class HasDecoding a where
-  -- | decode a field given a particular field number. To simply parse an
-  -- entire message, see 'parser' and 'parse'.
-  decode :: FieldNumber -> Parser a
-
-  default decode :: (Generic a, GenericHasDecoding (Rep a))
-                    => FieldNumber -> Parser a
-  decode = fmap to . genericDecode
-
---Huge amounts of boilerplate below to prevent overlapping instance errors.
-
-instance HasDecoding Bool where
-  decode = field
-
-instance HasDecoding Int32 where
-  decode = field
-
-instance HasDecoding (Signed Int32) where
-  decode = field
-
-instance HasDecoding Word32 where
-  decode = field
-
-instance HasDecoding Int64 where
-  decode = field
-
-instance HasDecoding (Signed Int64) where
-  decode = field
-
-instance HasDecoding Word64 where
-  decode = field
-
-instance HasDecoding (Fixed Word32) where
-  decode = field
-
-instance HasDecoding (Signed (Fixed Int32)) where
-  decode = field
-
-instance HasDecoding (Fixed Word64) where
-  decode = field
-
-instance HasDecoding (Signed (Fixed Int64)) where
-  decode = field
-
-instance HasDecoding Float where
-  decode = field
-
-instance HasDecoding Double where
-  decode = field
-
-instance HasDecoding TL.Text where
-  decode = field
-
-instance HasDecoding T.Text where
-  decode = fmap (TL.toStrict) . field
-
-instance HasDecoding B.ByteString where
-  decode = field
-
-instance HasDecoding BL.ByteString where
-  decode = field
-
---TODO: this has more constraints than the equivalent HasEncoding. Fixable?
-instance (AtomicParsable a, HasDecoding a) => HasDecoding (Maybe a) where
-  decode = fmap ((V.!? 0) . unpackedvec) . decode
-
-instance Enum e => HasDecoding (Enumerated e) where
-  decode = field
-
-instance AtomicParsable a => HasDecoding (UnpackedVec a) where
-  decode = fmap (UnpackedVec . fromList) . repeatedUnpackedList
-
-instance (HasDecoding a, Monoid a)
-  => HasDecoding (NestedVec a) where
-  decode fn = nestedParser
-    where nestedParser = fromList
-                         <$> parseEmbeddedList atomicParser fn
-          atomicParser = atomicEmbedded (decode (fieldNumber 1))
-
-instance (AtomicParsable a, Packable a)
-         => HasDecoding (PackedVec a) where
-  decode = fmap (PackedVec . fromList) . repeatedPackedList
-
-instance (Monoid a, HasDecoding a) => HasDecoding (Nested a) where
-  decode fn = Nested <$> disembed (decode (FieldNumber 1)) fn
-
-class GenericHasDecoding f where
-  genericDecode :: FieldNumber -> Parser (f a)
-
-instance GenericHasDecoding V1 where
-  genericDecode _ = error "genericDecode: empty type"
-
-instance GenericHasDecoding U1 where
-  genericDecode _ = return U1
-
-instance ( KnownNat (GenericFieldCount f)
-         , GenericHasEncoding f
-         , GenericHasEncoding g
-         , GenericHasDecoding f
-         , GenericHasDecoding g
-         ) => GenericHasDecoding (f :*: g) where
-  genericDecode num = liftM2 (:*:) (genericDecode num) (genericDecode num2)
+  genericDecodeMessage num m = liftM2 (:*:) (genericDecodeMessage num m) (genericDecodeMessage num2 m)
     where num2 = FieldNumber $ getFieldNumber num + offset
           offset = fromIntegral $ natVal (Proxy :: Proxy (GenericFieldCount f))
+  genericDotProto _ = genericDotProto (Proxy :: Proxy f) <> adjust (genericDotProto (Proxy :: Proxy g))
+    where
+      offset = fromIntegral $ natVal (Proxy :: Proxy (GenericFieldCount f))
+      adjust = DotProtoMessage . map adjustPart . runDotProtoMessage
+      adjustPart part = part { dotProtoMessagePartFieldNumber = (FieldNumber . (offset +) . getFieldNumber . dotProtoMessagePartFieldNumber) part }
 
-instance (HasDecoding c) => GenericHasDecoding (K1 i c) where
-  genericDecode = fmap K1 . decode
+instance (MessageField c, HasDefault c) => GenericMessage (K1 i c) where
+  type GenericFieldCount (K1 i c) = 1
+  genericEncodeMessage num (K1 x) = if isDefault x
+                                       then mempty
+                                       else encodeMessageField num x
+  genericDecodeMessage num = fmap K1 . at decodeMessageField num def
+  genericDotProto _ = primDotProto (protoType (Proxy :: Proxy c))
 
-instance GenericHasDecoding f => GenericHasDecoding (M1 i t f) where
-  genericDecode = fmap M1 . genericDecode
+instance (Selector s, GenericMessage f) => GenericMessage (M1 S s f) where
+  type GenericFieldCount (M1 S t f) = GenericFieldCount f
+  genericEncodeMessage num (M1 x) = genericEncodeMessage num x
+  genericDecodeMessage num = fmap M1 . genericDecodeMessage num
+  genericDotProto _ = DotProtoMessage
+                      . map applyName
+                      . runDotProtoMessage
+                      $ genericDotProto (Proxy :: Proxy f)
+    where
+      applyName :: DotProtoMessagePart -> DotProtoMessagePart
+      applyName mp = mp { dotProtoMessagePartFieldName = newName }
+
+      newName :: Maybe FieldName
+      newName = guard (not (null name)) $> FieldName name
+        where
+          name = selName (undefined :: S1 s f ())
+
+instance GenericMessage f => GenericMessage (M1 C t f) where
+  type GenericFieldCount (M1 C t f) = GenericFieldCount f
+  genericEncodeMessage num (M1 x) = genericEncodeMessage num x
+  genericDecodeMessage num = fmap M1 . genericDecodeMessage num
+  genericDotProto _ = genericDotProto (Proxy :: Proxy f)
+
+instance GenericMessage f => GenericMessage (M1 D t f) where
+  type GenericFieldCount (M1 D t f) = GenericFieldCount f
+  genericEncodeMessage num (M1 x) = genericEncodeMessage num x
+  genericDecodeMessage num = fmap M1 . genericDecodeMessage num
+  genericDotProto _ = genericDotProto (Proxy :: Proxy f)

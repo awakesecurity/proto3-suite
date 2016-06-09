@@ -8,47 +8,67 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Data.Protobuf.Wire.Decode.Parser (
-
+module Data.Protobuf.Wire.Decode.Parser
+  (
   -- * The Parser type
-  Parser,
-  parse,
-  ParseError(..),
-
+    Parser
+  , ParsedField()
+  , ParsedFields
+  , parse
+  , ParseError(..)
+  -- * Primitives
+  , parseBool
+  , parseInt32
+  , parseWord32
+  , parseInt64
+  , parseWord64
+  , parseSignedInt32
+  , parseSignedInt64
+  , parseFixedWord32
+  , parseFixedInt32
+  , parseFixedWord64
+  , parseFixedInt64
+  , parseByteString
+  , parseLazyByteString
+  , parseEnum
+  , parsePackedVarInt
+  , parsePackedFixed32
+  , parsePackedFixed32Float
+  , parsePackedFixed64
+  , parsePackedFixed64Double
+  , parseFixed32
+  , parseFixed32Float
+  , parseFixed64
+  , parseFixed64Double
+  , parseText
   -- * Decoding fields
-  disembed,
-  atomicEmbedded,
-  field,
-  repeatedUnpackedList,
-  repeatedPackedList,
-  parseEmbeddedList,
-
-  -- * Helper types
-  AtomicParsable(..),
-  Packable(..)
-) where
+  , at
+  , one
+  , disembed
+  , atomicEmbedded
+  , repeatedUnpackedList
+  -- , repeatedPackedList
+  , parseEmbeddedList
+  ) where
 
 import           Control.Applicative
-import           Control.Monad (join)
-import           Control.Monad.Except
-import           Control.Monad.Reader
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
-import           Data.Functor.Identity(runIdentity)
+import           Data.Foldable (toList, foldl')
 import qualified Data.Map.Strict as M
-import           Data.Maybe (fromMaybe)
-import           Data.Monoid
+import           Data.Monoid ((<>))
 import           Data.Protobuf.Wire.Decode.Internal
 import           Data.Protobuf.Wire.Shared
-import           Data.Serialize.Get(Get, runGet, getWord32le, getWord64le)
+import           Data.Sequence (Seq, ViewR(..), viewr, fromList)
+import           Data.Serialize.Get (Get, runGet, getWord32le, getWord64le)
 import           Data.Serialize.IEEE754(getFloat32le, getFloat64le)
 import           Data.Text.Lazy (Text, pack)
 import           Data.Text.Lazy.Encoding (decodeUtf8')
+import qualified Data.Traversable as T
 import           Data.Int (Int32, Int64)
 import           Data.Word (Word32, Word64)
 import           Pipes
 import qualified Pipes.Prelude as P
-import           Safe
 
 -- | Type describing possible errors that can be encountered while parsing.
 data ParseError
@@ -64,142 +84,110 @@ data ParseError
   | EmbeddedError Text [ParseError]
   deriving (Show, Eq, Ord)
 
--- | Parser of protobuf messages and their fields. Intended for use primarily
--- in an Applicative style. For example:
---
---
--- > data MultipleFields =
--- >   MultipleFields {multiFieldDouble :: Double,
--- >                   multiFieldFloat :: Float,
--- >                   multiFieldInt32 :: Int32,
--- >                   multiFieldInt64 :: Int64,
--- >                   multiFieldString :: Text,
--- >                   multiFieldBool :: Bool}
--- >                   deriving (Show, Generic, Eq)
--- >
--- > multipleFieldsParser :: Parser MultipleFields
--- > multipleFieldsParser = MultipleFields
--- >                        <$> field (FieldNumber 1)
--- >                        <*> field (FieldNumber 2)
--- >                        <*> field (FieldNumber 3)
--- >                        <*> field (FieldNumber 4)
--- >                        <*> field (FieldNumber 5)
--- >                        <*> field (FieldNumber 6)
---
-newtype Parser a = Parser
-  { unParser :: ReaderT
-                  (M.Map FieldNumber [ParsedField]) (Except [ParseError]) a}
-  deriving (Functor, Applicative, Monad, Alternative, MonadPlus,
-            MonadReader (M.Map FieldNumber [ParsedField]),
-            MonadError [ParseError])
+-- | A parsing function type synonym, to tidy up type signatures.
+type Parser input a = input -> Either [ParseError] a
 
--- | Runs a 'Parser'.
-parse :: Parser a -> B.ByteString -> Either [ParseError] a
-parse parser bs = case parseTuples bs of
-                  Left err -> throwError [BinaryError $ pack err]
-                  Right res -> runIdentity $ runExceptT $
-                                runReaderT (unParser parser) res
+-- | A 'Map' from field numbers to the fields whose headers were associated with
+-- that field number. Typically used as the first argument to the 'Parser' type
+-- synonym.
+type ParsedFields = M.Map FieldNumber (Seq ParsedField)
 
--- |
--- To comply with the protobuf spec, if there are multiple fields with the same
+-- | Runs a 'Parser'
+parse
+  :: Parser ParsedFields a
+  -> B.ByteString
+  -> Either [ParseError] a
+parse parser bs =
+  case parseTuples bs of
+    Left err -> Left [ BinaryError (pack err) ]
+    Right res -> parser res
+
+-- | To comply with the protobuf spec, if there are multiple fields with the same
 -- field number, this will always return the last one. While this is worst case
 -- O(n), in practice the worst case will only happen when a field in the .proto
 -- file has been changed from singular to repeated, but the deserializer hasn't
 -- been made aware of the change.
-parsedField :: FieldNumber -> Parser (Maybe ParsedField)
-parsedField fn = do
-  currMap <- ask
-  return $ M.lookup fn currMap >>= lastMay
+parsedField :: (Seq ParsedField) -> Maybe ParsedField
+parsedField xs = case viewr xs of
+                   EmptyR -> Nothing
+                   _ :> x -> Just x
 
--- |
--- Consumes all fields with the given field number. This is primarily for
--- unpacked repeated fields. This is also useful for parsing
--- embedded messages, where the spec says that if more than one instance of an
--- embedded message for a given field number is present in the outer message,
--- then they must all be merged.
-parsedFields :: FieldNumber -> Parser [ParsedField]
-parsedFields fn = do
-  currMap <- ask
-  let pfs = M.lookup fn currMap
-  return $ concat pfs
-
-throwWireTypeError :: Show a => String -> a -> Parser b
+throwWireTypeError :: Show input => String -> Parser input expected
 throwWireTypeError expected wrong =
-  throwError [WireTypeError $ pack $
-              "Wrong wiretype. Expected "
-              ++ expected ++ " but got " ++ show wrong]
+    Left [ WireTypeError (pack msg) ]
+  where
+    msg = "Wrong wiretype. Expected " ++ expected ++ " but got " ++ show wrong
 
-throwCerealError :: String -> String -> Parser b
+throwCerealError :: String -> String -> Either [ParseError] a
 throwCerealError expected cerealErr =
-  throwError [BinaryError $ pack $
-              "Failed to parse contents of " ++ expected ++ " field. "
-              ++ "Error from cereal was: " ++ cerealErr]
+    Left [ BinaryError (pack msg) ]
+  where
+    msg = "Failed to parse contents of " ++ expected ++ " field. " ++ "Error from cereal was: " ++ cerealErr
 
-parseVarInt :: Integral a => ParsedField -> Parser a
-parseVarInt (VarintField i) = return $ fromIntegral i
+parseVarInt :: Integral a => Parser ParsedField a
+parseVarInt (VarintField i) = Right (fromIntegral i)
 parseVarInt wrong = throwWireTypeError "varint" wrong
 
-runGetPacked :: Get [a] -> ParsedField -> Parser [a]
+runGetPacked :: Get [a] -> Parser ParsedField [a]
 runGetPacked g (LengthDelimitedField bs) =
   case runGet g bs of
     Left e -> throwCerealError "packed repeated field" e
     Right xs -> return xs
-runGetPacked g wrong =
+runGetPacked _ wrong =
   throwWireTypeError "packed repeated field" wrong
 
-runGetFixed32 :: Get a -> ParsedField -> Parser a
+runGetFixed32 :: Get a -> Parser ParsedField a
 runGetFixed32 g (Fixed32Field bs) =
   case runGet g bs of
     Left e -> throwCerealError "fixed32 field" e
     Right x -> return x
-runGetFixed32 g wrong =
+runGetFixed32 _ wrong =
   throwWireTypeError "fixed 32 field" wrong
 
-runGetFixed64 :: Get a -> ParsedField -> Parser a
+runGetFixed64 :: Get a -> Parser ParsedField a
 runGetFixed64 g (Fixed64Field bs) =
   case runGet g bs of
     Left e -> throwCerealError "fixed 64 field" e
     Right x -> return x
-runGetFixed64 g wrong =
+runGetFixed64 _ wrong =
   throwWireTypeError "fixed 64 field" wrong
 
-parsePackedVarInt :: Integral a => ParsedField -> Parser [a]
+parsePackedVarInt :: Integral a => Parser ParsedField [a]
 parsePackedVarInt = fmap (fmap fromIntegral)
                     . runGetPacked (many getBase128Varint)
 
-parsePackedFixed32 :: Integral a => ParsedField -> Parser [a]
+parsePackedFixed32 :: Integral a => Parser ParsedField [a]
 parsePackedFixed32 = fmap (fmap fromIntegral) . runGetPacked (many getWord32le)
 
-parsePackedFixed32Float :: ParsedField -> Parser [Float]
+parsePackedFixed32Float :: Parser ParsedField [Float]
 parsePackedFixed32Float = runGetPacked (many getFloat32le)
 
-parsePackedFixed64 :: Integral a => ParsedField -> Parser [a]
+parsePackedFixed64 :: Integral a => Parser ParsedField [a]
 parsePackedFixed64 = fmap (fmap fromIntegral) . runGetPacked (many getWord64le)
 
-parsePackedFixed64Double :: ParsedField -> Parser [Double]
+parsePackedFixed64Double :: Parser ParsedField [Double]
 parsePackedFixed64Double = runGetPacked (many getFloat64le)
 
-parseFixed32 :: Integral a => ParsedField -> Parser a
+parseFixed32 :: Integral a => Parser ParsedField a
 parseFixed32 = fmap fromIntegral . runGetFixed32 getWord32le
 
-parseFixed32Float :: ParsedField -> Parser Float
+parseFixed32Float :: Parser ParsedField Float
 parseFixed32Float = runGetFixed32 getFloat32le
 
-parseFixed64 :: Integral a => ParsedField -> Parser a
+parseFixed64 :: Integral a => Parser ParsedField a
 parseFixed64 = fmap fromIntegral . runGetFixed64 getWord64le
 
-parseFixed64Double :: ParsedField -> Parser Double
+parseFixed64Double :: Parser ParsedField Double
 parseFixed64Double = runGetFixed64 getFloat64le
 
-parseText :: ParsedField -> Parser Text
+parseText :: Parser ParsedField Text
 parseText (LengthDelimitedField bs) =
   case decodeUtf8' $ BL.fromStrict bs of
-    Left err -> throwError [BinaryError $ pack $
-                            "Failed to decode UTF-8: " ++ show err]
+    Left err -> Left [ BinaryError (pack ("Failed to decode UTF-8: " ++ show err)) ]
     Right txt -> return txt
 parseText wrong = throwWireTypeError "string" wrong
 
-parseBytes :: ParsedField -> Parser B.ByteString
+parseBytes :: Parser ParsedField B.ByteString
 parseBytes (LengthDelimitedField bs) = return bs
 parseBytes wrong = throwWireTypeError "bytes" wrong
 
@@ -208,272 +196,117 @@ parseBytes wrong = throwWireTypeError "bytes" wrong
 -- type. For embedded messages, this does not handle combining messages in the
 -- way that 'disembed' does. This function is simply a helper function for
 -- parsing lists of embedded messages.
-atomicEmbedded :: Parser a -> ParsedField -> Parser a
+atomicEmbedded :: Parser ParsedFields a -> Parser ParsedField a
 atomicEmbedded parser (LengthDelimitedField bs) =
   case parse parser bs of
-    Left err -> throwError
-                  [EmbeddedError "Failed to parse embedded message." err]
+    Left err -> Left [ EmbeddedError "Failed to parse embedded message." err ]
     Right result -> return result
 atomicEmbedded _ wrong = throwWireTypeError "embedded" wrong
 
-parseEmbeddedListT :: Monoid a => (ParsedField -> Parser a)
-                                 -> FieldNumber -> ListT Parser a
-parseEmbeddedListT p fn = do x <- delistify $ parsedFields fn
-                             y <- lift (p x)
-                             return y
+-- | For a field containing an embedded message, parse as far as getting the
+-- wire-level fields out of the message. This is a helper function for
+-- 'disembed'.
+embeddedToParsedFields :: Parser ParsedField ParsedFields
+embeddedToParsedFields (LengthDelimitedField bs) =
+  case parseTuples bs of
+    Left err -> Left [EmbeddedError ("Failed to parse embedded message: "
+                                     <> (pack err))
+                                    []]
+    Right result -> return result
+embeddedToParsedFields wrong = throwWireTypeError "embedded" wrong
 
-parseEmbeddedList :: Monoid a => (ParsedField -> Parser a)
-                                 -> FieldNumber -> Parser [a]
-parseEmbeddedList p fn = listify $ parseEmbeddedListT p fn
+parseEmbeddedList
+  :: Parser ParsedField a
+  -> Parser (Seq ParsedField) (Seq a)
+parseEmbeddedList parser fields = fmap fromList $ listify $ do
+  x <- delistify (toList fields)
+  y <- lift (parser x)
+  return y
 
 -- | Helper function for making user-defined types instances of 'HasDecoding'.
 --
 -- The protobuf spec requires that embedded messages be mergeable, so that
 -- protobuf encoding has the flexibility to transmit embedded messages in
 -- pieces. This function reassembles the pieces, and must be used to parse all
--- embedded non-repeated messages. The rules for the Monoid instance (as
--- stated in the protobuf spec) are:
---
--- * @x <> y@ overwrites the singular fields of @x@ with those of @y@.
--- * @x <> y@ recurses on the embedded messages in @x@ and @y@.
--- * @x <> y@ concatenates all list fields in @x@ and @y@.
+-- embedded non-repeated messages.
 --
 -- If the embedded message is not found in the outer message, this function
--- returns 'mempty'.
-disembed :: Monoid a => Parser a -> FieldNumber -> Parser a
-disembed parser =
-  P.foldM f (return mempty) return . enumerate . delistify . parsedFields
-  where f x pf = do
-          y <- atomicEmbedded parser pf
-          return $ x <> y
+-- returns 'Nothing'.
+disembed :: Parser ParsedFields a -> Parser (Seq ParsedField) (Maybe a)
+disembed p xs =
+  if xs == empty
+     then return Nothing
+     else do innerMaps <- T.mapM embeddedToParsedFields xs
+             let combinedMap = foldl' (M.unionWith (<>)) M.empty innerMaps
+             parsed <- p combinedMap
+             return $ Just parsed
+
+at :: Parser (Seq ParsedField) a -> FieldNumber -> a -> Parser ParsedFields a
+at parser fn dflt m =
+  case M.lookup fn m of
+    Just fields -> parser fields
+    Nothing -> Right dflt
 
 -- | Specify that one value is expected from this field. Used to ensure that we
 -- return the last value with the given field number in the message, in
 -- compliance with the protobuf standard.
-one :: (ParsedField -> Parser a) -> FieldNumber -> Parser (Maybe a)
-one rawParser fn = parsedField fn >>= mapM rawParser
+one :: Parser ParsedField a -> Parser (Seq ParsedField) (Maybe a)
+one parser = traverse parser . parsedField
 
--- | Type class for types that can be parsed from a single field from a single
--- key/value pair in a wire-encoded protobuf
--- message. This includes singular types like 'Bool' or 'Double', as well as
--- user-defined embedded messages.
-class AtomicParsable a where
-  -- | Parse a type from one field. To implement this for embedded messages, see
-  -- the helper function 'atomicEmbedded'.
-  fromField :: ParsedField -> Parser a
-  -- | Specifies the default value when a field is missing from the message.
-  -- Note: this is used by protobufs to save space on messages by omitting them
-  -- if they happen to be set to the default. For more information on default
-  -- values in protobufs, see the
-  -- <https://developers.google.com/protocol-buffers/docs/proto3#default official docs>.
-  protoDefault :: a
+parseBool :: Parser ParsedField Bool
+parseBool = fmap toEnum . parseVarInt
 
-instance AtomicParsable Bool where
-  fromField = fmap toEnum . parseVarInt
-  protoDefault = False
+parseInt32 :: Parser ParsedField Int32
+parseInt32 = parseVarInt
 
-instance AtomicParsable Int32 where
-  fromField = parseVarInt
-  protoDefault = 0
+parseWord32 :: Parser ParsedField Word32
+parseWord32 = parseVarInt
 
-instance AtomicParsable Word32 where
-  fromField = parseVarInt
-  protoDefault = 0
+parseInt64 :: Parser ParsedField Int64
+parseInt64 = parseVarInt
 
-instance AtomicParsable Int64 where
-  fromField = parseVarInt
-  protoDefault = 0
+parseWord64 :: Parser ParsedField Word64
+parseWord64 = parseVarInt
 
-instance AtomicParsable Word64 where
-  fromField = parseVarInt
-  protoDefault = 0
+parseSignedInt32 :: Parser ParsedField (Signed Int32)
+parseSignedInt32 = fmap (Signed . fromIntegral
+                        . (zigZagDecode :: Word32 -> Word32))
+                   . parseVarInt
 
-instance AtomicParsable (Signed Int32) where
-  fromField = fmap (Signed . fromIntegral
-                    . (zigZagDecode :: Word32 -> Word32) . fromIntegral)
-              . parseVarInt
-  protoDefault = Signed 0
+parseSignedInt64 :: Parser ParsedField (Signed Int64)
+parseSignedInt64 = fmap (Signed . fromIntegral
+                        . (zigZagDecode :: Word64 -> Word64))
+                   . parseVarInt
 
-instance AtomicParsable (Signed Int64) where
-  fromField = fmap (Signed . fromIntegral
-                    . (zigZagDecode :: Word64 -> Word64) . fromIntegral)
-              . parseVarInt
-  protoDefault = Signed 0
+parseFixedWord32 :: Parser ParsedField (Fixed Word32)
+parseFixedWord32 = fmap Fixed . parseFixed32
 
-instance AtomicParsable (Fixed Word32) where
-  fromField = fmap (Fixed . fromIntegral) . parseFixed32
-  protoDefault = Fixed 0
+parseFixedInt32 :: Parser ParsedField (Signed (Fixed Int32))
+parseFixedInt32 = fmap (Signed . Fixed) . parseFixed32
 
-instance AtomicParsable (Signed (Fixed Int32)) where
-  fromField = fmap (Signed . Fixed . fromIntegral) . parseFixed32
-  protoDefault = Signed $ Fixed 0
+parseFixedWord64 :: Parser ParsedField (Fixed Word64)
+parseFixedWord64 = fmap Fixed . parseFixed64
 
-instance AtomicParsable (Fixed Word64) where
-  fromField = fmap (Fixed . fromIntegral) . parseFixed64
-  protoDefault = Fixed 0
+parseFixedInt64 :: Parser ParsedField (Signed (Fixed Int64))
+parseFixedInt64 = fmap (Signed . Fixed) . parseFixed64
 
-instance AtomicParsable (Signed (Fixed Int64)) where
-  fromField = fmap (Signed . Fixed . fromIntegral) . parseFixed64
-  protoDefault = Signed $ Fixed 0
+parseByteString :: Parser ParsedField B.ByteString
+parseByteString = parseBytes
 
-instance AtomicParsable Float where
-  fromField = parseFixed32Float
-  protoDefault = 0
+parseLazyByteString :: Parser ParsedField BL.ByteString
+parseLazyByteString = fmap BL.fromStrict . parseBytes
 
-instance AtomicParsable Double where
-  fromField = parseFixed64Double
-  protoDefault = 0
+parseEnum :: Enum e => Parser ParsedField (Enumerated e)
+parseEnum = fmap (Enumerated . toEnum) . parseVarInt
 
-instance AtomicParsable Text where
-  fromField = parseText
-  protoDefault = mempty
+-- | Parses an unpacked repeated field.
+repeatedUnpackedList
+  :: Parser ParsedField a
+  -> Parser (Seq ParsedField) (Seq a)
+repeatedUnpackedList = parseEmbeddedList
 
-instance AtomicParsable B.ByteString where
-  fromField = parseBytes
-  protoDefault = mempty
-
-instance AtomicParsable BL.ByteString where
-  fromField = fmap BL.fromStrict . parseBytes
-  protoDefault = mempty
-
-instance Enum e => AtomicParsable (Enumerated e) where
-  fromField = fmap (Enumerated . toEnum . fromIntegral) . parseVarInt
-  protoDefault = Enumerated $ toEnum 0
-
-instance AtomicParsable a => AtomicParsable (Maybe a) where
-  fromField = fmap Just . fromField
-  protoDefault = Nothing
-
--- | Parse a singular protobuf message field, such as a Bool or Fixed32.
-field :: AtomicParsable a => FieldNumber -> Parser a
-field = fmap (fromMaybe protoDefault) . one fromField
-
--- | Type class for fields that can be repeated in the more efficient packed
--- format. This is limited to primitive numeric types.
-class Packable a where
-  parsePacked :: ParsedField -> Parser [a]
-
-instance Packable Word32 where
-  parsePacked = parsePackedVarInt
-
-instance Packable Word64 where
-  parsePacked = parsePackedVarInt
-
-instance Packable Int32 where
-  parsePacked = parsePackedVarInt
-
-instance Packable Int64 where
-  parsePacked = parsePackedVarInt
-
-instance Packable (Fixed Word32) where
-  parsePacked = fmap (fmap (Fixed . fromIntegral)) . parsePackedFixed32
-
-instance Packable (Signed (Fixed Int32)) where
-  parsePacked = fmap (fmap (Signed . Fixed . fromIntegral)) . parsePackedFixed32
-
-instance Packable (Fixed Word64) where
-  parsePacked = fmap (fmap (Fixed . fromIntegral)) . parsePackedFixed64
-
-instance Packable (Signed (Fixed Int64)) where
-  parsePacked = fmap (fmap (Signed . Fixed . fromIntegral)) . parsePackedFixed64
-
-instance Packable Float where
-  parsePacked = parsePackedFixed32Float
-
-instance Packable Double where
-  parsePacked = parsePackedFixed64Double
-
--- | Parses an unpacked repeated field. See 'repeatedUnpackedList' for a
--- non-streaming version.
-repeatedUnpacked :: AtomicParsable a => FieldNumber -> ListT Parser a
-repeatedUnpacked fn = do
-  pf <- delistify $ parsedFields fn
-  lift (fromField pf)
-
-listify :: ListT Parser a -> Parser [a]
+listify :: Monad m => ListT m a -> m [a]
 listify = P.toListM . enumerate
 
-delistify :: Parser [a] -> ListT Parser a
-delistify x = lift x >>= (Select . each)
-
-repeatedUnpackedList :: AtomicParsable a => FieldNumber -> Parser [a]
-repeatedUnpackedList = P.toListM . enumerate . repeatedUnpacked
-
--- | Parses a packed repeated field. Correctly handles the case where a packed
--- field has been split across multiple key/value pairs in the encoded message.
--- Falls back to trying to parse the field as unpacked if packed parsing fails,
--- matching the official implementation's behavior. See 'repeatedPackedList' for
--- a non-streaming version.
-repeatedPacked :: (AtomicParsable a, Packable a)
-                  => FieldNumber -> ListT Parser a
-repeatedPacked fn = delistify $ listify (repeatedPacked' fn)
-                                <|> listify (repeatedUnpacked fn)
-  where repeatedPacked' fn = (delistify $ parsedFields fn)
-                             >>= (delistify . parsePacked)
-
-repeatedPackedList :: (AtomicParsable a, Packable a)
-                      => FieldNumber -> Parser [a]
-repeatedPackedList = listify . repeatedPacked
-
--- | Higher-level class for handling decoding any field type in a protobuf
--- message.
-class Deserializable a where
-  deserialize :: FieldNumber -> Parser a
-
-instance Deserializable Bool where
-  deserialize = field
-
-instance Deserializable Int32 where
-  deserialize = field
-
-instance Deserializable (Signed Int32) where
-  deserialize = field
-
-instance Deserializable Word32 where
-  deserialize = field
-
-instance Deserializable Int64 where
-  deserialize = field
-
-instance Deserializable (Signed Int64) where
-  deserialize = field
-
-instance Deserializable Word64 where
-  deserialize = field
-
-instance Deserializable (Fixed Word32) where
-  deserialize = field
-
-instance Deserializable (Signed (Fixed Int32)) where
-  deserialize = field
-
-instance Deserializable (Fixed Word64) where
-  deserialize = field
-
-instance Deserializable (Signed (Fixed Int64)) where
-  deserialize = field
-
-instance Deserializable Float where
-  deserialize = field
-
-instance Deserializable Double where
-  deserialize = field
-
-instance Deserializable Text where
-  deserialize = field
-
-instance Deserializable B.ByteString where
-  deserialize = field
-
-instance Deserializable BL.ByteString where
-  deserialize = field
-
-instance Enum e => Deserializable (Enumerated e) where
-  deserialize = field
-
-instance AtomicParsable a => Deserializable [a] where
-  deserialize = repeatedUnpackedList
-
-instance (AtomicParsable a, Packable a)
-         => Deserializable (Packed [a]) where
-  deserialize = fmap Packed . repeatedPackedList
+delistify :: Monad m => [a] -> ListT m a
+delistify = Select . each
