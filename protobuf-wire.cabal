@@ -11,14 +11,14 @@ cabal-version:       >=1.10
 data-files:          test-files/*.bin
 
 library
-  exposed-modules:     Data.Protobuf.Wire.Decode
+  exposed-modules:     Data.Protobuf.Wire.Class
+                       Data.Protobuf.Wire.Decode
                        Data.Protobuf.Wire.Decode.Internal
                        Data.Protobuf.Wire.Decode.Parser
                        Data.Protobuf.Wire.Encode
                        Data.Protobuf.Wire.Encode.Internal
                        Data.Protobuf.Wire.Shared
                        Data.Protobuf.Wire.Example
-                       Data.Protobuf.Wire.Generic
                        Data.Protobuf.Wire.DotProto
   build-depends:       base >=4.8 && <4.9,
                        bytestring >=0.10.6.0 && <0.11.0,

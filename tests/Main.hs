@@ -13,11 +13,11 @@ import           Test.Tasty
 import           Test.Tasty.HUnit as HU
 import           Test.Tasty.QuickCheck as QC
 import           Test.QuickCheck (Arbitrary, arbitrary, oneof)
+import           Data.Protobuf.Wire.Class as P
 import qualified Data.Protobuf.Wire.Encode.Internal as Enc
 import qualified Data.Protobuf.Wire.Decode.Internal as Dec
 import           Data.Protobuf.Wire.Decode.Parser as P
 import           Data.Protobuf.Wire.Shared as P
-import           Data.Protobuf.Wire.Generic as P
 import           Data.Int
 import           Data.Word (Word64)
 import qualified Data.Text.Lazy as TL
@@ -37,7 +37,7 @@ instance Arbitrary WireType where
 
 qcInverses :: (Message a, Arbitrary a, Eq a, Show a) => a -> Property
 qcInverses msg = msg === (decode $ encode msg)
-  where decode x = case parser x of
+  where decode x = case fromByteString x of
                     Left e -> error $ "got error parsing: " ++ show e
                     Right r -> r
         encode = BL.toStrict . toLazyByteString
@@ -89,7 +89,7 @@ qcProperties = testGroup "QuickCheck properties"
   (qcInverses :: WithNestingRepeated -> Property)
 
   --QC.testProperty "decode inverts encode for messages containing Maybe" $
-  --qcInverses (parser :: Parser WithMaybe)
+  --qcInverses (fromByteString :: Parser WithMaybe)
 
   ]
 
@@ -236,62 +236,62 @@ testParser fp p reference = do
 parseTrivial :: TestTree
 parseTrivial = testCase
   "Parsing a trivial message matches the official implementation" $
-  testParser "test-files/trivial.bin" parser $ Trivial 123
+  testParser "test-files/trivial.bin" fromByteString $ Trivial 123
 
 parseMultipleFields :: TestTree
 parseMultipleFields = testCase
   "Parsing a message with multiple fields matches the official implementation" $
-  testParser "test-files/multiple_fields.bin" parser
+  testParser "test-files/multiple_fields.bin" fromByteString
   $ MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
 
 parseNestedMessage :: TestTree
 parseNestedMessage = testCase
   "Parsing a nested message matches the official implementation" $
-  testParser "test-files/with_nesting.bin" parser $
+  testParser "test-files/with_nesting.bin" fromByteString $
     WithNesting $ Nested $ Just $ NestedMsg "123abc" 123456 [] []
 
 parseEnumFirstAlternative :: TestTree
 parseEnumFirstAlternative = testCase
   "Parsing an enum (first case) message matches the official implementation" $
-  testParser "test-files/with_enum0.bin" parser $
+  testParser "test-files/with_enum0.bin" fromByteString $
     WithEnum $ Enumerated ENUM1
 
 parseEnumSecondAlternative :: TestTree
 parseEnumSecondAlternative = testCase
   "Parsing an enum (2nd case) message matches the official implementation" $
-  testParser "test-files/with_enum1.bin" parser $
+  testParser "test-files/with_enum1.bin" fromByteString $
     WithEnum $ Enumerated ENUM2
 
 parseRepetition :: TestTree
 parseRepetition = testCase
   "Parsing a message with a repeated field matches the official implementation"
   $
-  testParser "test-files/with_repetition.bin" parser $
+  testParser "test-files/with_repetition.bin" fromByteString $
     WithRepetition [1..5]
 
 parseFixed :: TestTree
 parseFixed = testCase
   "Parsing a message with fixed types matches the official implementation" $
-  testParser "test-files/with_fixed.bin" parser $
+  testParser "test-files/with_fixed.bin" fromByteString $
              WithFixed (P.Fixed 16) (Signed $ P.Fixed (-123))
                        (P.Fixed 4096) (Signed $ P.Fixed (-4096))
 
 parseBytes :: TestTree
 parseBytes = testCase
   "Parsing a message containing bytes matches the official implementation" $
-  testParser "test-files/with_bytes.bin" parser $
+  testParser "test-files/with_bytes.bin" fromByteString $
     WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
 
 parsePackedUnpacked :: TestTree
 parsePackedUnpacked = testCase
   "Parsing packed and unpacked fields matches the official implementation" $
-  testParser "test-files/with_packing.bin" parser $
+  testParser "test-files/with_packing.bin" fromByteString $
     WithPacking [1,2,3] [1,2,3]
 
 parseAllPackedTypes :: TestTree
 parseAllPackedTypes = testCase
   "Parsing all types of packed fields matches the official implementation" $
-  testParser "test-files/all_packed_types.bin" parser $
+  testParser "test-files/all_packed_types.bin" fromByteString $
     AllPackedTypes [1,2,3]
                    [1,2,3]
                    [-1,-2,-3]
@@ -306,19 +306,19 @@ parseAllPackedTypes = testCase
 parseWithNestingRepeated :: TestTree
 parseWithNestingRepeated = testCase
   "Parsing repeated embedded messages matches the official implementation" $
-  testParser "test-files/with_nesting_repeated.bin" parser $
+  testParser "test-files/with_nesting_repeated.bin" fromByteString $
   WithNestingRepeated [NestedMsg "123abc" 123456 [1,2,3,4] [5,6,7,8],
                        NestedMsg "abc123" 654321 [0,9,8,7] [6,5,4,3]]
 
 parseWithNestingRepeatedAbsent :: TestTree
 parseWithNestingRepeatedAbsent = testCase
   "Parsing repeated embedded messages when one is expected: correct merging" $
-  testParser "test-files/with_nesting_repeated.bin" parser $
+  testParser "test-files/with_nesting_repeated.bin" fromByteString $
   WithNestingRepeatedAbsent $ Nested $
     Just $ NestedMsg "abc123" 654321 [1,2,3,4,0,9,8,7] [5,6,7,8,6,5,4,3]
 
 parseWithNestingInt :: TestTree
 parseWithNestingInt = testCase
   "Embedded message merging works correctly when fields have default values" $
-  testParser "test-files/with_nesting_ints.bin" parser $
+  testParser "test-files/with_nesting_ints.bin" fromByteString $
   WithNestingRepeatedInts $ Nested $ Just $ NestedInt 2 2

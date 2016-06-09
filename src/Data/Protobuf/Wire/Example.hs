@@ -13,9 +13,9 @@
 module Data.Protobuf.Wire.Example where
 
 import Data.Foldable (fold)
-import Data.Protobuf.Wire.Generic
+import Data.Protobuf.Wire.Class (Message, Named, Finite, enum, message)
 import Data.Protobuf.Wire.Shared
-import Data.Protobuf.Wire.DotProto
+import Data.Protobuf.Wire.DotProto (DotProto, toProtoFileDef)
 import Data.Proxy
 import Data.Word (Word32)
 import GHC.Generics
