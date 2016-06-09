@@ -161,7 +161,7 @@ instance HasDefault B.ByteString where
 instance HasDefault BL.ByteString where
   def = mempty
 
-instance (Enum e) => HasDefault (Enumerated e) where
+instance Enum e => HasDefault (Enumerated e) where
   def = Enumerated (toEnum 0)
   isDefault = on (==) fromEnum (enumerated def) . enumerated
 
@@ -211,7 +211,7 @@ class Enum a => Finite a where
   enumerate _ = snd (genericEnumerate (Proxy :: Proxy (Rep a)) 0)
 
 -- | Generate metadata for an enum type.
-enum :: forall e. (Finite e, Named e) => Proxy e -> DotProto
+enum :: (Finite e, Named e) => Proxy e -> DotProto
 enum pr =
   DotProto
   . (: [])
@@ -219,7 +219,7 @@ enum pr =
   . Right
   . DotProtoEnum
   . map (second FieldName)
-  $ enumerate (Proxy :: Proxy e)
+  $ enumerate pr
 
 class GenericFinite (f :: * -> *) where
   genericEnumerate :: IsString string => Proxy f -> Int -> (Int, [(Int, string)])
