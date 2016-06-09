@@ -4,7 +4,7 @@ module TestTypes where
 
 import qualified Data.ByteString as B
 import           Data.Int
-import           Data.Protobuf.Wire.Generic
+import           Data.Protobuf.Wire.Class
 import           Data.Protobuf.Wire.Shared
 import           Data.Protobuf.Wire.Decode.Parser as P
 import qualified Data.Text.Lazy as TL
