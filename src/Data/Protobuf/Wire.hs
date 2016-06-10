@@ -23,7 +23,9 @@ module Data.Protobuf.Wire
   , MessageField(..)
   , Primitive(..)
   , HasDefault(..)
-
+  , FieldNumber(..)
+  , fieldNumber
+  
   -- * Documentation
   , toProtoFile
   , toProtoFileDef

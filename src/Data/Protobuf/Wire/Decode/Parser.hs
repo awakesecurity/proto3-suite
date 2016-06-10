@@ -1,6 +1,6 @@
 -- | Module containing the means to build parsers that decode protobuf messages.
 -- Usually, one should avoid writing these parsers by hand. Instead, use the
--- generic interface in "Data.Protobuf.Wire.Generic".
+-- generic interface in "Data.Protobuf.Wire.Class".
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
