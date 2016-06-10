@@ -58,7 +58,7 @@ import           Data.Foldable (toList, foldl')
 import qualified Data.Map.Strict as M
 import           Data.Monoid ((<>))
 import           Data.Protobuf.Wire.Decode.Internal
-import           Data.Protobuf.Wire.Shared
+import           Data.Protobuf.Wire.Types
 import           Data.Sequence (Seq, ViewR(..), viewr, fromList)
 import           Data.Serialize.Get (Get, runGet, getWord32le, getWord64le)
 import           Data.Serialize.IEEE754(getFloat32le, getFloat64le)

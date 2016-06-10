@@ -17,7 +17,7 @@ import           Data.Protobuf.Wire.Class as P
 import qualified Data.Protobuf.Wire.Encode.Internal as Enc
 import qualified Data.Protobuf.Wire.Decode.Internal as Dec
 import           Data.Protobuf.Wire.Decode.Parser as P
-import           Data.Protobuf.Wire.Shared as P
+import           Data.Protobuf.Wire.Types as P
 import           Data.Int
 import           Data.Word (Word64)
 import qualified Data.Text.Lazy as TL

@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Data.Protobuf.Wire.Shared
+module Data.Protobuf.Wire.Types
   (
   -- * Message Structure
     FieldNumber(..)

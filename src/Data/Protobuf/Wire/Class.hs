@@ -107,7 +107,7 @@ import           Data.Sequence (Seq)
 import           Data.String (IsString(..))
 import           Data.Protobuf.Wire.Encode as Wire
 import           Data.Protobuf.Wire.Decode.Parser
-import           Data.Protobuf.Wire.Shared as Wire
+import           Data.Protobuf.Wire.Types as Wire
 import           Data.Protobuf.Wire.DotProto as DotProto
 import           Data.Proxy (Proxy(..))
 import           Data.Vector (Vector)

@@ -29,7 +29,7 @@ module Data.Protobuf.Wire.DotProto
   ) where
 
 import           Data.Monoid ((<>))
-import           Data.Protobuf.Wire.Shared (FieldNumber(..))
+import           Data.Protobuf.Wire.Types (FieldNumber(..))
 import           Data.String (IsString)
 import qualified Text.PrettyPrint as PP
 import           Text.PrettyPrint (($+$))

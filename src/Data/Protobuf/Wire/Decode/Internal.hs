@@ -7,7 +7,7 @@ import qualified Data.ByteString as B
 import           Data.Function (on)
 import           Data.List (groupBy)
 import qualified Data.Map.Strict as M
-import           Data.Protobuf.Wire.Shared
+import           Data.Protobuf.Wire.Types
 import qualified Data.Sequence as S
 import           Data.Serialize.Get
 import           Data.Word (Word8, Word64)

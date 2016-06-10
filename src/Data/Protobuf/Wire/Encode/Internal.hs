@@ -35,7 +35,7 @@ import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Lazy as BL
 import           Data.Int (Int32, Int64)
 import           Data.Monoid ((<>))
-import           Data.Protobuf.Wire.Shared
+import           Data.Protobuf.Wire.Types
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Encoding as Text.Lazy.Encoding
 import           Data.Word (Word8, Word32, Word64)
