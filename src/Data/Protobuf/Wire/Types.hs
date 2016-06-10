@@ -112,4 +112,5 @@ instance Arbitrary a => Arbitrary (NestedVec a) where
 
 -- | 'Nested' provides a way to nest protobuf messages within protobuf messages.
 newtype Nested a = Nested { nested :: Maybe a }
-  deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary)
+  deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable,
+            Traversable, Applicative, Alternative, Monad)
