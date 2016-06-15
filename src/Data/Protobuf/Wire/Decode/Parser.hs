@@ -69,6 +69,7 @@ import           Data.Int (Int32, Int64)
 import           Data.Word (Word32, Word64)
 import           Pipes
 import qualified Pipes.Prelude as P
+import           Safe (toEnumMay)
 
 -- | Type describing possible errors that can be encountered while parsing.
 data ParseError
@@ -254,7 +255,7 @@ one :: Parser ParsedField a -> Parser (Seq ParsedField) (Maybe a)
 one parser = traverse parser . parsedField
 
 parseBool :: Parser ParsedField Bool
-parseBool = fmap toEnum . parseVarInt
+parseBool = fmap (/= 0) . parseVarInt
 
 parseInt32 :: Parser ParsedField Int32
 parseInt32 = parseVarInt
@@ -296,8 +297,11 @@ parseByteString = parseBytes
 parseLazyByteString :: Parser ParsedField BL.ByteString
 parseLazyByteString = fmap BL.fromStrict . parseBytes
 
-parseEnum :: Enum e => Parser ParsedField (Enumerated e)
-parseEnum = fmap (Enumerated . toEnum) . parseVarInt
+parseEnum :: (Bounded e, Enum e) => Parser ParsedField (Enumerated e)
+parseEnum = fmap (Enumerated . convert) . parseVarInt
+  where convert x = case toEnumMay x of
+                      Nothing -> Left x
+                      Just e -> Right e
 
 -- | Parses an unpacked repeated field.
 repeatedUnpackedList

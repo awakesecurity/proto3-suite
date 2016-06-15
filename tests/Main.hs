@@ -137,12 +137,14 @@ encodeNestedMessage = testCase
 encodeEnumFirstAlternative :: TestTree
 encodeEnumFirstAlternative = testCase
   "Encoding an enum with case 0 matches the official implementation" $
-  checkEncoding "test-files/with_enum0.bin" $ WithEnum $ Enumerated ENUM1
+  checkEncoding "test-files/with_enum0.bin" $
+  WithEnum $ Enumerated (Right ENUM1)
 
 encodeEnumSecondAlternative :: TestTree
 encodeEnumSecondAlternative = testCase
   "Encoding an enum with case 1 matches the official implementation" $
-  checkEncoding "test-files/with_enum1.bin" $ WithEnum $ Enumerated ENUM2
+  checkEncoding "test-files/with_enum1.bin" $
+  WithEnum $ Enumerated (Right ENUM2)
 
 encodeRepetition :: TestTree
 encodeRepetition = testCase
@@ -254,13 +256,13 @@ parseEnumFirstAlternative :: TestTree
 parseEnumFirstAlternative = testCase
   "Parsing an enum (first case) message matches the official implementation" $
   testParser "test-files/with_enum0.bin" fromByteString $
-    WithEnum $ Enumerated ENUM1
+    WithEnum $ Enumerated (Right ENUM1)
 
 parseEnumSecondAlternative :: TestTree
 parseEnumSecondAlternative = testCase
   "Parsing an enum (2nd case) message matches the official implementation" $
   testParser "test-files/with_enum1.bin" fromByteString $
-    WithEnum $ Enumerated ENUM2
+    WithEnum $ Enumerated (Right ENUM2)
 
 parseRepetition :: TestTree
 parseRepetition = testCase

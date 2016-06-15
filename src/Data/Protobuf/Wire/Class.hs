@@ -118,6 +118,7 @@ import qualified Data.Traversable as TR
 import           GHC.Generics
 import           GHC.TypeLits
 import           GHC.Exts (fromList)
+import           Safe (toEnumMay)
 
 -- | A class for types with default values per the protocol buffers spec.
 class HasDefault a where
@@ -161,9 +162,11 @@ instance HasDefault B.ByteString where
 instance HasDefault BL.ByteString where
   def = mempty
 
-instance Enum e => HasDefault (Enumerated e) where
-  def = Enumerated (toEnum 0)
-  isDefault = on (==) fromEnum (enumerated def) . enumerated
+instance (Bounded e, Enum e) => HasDefault (Enumerated e) where
+  def = case toEnumMay 0 of
+          Nothing -> Enumerated (Left 0)
+          Just x -> Enumerated (Right x)
+  isDefault = on (==) (fmap fromEnum) (enumerated def) . enumerated
 
 instance Eq a => HasDefault (UnpackedVec a) where
   def = mempty
@@ -354,8 +357,10 @@ instance Primitive BL.ByteString where
   decodePrimitive = parseLazyByteString
   primType _ = Bytes
 
-instance (Named e, Enum e) => Primitive (Enumerated e) where
-  encodePrimitive num = Wire.enum num . enumerated
+instance (Bounded e, Named e, Enum e) => Primitive (Enumerated e) where
+  encodePrimitive num = Wire.enum num . enumify . enumerated
+    where enumify (Left i) = i
+          enumify (Right x) = fromEnum x
   decodePrimitive = parseEnum
   primType _ = Named (MessageName (nameOf (Proxy :: Proxy e)))
 
@@ -399,7 +404,7 @@ instance MessageField T.Text
 instance MessageField TL.Text
 instance MessageField B.ByteString
 instance MessageField BL.ByteString
-instance (Named e, Enum e) => MessageField (Enumerated e)
+instance (Bounded e, Named e, Enum e) => MessageField (Enumerated e)
 
 seqToVec :: Seq a -> Vector a
 seqToVec = fromList . F.toList

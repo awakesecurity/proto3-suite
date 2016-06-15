@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Data.Protobuf.Wire.Types
   (
@@ -65,8 +66,15 @@ newtype Signed a = Signed { signed :: a }
 
 -- | 'Enumerated' lifts any type with an 'IsEnum' instance so that it can be encoded
 -- with 'HasEncoding'.
-newtype Enumerated a = Enumerated { enumerated :: a }
-  deriving (Show, Eq, Ord, Generic, NFData, Arbitrary)
+newtype Enumerated a = Enumerated { enumerated :: Either Int a }
+  deriving (Show, Eq, Ord, Generic, NFData)
+
+instance (Bounded a, Enum a) => Arbitrary (Enumerated a) where
+  arbitrary = do
+    i <- arbitrary
+    if i < fromEnum (minBound :: a) || i > fromEnum (maxBound :: a)
+       then return $ Enumerated $ Left i
+       else return $ Enumerated $ Right (toEnum i)
 
 -- | 'Packed' provides a way to encode packed lists of basic protobuf types into
 -- the wire format.

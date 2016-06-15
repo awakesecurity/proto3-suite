@@ -39,7 +39,7 @@ instance Arbitrary MultipleFields where
               <*> arbitrary
 
 data TestEnum = ENUM1 | ENUM2 | ENUM3
-                deriving (Show, Generic, Enum, Eq)
+                deriving (Show, Generic, Enum, Eq, Bounded)
 instance Named TestEnum --TODO: this shouldn't be needed.
 
 instance Arbitrary TestEnum where

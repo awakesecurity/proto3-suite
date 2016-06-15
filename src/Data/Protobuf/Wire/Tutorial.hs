@@ -105,7 +105,7 @@ data Shape
   = Circle
   | Square
   | Triangle
-  deriving (Eq, Enum, Finite, Generic, Named, Ord)
+  deriving (Bounded, Eq, Enum, Finite, Generic, Named, Ord)
 
 -- |
 -- == Generating a .proto file
