@@ -21,7 +21,7 @@ library
                        Data.Protobuf.Wire.Encode.Internal
                        Data.Protobuf.Wire.Tutorial
                        Data.Protobuf.Wire.Types
-  build-depends:       base >=4.8 && <4.9,
+  build-depends:       base >=4.8 && <4.10,
                        bytestring >=0.10.6.0 && <0.11.0,
                        deepseq ==1.4.*,
                        pretty ==1.1.*,
