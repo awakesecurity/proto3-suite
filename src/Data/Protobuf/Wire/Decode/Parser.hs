@@ -2,7 +2,10 @@
 -- Usually, one should avoid writing these parsers by hand. Instead, use the
 -- generic interface in "Data.Protobuf.Wire.Class".
 
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -11,7 +14,7 @@
 module Data.Protobuf.Wire.Decode.Parser
   (
   -- * The Parser type
-    Parser
+    Parser(..)
   , ParsedField()
   , ParsedFields
   , parse
@@ -85,8 +88,16 @@ data ParseError
   | EmbeddedError Text [ParseError]
   deriving (Show, Eq, Ord)
 
--- | A parsing function type synonym, to tidy up type signatures.
-type Parser input a = input -> Either [ParseError] a
+newtype Parser input a = Parser { runParser :: input -> Either [ParseError] a }
+ deriving Functor
+
+instance Applicative (Parser input) where
+ pure = Parser . const . pure
+ Parser p1 <*> Parser p2 = Parser $ \input -> p1 input <*> p2 input
+
+instance Monad (Parser input) where
+ -- return = pure
+ Parser p >>= f = Parser $ \input -> p input >>= (`runParser` input) . f
 
 -- | A 'Map' from field numbers to the fields whose headers were associated with
 -- that field number. Typically used as the first argument to the 'Parser' type
@@ -101,7 +112,7 @@ parse
 parse parser bs =
   case parseTuples bs of
     Left err -> Left [ BinaryError (pack err) ]
-    Right res -> parser res
+    Right res -> runParser parser res
 
 -- | To comply with the protobuf spec, if there are multiple fields with the same
 -- field number, this will always return the last one. While this is worst case
@@ -113,7 +124,10 @@ parsedField xs = case viewr xs of
                    EmptyR -> Nothing
                    _ :> x -> Just x
 
-throwWireTypeError :: Show input => String -> Parser input expected
+throwWireTypeError :: Show input =>
+                      String
+                      -> input
+                      -> Either [ParseError] expected
 throwWireTypeError expected wrong =
     Left [ WireTypeError (pack msg) ]
   where
@@ -126,71 +140,74 @@ throwCerealError expected cerealErr =
     msg = "Failed to parse contents of " ++ expected ++ " field. " ++ "Error from cereal was: " ++ cerealErr
 
 parseVarInt :: Integral a => Parser ParsedField a
-parseVarInt (VarintField i) = Right (fromIntegral i)
-parseVarInt wrong = throwWireTypeError "varint" wrong
+parseVarInt = Parser $ \case
+  VarintField i -> Right (fromIntegral i)
+  wrong -> throwWireTypeError "varint" wrong
 
 runGetPacked :: Get [a] -> Parser ParsedField [a]
-runGetPacked g (LengthDelimitedField bs) =
-  case runGet g bs of
-    Left e -> throwCerealError "packed repeated field" e
-    Right xs -> return xs
-runGetPacked _ wrong =
-  throwWireTypeError "packed repeated field" wrong
+runGetPacked g = Parser $ \case
+  LengthDelimitedField bs ->
+    case runGet g bs of
+      Left e -> throwCerealError "packed repeated field" e
+      Right xs -> return xs
+  wrong -> throwWireTypeError "packed repeated field" wrong
 
 runGetFixed32 :: Get a -> Parser ParsedField a
-runGetFixed32 g (Fixed32Field bs) =
-  case runGet g bs of
-    Left e -> throwCerealError "fixed32 field" e
-    Right x -> return x
-runGetFixed32 _ wrong =
-  throwWireTypeError "fixed 32 field" wrong
+runGetFixed32 g = Parser $ \case
+  Fixed32Field bs ->
+    case runGet g bs of
+      Left e -> throwCerealError "fixed32 field" e
+      Right x -> return x
+  wrong -> throwWireTypeError "fixed 32 field" wrong
 
 runGetFixed64 :: Get a -> Parser ParsedField a
-runGetFixed64 g (Fixed64Field bs) =
-  case runGet g bs of
-    Left e -> throwCerealError "fixed 64 field" e
-    Right x -> return x
-runGetFixed64 _ wrong =
-  throwWireTypeError "fixed 64 field" wrong
+runGetFixed64 g = Parser $ \case
+  Fixed64Field bs ->
+    case runGet g bs of
+      Left e -> throwCerealError "fixed 64 field" e
+      Right x -> return x
+  wrong -> throwWireTypeError "fixed 64 field" wrong
 
 parsePackedVarInt :: Integral a => Parser ParsedField [a]
 parsePackedVarInt = fmap (fmap fromIntegral)
-                    . runGetPacked (many getBase128Varint)
+                         $ runGetPacked (many getBase128Varint)
 
 parsePackedFixed32 :: Integral a => Parser ParsedField [a]
-parsePackedFixed32 = fmap (fmap fromIntegral) . runGetPacked (many getWord32le)
+parsePackedFixed32 = fmap (fmap fromIntegral) $ runGetPacked (many getWord32le)
 
 parsePackedFixed32Float :: Parser ParsedField [Float]
 parsePackedFixed32Float = runGetPacked (many getFloat32le)
 
 parsePackedFixed64 :: Integral a => Parser ParsedField [a]
-parsePackedFixed64 = fmap (fmap fromIntegral) . runGetPacked (many getWord64le)
+parsePackedFixed64 = fmap (fmap fromIntegral) $ runGetPacked (many getWord64le)
 
 parsePackedFixed64Double :: Parser ParsedField [Double]
 parsePackedFixed64Double = runGetPacked (many getFloat64le)
 
 parseFixed32 :: Integral a => Parser ParsedField a
-parseFixed32 = fmap fromIntegral . runGetFixed32 getWord32le
+parseFixed32 = fmap fromIntegral $ runGetFixed32 getWord32le
 
 parseFixed32Float :: Parser ParsedField Float
 parseFixed32Float = runGetFixed32 getFloat32le
 
 parseFixed64 :: Integral a => Parser ParsedField a
-parseFixed64 = fmap fromIntegral . runGetFixed64 getWord64le
+parseFixed64 = fmap fromIntegral $ runGetFixed64 getWord64le
 
 parseFixed64Double :: Parser ParsedField Double
 parseFixed64Double = runGetFixed64 getFloat64le
 
 parseText :: Parser ParsedField Text
-parseText (LengthDelimitedField bs) =
-  case decodeUtf8' $ BL.fromStrict bs of
-    Left err -> Left [ BinaryError (pack ("Failed to decode UTF-8: " ++ show err)) ]
-    Right txt -> return txt
-parseText wrong = throwWireTypeError "string" wrong
+parseText = Parser $ \case
+  LengthDelimitedField bs ->
+    case decodeUtf8' $ BL.fromStrict bs of
+      Left err -> Left [ BinaryError (pack ("Failed to decode UTF-8: " ++ show err)) ]
+      Right txt -> return txt
+  wrong -> throwWireTypeError "string" wrong
 
 parseBytes :: Parser ParsedField B.ByteString
-parseBytes (LengthDelimitedField bs) = return bs
-parseBytes wrong = throwWireTypeError "bytes" wrong
+parseBytes = Parser $ \case
+  LengthDelimitedField bs -> return bs
+  wrong -> throwWireTypeError "bytes" wrong
 
 -- | Create a parser for embedded fields from a message parser. This can
 -- be used to easily create an instance of 'AtomicParsable' for a user-defined
@@ -198,16 +215,17 @@ parseBytes wrong = throwWireTypeError "bytes" wrong
 -- way that 'disembed' does. This function is simply a helper function for
 -- parsing lists of embedded messages.
 atomicEmbedded :: Parser ParsedFields a -> Parser ParsedField a
-atomicEmbedded parser (LengthDelimitedField bs) =
-  case parse parser bs of
-    Left err -> Left [ EmbeddedError "Failed to parse embedded message." err ]
-    Right result -> return result
-atomicEmbedded _ wrong = throwWireTypeError "embedded" wrong
+atomicEmbedded parser = Parser $ \case
+  (LengthDelimitedField bs) ->
+    case parse parser bs of
+      Left err -> Left [ EmbeddedError "Failed to parse embedded message." err ]
+      Right result -> return result
+  wrong -> throwWireTypeError "embedded" wrong
 
 -- | For a field containing an embedded message, parse as far as getting the
 -- wire-level fields out of the message. This is a helper function for
 -- 'disembed'.
-embeddedToParsedFields :: Parser ParsedField ParsedFields
+
 embeddedToParsedFields (LengthDelimitedField bs) =
   case parseTuples bs of
     Left err -> Left [EmbeddedError ("Failed to parse embedded message: "
@@ -219,9 +237,9 @@ embeddedToParsedFields wrong = throwWireTypeError "embedded" wrong
 parseEmbeddedList
   :: Parser ParsedField a
   -> Parser (Seq ParsedField) (Seq a)
-parseEmbeddedList parser fields = fmap fromList $ listify $ do
+parseEmbeddedList parser = Parser $ \fields -> fmap fromList $ listify $ do
   x <- delistify (toList fields)
-  y <- lift (parser x)
+  y <- lift (runParser parser x)
   return y
 
 -- | Helper function for making user-defined types instances of 'HasDecoding'.
@@ -234,28 +252,28 @@ parseEmbeddedList parser fields = fmap fromList $ listify $ do
 -- If the embedded message is not found in the outer message, this function
 -- returns 'Nothing'.
 disembed :: Parser ParsedFields a -> Parser (Seq ParsedField) (Maybe a)
-disembed p xs =
+disembed p = Parser $ \xs ->
   if xs == empty
      then return Nothing
      else do innerMaps <- T.mapM embeddedToParsedFields xs
              let combinedMap = foldl' (M.unionWith (<>)) M.empty innerMaps
-             parsed <- p combinedMap
+             parsed <- runParser p combinedMap
              return $ Just parsed
 
 at :: Parser (Seq ParsedField) a -> FieldNumber -> a -> Parser ParsedFields a
-at parser fn dflt m =
+at parser fn def = Parser $ \m ->
   case M.lookup fn m of
-    Just fields -> parser fields
-    Nothing -> Right dflt
+    Just fields -> runParser parser fields
+    Nothing -> Right def
 
 -- | Specify that one value is expected from this field. Used to ensure that we
 -- return the last value with the given field number in the message, in
 -- compliance with the protobuf standard.
 one :: Parser ParsedField a -> Parser (Seq ParsedField) (Maybe a)
-one parser = traverse parser . parsedField
+one parser = Parser (traverse (runParser parser) . parsedField)
 
 parseBool :: Parser ParsedField Bool
-parseBool = fmap (/= 0) . parseVarInt
+parseBool = fmap (/= 0) parseVarInt
 
 parseInt32 :: Parser ParsedField Int32
 parseInt32 = parseVarInt
@@ -271,34 +289,34 @@ parseWord64 = parseVarInt
 
 parseSignedInt32 :: Parser ParsedField (Signed Int32)
 parseSignedInt32 = fmap (Signed . fromIntegral
-                        . (zigZagDecode :: Word32 -> Word32))
-                   . parseVarInt
+                         . (zigZagDecode :: Word32 -> Word32))
+                        parseVarInt
 
 parseSignedInt64 :: Parser ParsedField (Signed Int64)
 parseSignedInt64 = fmap (Signed . fromIntegral
-                        . (zigZagDecode :: Word64 -> Word64))
-                   . parseVarInt
+                         . (zigZagDecode :: Word64 -> Word64))
+                        parseVarInt
 
 parseFixedWord32 :: Parser ParsedField (Fixed Word32)
-parseFixedWord32 = fmap Fixed . parseFixed32
+parseFixedWord32 = fmap Fixed parseFixed32
 
 parseFixedInt32 :: Parser ParsedField (Signed (Fixed Int32))
-parseFixedInt32 = fmap (Signed . Fixed) . parseFixed32
+parseFixedInt32 = fmap (Signed . Fixed) parseFixed32
 
 parseFixedWord64 :: Parser ParsedField (Fixed Word64)
-parseFixedWord64 = fmap Fixed . parseFixed64
+parseFixedWord64 = fmap Fixed parseFixed64
 
 parseFixedInt64 :: Parser ParsedField (Signed (Fixed Int64))
-parseFixedInt64 = fmap (Signed . Fixed) . parseFixed64
+parseFixedInt64 = fmap (Signed . Fixed) parseFixed64
 
 parseByteString :: Parser ParsedField B.ByteString
 parseByteString = parseBytes
 
 parseLazyByteString :: Parser ParsedField BL.ByteString
-parseLazyByteString = fmap BL.fromStrict . parseBytes
+parseLazyByteString = fmap BL.fromStrict parseBytes
 
 parseEnum :: (Bounded e, Enum e) => Parser ParsedField (Enumerated e)
-parseEnum = fmap (Enumerated . convert) . parseVarInt
+parseEnum = fmap (Enumerated . convert) parseVarInt
   where convert x = case toEnumMay x of
                       Nothing -> Left x
                       Just e -> Right e
@@ -307,7 +325,10 @@ parseEnum = fmap (Enumerated . convert) . parseVarInt
 repeatedUnpackedList
   :: Parser ParsedField a
   -> Parser (Seq ParsedField) (Seq a)
-repeatedUnpackedList = parseEmbeddedList
+repeatedUnpackedList parser = Parser $ \fields -> fmap fromList $ listify $ do
+  x <- delistify (toList fields)
+  y <- lift (runParser parser x)
+  return y
 
 listify :: Monad m => ListT m a -> m [a]
 listify = P.toListM . enumerate
