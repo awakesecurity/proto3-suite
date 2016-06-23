@@ -396,14 +396,14 @@ class MessageField a where
   -- | Get the type which represents this type inside another message.
   protoType :: Proxy a -> DotProtoField
   default protoType :: Primitive a => Proxy a -> DotProtoField
-  protoType p = messageField (Prim $ primType p) DotProto.UnpackedField
+  protoType p = messageField (Prim $ primType p) Nothing
 
-messageField :: DotProtoType -> DotProto.Packing -> DotProtoField
+messageField :: DotProtoType -> Maybe DotProto.Packing -> DotProtoField
 messageField ty packing = DotProtoField (fieldNumber 1) ty Anonymous
                         $ case packing of
-                            DotProto.PackedField   -> [DotProtoOption (Single "packed") (BoolLit True)]
-                            DotProto.UnpackedField -> [DotProtoOption (Single "packed") (BoolLit False)]
-
+                            (Just DotProto.PackedField)   -> [DotProtoOption (Single "packed") (BoolLit True)]
+                            (Just DotProto.UnpackedField) -> [DotProtoOption (Single "packed") (BoolLit False)]
+                            Nothing -> []
 -- [todo] what were these intended for?
 -- primDotProto :: DotProtoMessagePart -> DotProtoDefinition
 -- primDotProto field = DotProtoMessage generateMessagePartName [ field ]
@@ -436,12 +436,12 @@ seqToVec = fromList . F.toList
 instance (Named a, Message a) => MessageField (Nested a) where
   encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . nested
   decodeMessageField = fmap Nested (Decode.embedded (decodeMessage (fieldNumber 1)))
-  protoType _ = messageField (Prim $ Named (Single (nameOf (Proxy :: Proxy a)))) DotProto.UnpackedField
+  protoType _ = messageField (Prim $ Named (Single (nameOf (Proxy :: Proxy a)))) Nothing
 
 instance Primitive a => MessageField (UnpackedVec a) where
   encodeMessageField fn = foldMap (encodePrimitive fn)
   decodeMessageField = fmap (UnpackedVec . seqToVec) $ repeated decodePrimitive
-  protoType _ = messageField (Repeated $ primType (Proxy :: Proxy a)) DotProto.UnpackedField
+  protoType _ = messageField (Repeated $ primType (Proxy :: Proxy a)) (Just DotProto.UnpackedField)
 
 instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
   encodeMessageField fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
@@ -451,57 +451,57 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
     where
       oneMsg :: Parser RawMessage a
       oneMsg = decodeMessage (fieldNumber 1)
-  protoType _ = messageField (NestedRepeated (Named (Single (nameOf (Proxy :: Proxy a))))) DotProto.UnpackedField
+  protoType _ = messageField (NestedRepeated (Named (Single (nameOf (Proxy :: Proxy a))))) Nothing
 
 instance MessageField (PackedVec Word32) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromIntegral
   decodeMessageField = decodePacked Decode.packedVarints
-  protoType _ = messageField (Prim UInt32) DotProto.PackedField
+  protoType _ = messageField (Prim UInt32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Word64) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromIntegral
   decodeMessageField = decodePacked Decode.packedVarints
-  protoType _ = messageField (Repeated UInt64) DotProto.PackedField
+  protoType _ = messageField (Repeated UInt64) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Int32) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromIntegral
   decodeMessageField = decodePacked Decode.packedVarints
-  protoType _ = messageField (Repeated Int32) DotProto.PackedField
+  protoType _ = messageField (Repeated Int32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Int64) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromIntegral
   decodeMessageField = decodePacked Decode.packedVarints
-  protoType _ = messageField (Repeated Int64) DotProto.PackedField
+  protoType _ = messageField (Repeated Int64) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Fixed Word32)) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed32 fn) . fmap fixed
   decodeMessageField = fmap (fmap Fixed) (decodePacked Decode.packedFixed32)
-  protoType _ = messageField (Repeated DotProto.Fixed32) DotProto.PackedField
+  protoType _ = messageField (Repeated DotProto.Fixed32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Fixed Word64)) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed64 fn) . fmap fixed
   decodeMessageField = fmap (fmap Fixed) (decodePacked Decode.packedFixed64)
-  protoType _ = messageField (Repeated DotProto.Fixed64) DotProto.PackedField
+  protoType _ = messageField (Repeated DotProto.Fixed64) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Signed (Fixed Int32))) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed32 fn) . fmap (fromIntegral . fixed . signed)
   decodeMessageField = fmap (fmap (Signed . Fixed)) (decodePacked Decode.packedFixed32)
-  protoType _ = messageField (Repeated SFixed32) DotProto.PackedField
+  protoType _ = messageField (Repeated SFixed32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Signed (Fixed Int64))) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed64 fn) . fmap (fromIntegral . fixed . signed)
   decodeMessageField = fmap (fmap (Signed . Fixed)) (decodePacked Decode.packedFixed64)
-  protoType _ = messageField (Repeated SFixed64) DotProto.PackedField
+  protoType _ = messageField (Repeated SFixed64) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Float) where
   encodeMessageField fn = omittingDefault (Encode.packedFloats fn)
   decodeMessageField = decodePacked Decode.packedFloats
-  protoType _ = messageField (Repeated Float) DotProto.PackedField
+  protoType _ = messageField (Repeated Float) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Double) where
   encodeMessageField fn = omittingDefault (Encode.packedDoubles fn)
   decodeMessageField = decodePacked Decode.packedDoubles
-  protoType _ = messageField (Repeated Double) DotProto.PackedField
+  protoType _ = messageField (Repeated Double) (Just DotProto.PackedField)
 
 decodePacked
   :: Parser RawPrimitive [a]
