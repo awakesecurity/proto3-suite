@@ -5,7 +5,6 @@ module TestTypes where
 import qualified Data.ByteString as B
 import           Data.Int
 import           Data.Protobuf.Wire
-import           Data.Protobuf.Wire.Decode.Parser as P
 import qualified Data.Text.Lazy as TL
 import           Data.Word (Word32, Word64)
 import           GHC.Generics

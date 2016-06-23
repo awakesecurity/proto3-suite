@@ -4,10 +4,10 @@
 
 module Data.Protobuf.Wire.DotProto.AST where
 
-import           Data.Protobuf.Wire.Types (FieldNumber (..))
-import           Data.String              (IsString)
+import           Data.String        (IsString)
 import           Control.Monad
 import           Numeric.Natural
+import           Proto3.Wire.Types  (FieldNumber (..))
 import           Test.QuickCheck
 
 -- | The name of a message

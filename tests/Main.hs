@@ -12,21 +12,23 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Char8 as BC
 import           Test.Tasty
-import           Test.Tasty.HUnit as HU
-import           Test.Tasty.QuickCheck as QC
-import           Test.QuickCheck (Arbitrary, arbitrary, oneof)
-import           Data.Protobuf.Wire.Class as P
-import qualified Data.Protobuf.Wire.Encode.Internal as Enc
-import qualified Data.Protobuf.Wire.Decode.Internal as Dec
-import           Data.Protobuf.Wire.Decode.Parser as P
-import           Data.Protobuf.Wire.Types as P
+import           Test.Tasty.HUnit (Assertion, (@?=), (@=?), testCase, assertBool)
+import           Test.Tasty.QuickCheck (testProperty, (===))
+import           Test.QuickCheck (Arbitrary, Property,
+                                  arbitrary, counterexample, oneof)
+import           Data.Protobuf.Wire
 import           Data.Protobuf.Wire.DotProto as AST
 import           Data.Int
 import           Data.Word (Word64)
 import qualified Data.Text.Lazy as TL
 import           Data.Serialize.Get(runGet)
 import           Data.Either (isRight)
-import           GHC.Exts(fromList)
+import           Proto3.Wire
+import           Proto3.Wire.Decode (ParseError)
+import qualified Proto3.Wire.Decode as Decode
+import qualified Proto3.Wire.Encode as Encode
+import           Proto3.Wire.Types as P
+import           GHC.Exts (fromList)
 
 main :: IO ()
 main = defaultMain tests
@@ -47,53 +49,35 @@ qcInverses msg = msg === (decode $ encode msg)
 
 qcProperties :: TestTree
 qcProperties = testGroup "QuickCheck properties"
-  [QC.testProperty "fieldHeader encode/decode inverses" $
-   \fieldnum -> \wt -> let encoded = BL.toStrict $ BB.toLazyByteString $
-                                     Enc.fieldHeader fieldnum wt
-                           decoded = case runGet Dec.getFieldHeader encoded of
-                                     Left e -> error e
-                                     Right x -> x
-                           in (fieldnum, wt) == decoded,
+  [ testProperty "decode inverts encode for trivial messages" $
+    (qcInverses :: Trivial -> Property)
 
-   QC.testProperty "base128Varint encode/decode inverses" $
-   \w64 -> let encode = BL.toStrict . BB.toLazyByteString . Enc.base128Varint
-               decode bs = case runGet Dec.getBase128Varint bs of
-                           Left e -> error e
-                           Right x -> x
-               in (w64 :: Word64) == (decode $ encode w64),
+  , testProperty "decode inverts encode for multi-field messages" $
+    (qcInverses :: MultipleFields -> Property)
 
-  QC.testProperty "decode inverts encode for trivial messages" $
-  (qcInverses :: Trivial -> Property),
+  , testProperty "decode inverts encode for enum messages" $
+    (qcInverses :: WithEnum -> Property)
 
-  QC.testProperty "decode inverts encode for multi-field messages" $
-  (qcInverses :: MultipleFields -> Property),
+  , testProperty "decode inverts encode for nested messages" $
+    (qcInverses :: WithNesting -> Property)
 
-  QC.testProperty "decode inverts encode for enum messages" $
-  (qcInverses :: WithEnum -> Property),
+  , testProperty "decode inverts encode for repeated field messages" $
+    (qcInverses :: WithRepetition -> Property)
 
-  QC.testProperty "decode inverts encode for nested messages" $
-  (qcInverses :: WithNesting -> Property),
+  , testProperty "decode inverts encode for messages with fixed fields" $
+    (qcInverses :: WithFixed -> Property)
 
-  QC.testProperty "decode inverts encode for repeated field messages" $
-  (qcInverses :: WithRepetition -> Property),
+  , testProperty "decode inverts encode for messages with bytes fields" $
+    (qcInverses :: WithBytes -> Property)
 
-  QC.testProperty "decode inverts encode for messages with fixed fields" $
-  (qcInverses :: WithFixed -> Property),
+  , testProperty "decode inverts encode for all packed repeated types" $
+    (qcInverses :: AllPackedTypes -> Property)
 
-  QC.testProperty "decode inverts encode for messages with bytes fields" $
-  (qcInverses :: WithBytes -> Property),
+  , testProperty "decode inverts encode for signed int types" $
+    (qcInverses :: SignedInts -> Property)
 
-  QC.testProperty "decode inverts encode for all packed repeated types" $
-  (qcInverses :: AllPackedTypes -> Property),
-
-  QC.testProperty "decode inverts encode for signed int types" $
-  (qcInverses :: SignedInts -> Property),
-
-  QC.testProperty "decode inverts encode for repeated messages" $
-  (qcInverses :: WithNestingRepeated -> Property)
-
-  --QC.testProperty "decode inverts encode for messages containing Maybe" $
-  --qcInverses (fromByteString :: Parser WithMaybe)
+  , testProperty "decode inverts encode for repeated messages" $
+    (qcInverses :: WithNestingRepeated -> Property)
 
   ]
 
@@ -180,7 +164,7 @@ decodeUnitTests = testGroup "Decode unit tests"
 decodeKeyValsTest :: FilePath -> IO ()
 decodeKeyValsTest fp = do
   bs <- B.readFile fp
-  let kvs = runGet Dec.getTuples bs
+  let kvs = Decode.decodeWire bs
   assertBool "parsing failed" (isRight kvs)
 
 decodeKeyValsTrivial :: TestTree
@@ -232,7 +216,7 @@ parserUnitTests = testGroup "Parsing unit tests"
 
 testParser :: (Show a, Eq a) =>
               FilePath
-              -> (B.ByteString -> Either [ParseError] a) -> a -> IO ()
+              -> (B.ByteString -> Either ParseError a) -> a -> IO ()
 testParser fp p reference = do
   bs <- B.readFile fp
   case p bs of
@@ -279,8 +263,8 @@ parseFixed :: TestTree
 parseFixed = testCase
   "Parsing a message with fixed types matches the official implementation" $
   testParser "test-files/with_fixed.bin" fromByteString $
-             WithFixed (P.Fixed 16) (Signed $ P.Fixed (-123))
-                       (P.Fixed 4096) (Signed $ P.Fixed (-4096))
+             WithFixed (Fixed 16) (Signed $ Fixed (-123))
+                       (Fixed 4096) (Signed $ Fixed (-4096))
 
 parseBytes :: TestTree
 parseBytes = testCase
@@ -302,12 +286,12 @@ parseAllPackedTypes = testCase
                    [1,2,3]
                    [-1,-2,-3]
                    [-1,-2,-3]
-                   (fromList $ map P.Fixed [1..3])
-                   (fromList $ map P.Fixed [1..3])
+                   (fromList $ map Fixed [1..3])
+                   (fromList $ map Fixed [1..3])
                    [1.0,2.0]
                    [1.0,-1.0]
-                   (fromList $ map (Signed . P.Fixed) [1,2,3])
-                   (fromList $ map (Signed . P.Fixed) [1,2,3])
+                   (fromList $ map (Signed . Fixed) [1,2,3])
+                   (fromList $ map (Signed . Fixed) [1,2,3])
 
 parseWithNestingRepeated :: TestTree
 parseWithNestingRepeated = testCase
@@ -382,7 +366,7 @@ dotProtoRoundtripSimpleMessage = testCase
   testDotProtoRoundtrip dotProtoSimpleMessage
 
 qcDotProtoRoundtrip :: TestTree
-qcDotProtoRoundtrip = QC.testProperty
+qcDotProtoRoundtrip = testProperty
   "Rountrip for a randomly-generated .proto AST" roundtrip
   where
     roundtrip :: DotProto -> Property

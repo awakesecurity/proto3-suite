@@ -16,12 +16,11 @@ module Data.Protobuf.Wire.DotProto.Rendering
   ) where
 
 import           Data.Char
+import           Data.Protobuf.Wire.DotProto.AST
+import           Proto3.Wire.Types               (FieldNumber (..))
 import           Text.PrettyPrint                (($$), (<+>), (<>))
 import qualified Text.PrettyPrint                as PP
 import           Text.PrettyPrint.HughesPJClass  (Pretty(..))
-
-import           Data.Protobuf.Wire.DotProto.AST
-import           Data.Protobuf.Wire.Types        (FieldNumber (..))
 
 -- | Options for rendering a @.proto@ file.
 data RenderingOptions = RenderingOptions

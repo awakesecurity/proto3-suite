@@ -37,7 +37,6 @@ module Data.Protobuf.Wire
   , Fixed(..)
   , Signed(..)
   , Enumerated(..)
-  , Packed(..)
   , Nested(..)
   , UnpackedVec(..)
   , PackedVec(..)
@@ -48,5 +47,7 @@ module Data.Protobuf.Wire
   ) where
 
 import Data.Protobuf.Wire.Class
-import Data.Protobuf.Wire.Types
 import Data.Protobuf.Wire.DotProto as DotProto
+import Data.Protobuf.Wire.Types
+
+import Proto3.Wire.Types

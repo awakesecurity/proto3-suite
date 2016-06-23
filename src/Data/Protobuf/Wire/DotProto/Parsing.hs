@@ -8,17 +8,16 @@ module Data.Protobuf.Wire.DotProto.Parsing
   ( parseProto
   ) where
 
-import Text.Parser.Char
-import Text.Parser.Combinators
-import Text.Parser.Token
-import Text.Parser.LookAhead
-import Text.Parsec (parse, ParseError)
-import Text.Parsec.String (Parser)
 import Control.Applicative hiding (empty)
 import Data.Functor
-
 import Data.Protobuf.Wire.DotProto.AST
-import Data.Protobuf.Wire.Types (FieldNumber(..))
+import Proto3.Wire.Types (FieldNumber(..))
+import Text.Parsec (parse, ParseError)
+import Text.Parsec.String (Parser)
+import Text.Parser.Char
+import Text.Parser.Combinators
+import Text.Parser.LookAhead
+import Text.Parser.Token
 
 ----------------------------------------
 -- interface
