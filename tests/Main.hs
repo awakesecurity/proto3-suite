@@ -1,9 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main where
 
 import           Control.Applicative
+import           Control.Exception
 import           TestTypes
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
@@ -18,6 +20,7 @@ import qualified Data.Protobuf.Wire.Encode.Internal as Enc
 import qualified Data.Protobuf.Wire.Decode.Internal as Dec
 import           Data.Protobuf.Wire.Decode.Parser as P
 import           Data.Protobuf.Wire.Types as P
+import           Data.Protobuf.Wire.DotProto as AST
 import           Data.Int
 import           Data.Word (Word64)
 import qualified Data.Text.Lazy as TL
@@ -30,10 +33,10 @@ main = defaultMain tests
 
 tests :: TestTree
 tests = testGroup "Tests" [qcProperties, encodeUnitTests, decodeUnitTests,
-                           parserUnitTests]
+                           parserUnitTests, dotProtoUnitTests]
 
 instance Arbitrary WireType where
-  arbitrary = oneof $ map return [Varint, Fixed32, Fixed64, LengthDelimited]
+  arbitrary = oneof $ map return [Varint, P.Fixed32, P.Fixed64, LengthDelimited]
 
 qcInverses :: (Message a, Arbitrary a, Eq a, Show a) => a -> Property
 qcInverses msg = msg === (decode $ encode msg)
@@ -42,6 +45,7 @@ qcInverses msg = msg === (decode $ encode msg)
                     Right r -> r
         encode = BL.toStrict . toLazyByteString
 
+qcProperties :: TestTree
 qcProperties = testGroup "QuickCheck properties"
   [QC.testProperty "fieldHeader encode/decode inverses" $
    \fieldnum -> \wt -> let encoded = BL.toStrict $ BB.toLazyByteString $
@@ -324,3 +328,79 @@ parseWithNestingInt = testCase
   "Embedded message merging works correctly when fields have default values" $
   testParser "test-files/with_nesting_ints.bin" fromByteString $
   WithNestingRepeatedInts $ Nested $ Just $ NestedInt 2 2
+
+testDotProtoParse :: FilePath -> DotProto -> Assertion
+testDotProtoParse file ast = do contents <- readFile file
+                                case parseProto contents of
+                                  Left err     -> error $ show err
+                                  Right result -> ast @=? result
+
+testDotProtoPrint :: DotProto -> String -> Assertion
+testDotProtoPrint ast expected = expected @=? toProtoFileDef ast
+
+testDotProtoRoundtrip :: DotProto -> Assertion
+testDotProtoRoundtrip ast = let Right result = parseProto $ toProtoFileDef ast
+                            in ast @=? result
+
+dotProtoUnitTests :: TestTree
+dotProtoUnitTests = testGroup ".proto parsing tests"
+                    [ dotProtoParseTrivial
+                    , dotProtoPrintTrivial
+                    , dotProtoRoundtripTrivial
+                    , dotProtoRoundtripSimpleMessage
+                    , qcDotProtoRoundtrip
+                    ]
+
+trivialDotProto :: DotProto
+trivialDotProto = DotProto [] [] DotProtoNoPackage []
+
+dotProtoParseTrivial :: TestTree
+dotProtoParseTrivial = testCase
+  "Parsing a content-less file behaves as expected" $
+  testDotProtoParse "test-files/trivial.proto" trivialDotProto
+
+dotProtoPrintTrivial :: TestTree
+dotProtoPrintTrivial = testCase
+  "Printing a content-less DotProto behaves as expected" $
+  testDotProtoPrint trivialDotProto "syntax = \"proto3\";"
+
+dotProtoRoundtripTrivial :: TestTree
+dotProtoRoundtripTrivial = testCase
+  "Printing then parsing a content-less DotProto returns an empty DotProto" $
+  testDotProtoRoundtrip trivialDotProto
+
+dotProtoSimpleMessage :: DotProto
+dotProtoSimpleMessage = DotProto [] [] DotProtoNoPackage [DotProtoMessage (Single "MessageTest")
+                                                                          [DotProtoMessageField $ DotProtoField (fieldNumber 1)
+                                                                                                                (Prim Int32)
+                                                                                                                (Single "testfield")
+                                                                                                                 []]]
+
+dotProtoRoundtripSimpleMessage :: TestTree
+dotProtoRoundtripSimpleMessage = testCase
+  "Rountrip for a single, flat message" $
+  testDotProtoRoundtrip dotProtoSimpleMessage
+
+qcDotProtoRoundtrip :: TestTree
+qcDotProtoRoundtrip = QC.testProperty
+  "Rountrip for a randomly-generated .proto AST" roundtrip
+  where
+    roundtrip :: DotProto -> Property
+    roundtrip ast = let generated = toProtoFileDef ast
+                    in case parseProto generated of
+                      Left err     -> error $ formatParseError err generated
+                      Right result -> counterexample (formatMismatch ast generated result ) (ast == result)
+
+    formatMismatch initial generated result = "AST changed during reparsing\n\nInitial AST:\n\n"
+                                           ++ show initial
+                                           ++ "\n\nGenerated .proto file:\n\n"
+                                           ++ generated
+                                           ++ "\n\nReparsed AST:\n\n"
+                                           ++ show result
+                                           ++ "\n\nRegenerated .proto file:\n\n"
+                                           ++ (toProtoFileDef result)
+    formatParseError err generated = "Parsec error:\n\n"
+                                  ++ show err
+                                  ++ "\n\nWhen attempting to parse:\n\n"
+                                  ++ generated
+                                  ++ "\n\nInitial AST:\n\n"

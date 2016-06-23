@@ -31,11 +31,10 @@
 
 module Data.Protobuf.Wire.Tutorial where
 
-import Data.Foldable (fold)
 import Data.Int (Int32)
 import Data.Protobuf.Wire (Enumerated, Nested, NestedVec, PackedVec,
                            Message, Named, Finite,
-                           DotProto, toProtoFileDef, enum, message)
+                           DotProtoDefinition, enum, message, packageFromDefs, toProtoFileDef)
 import Data.Proxy
 import Data.Word (Word32)
 import GHC.Generics
@@ -131,9 +130,10 @@ data Shape
 --   Foo barFoo = 2;
 --   repeated Foo foos = 3 [packed=false];
 -- }
+
 protoFile :: String
-protoFile = toProtoFileDef "examplePackageName" $ fold
+protoFile = toProtoFileDef $ packageFromDefs "examplePackageName"
   ([ enum    (Proxy :: Proxy Shape)
    , message (Proxy :: Proxy Foo)
    , message (Proxy :: Proxy Bar)
-   ] :: [DotProto])
+   ] :: [DotProtoDefinition])

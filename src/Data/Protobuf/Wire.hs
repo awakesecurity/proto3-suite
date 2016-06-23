@@ -25,16 +25,10 @@ module Data.Protobuf.Wire
   , HasDefault(..)
   , FieldNumber(..)
   , fieldNumber
-  
+
   -- * Documentation
-  , toProtoFile
-  , toProtoFileDef
-  , renderDotProto
   , message
   , enum
-  , defRenderingOptions
-  , defSelectorName
-  , DotProto(..)
   , RenderingOptions(..)
   , Named(..)
   , Finite(..)
@@ -48,8 +42,11 @@ module Data.Protobuf.Wire
   , UnpackedVec(..)
   , PackedVec(..)
   , NestedVec(..)
+
+  -- * AST
+  , module DotProto
   ) where
 
 import Data.Protobuf.Wire.Class
 import Data.Protobuf.Wire.Types
-import Data.Protobuf.Wire.DotProto
+import Data.Protobuf.Wire.DotProto as DotProto
