@@ -24,11 +24,11 @@ import           Text.PrettyPrint.HughesPJClass  (Pretty(..))
 
 -- | Options for rendering a @.proto@ file.
 data RenderingOptions = RenderingOptions
-  { roSelectorName   :: MessageName -> Maybe FieldName -> FieldNumber -> String
+  { roSelectorName   :: DotProtoIdentifier -> DotProtoIdentifier -> FieldNumber -> PP.Doc
   -- ^ This function will be applied to each
   -- record selector name to turn it into a protobuf
   -- field name (default: uses the selector name, unchanged).
-  , roEnumMemberName :: MessageName -> FieldName -> String
+  , roEnumMemberName :: DotProtoIdentifier -> DotProtoIdentifier -> PP.Doc
   -- ^ This function will be applied to each
   -- enum member name to turn it into a protobuf
   -- field name (default: uses the field name, unchanged).
@@ -38,24 +38,21 @@ data RenderingOptions = RenderingOptions
 defRenderingOptions :: RenderingOptions
 defRenderingOptions =
     RenderingOptions { roSelectorName = defSelectorName
-                     , roEnumMemberName = const getFieldName
+                     , roEnumMemberName = const pPrint
                      }
 
 -- | The default choice of field name for a selector.
-defSelectorName :: MessageName -> Maybe FieldName -> FieldNumber -> String
-defSelectorName msgName fieldName fieldNum =
-  maybe (getMessageName msgName ++ "_" ++ show (getFieldNumber fieldNum))
-        getFieldName
-        fieldName
+defSelectorName :: DotProtoIdentifier -> DotProtoIdentifier -> FieldNumber -> PP.Doc
+defSelectorName _ fieldName _ = pPrint fieldName
 
 -- | Traverses a DotProto AST and generates a .proto file from it
 renderDotProto :: RenderingOptions -> DotProto -> PP.Doc
-renderDotProto RenderingOptions{..} DotProto{..}
+renderDotProto opts DotProto{..}
   = PP.text "syntax = \"proto3\";"
  $$ pPrint protoPackage
  $$ (PP.vcat $ pPrint    <$> protoImports)
  $$ (PP.vcat $ topOption <$> protoOptions)
- $$ (PP.vcat $ pPrint    <$> protoDefinitions)
+ $$ (PP.vcat $ prettyPrintProtoDefinition opts <$> protoDefinitions)
 
 instance Pretty DotProtoPackageSpec where
   pPrint (DotProtoPackageSpec p) = PP.text "package" <+> pPrint p <> PP.text ";"
@@ -82,36 +79,37 @@ topOption o = PP.text "option" <+> pPrint o <> PP.text ";"
 instance Pretty DotProtoOption where
   pPrint (DotProtoOption key value) = pPrint key <+> PP.text "=" <+> pPrint value
 
--- [issue] there's a pPrint instance for Maybe and it's sneaking in here
-instance Pretty DotProtoDefinition where
-  pPrint (DotProtoMessage name parts) = PP.text "message" <+> pPrint name <+> (PP.braces $ PP.vcat $ pPrint <$> parts)
-  pPrint (DotProtoEnum    name parts) = PP.text "enum"    <+> pPrint name <+> (PP.braces $ PP.vcat $ pPrint <$> parts)
-  pPrint (DotProtoService name parts) = PP.text "service" <+> pPrint name <+> (PP.braces $ PP.vcat $ pPrint <$> parts)
-  pPrint DotProtoNullDef              = PP.empty
+prettyPrintProtoDefinition :: RenderingOptions -> DotProtoDefinition -> PP.Doc
+prettyPrintProtoDefinition opts = defn where
+  defn :: DotProtoDefinition -> PP.Doc
+  defn (DotProtoMessage name parts) = PP.text "message" <+> pPrint name <+> (PP.braces $ PP.vcat $ msgPart name <$> parts)
+  defn (DotProtoEnum    name parts) = PP.text "enum"    <+> pPrint name <+> (PP.braces $ PP.vcat $ enumPart name <$> parts)
+  defn (DotProtoService name parts) = PP.text "service" <+> pPrint name <+> (PP.braces $ PP.vcat $ pPrint <$> parts)
+  defn DotProtoNullDef              = PP.empty
 
-instance Pretty DotProtoMessagePart where
-  pPrint (DotProtoMessageField field)           = pPrint field
-  pPrint (DotProtoMessageDefinition definition) = pPrint definition
-  pPrint (DotProtoMessageReserved reservations)
+  msgPart :: DotProtoIdentifier -> DotProtoMessagePart -> PP.Doc
+  msgPart msgName (DotProtoMessageField f)           = field msgName f
+  msgPart _       (DotProtoMessageDefinition definition) = defn definition
+  msgPart _       (DotProtoMessageReserved reservations)
     =   PP.text "reserved"
     <+> (PP.hcat . PP.punctuate (PP.text ", ") $ pPrint <$> reservations)
     <>  PP.text ";"
-  pPrint (DotProtoMessageOneOf name fields)     = PP.text "oneof" <+> pPrint name <+> (PP.braces $ PP.vcat $ pPrint <$> fields)
+  msgPart msgName (DotProtoMessageOneOf name fields)     = PP.text "oneof" <+> pPrint name <+> (PP.braces $ PP.vcat $ field msgName <$> fields)
 
-instance Pretty DotProtoField where
-  pPrint (DotProtoField number mtype name options)
+  field :: DotProtoIdentifier -> DotProtoField -> PP.Doc
+  field msgName (DotProtoField number mtype name options)
     =   pPrint mtype
-    <+> pPrint name
+    <+> roSelectorName opts msgName name number
     <+> PP.text "="
     <+> pPrint number
     <+> optionAnnotation options
     <>  PP.text ";"
-  pPrint DotProtoEmptyField                        = PP.empty
+  field _ DotProtoEmptyField = PP.empty
 
-instance Pretty DotProtoEnumPart where
-  pPrint (DotProtoEnumField name value) = pPrint name <+> PP.text "=" <+> pPrint value <> PP.text ";"
-  pPrint (DotProtoEnumOption opt)       = PP.text "option" <+> pPrint opt <> PP.text ";"
-  pPrint DotProtoEnumEmpty              = PP.empty
+  enumPart :: DotProtoIdentifier -> DotProtoEnumPart -> PP.Doc
+  enumPart msgName (DotProtoEnumField name value) = roEnumMemberName opts msgName name <+> PP.text "=" <+> pPrint value <> PP.text ";"
+  enumPart _       (DotProtoEnumOption opt)       = PP.text "option" <+> pPrint opt <> PP.text ";"
+  enumPart _       DotProtoEnumEmpty              = PP.empty
 
 instance Pretty DotProtoServicePart where
   pPrint (DotProtoServiceRPC name (callname, callstrm) (retname, retstrm) options)
