@@ -30,7 +30,7 @@ library
                        semigroups ==0.18.*,
                        safe ==0.3.*,
                        pipes ==4.1.*,
-                       proto3-wire == 0.1.*,
+                       proto3-wire == 1.0.*,
                        vector ==0.11.*,
                        QuickCheck >=2.8 && <2.9,
                        parsec >= 3.1.9 && <3.2.0,
