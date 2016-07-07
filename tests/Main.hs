@@ -7,6 +7,7 @@ module Main where
 import           Control.Applicative
 import           Control.Exception
 import           TestTypes
+import           TestCodeGen
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Builder as BB
@@ -35,7 +36,7 @@ main = defaultMain tests
 
 tests :: TestTree
 tests = testGroup "Tests" [qcProperties, encodeUnitTests, decodeUnitTests,
-                           parserUnitTests, dotProtoUnitTests]
+                           parserUnitTests, dotProtoUnitTests, codeGenTests]
 
 instance Arbitrary WireType where
   arbitrary = oneof $ map return [Varint, P.Fixed32, P.Fixed64, LengthDelimited]

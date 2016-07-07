@@ -1,4 +1,5 @@
 syntax = "proto3";
+package test;
 
 message Trivial {
   int32 trivialField = 1;
@@ -80,4 +81,30 @@ message AllPackedTypes {
   repeated double packedDouble = 8 [packed=true];
   repeated sfixed32 packedSFixed32 = 9 [packed=true];
   repeated sfixed64 packedSFixed64 = 10 [packed=true];
+}
+
+message OutOfOrderFields {
+  repeated uint32 field1 = 2001 [packed = true];
+  string field2 = 101;
+  int64 field3 = 30;
+  repeated string field4 = 1002;
+}
+
+message ShadowedMessage {
+  string name = 2;
+  int32 value = 1;
+}
+
+message MessageShadower {
+  message ShadowedMessage {
+    string name = 1;
+    string value = 2;  // Same as ShadowedMessage above, but with field numbers flipped, and different types for value
+  }
+  ShadowedMessage shadowed_message = 1;
+  string name = 2;  // Tests if the field names are shadowed or not
+}
+
+message WithQualifiedName {
+  ShadowedMessage qname1 = 100;
+  MessageShadower.ShadowedMessage qname2 = 200;
 }

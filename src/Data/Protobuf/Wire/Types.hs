@@ -28,7 +28,7 @@ import           Test.QuickCheck (Arbitrary(..))
 
 -- | 'Fixed' provides a way to encode integers in the fixed-width wire formats.
 newtype Fixed a = Fixed { fixed :: a }
-  deriving (Show, Eq, Ord, Num, Generic, NFData, Arbitrary)
+  deriving (Show, Eq, Ord, Num, Generic, NFData, Arbitrary, Enum, Bounded)
 
 -- | 'Signed' provides a way to encode integers in the signed wire formats.
 newtype Signed a = Signed { signed :: a }

@@ -11,3 +11,18 @@ Specifically, it provides:
 - A way of creating `.proto` files from Haskell types.
 
 See the `Data.Protobuf.Wire.Tutorial` module for more details.
+
+# Running the language interop tests
+
+We test inter-language interop using protoc's built-in Python code generation. In
+order to successfully run these tests, you'll need to install the google protobuf
+Python library. It's best to create a virtualenv and then use pip to install the
+right version.
+
+```
+$ virtualenv pyenv
+$ source pyenv/bin/activate
+$ pip install protobuf==3.0.0b3  # Need the latest version for the newest protoc
+```
+
+`brew install python` may also work.

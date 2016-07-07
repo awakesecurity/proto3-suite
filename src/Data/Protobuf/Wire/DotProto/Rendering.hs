@@ -180,6 +180,7 @@ toProtoFile opts = PP.render . renderDotProto opts
 
 -- | Render protobufs metadata as a .proto file string,
 -- using the default rendering options.
+
 toProtoFileDef :: DotProto -> String
 toProtoFileDef = toProtoFile defRenderingOptions
 

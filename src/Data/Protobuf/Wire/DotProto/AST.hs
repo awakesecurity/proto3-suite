@@ -39,7 +39,7 @@ data DotProtoIdentifier
   | Path   [String]
   | Qualified DotProtoIdentifier DotProtoIdentifier
   | Anonymous -- [recheck] is there a better way to represent unnamed things
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 -- | Top-level import declaration
 data DotProtoImport = DotProtoImport
@@ -169,6 +169,25 @@ data DotProtoReservedField
   | FieldRange  Int Int
   | ReservedIdentifier String
   deriving (Show, Eq)
+
+-- | Returns 'True' if the given primitive type is packable
+isPackableType :: DotProtoPrimType -> Bool
+isPackableType (Named _) = False
+isPackableType Bytes = False
+isPackableType String = False
+isPackableType Int32 = True
+isPackableType Int64 = True
+isPackableType SInt32 = True
+isPackableType SInt64 = True
+isPackableType UInt32 = True
+isPackableType UInt64 = True
+isPackableType Fixed32 = True
+isPackableType Fixed64 = True
+isPackableType SFixed32 = True
+isPackableType SFixed64 = True
+isPackableType Bool = True
+isPackableType Float = True
+isPackableType Double = True
 
 --------------------------------------------------------------------------------
 -- | QC Arbitrary instance for generating random protobuf
