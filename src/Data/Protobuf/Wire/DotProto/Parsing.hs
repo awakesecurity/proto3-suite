@@ -247,7 +247,9 @@ rpc = do string "rpc"
 
 service :: Parser DotProtoDefinition
 service = do string "service"
+             whiteSpace
              name <- Single <$> identifierName
+             whiteSpace
              statements <- braces (many servicePart)
              return $ DotProtoService name statements
 
