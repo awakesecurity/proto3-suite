@@ -17,7 +17,7 @@ See the `Data.Protobuf.Wire.Tutorial` module for more details.
 We test inter-language interop using protoc's built-in Python code generation. In
 order to successfully run these tests, you'll need to install the google protobuf
 Python library. It's best to create a virtualenv and then use pip to install the
-right version.
+right version (virtualenv is a python utility which can be installed with pip).
 
 ```
 $ virtualenv pyenv
