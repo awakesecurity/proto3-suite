@@ -4,5 +4,5 @@ packages:
 - .
 - location:
     git: https://github.com/awakenetworks/proto3-wire.git
-    commit: c872b09b90ea0e6265931644d251d272f0ce0e27
+    commit: b5151914873b9ede230094e742953b5062566244
   extra-dep: true
