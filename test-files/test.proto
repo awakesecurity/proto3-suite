@@ -1,5 +1,6 @@
 syntax = "proto3";
 package test;
+import "test-files/test_import.proto";
 
 message Trivial {
   int32 trivialField = 1;
@@ -107,4 +108,9 @@ message MessageShadower {
 message WithQualifiedName {
   ShadowedMessage qname1 = 100;
   MessageShadower.ShadowedMessage qname2 = 200;
+}
+
+message UsingImported {
+  test_import.WithNesting importedNesting = 100;
+  WithNesting localNesting = 200;
 }

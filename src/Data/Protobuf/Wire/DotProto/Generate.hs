@@ -2,54 +2,104 @@
 
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Data.Protobuf.Wire.DotProto.Generate
-  ( CompileResult(..)
+  ( CompileResult, CompileError(..), TypeContext
 
   , hsModuleForDotProto
   , renderHsModuleForDotProto
+  , readDotProtoWithContext
 
   -- * Exposed for unit-testing
   , typeLikeName, fieldLikeName
   ) where
 
 import           Control.Applicative
-import           Control.Monad.Writer
+import           Control.Monad.Except
 import           Data.Protobuf.Wire.DotProto
-import           Proto3.Wire.Types  (FieldNumber (..))
 import           Data.Char
-import           Data.List (intercalate, find, sortBy)
-import           Data.Ord (comparing)
+import           Data.List (intercalate, find, nub, sortBy)
 import qualified Data.Map as M
+import qualified Data.Set as S
+import           Data.Monoid
+import           Data.Ord (comparing)
+import           Proto3.Wire.Types  (FieldNumber (..))
 import           Language.Haskell.Syntax
 import           Language.Haskell.Pretty
+import           System.FilePath
+import           Text.Parsec (ParseError)
 
 -- * Public interface
+
+data CompileError
+  = NoPackageDeclaration
+  | NoSuchType      DotProtoIdentifier
+  | CompileParseError ParseError
+  | CircularImport  FilePath
+  | InvalidTypeName String
+  | Unimplemented   String
+  | InternalError   String
+    deriving (Show, Eq)
 
 -- | Result of a compilation. 'Left err' on error, where 'err' is a
 --   'String' describing the error. Otherwise, the result of the
 --   compilation.
-type CompileResult = Either String
+type CompileResult = Either CompileError
 
 -- | Compile a 'DotProto' AST into a 'String' representing the Haskell
 --   source of a module implementing types and instances for the .proto
 --   messages and enums.
-renderHsModuleForDotProto :: DotProto -> CompileResult String
-renderHsModuleForDotProto =
-    fmap (("{-# LANGUAGE DeriveGeneric #-}\n" ++) . prettyPrint) .
-    hsModuleForDotProto
+renderHsModuleForDotProto :: DotProto -> TypeContext -> CompileResult String
+renderHsModuleForDotProto dp importCtxt =
+    fmap (("{-# LANGUAGE DeriveGeneric #-}\n" ++) . prettyPrint) $
+    hsModuleForDotProto dp importCtxt
 
 -- | Compile a Haskell module AST given a 'DotProto' package AST.
-hsModuleForDotProto :: DotProto -> CompileResult HsModule
+hsModuleForDotProto :: DotProto -> TypeContext -> CompileResult HsModule
 hsModuleForDotProto dp@(DotProto { protoPackage = DotProtoPackageSpec pkgIdent
-                                 , protoDefinitions }) =
+                                 , protoDefinitions })
+                    importCtxt =
     module_ <$> pkgIdentModName pkgIdent
             <*> pure Nothing
-            <*> pure defaultImports
+            <*> (mappend defaultImports <$> ctxtImports importCtxt)
             <*> (do typeContext <- dotProtoTypeContext dp
-                    mconcat <$> mapM (dotProtoDefinitionD typeContext) protoDefinitions)
-hsModuleForDotProto _ =
-    compileError "package declaration required to compile Haskell module"
+                    mconcat <$> mapM (dotProtoDefinitionD (typeContext <> importCtxt)) protoDefinitions)
+hsModuleForDotProto _ _ =
+    Left NoPackageDeclaration
+
+-- | Parses the file at the given path and produces an AST along with
+-- a 'TypeContext' representing all types from imported '.proto' files
+readDotProtoWithContext :: FilePath -> IO (CompileResult (DotProto, TypeContext))
+readDotProtoWithContext dotProtoPath = runExceptT go
+  where
+    dotProtoPathSanitized = normalise dotProtoPath
+
+    go = do dpRes <- parseProto <$> liftIO (readFile dotProtoPath)
+            case dpRes of
+              Right dp -> (dp,) . mconcat <$> mapM (readImportTypeContext (S.singleton dotProtoPathSanitized)) (protoImports dp)
+              Left err -> throwError (CompileParseError err)
+
+    wrapError :: (err' -> err) -> Either err' a -> ExceptT err IO a
+    wrapError f = either (throwError . f) pure
+
+    readImportTypeContext alreadyRead (DotProtoImport _ path)
+      | path `S.member` alreadyRead = throwError (CircularImport path)
+      | otherwise =
+          do import_ <- wrapError CompileParseError =<< (parseProto <$> liftIO (readFile path))
+             case protoPackage import_ of
+               DotProtoPackageSpec importPkg ->
+                 do importTypeContext <- wrapError id (dotProtoTypeContext import_)
+                    let importTypeContext' = fmap (\tyInfo -> tyInfo { dotProtoTypeInfoPackage = DotProtoPackageSpec importPkg }) importTypeContext
+                        qualifiedTypeContext = M.fromList <$>
+                            mapM (\(nm, tyInfo) -> (,tyInfo) <$> concatDotProtoIdentifier importPkg nm)
+                                (M.assocs importTypeContext')
+
+                    importTypeContext'' <- wrapError id ((importTypeContext' <>) <$> qualifiedTypeContext)
+                    (importTypeContext'' <>) . mconcat <$> sequence
+                        [ readImportTypeContext (S.insert path alreadyRead) importImport
+                        | importImport@(DotProtoImport DotProtoImportPublic _) <- protoImports import_]
+               _ -> throwError NoPackageDeclaration
 
 -- * Type-tracking data structures
 
@@ -119,6 +169,19 @@ concatDotProtoIdentifier (Single a) b = concatDotProtoIdentifier (Path [a]) b
 concatDotProtoIdentifier a (Single b) = concatDotProtoIdentifier a (Path [b])
 concatDotProtoIdentifier (Path a) (Path b) = pure (Path (a ++ b))
 
+-- | Given a type context, generates the import statements necessary
+--   to import all the required types.
+ctxtImports :: TypeContext -> CompileResult [HsImportDecl]
+ctxtImports tyCtxt =
+  do imports <- nub <$> sequence [ pkgIdentModName pkgIdent
+                                 | DotProtoTypeInfo {
+                                     dotProtoTypeInfoPackage =
+                                         DotProtoPackageSpec pkgIdent
+                                     } <- M.elems tyCtxt ]
+
+     pure [ importDecl_ modName True Nothing Nothing | modName <- imports ]
+
+
 -- * Functions to convert 'DotProtoType' into Haskell types
 
 -- | Produce the Haskell type for the given 'DotProtoType' in the
@@ -167,7 +230,7 @@ hsTypeFromDotProtoPrim ctxt (Named msgName) =
       Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
           HsTyApp (primType_ "Enumerated") <$> msgTypeFromDpTypeInfo ty msgName
       Just ty -> msgTypeFromDpTypeInfo ty msgName
-      Nothing -> compileError ("Could not find type: " <> show msgName)
+      Nothing -> noSuchTypeError msgName
 
 -- | Generate the Haskell type name for a 'DotProtoTypeInfo' for a
 --   message / enumeration being compiled
@@ -212,7 +275,7 @@ typeLikeName ident@(firstChar:remainingChars)
   | isUpper firstChar = pure (camelCased ident)
   | isLower firstChar = pure (camelCased (toUpper firstChar:remainingChars))
   | firstChar == '_'  = pure (camelCased ('X':ident))
-typeLikeName ident = compileError ("Invalid protobuf type name: " ++ ident)
+typeLikeName ident = invalidTypeNameError ident
 
 fieldLikeName :: String -> String
 fieldLikeName ident@(firstChar:_)
@@ -281,7 +344,7 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                   fullTy <- hsTypeFromDotProto ctxt' ty
                   pure [ ([HsIdent fullName], HsUnBangedTy fullTy ) ]
            messagePartFieldD (DotProtoMessageOneOf {}) =
-             compileError "messagePartFieldD: oneof not supported"
+             unimplementedError "oneof"
            messagePartFieldD _ = pure []
 
            nestedDecls :: DotProtoDefinition -> CompileResult [HsDecl]
@@ -430,9 +493,14 @@ isUnpacked opts =
         Just (DotProtoOption _ (BoolLit x)) -> not x
         _ -> False
 
-internalError, compileError :: String -> CompileResult a
-internalError = compileError . ("Internal error: " ++)
-compileError = Left
+internalError, invalidTypeNameError, unimplementedError
+    :: String -> CompileResult a
+internalError = Left . InternalError
+invalidTypeNameError = Left . InvalidTypeName
+unimplementedError = Left . Unimplemented
+
+noSuchTypeError :: DotProtoIdentifier -> CompileResult a
+noSuchTypeError = Left . NoSuchType
 
 -- ** Generate types and instances for .proto enums
 

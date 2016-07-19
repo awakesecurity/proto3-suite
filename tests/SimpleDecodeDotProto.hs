@@ -5,6 +5,7 @@
 module Main where
 
 import Test
+import qualified TestImport
 import Test.Tasty
 import Test.Tasty.HUnit ((@?=), testCase)
 import Control.Applicative
@@ -20,12 +21,12 @@ main = do putStr "\n"
 
 tests, testCase1, testCase2, testCase3, testCase4, testCase5,
     testCase6, testCase8, testCase9, testCase10, testCase11,
-    testCase12, testCase13, testCase14 :: TestTree
+    testCase12, testCase13, testCase14, testCase15 :: TestTree
 tests = testGroup "Decode protobuf messages from Python"
           [  testCase1,  testCase2,  testCase3,  testCase4
           ,  testCase5,  testCase6,  testCase7,  testCase8
           ,  testCase9, testCase10, testCase11, testCase12
-          , testCase13, testCase14 ]
+          , testCase13, testCase14, testCase15, testCase16 ]
 
 readProto :: Message a => IO a
 readProto = do length <- readLn
@@ -201,3 +202,14 @@ testCase14 = testCase "Qualified name resolution" $
     do WithQualifiedName { .. } <- readProto
        withQualifiedNameQname1 @?= Just (ShadowedMessage "int value" 2)
        withQualifiedNameQname2 @?= Just (MessageShadower_ShadowedMessage "string value" "hello world")
+
+testCase15 = testCase "Imported message resolution" $
+    do TestImport.WithNesting { .. } <- readProto
+       withNestingNestedMessage1 @?= Just (TestImport.WithNesting_Nested 1 2)
+       withNestingNestedMessage2 @?= Nothing
+
+testCase16 = testCase "Proper resolution of shadowed message names" $
+    do UsingImported { .. } <- readProto
+       usingImportedImportedNesting @?= Just (TestImport.WithNesting (Just (TestImport.WithNesting_Nested 1 2))
+                                                                     (Just (TestImport.WithNesting_Nested 3 4)))
+       usingImportedLocalNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF)))

@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import sys
-from test_pb2 import *  # Import protoc's generated decoder/encoder
+from test_files.test_pb2 import *  # Import protoc's generated decoder/encoder
+from test_files.test_import_pb2 import WithNesting as ImportedWithNesting
 
 def read_proto(cls):
     length = int(raw_input())
@@ -202,6 +203,23 @@ assert case14.qname1.name == "int value"
 assert case14.qname1.value == 42
 assert case14.qname2.name == "string value"
 assert case14.qname2.value == "hello world"
+
+# Test case 15: imported WithNesting
+case15 = read_proto(ImportedWithNesting)
+assert not case15.HasField('nestedMessage2')
+assert case15.HasField('nestedMessage1')
+assert case15.nestedMessage1.nestedField1 == 1
+assert case15.nestedMessage1.nestedField2 == 2
+
+# Test case 16: Proper resolution of shadowed imported message names
+case16 = read_proto(UsingImported)
+assert case16.HasField('importedNesting') and case16.HasField('localNesting')
+assert case16.importedNesting.nestedMessage1.nestedField1 == 1
+assert case16.importedNesting.nestedMessage1.nestedField2 == 2
+assert case16.importedNesting.nestedMessage2.nestedField1 == 3
+assert case16.importedNesting.nestedMessage2.nestedField2 == 4
+assert case16.localNesting.nestedMessage.nestedField1 == "field"
+assert case16.localNesting.nestedMessage.nestedField2 == 0xBEEF
 
 # Wait for the special 'done' messsage
 done_msg = read_proto(MultipleFields)

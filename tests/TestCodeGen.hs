@@ -49,13 +49,16 @@ simpleEncodeDotProto =
 
        compileTestDotProto
 
-       exitCode <- shell (T.concat ["stack ghc -- --make -odir ", hsTmpDir, " -o ", hsTmpDir, "/simpleEncodeDotProto ", hsTmpDir, "/Test.hs tests/SimpleEncodeDotProto.hs >/dev/null"]) empty
+       exitCode <- shell (T.concat ["stack ghc -- --make -odir ", hsTmpDir, " -hidir ", hsTmpDir, " -o ", hsTmpDir, "/simpleEncodeDotProto ", hsTmpDir, "/Test.hs ", hsTmpDir, "/TestImport.hs tests/SimpleEncodeDotProto.hs >/dev/null"]) empty
        exitCode @?= ExitSuccess
 
        exitCode <- shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test.proto"]) empty
        exitCode @?= ExitSuccess
+       exitCode <- shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test_import.proto"]) empty
+       exitCode @?= ExitSuccess
+       touch (pyTmpDir </> "test_files" </> "__init__.py")
 
-       export "PYTHONPATH" (pyTmpDir <> "/test_files")
+       export "PYTHONPATH" pyTmpDir
        exitCode <- shell (hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py") empty
        exitCode @?= ExitFailure 12  -- We exit the python test with a special error code to make sure all tests completed
 
@@ -71,13 +74,16 @@ simpleDecodeDotProto =
 
        compileTestDotProto
 
-       exitCode <- shell (T.concat ["stack ghc -- --make -odir ", hsTmpDir, " -o ", hsTmpDir, "/simpleDecodeDotProto ", hsTmpDir, "/Test.hs tests/SimpleDecodeDotProto.hs >/dev/null"]) empty
+       exitCode <- shell (T.concat ["stack ghc -- --make -odir ", hsTmpDir, " -hidir ", hsTmpDir, " -o ", hsTmpDir, "/simpleDecodeDotProto ", hsTmpDir, "/Test.hs ", hsTmpDir, "/TestImport.hs tests/SimpleDecodeDotProto.hs >/dev/null"]) empty
        exitCode @?= ExitSuccess
 
        exitCode <- shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test.proto"]) empty
        exitCode @?= ExitSuccess
+       exitCode <- shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test_import.proto"]) empty
+       exitCode @?= ExitSuccess
+       touch (pyTmpDir </> "test_files" </> "__init__.py")
 
-       export "PYTHONPATH" (pyTmpDir <> "/test_files")
+       export "PYTHONPATH" pyTmpDir
        exitCode <- shell ("python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto ") empty
        exitCode @?= ExitSuccess
 
@@ -91,10 +97,18 @@ hsTmpDir = "test-files/tmp"
 pyTmpDir = "test-files/py-tmp"
 
 compileTestDotProto =
-    do dotProtoFile <- readFile "test-files/test.proto"
-       case parseProto dotProtoFile of
-           Left err -> fail (show err)
-           Right res ->
-             case renderHsModuleForDotProto res of
-               Left err -> fail ("compileTestDotProto: Error compiling .proto: " <> err)
-               Right hsSrc -> writeFile "test-files/tmp/Test.hs" hsSrc
+    do dpRes <- readDotProtoWithContext "test-files/test.proto"
+       case dpRes of
+         Left err -> fail (show err)
+         Right (dp, ctxt) ->
+           case renderHsModuleForDotProto dp ctxt of
+             Left err -> fail ("compileTestDotProto: Error compiling test.proto: " <> show err)
+             Right hsSrc -> writeFile "test-files/tmp/Test.hs" hsSrc
+
+       dpRes <- readDotProtoWithContext "test-files/test_import.proto"
+       case dpRes of
+         Left err -> fail (show err)
+         Right (dp, ctxt) ->
+           case renderHsModuleForDotProto dp ctxt of
+             Left err -> fail ("compileTestDotProto: Error compiling test_import.proto: " <> show err)
+             Right hsSrc -> writeFile "test-files/tmp/TestImport.hs" hsSrc

@@ -4,6 +4,7 @@
 module Main where
 
 import           Test
+import qualified TestImport
 import           Data.Protobuf.Wire
 import qualified Data.ByteString.Lazy as BL
 
@@ -102,6 +103,22 @@ testCase14 =
   outputMessage (WithQualifiedName (Just (ShadowedMessage "int value" 42))
                                    (Just (MessageShadower_ShadowedMessage "string value" "hello world")))
 
+testCase15 :: IO ()
+testCase15 =
+  outputMessage (TestImport.WithNesting { TestImport.withNestingNestedMessage1 =
+                                            Just (TestImport.WithNesting_Nested { TestImport.withNesting_NestedNestedField1 = 1
+                                                                                , TestImport.withNesting_NestedNestedField2 = 2 })
+                                        , TestImport.withNestingNestedMessage2 = Nothing })
+
+testCase16 :: IO ()
+testCase16 =
+  outputMessage (UsingImported { usingImportedImportedNesting =
+                                   Just (TestImport.WithNesting
+                                          (Just (TestImport.WithNesting_Nested 1 2))
+                                          (Just (TestImport.WithNesting_Nested 3 4)))
+                               , usingImportedLocalNesting =
+                                   Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF))) })
+
 main :: IO ()
 main = do testCase1
           testCase2
@@ -117,4 +134,9 @@ main = do testCase1
           testCase12
           testCase13
           testCase14
+
+          -- Tests using imported messages
+          testCase15
+          testCase16
+
           outputMessage (MultipleFields 0 0 0 0 "All tests complete" False)
