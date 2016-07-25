@@ -250,7 +250,7 @@ service = do string "service"
              whiteSpace
              name <- Single <$> identifierName
              whiteSpace
-             statements <- braces (many servicePart)
+             statements <- braces (servicePart `sepEndBy` whiteSpace)
              return $ DotProtoService name statements
 
 --------------------------------------------------------------------------------
