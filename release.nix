@@ -2,11 +2,27 @@
 #
 #     $ nix-build release.nix
 #
+# The update process for this repository is a little bit complicated due to
+# unusual needs of our test suite.
+#
 # If you update the `.cabal` file (such as changing dependencies or adding new
 # library/executable/test/benchmark sections), then update the `default.nix`
 # expression by running:
 #
 #     $ cabal2nix . > default.nix
+#
+# Then modify the file to add `doCheck = false;` to disable tests.  Also, modify
+# the `default-tests.nix` file so that the attribute set expected by the
+# function:
+#
+#     attrs@
+#     { mkDerivation, base, bytestring, cereal, containers, deepseq
+#     , filepath, haskell-src, mtl, parsec, parsers, pipes, pretty
+#     , proto3-wire, QuickCheck, safe, semigroups, stdenv, tasty
+#     , tasty-hunit, tasty-quickcheck, text, transformers, turtle, vector
+#     }:
+#
+# ... matches the attribute set expected by `default.nix`.
 #
 # If you want to update the `proto3-wire` dependency to the latest git revision,
 # then run:
@@ -23,27 +39,39 @@
 #     let proto3-wire-src = ../proto3-wire;
 #     in
 #     ...
-let config =
-    {   packageOverrides = pkgs:
-        {   haskellPackages = pkgs.haskellPackages.override
-            {   overrides = self: _:
-                {   proto3-wire   =
-                        let proto3-wire-src =
-                            pkgs.fetchgit
-                            {   url    = "https://github.com/awakenetworks/proto3-wire.git";
-                                rev    = "937a13799467dcfa4ea64811ae6536e5751d11d5";
-                                sha256 = "174s8z8vsxh17fk72qv600n3vhdbsf1sg1pmi05lpjy6hmx2rkfa";
-                            };
-                        in
-                        self.callPackage proto3-wire-src { };
-                    protobuf-wire =
-                        self.callPackage ./default.nix { };
-                };
-            };
-        };
-
-        allowUnfree = true;
+let config = {
+  packageOverrides = pkgs:
+  let python_protobuf3_0 = (pkgs.pythonPackages.protobufBuild pkgs.protobuf3_0).override {
+      doCheck = false;
     };
+  in
+  { haskellPackages = pkgs.haskell.packages.ghc7103.override {
+      overrides = haskellPackagesNew: haskellPackagesOld: {
+        proto3-wire =
+          let proto3-wire-src = pkgs.fetchgit {
+            url    = "https://github.com/awakenetworks/proto3-wire.git";
+            rev    = "b5151914873b9ede230094e742953b5062566244";
+            sha256 = "09vjza18gnh5mf9l8vg3ka1c7rqfbjwviyjwpvam07hf90r0yg5b";
+          };
+          in
+          haskellPackagesNew.callPackage proto3-wire-src { };
+
+        protobuf-wire-no-tests =
+          haskellPackagesNew.callPackage ./default.nix { };
+
+        protobuf-wire =
+          haskellPackagesNew.callPackage (import ./default-tests.nix {
+            inherit python_protobuf3_0;
+            inherit (pkgs) ghc protobuf3_0 python writeText;
+            inherit (haskellPackagesNew) protobuf-wire-no-tests;
+          }) { };
+      };
+    };
+  };
+
+  allowUnfree = true;
+};
+
 in
 { pkgs ? import <nixpkgs> { inherit config; } }:
 pkgs.haskellPackages.protobuf-wire

@@ -49,7 +49,7 @@ simpleEncodeDotProto =
 
        compileTestDotProto
 
-       exitCode <- shell (T.concat ["stack ghc -- --make -odir ", hsTmpDir, " -hidir ", hsTmpDir, " -o ", hsTmpDir, "/simpleEncodeDotProto ", hsTmpDir, "/Test.hs ", hsTmpDir, "/TestImport.hs tests/SimpleEncodeDotProto.hs >/dev/null"]) empty
+       exitCode <- proc "tests/encode.sh" [hsTmpDir] empty
        exitCode @?= ExitSuccess
 
        exitCode <- shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test.proto"]) empty
@@ -58,7 +58,11 @@ simpleEncodeDotProto =
        exitCode @?= ExitSuccess
        touch (pyTmpDir </> "test_files" </> "__init__.py")
 
-       export "PYTHONPATH" pyTmpDir
+       m <- need "PYTHONPATH"
+       pythonPath <- case m of
+           Nothing         -> fail "PYTHONPATH environment variable is not set"
+           Just pythonPath -> return pythonPath
+       export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
        exitCode <- shell (hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py") empty
        exitCode @?= ExitFailure 12  -- We exit the python test with a special error code to make sure all tests completed
 
@@ -74,7 +78,7 @@ simpleDecodeDotProto =
 
        compileTestDotProto
 
-       exitCode <- shell (T.concat ["stack ghc -- --make -odir ", hsTmpDir, " -hidir ", hsTmpDir, " -o ", hsTmpDir, "/simpleDecodeDotProto ", hsTmpDir, "/Test.hs ", hsTmpDir, "/TestImport.hs tests/SimpleDecodeDotProto.hs >/dev/null"]) empty
+       exitCode <- proc "tests/decode.sh" [hsTmpDir] empty
        exitCode @?= ExitSuccess
 
        exitCode <- shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test.proto"]) empty
@@ -83,7 +87,11 @@ simpleDecodeDotProto =
        exitCode @?= ExitSuccess
        touch (pyTmpDir </> "test_files" </> "__init__.py")
 
-       export "PYTHONPATH" pyTmpDir
+       m <- need "PYTHONPATH"
+       pythonPath <- case m of
+           Nothing         -> fail "PYTHONPATH environment variable is not set"
+           Just pythonPath -> return pythonPath
+       export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
        exitCode <- shell ("python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto ") empty
        exitCode @?= ExitSuccess
 
