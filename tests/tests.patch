@@ -1,26 +1,30 @@
 diff --git a/tests/decode.sh b/tests/decode.sh
-index 59ad7cc..47d50ac 100755
+index 59ad7cc..d1df62b 100755
 --- a/tests/decode.sh
 +++ b/tests/decode.sh
-@@ -2,7 +2,7 @@
+@@ -1,8 +1,8 @@
+-#!/bin/bash -eu
++#! @bash@/bin/bash -eu
  
  hsTmpDir=$1
  
 -stack ghc --                          \
-+ghc                                   \
++@ghc@/bin/ghc                         \
      --make                            \
      -odir $hsTmpDir                   \
      -hidir $hsTmpDir                  \
 diff --git a/tests/encode.sh b/tests/encode.sh
-index 8ebea7e..dc4e72a 100755
+index 8ebea7e..bc79de2 100755
 --- a/tests/encode.sh
 +++ b/tests/encode.sh
-@@ -2,7 +2,7 @@
+@@ -1,8 +1,8 @@
+-#!/bin/bash -eu
++#! @bash@/bin/bash -eu
  
  hsTmpDir=$1
  
 -stack ghc --                          \
-+ghc                                   \
++@ghc@/bin/ghc                         \
      --make                            \
      -odir $hsTmpDir                   \
      -hidir $hsTmpDir                  \

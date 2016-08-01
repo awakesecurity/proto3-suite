@@ -1,4 +1,5 @@
 { protobuf-wire-no-tests
+, bash
 , ghc
 , protobuf3_0
 , python
@@ -15,7 +16,12 @@ attrs@
 
 let
   mkDerivation' = oldAttrs: mkDerivation (oldAttrs // {
-    patches = [ tests/no-stack.patch ];
+    patches = [ tests/tests.patch ];
+
+    postPatch = ''
+      substituteInPlace tests/encode.sh --replace @ghc@ ${ghc} --replace @bash@ ${bash}
+      substituteInPlace tests/decode.sh --replace @ghc@ ${ghc} --replace @bash@ ${bash}
+    '';
 
     testHaskellDepends = oldAttrs.testHaskellDepends ++ [
       ghc protobuf-wire-no-tests protobuf3_0 python python_protobuf3_0

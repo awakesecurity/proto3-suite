@@ -62,7 +62,7 @@ let config = {
         protobuf-wire =
           haskellPackagesNew.callPackage (import ./default-tests.nix {
             inherit python_protobuf3_0;
-            inherit (pkgs) ghc protobuf3_0 python writeText;
+            inherit (pkgs) bash ghc protobuf3_0 python writeText;
             inherit (haskellPackagesNew) protobuf-wire-no-tests;
           }) { };
       };
@@ -74,4 +74,5 @@ let config = {
 
 in
 { pkgs ? import <nixpkgs> { inherit config; } }:
-pkgs.haskellPackages.protobuf-wire
+{ protobuf-wire = pkgs.haskellPackages.protobuf-wire;
+}
