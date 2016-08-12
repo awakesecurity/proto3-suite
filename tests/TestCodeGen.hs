@@ -51,6 +51,7 @@ simpleEncodeDotProto =
        compileTestDotProto
 
        encodeScript <- getDataFileName "tests/encode.sh"
+       chmod executable (fromString encodeScript)
        exitCode <- proc (T.pack encodeScript) [hsTmpDir] empty
        exitCode @?= ExitSuccess
 
@@ -81,6 +82,7 @@ simpleDecodeDotProto =
        compileTestDotProto
 
        decodeScript <- getDataFileName "tests/decode.sh"
+       chmod executable (fromString decodeScript)
        exitCode <- proc (T.pack decodeScript) [hsTmpDir] empty
        exitCode @?= ExitSuccess
 
