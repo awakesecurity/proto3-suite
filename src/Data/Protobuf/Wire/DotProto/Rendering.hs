@@ -82,10 +82,17 @@ instance Pretty DotProtoOption where
 prettyPrintProtoDefinition :: RenderingOptions -> DotProtoDefinition -> PP.Doc
 prettyPrintProtoDefinition opts = defn where
   defn :: DotProtoDefinition -> PP.Doc
-  defn (DotProtoMessage name parts) = PP.text "message" <+> pPrint name <+> (PP.braces $ PP.vcat $ msgPart name <$> parts)
+  defn (DotProtoMessage name parts) = PP.text "message" <+> pPrint name <+> (braces $ PP.vcat $ msgPart name <$> parts)
   defn (DotProtoEnum    name parts) = PP.text "enum"    <+> pPrint name <+> (PP.braces $ PP.vcat $ enumPart name <$> parts)
   defn (DotProtoService name parts) = PP.text "service" <+> pPrint name <+> (PP.braces $ PP.vcat $ pPrint <$> parts)
   defn DotProtoNullDef              = PP.empty
+
+  -- Put the final closing brace on the next line.
+  -- This is important, since the final field might have a comment, and
+  -- the brace cannot be part of the comment.
+  -- We could use block comments instead, once the parser/lexer supports them.
+  braces :: PP.Doc -> PP.Doc
+  braces = ($$ PP.text "}") . (PP.text "{" <+>)
 
   msgPart :: DotProtoIdentifier -> DotProtoMessagePart -> PP.Doc
   msgPart msgName (DotProtoMessageField f)           = field msgName f
@@ -97,13 +104,14 @@ prettyPrintProtoDefinition opts = defn where
   msgPart msgName (DotProtoMessageOneOf name fields)     = PP.text "oneof" <+> pPrint name <+> (PP.braces $ PP.vcat $ field msgName <$> fields)
 
   field :: DotProtoIdentifier -> DotProtoField -> PP.Doc
-  field msgName (DotProtoField number mtype name options)
+  field msgName (DotProtoField number mtype name options comments)
     =   pPrint mtype
     <+> roSelectorName opts msgName name number
     <+> PP.text "="
     <+> pPrint number
     <+> optionAnnotation options
     <>  PP.text ";"
+    <>  maybe PP.empty (PP.text . (" // " ++)) comments
   field _ DotProtoEmptyField = PP.empty
 
   enumPart :: DotProtoIdentifier -> DotProtoEnumPart -> PP.Doc

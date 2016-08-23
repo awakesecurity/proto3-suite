@@ -355,7 +355,7 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
        let ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup messageIdent ctxt) <>
                    ctxt
 
-           messagePartFieldD (DotProtoMessageField (DotProtoField _ ty fieldName _)) =
+           messagePartFieldD (DotProtoMessageField (DotProtoField _ ty fieldName _ _)) =
                do fullName <- prefixedFieldName messageName =<<
                               dpIdentUnqualName fieldName
                   fullTy <- hsTypeFromDotProto ctxt' ty
@@ -395,7 +395,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
        sequence [ dpIdentUnqualName fieldIdent >>=
                   prefixedFieldName msgName >>=
                   pure . (fieldNum, dpType, , options)
-                | DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options)
+                | DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options _)
                   <- messageParts ]
 
      encodeMessagePartEs <- sequence
@@ -413,8 +413,9 @@ messageInstD ctxt parentIdent msgIdent messageParts =
          [ dpTypeE dpType >>= \typeE ->
              pure (apply dotProtoFieldC [ fieldNumberE fieldNum, typeE
                                         , dpIdentE fieldIdent
-                                        , HsList (map optionE options) ])
-         | DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options)
+                                        , HsList (map optionE options)
+                                        , maybeE (HsLit . HsString) comments ])
+         | DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options comments)
              <- messageParts ]
 
      let encodeMessageDecl = match_ (HsIdent "encodeMessage")
@@ -677,9 +678,9 @@ dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC,
   fieldNumberC, singleC, pathC, nestedC, anonymousC, dotProtoOptionC,
   identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC,
   unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
-  methodNameC, mconcatE, encodeMessageFieldE, fromStringE, decodeMessageFieldE,
-  pureE, atE, succErrorE, predErrorE, toEnumErrorE, fmapE, defaultOptionsE,
-  serverLoopE :: HsExp
+  methodNameC, nothingC, justC, mconcatE, encodeMessageFieldE, fromStringE,
+  decodeMessageFieldE, pureE, atE, succErrorE, predErrorE, toEnumErrorE, fmapE,
+  defaultOptionsE, serverLoopE :: HsExp
 dotProtoFieldC        = HsVar (dotProtoName "DotProtoField")
 primC                 = HsVar (dotProtoName "Prim")
 optionalC             = HsVar (dotProtoName "Optional")
@@ -704,6 +705,8 @@ clientStreamHandlerC  = HsVar (dotProtoName "ClientStreamHandler")
 serverStreamHandlerC  = HsVar (dotProtoName "ServerStreamHandler")
 biDiStreamHandlerC    = HsVar (dotProtoName "BiDiStreamHandler")
 methodNameC           = HsVar (dotProtoName "MethodName")
+nothingC              = HsVar (dotProtoName "Nothing")
+justC                 = HsVar (dotProtoName "Just")
 
 mconcatE              = HsVar (dotProtoName "mconcat")
 encodeMessageFieldE   = HsVar (dotProtoName "encodeMessageField")
@@ -738,6 +741,10 @@ intE = HsLit . HsInt . fromIntegral
 
 fieldNumberE :: FieldNumber -> HsExp
 fieldNumberE = HsParen . HsApp fieldNumberC . intE . getFieldNumber
+
+maybeE :: (a -> HsExp) -> Maybe a -> HsExp
+maybeE _ Nothing = nothingC
+maybeE f (Just a) = HsApp justC (f a)
 
 dpIdentE :: DotProtoIdentifier -> HsExp
 dpIdentE (Single n)      = apply singleC [ HsLit (HsString n) ]

@@ -62,6 +62,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -376,6 +377,7 @@ instance forall e. (Bounded e, Named e, Enum e) => Primitive (Enumerated e) wher
   decodePrimitive = fmap Enumerated Decode.enum
   primType _ = Named (Single (nameOf (Proxy :: Proxy e)))
 
+
 -- | This class captures those types which can appear as message fields in
 -- the protocol buffers specification, i.e. 'Primitive' types, or lists of
 -- 'Primitive' types
@@ -400,10 +402,11 @@ class MessageField a where
 
 messageField :: DotProtoType -> Maybe DotProto.Packing -> DotProtoField
 messageField ty packing = DotProtoField (fieldNumber 1) ty Anonymous
-                        $ case packing of
-                            (Just DotProto.PackedField)   -> [DotProtoOption (Single "packed") (BoolLit True)]
-                            (Just DotProto.UnpackedField) -> [DotProtoOption (Single "packed") (BoolLit False)]
-                            Nothing -> []
+                            (case packing of
+                              (Just DotProto.PackedField)   -> [DotProtoOption (Single "packed") (BoolLit True)]
+                              (Just DotProto.UnpackedField) -> [DotProtoOption (Single "packed") (BoolLit False)]
+                              Nothing -> [])
+                            Nothing
 -- [todo] what were these intended for?
 -- primDotProto :: DotProtoMessagePart -> DotProtoDefinition
 -- primDotProto field = DotProtoMessage generateMessagePartName [ field ]
@@ -502,6 +505,18 @@ instance MessageField (PackedVec Double) where
   encodeMessageField fn = omittingDefault (Encode.packedDoubles fn)
   decodeMessageField = decodePacked Decode.packedDoubles
   protoType _ = messageField (Repeated Double) (Just DotProto.PackedField)
+
+instance (MessageField e, KnownSymbol comments) => MessageField (e // comments) where
+  encodeMessageField fn = encodeMessageField fn . unCommented
+  decodeMessageField = fmap Commented decodeMessageField
+  protoType p = (protoType (lowerProxy1 p))
+                  { dotProtoFieldComment = Just (symbolVal (lowerProxy2 p)) }
+    where
+      lowerProxy1 :: forall f (a :: k). Proxy (f a) -> Proxy a
+      lowerProxy1 _ = Proxy
+
+      lowerProxy2 :: forall f (a :: k) b. Proxy (f a b) -> Proxy a
+      lowerProxy2 _ = Proxy
 
 decodePacked
   :: Parser RawPrimitive [a]

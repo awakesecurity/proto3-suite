@@ -359,7 +359,8 @@ dotProtoSimpleMessage = DotProto [] [] DotProtoNoPackage [DotProtoMessage (Singl
                                                                           [DotProtoMessageField $ DotProtoField (fieldNumber 1)
                                                                                                                 (Prim Int32)
                                                                                                                 (Single "testfield")
-                                                                                                                 []]]
+                                                                                                                []
+                                                                                                                Nothing ]]
 
 dotProtoRoundtripSimpleMessage :: TestTree
 dotProtoRoundtripSimpleMessage = testCase

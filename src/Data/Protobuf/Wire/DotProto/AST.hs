@@ -160,6 +160,7 @@ data DotProtoField = DotProtoField
   , dotProtoFieldType    :: DotProtoType
   , dotProtoFieldName    :: DotProtoIdentifier
   , dotProtoFieldOptions :: [DotProtoOption]
+  , dotProtoFieldComment :: Maybe String
   }
   | DotProtoEmptyField
   deriving (Show, Eq)
@@ -248,8 +249,9 @@ arbitraryServicePart = oneof [ DotProtoServiceRPC <$> arbitrarySingleIdentifier 
 arbitraryRPCClause :: Gen (DotProtoIdentifier, Streaming)
 arbitraryRPCClause = (,) <$> arbitraryIdentifier <*> elements [Streaming, NonStreaming]
 
+-- TODO: Generate random comments once the parser supports comments
 arbitraryField :: Gen DotProtoField
-arbitraryField = DotProtoField <$> arbitrary <*> arbitraryType <*> arbitraryIdentifier <*> smallListOf arbitraryOption
+arbitraryField = DotProtoField <$> arbitrary <*> arbitraryType <*> arbitraryIdentifier <*> smallListOf arbitraryOption <*> pure Nothing
 
 arbitraryType :: Gen DotProtoType
 arbitraryType = oneof [ Prim <$> arbitraryPrimType ]

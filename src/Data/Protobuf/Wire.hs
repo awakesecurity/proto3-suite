@@ -41,6 +41,8 @@ module Data.Protobuf.Wire
   , UnpackedVec(..)
   , PackedVec(..)
   , NestedVec(..)
+  , Commented(..)
+  , (//)()
 
   -- * AST
   , module DotProto

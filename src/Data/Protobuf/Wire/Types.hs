@@ -1,8 +1,11 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Data.Protobuf.Wire.Types
   (
@@ -17,6 +20,8 @@ module Data.Protobuf.Wire.Types
   , UnpackedVec(..)
   , PackedVec(..)
   , NestedVec(..)
+  , Commented(..)
+  , (//)()
   ) where
 
 import           Control.Applicative
@@ -24,6 +29,7 @@ import           Control.DeepSeq (NFData)
 import           GHC.Exts (IsList(..))
 import           GHC.Generics
 import qualified Data.Vector as V
+import           GHC.TypeLits (Symbol)
 import           Test.QuickCheck (Arbitrary(..))
 
 -- | 'Fixed' provides a way to encode integers in the fixed-width wire formats.
@@ -89,3 +95,11 @@ instance Arbitrary a => Arbitrary (NestedVec a) where
 newtype Nested a = Nested { nested :: Maybe a }
   deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable,
             Traversable, Applicative, Alternative, Monad)
+
+-- | 'Commented' provides a way to add comments to generated @.proto@ files.
+newtype Commented (comment :: Symbol) a = Commented { unCommented :: a }
+  deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable, Traversable)
+
+-- | A type operator synonym for 'Commented', so that we can write C-style
+-- comments on fields.
+type a // (comment :: Symbol) = Commented comment a

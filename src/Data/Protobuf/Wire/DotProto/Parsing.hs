@@ -286,7 +286,8 @@ messageField = do ctor <- (try $ string "repeated" $> Repeated) <|> pure Prim
                   moptions <- optionAnnotation
                   whiteSpace
                   string ";"
-                  return $ DotProtoField mnumber (ctor mtype) mname moptions
+                  -- TODO: parse comments
+                  return $ DotProtoField mnumber (ctor mtype) mname moptions Nothing
 
 messageMapField :: Parser DotProtoField
 messageMapField = do string "map"
@@ -309,7 +310,8 @@ messageMapField = do string "map"
                      fos <- optionAnnotation
                      whiteSpace
                      string ";"
-                     return $ DotProtoField fpos (Map ktype vtype) mname fos
+                     -- TODO: parse comments
+                     return $ DotProtoField fpos (Map ktype vtype) mname fos Nothing
 
 --------------------------------------------------------------------------------
 -- enumerations
@@ -353,7 +355,8 @@ oneOfField = do ftype <- Prim <$> primType
                 fops <- optionAnnotation
                 whiteSpace
                 string ";"
-                return $ DotProtoField fpos ftype fname fops
+                -- TODO: parse comments
+                return $ DotProtoField fpos ftype fname fops Nothing
 
 messageOneOf :: Parser DotProtoMessagePart
 messageOneOf = do string "oneof"
