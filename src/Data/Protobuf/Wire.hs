@@ -13,6 +13,7 @@
 -- * A way of creating .proto files from Haskell types.
 --
 -- See the "Data.Protobuf.Wire.Tutorial" module for more details.
+{-# LANGUAGE ExplicitNamespaces #-}
 
 module Data.Protobuf.Wire
   (
@@ -42,7 +43,7 @@ module Data.Protobuf.Wire
   , PackedVec(..)
   , NestedVec(..)
   , Commented(..)
-  , (//)()
+  , type (//)()
 
   -- * AST
   , module DotProto

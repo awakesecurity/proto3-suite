@@ -1,8 +1,8 @@
-resolver: lts-5.10
+resolver: lts-7.4
 
 packages:
 - .
 - location:
     git: https://github.com/awakenetworks/proto3-wire.git
-    commit: b5151914873b9ede230094e742953b5062566244
+    commit: 9875a18a422884f42be0b408fcdb0b7b4904532c
   extra-dep: true

@@ -6,6 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 
 module Data.Protobuf.Wire.Types
   (
@@ -21,7 +22,7 @@ module Data.Protobuf.Wire.Types
   , PackedVec(..)
   , NestedVec(..)
   , Commented(..)
-  , (//)()
+  , type (//)()
   ) where
 
 import           Control.Applicative
