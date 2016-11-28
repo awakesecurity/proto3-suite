@@ -149,7 +149,9 @@ sortStatements statements
     adapt _     = DotProtoNoPackage
 
 topLevel :: Parser DotProto
-topLevel = do syntaxSpec
+topLevel = do whiteSpace
+              syntaxSpec
+              whiteSpace
               sortStatements <$> topStatement `sepBy` whiteSpace
 
 --------------------------------------------------------------------------------
