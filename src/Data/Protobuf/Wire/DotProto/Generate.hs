@@ -9,6 +9,7 @@ module Data.Protobuf.Wire.DotProto.Generate
 
   , hsModuleForDotProto
   , renderHsModuleForDotProto
+  , renderHsModuleForDotProtoFile
   , readDotProtoWithContext
 
   -- * Exposed for unit-testing
@@ -109,6 +110,15 @@ readDotProtoWithContext dotProtoPath = runExceptT go
                         [ readImportTypeContext (S.insert path alreadyRead) importImport
                         | importImport@(DotProtoImport DotProtoImportPublic _) <- protoImports import_]
                _ -> throwError NoPackageDeclaration
+
+-- | Compile the .proto file at the given path into a haskell module, returned as a string
+renderHsModuleForDotProtoFile :: FilePath -> IO (CompileResult String)
+renderHsModuleForDotProtoFile dotProtoPath =
+  do res <- readDotProtoWithContext dotProtoPath
+     case res of
+       Left err -> pure (Left err)
+       Right (dp, tc) -> pure (renderHsModuleForDotProto dp tc)
+
 
 -- * Type-tracking data structures
 
@@ -221,13 +231,13 @@ hsTypeFromDotProtoPrim _    SInt32          = pure $ primType_ "Int32"
 hsTypeFromDotProtoPrim _    SInt64          = pure $ primType_ "Int64"
 hsTypeFromDotProtoPrim _    UInt32          = pure $ primType_ "Word32"
 hsTypeFromDotProtoPrim _    UInt64          = pure $ primType_ "Word64"
-hsTypeFromDotProtoPrim _    Fixed32         = pure $ HsTyApp (primType_ "Fixed")
+hsTypeFromDotProtoPrim _    Fixed32         = pure $ HsTyApp (protobufType_ "Fixed")
                                                              (primType_ "Word32")
-hsTypeFromDotProtoPrim _    Fixed64         = pure $ HsTyApp (primType_ "Fixed")
+hsTypeFromDotProtoPrim _    Fixed64         = pure $ HsTyApp (protobufType_ "Fixed")
                                                              (primType_ "Word64")
-hsTypeFromDotProtoPrim _    SFixed32        = pure $ HsTyApp (primType_ "Fixed")
+hsTypeFromDotProtoPrim _    SFixed32        = pure $ HsTyApp (protobufType_ "Fixed")
                                                              (primType_ "Int32")
-hsTypeFromDotProtoPrim _    SFixed64        = pure $ HsTyApp (primType_ "Fixed")
+hsTypeFromDotProtoPrim _    SFixed64        = pure $ HsTyApp (protobufType_ "Fixed")
                                                              (primType_ "Int64")
 hsTypeFromDotProtoPrim _    String          = pure $ primType_ "Text"
 hsTypeFromDotProtoPrim _    Bytes           = pure $ primType_ "ByteString"
@@ -237,7 +247,7 @@ hsTypeFromDotProtoPrim _    Double          = pure $ primType_ "Double"
 hsTypeFromDotProtoPrim ctxt (Named msgName) =
     case M.lookup msgName ctxt of
       Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
-          HsTyApp (primType_ "Enumerated") <$> msgTypeFromDpTypeInfo ty msgName
+          HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ty msgName
       Just ty -> msgTypeFromDpTypeInfo ty msgName
       Nothing -> noSuchTypeError msgName
 
@@ -266,8 +276,10 @@ nestedTypeName (Path parents)  nm =
     (<> ("_" <> nm)) <$> (intercalate "_" <$> mapM typeLikeName parents)
 nestedTypeName (Qualified {})  _  = internalError "nestedTypeName: Qualified"
 
-dotProtoName :: String -> HsQName
-dotProtoName name = Qual (Module "DotProto") (HsIdent name)
+haskellName, grpcName, protobufName :: String -> HsQName
+haskellName  name = Qual (Module "Hs") (HsIdent name)
+grpcName     name = Qual (Module "HsGRPC") (HsIdent name)
+protobufName name = Qual (Module "HsProtobuf") (HsIdent name)
 
 camelCased :: String -> String
 camelCased s = do (prev, cur) <- zip (Nothing:map Just s) (map Just s ++ [Nothing])
@@ -333,7 +345,7 @@ dotProtoDefinitionD _ _ DotProtoNullDef = pure []
 -- | Generate 'Named' instance for a type in this package
 namedInstD :: String -> HsDecl
 namedInstD messageName =
-  instDecl_ (dotProtoName "Named")
+  instDecl_ (protobufName "Named")
       [ type_ messageName ]
       [ HsFunBind [nameOfDecl] ]
   where
@@ -435,7 +447,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                                 (apply pureE [ HsVar (unqual_ msgName) ])
                                 decodeMessagePartEs
 
-     pure (instDecl_ (dotProtoName "Message")
+     pure (instDecl_ (protobufName "Message")
                      [ type_ msgName ]
                      (map (HsFunBind . (: []))
                       [ encodeMessageDecl
@@ -471,14 +483,14 @@ unwrapE _ (Repeated ty) opts
 unwrapE _ _ _ = const (internalError "unwrapE: unimplemented")
 
 wrapPrimVecE, unwrapPrimVecE :: DotProtoPrimType -> HsExp -> HsExp
-wrapPrimVecE SFixed32 = apply fmapE . (HsVar (dotProtoName "Signed"):) . (:[])
-wrapPrimVecE SFixed64 = apply fmapE . (HsVar (dotProtoName "Signed"):) . (:[])
+wrapPrimVecE SFixed32 = apply fmapE . (HsVar (protobufName "Signed"):) . (:[])
+wrapPrimVecE SFixed64 = apply fmapE . (HsVar (protobufName "Signed"):) . (:[])
 wrapPrimVecE _ = id
 
 unwrapPrimVecE SFixed32 = HsParen .
-    HsInfixApp (apply pureE [ apply fmapE [ HsVar (dotProtoName "signed") ] ]) apOp
+    HsInfixApp (apply pureE [ apply fmapE [ HsVar (protobufName "signed") ] ]) apOp
 unwrapPrimVecE SFixed64 = HsParen .
-    HsInfixApp (apply pureE [ apply fmapE [ HsVar (dotProtoName "signed") ] ]) apOp
+    HsInfixApp (apply pureE [ apply fmapE [ HsVar (protobufName "signed") ] ]) apOp
 unwrapPrimVecE _ = id
 
 wrapPrimE, unwrapPrimE :: TypeContext -> DotProtoPrimType -> HsExp -> HsExp
@@ -497,9 +509,9 @@ unwrapPrimE _ SFixed64 = unwrapWithFuncE "signed"
 unwrapPrimE _ _ = id
 
 wrapWithFuncE, unwrapWithFuncE :: String -> HsExp -> HsExp
-wrapWithFuncE wrappingFunc = HsParen . HsApp (HsVar (dotProtoName wrappingFunc))
+wrapWithFuncE wrappingFunc = HsParen . HsApp (HsVar (protobufName wrappingFunc))
 unwrapWithFuncE unwrappingFunc = HsParen . HsInfixApp funcE apOp
-  where funcE = HsParen (HsApp pureE (HsVar (dotProtoName unwrappingFunc)))
+  where funcE = HsParen (HsApp pureE (HsVar (protobufName unwrappingFunc)))
 
 isPacked, isUnpacked :: [DotProtoOption] -> Bool
 isPacked opts =
@@ -577,7 +589,7 @@ dotProtoEnumD parentIdent enumIdent enumParts =
      pure [ dataDecl_ enumName [ conDecl_ (HsIdent con) []
                                | (_, con) <- enumCons] defaultEnumDeriving
           , namedInstD enumName
-          , instDecl_ (dotProtoName "Enum") [ type_ enumName ]
+          , instDecl_ (haskellName "Enum") [ type_ enumName ]
                       [ HsFunBind toEnumD, HsFunBind fromEnumD
                       , HsFunBind succD, HsFunBind predD ] ]
 
@@ -615,19 +627,21 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service =
               pure [ ( endpointPrefix ++ methodName
                      , fullName, requestStreaming, responseStreaming
                      , HsUnBangedTy $
-                       tyApp mkHandlerC [ HsTyVar (HsIdent "impl"), streamingType
-                                        , requestTy, responseTy ]) ]
+                       HsTyFun (tyApp (HsTyVar (HsIdent "request")) [streamingType, requestTy, responseTy])
+                               (tyApp ioT [tyApp (HsTyVar (HsIdent "response")) [streamingType, responseTy]]))]
          serviceFieldD _ = pure []
 
      fieldsD <- mconcat <$> mapM serviceFieldD service
 
      serverFuncName <- prefixedFieldName serviceName "server"
+     clientFuncName <- prefixedFieldName serviceName "client"
 
      let conDecl = recDecl_ (HsIdent serviceName)
                             [ ([HsIdent hsName], ty)
                             | (_, hsName, _, _, ty) <- fieldsD ]
 
-         serverT = tyApp (HsTyCon (unqual_ serviceName)) [ serverImplC ]
+         serverT = tyApp (HsTyCon (unqual_ serviceName))
+                         [ serverRequestT, serverResponseT ]
          serviceServerTypeD = HsTypeSig l [ HsIdent serverFuncName ]
              (HsQualType [] (HsTyFun serverT ioActionT))
 
@@ -641,36 +655,69 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service =
                                       (HsUnGuardedRhs
                                            (apply serverLoopE [ serverOptsE ])) []
 
-                 handlerE handlerC methodName hsName =
+                 handlerE handlerC adapterE methodName hsName =
                      apply handlerC [ apply methodNameC [ HsLit (HsString methodName) ]
-                                    , HsVar (unqual_ hsName) ]
+                                    , apply adapterE [ HsVar (unqual_ hsName) ] ]
 
                  serverOptsE = HsRecUpdate defaultOptionsE
-                     [ HsFieldUpdate (dotProtoName "optNormalHandlers")
-                           (HsList [ handlerE unaryHandlerC endpointName hsName
+                     [ HsFieldUpdate (grpcName "optNormalHandlers")
+                           (HsList [ handlerE unaryHandlerC convertServerHandlerE
+                                              endpointName hsName
                                    | (endpointName, hsName, NonStreaming
                                      , NonStreaming, _) <- fieldsD ])
 
-                     , HsFieldUpdate (dotProtoName "optClientStreamHandlers")
-                           (HsList [ handlerE clientStreamHandlerC endpointName hsName
+                     , HsFieldUpdate (grpcName "optClientStreamHandlers")
+                           (HsList [ handlerE clientStreamHandlerC
+                                              convertServerReaderHandlerE
+                                              endpointName hsName
                                    | (endpointName, hsName, Streaming
                                      , NonStreaming, _) <- fieldsD ])
 
-                     , HsFieldUpdate (dotProtoName "optServerStreamHandlers")
-                           (HsList [ handlerE serverStreamHandlerC endpointName hsName
+                     , HsFieldUpdate (grpcName "optServerStreamHandlers")
+                           (HsList [ handlerE serverStreamHandlerC
+                                              convertServerWriterHandlerE
+                                              endpointName hsName
                                    | (endpointName, hsName, NonStreaming
                                      , Streaming, _) <- fieldsD ])
 
-                     , HsFieldUpdate (dotProtoName "optBiDiStreamHandlers")
-                           (HsList [ handlerE biDiStreamHandlerC endpointName hsName
+                     , HsFieldUpdate (grpcName "optBiDiStreamHandlers")
+                           (HsList [ handlerE biDiStreamHandlerC
+                                              convertServerRWHandlerE
+                                              endpointName hsName
                                    | (endpointName, hsName, Streaming
                                      , Streaming, _) <- fieldsD ]) ]
-             in HsFunBind [serverFuncD]
+             in HsFunBind [ serverFuncD ]
 
-     pure [ HsDataDecl l  [] (HsIdent serviceName) [ HsIdent "impl" ]
+         clientT = tyApp (HsTyCon (unqual_ serviceName))
+                         [ clientRequestT, clientResultT ]
+         serviceClientTypeD = HsTypeSig l [ HsIdent clientFuncName ]
+             (HsQualType [] (HsTyFun grpcClientT (HsTyApp ioT clientT)))
+
+         serviceClientD =
+             let clientFuncD = match_ (HsIdent clientFuncName)
+                                      [ HsPVar (HsIdent "client") ]
+                                      ( HsUnGuardedRhs clientRecE ) []
+                 clientRecE = foldl (\f -> HsInfixApp f apOp)
+                                    (apply pureE [ HsVar (unqual_ serviceName) ])
+                                    [ HsParen $ HsInfixApp clientRequestE' apOp
+                                        (registerClientMethodE endpointName)
+                                    | (endpointName, _, _, _, _) <- fieldsD ]
+                 clientRequestE' = apply pureE [ apply clientRequestE [ HsVar (unqual_ "client") ] ]
+                 registerClientMethodE endpoint =
+                   apply clientRegisterMethodE [ HsVar (unqual_ "client")
+                                               , apply methodNameC
+                                                   [ HsLit (HsString endpoint) ] ]
+             in HsFunBind [ clientFuncD ]
+
+     pure [ HsDataDecl l  [] (HsIdent serviceName)
+                [ HsIdent "request", HsIdent "response" ]
                 [ conDecl ] defaultServiceDeriving
+
           , serviceServerTypeD
-          , serviceServerD ]
+          , serviceServerD
+
+          , serviceClientTypeD
+          , serviceClientD ]
 
 -- * Common Haskell expressions, constructors, and operators
 
@@ -680,56 +727,69 @@ dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC,
   unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
   methodNameC, nothingC, justC, mconcatE, encodeMessageFieldE, fromStringE,
   decodeMessageFieldE, pureE, atE, succErrorE, predErrorE, toEnumErrorE, fmapE,
-  defaultOptionsE, serverLoopE :: HsExp
-dotProtoFieldC        = HsVar (dotProtoName "DotProtoField")
-primC                 = HsVar (dotProtoName "Prim")
-optionalC             = HsVar (dotProtoName "Optional")
-repeatedC             = HsVar (dotProtoName "Repeated")
-nestedRepeatedC       = HsVar (dotProtoName "NestedRepeated")
-namedC                = HsVar (dotProtoName "Named")
-fieldNumberC          = HsVar (dotProtoName "FieldNumber")
-singleC               = HsVar (dotProtoName "Single")
-pathC                 = HsVar (dotProtoName "Path")
-nestedC               = HsVar (dotProtoName "Nested")
-anonymousC            = HsVar (dotProtoName "Anonymous")
-dotProtoOptionC       = HsVar (dotProtoName "DotProtoOption")
-identifierC           = HsVar (dotProtoName "Identifier")
-stringLitC            = HsVar (dotProtoName "StringLit")
-intLitC               = HsVar (dotProtoName "IntLit")
-floatLitC             = HsVar (dotProtoName "FloatLit")
-boolLitC              = HsVar (dotProtoName "BoolLit")
-trueC                 = HsVar (dotProtoName "True")
-falseC                = HsVar (dotProtoName "False")
-unaryHandlerC         = HsVar (dotProtoName "UnaryHandler")
-clientStreamHandlerC  = HsVar (dotProtoName "ClientStreamHandler")
-serverStreamHandlerC  = HsVar (dotProtoName "ServerStreamHandler")
-biDiStreamHandlerC    = HsVar (dotProtoName "BiDiStreamHandler")
-methodNameC           = HsVar (dotProtoName "MethodName")
-nothingC              = HsVar (dotProtoName "Nothing")
-justC                 = HsVar (dotProtoName "Just")
+  defaultOptionsE, serverLoopE, convertServerHandlerE,
+  convertServerReaderHandlerE, convertServerWriterHandlerE,
+  convertServerRWHandlerE, clientRegisterMethodE, clientRequestE :: HsExp
+dotProtoFieldC        = HsVar (protobufName "DotProtoField")
+primC                 = HsVar (protobufName "Prim")
+optionalC             = HsVar (protobufName "Optional")
+repeatedC             = HsVar (protobufName "Repeated")
+nestedRepeatedC       = HsVar (protobufName "NestedRepeated")
+namedC                = HsVar (protobufName "Named")
+fieldNumberC          = HsVar (protobufName "FieldNumber")
+singleC               = HsVar (protobufName "Single")
+pathC                 = HsVar (protobufName "Path")
+nestedC               = HsVar (protobufName "Nested")
+anonymousC            = HsVar (protobufName "Anonymous")
+dotProtoOptionC       = HsVar (protobufName "DotProtoOption")
+identifierC           = HsVar (protobufName "Identifier")
+stringLitC            = HsVar (protobufName "StringLit")
+intLitC               = HsVar (protobufName "IntLit")
+floatLitC             = HsVar (protobufName "FloatLit")
+boolLitC              = HsVar (protobufName "BoolLit")
+trueC                 = HsVar (haskellName "True")
+falseC                = HsVar (haskellName "False")
+unaryHandlerC         = HsVar (grpcName "UnaryHandler")
+clientStreamHandlerC  = HsVar (grpcName "ClientStreamHandler")
+serverStreamHandlerC  = HsVar (grpcName "ServerStreamHandler")
+biDiStreamHandlerC    = HsVar (grpcName "BiDiStreamHandler")
+methodNameC           = HsVar (grpcName "MethodName")
+nothingC              = HsVar (haskellName "Nothing")
+justC                 = HsVar (haskellName "Just")
 
-mconcatE              = HsVar (dotProtoName "mconcat")
-encodeMessageFieldE   = HsVar (dotProtoName "encodeMessageField")
-decodeMessageFieldE   = HsVar (dotProtoName "decodeMessageField")
-fromStringE           = HsVar (dotProtoName "fromString")
-pureE                 = HsVar (dotProtoName "pure")
-atE                   = HsVar (dotProtoName "at")
-succErrorE            = HsVar (dotProtoName "succError")
-predErrorE            = HsVar (dotProtoName "predError")
-toEnumErrorE          = HsVar (dotProtoName "toEnumError")
-fmapE                 = HsVar (dotProtoName "fmap")
-defaultOptionsE       = HsVar (dotProtoName "defaultOptions")
-serverLoopE           = HsVar (dotProtoName "serverLoop")
+encodeMessageFieldE   = HsVar (protobufName "encodeMessageField")
+decodeMessageFieldE   = HsVar (protobufName "decodeMessageField")
+atE                   = HsVar (protobufName "at")
+mconcatE              = HsVar (haskellName "mconcat")
+fromStringE           = HsVar (haskellName "fromString")
+pureE                 = HsVar (haskellName "pure")
+succErrorE            = HsVar (haskellName "succError")
+predErrorE            = HsVar (haskellName "predError")
+toEnumErrorE          = HsVar (haskellName "toEnumError")
+fmapE                 = HsVar (haskellName "fmap")
+defaultOptionsE       = HsVar (grpcName "defaultOptions")
+serverLoopE           = HsVar (grpcName "serverLoop")
+convertServerHandlerE = HsVar (grpcName "convertGeneratedServerHandler")
+convertServerReaderHandlerE = HsVar (grpcName "convertGeneratedServerReaderHandler")
+convertServerWriterHandlerE = HsVar (grpcName "convertGeneratedServerWriterHandler")
+convertServerRWHandlerE     = HsVar (grpcName "convertGeneratedServerRWHandler")
+clientRegisterMethodE = HsVar (grpcName "clientRegisterMethod")
+clientRequestE        = HsVar (grpcName "clientRequest")
 
-mkHandlerC, biDiStreamingC, serverStreamingC, clientStreamingC, normalC,
-  serverImplC, ioActionT :: HsType
-mkHandlerC       = HsTyCon (dotProtoName "MkHandler")
-biDiStreamingC   = HsTyCon (Qual (Module "'DotProto") (HsIdent "BiDiStreaming"))
-serverStreamingC = HsTyCon (Qual (Module "'DotProto") (HsIdent "ServerStreaming"))
-clientStreamingC = HsTyCon (Qual (Module "'DotProto") (HsIdent "ClientStreaming"))
-normalC          = HsTyCon (Qual (Module "'DotProto") (HsIdent "Normal"))
-serverImplC      = HsTyCon (Qual (Module "'DotProto") (HsIdent "ServerImpl"))
-ioActionT        = tyApp (HsTyCon (dotProtoName "IO")) [ HsTyTuple [] ]
+biDiStreamingC, serverStreamingC, clientStreamingC, normalC, ioActionT,
+  serverRequestT, serverResponseT, clientRequestT, clientResultT, ioT,
+  grpcClientT :: HsType
+biDiStreamingC   = HsTyCon (Qual (Module "'HsGRPC") (HsIdent "BiDiStreaming"))
+serverStreamingC = HsTyCon (Qual (Module "'HsGRPC") (HsIdent "ServerStreaming"))
+clientStreamingC = HsTyCon (Qual (Module "'HsGRPC") (HsIdent "ClientStreaming"))
+normalC          = HsTyCon (Qual (Module "'HsGRPC") (HsIdent "Normal"))
+serverRequestT   = HsTyCon (grpcName "ServerRequest")
+serverResponseT  = HsTyCon (grpcName "ServerResponse")
+clientRequestT   = HsTyCon (grpcName "ClientRequest")
+clientResultT    = HsTyCon (grpcName "ClientResult")
+ioActionT        = tyApp ioT [ HsTyTuple [] ]
+ioT              = HsTyCon (haskellName "IO")
+grpcClientT      = HsTyCon (grpcName "Client")
 
 apOp :: HsQOp
 apOp  = HsQVarOp (UnQual (HsSymbol "<*>"))
@@ -774,7 +834,7 @@ dpTypeE (Map _ _)          = internalError "dpTypeE: Map"
 dpPrimTypeE :: DotProtoPrimType -> HsExp
 dpPrimTypeE (Named named) = apply namedC [ dpIdentE named ]
 dpPrimTypeE ty            =
-    HsVar . dotProtoName $
+    HsVar . protobufName $
     case ty of
         Int32    -> "Int32"
         Int64    -> "Int64"
@@ -797,37 +857,38 @@ dpPrimTypeE ty            =
 
 defaultImports :: Bool -> [HsImportDecl]
 defaultImports usesGrpc =
-  [ importDecl_ preludeM                  True  (Just dotProto) Nothing
-  , importDecl_ dataProtobufWireDotProtoM True  (Just dotProto) Nothing
-  , importDecl_ dataProtobufWireTypesM    True  (Just dotProto) Nothing
-  , importDecl_ proto3WireM               True  (Just dotProto) Nothing
-  , importDecl_ dataProtobufWireClassM    True  (Just dotProto) Nothing
+  [ importDecl_ preludeM                  True  (Just haskellNS) Nothing
+  , importDecl_ dataProtobufWireDotProtoM True  (Just protobufNS) Nothing
+  , importDecl_ dataProtobufWireTypesM    True  (Just protobufNS) Nothing
+  , importDecl_ dataProtobufWireClassM    True  (Just protobufNS) Nothing
+  , importDecl_ proto3WireM               True  (Just protobufNS) Nothing
   , importDecl_ controlApplicativeM       False Nothing
                 (Just (False, [ HsIAbs (HsSymbol "<*>")
                               , HsIAbs (HsSymbol "<|>") ]))
   , importDecl_ dataTextM                 True
-                (Just dotProto) (Just (False, [ importSym "Text" ]))
-  , importDecl_ dataByteStringM           True  (Just dotProto) Nothing
-  , importDecl_ dataStringM               True  (Just dotProto)
+                (Just haskellNS) (Just (False, [ importSym "Text" ]))
+  , importDecl_ dataByteStringM           True  (Just haskellNS) Nothing
+  , importDecl_ dataStringM               True  (Just haskellNS)
                 (Just (False, [ importSym "fromString" ]))
-  , importDecl_ dataVectorM               True  (Just dotProto)
+  , importDecl_ dataVectorM               True  (Just haskellNS)
                 (Just (False, [ importSym "Vector" ]))
-  , importDecl_ dataIntM                  True  (Just dotProto)
+  , importDecl_ dataIntM                  True  (Just haskellNS)
                 (Just (False, [ importSym "Int16", importSym "Int32"
                               , importSym "Int64" ]))
-  , importDecl_ dataWordM                 True  (Just dotProto)
+  , importDecl_ dataWordM                 True  (Just haskellNS)
                 (Just (False, [ importSym "Word16", importSym "Word32"
                               , importSym "Word64" ]))
-  , importDecl_ ghcGenericsM              False (Just dotProto) Nothing
-  , importDecl_ ghcEnumM                  False (Just dotProto) Nothing
+  , importDecl_ ghcGenericsM              False (Just haskellNS) Nothing
+  , importDecl_ ghcEnumM                  False (Just haskellNS) Nothing
   ] <>
   if usesGrpc
-    then [ importDecl_ networkGrpcHighLevelGeneratedM   False (Just dotProto) Nothing
-         , importDecl_ networkGrpcHighLevelServerM      False (Just dotProto)
+    then [ importDecl_ networkGrpcHighLevelGeneratedM   False (Just grpcNS) Nothing
+         , importDecl_ networkGrpcHighLevelClientM      False (Just grpcNS) Nothing
+         , importDecl_ networkGrpcHighLevelServerM      False (Just grpcNS)
                (Just (True, [ importSym "serverLoop" ]))
-         , importDecl_ networkGrpcHighLevelServerUnregM False (Just dotProto)
+         , importDecl_ networkGrpcHighLevelServerUnregM False (Just grpcNS)
                (Just (False, [ importSym "serverLoop" ]))
-         , importDecl_ networkGrpcLowLevelCallM         False (Just dotProto) Nothing  ]
+         , importDecl_ networkGrpcLowLevelCallM         False (Just grpcNS) Nothing  ]
     else []
   where preludeM                  = Module "Prelude"
         dataProtobufWireDotProtoM = Module "Data.Protobuf.Wire.DotProto"
@@ -845,22 +906,26 @@ defaultImports usesGrpc =
         ghcEnumM                  = Module "GHC.Enum"
         networkGrpcHighLevelGeneratedM   = Module "Network.GRPC.HighLevel.Generated"
         networkGrpcHighLevelServerM      = Module "Network.GRPC.HighLevel.Server"
+        networkGrpcHighLevelClientM      = Module "Network.GRPC.HighLevel.Client"
         networkGrpcHighLevelServerUnregM = Module "Network.GRPC.HighLevel.Server.Unregistered"
         networkGrpcLowLevelCallM         = Module "Network.GRPC.LowLevel.Call"
-        dotProto                  = Module "DotProto"
+
+        haskellNS                 = Module "Hs"
+        grpcNS                    = Module "HsGRPC"
+        protobufNS                = Module "HsProtobuf"
 
         importSym = HsIAbs . HsIdent
 
 defaultMessageDeriving, defaultEnumDeriving, defaultServiceDeriving :: [HsQName]
-defaultMessageDeriving = map dotProtoName [ "Show"
-                                          , "Eq",   "Ord"
-                                          , "Generic" ]
+defaultMessageDeriving = map haskellName [ "Show"
+                                         , "Eq",   "Ord"
+                                         , "Generic" ]
 
-defaultEnumDeriving = map dotProtoName [ "Show", "Bounded"
-                                       , "Eq",   "Ord"
-                                       , "Generic" ]
+defaultEnumDeriving = map haskellName [ "Show", "Bounded"
+                                      , "Eq",   "Ord"
+                                      , "Generic" ]
 
-defaultServiceDeriving = map dotProtoName [ "Generic" ]
+defaultServiceDeriving = map haskellName [ "Generic" ]
 
 -- * Wrappers around haskell-src-exts constructors
 
@@ -896,8 +961,9 @@ match_ = HsMatch l
 unqual_ :: String -> HsQName
 unqual_ = UnQual . HsIdent
 
-primType_ :: String -> HsType
-primType_ = HsTyCon . dotProtoName
+protobufType_, primType_ :: String -> HsType
+protobufType_ = HsTyCon . protobufName
+primType_ = HsTyCon . haskellName
 
 type_ :: String -> HsType
 type_ = HsTyCon . unqual_
