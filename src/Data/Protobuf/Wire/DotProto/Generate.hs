@@ -643,7 +643,7 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service =
          serverT = tyApp (HsTyCon (unqual_ serviceName))
                          [ serverRequestT, serverResponseT ]
          serviceServerTypeD = HsTypeSig l [ HsIdent serverFuncName ]
-             (HsQualType [] (HsTyFun serverT ioActionT))
+             (HsQualType [] (HsTyFun serverT (HsTyFun serviceOptionsC ioActionT)))
 
          serviceServerD =
              let serverFuncD = match_ (HsIdent serverFuncName)
@@ -651,13 +651,26 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service =
                                             [ HsPFieldPat (unqual_ methodName)
                                                   (HsPVar (HsIdent methodName))
                                             | (_, methodName, _, _, _)
-                                                  <- fieldsD ] ]
+                                                  <- fieldsD ]
+                                      , HsPApp (unqual_ "ServiceOptions")
+                                               [ patVar "serverHost"
+                                               , patVar "serverPort"
+                                               , patVar "useCompression"
+                                               , patVar "userAgentPrefix"
+                                               , patVar "userAgentSuffix"
+                                               , patVar "initialMetadata"
+                                               , patVar "sslConfig"
+                                               , patVar "logger"
+                                               ]
+                                      ]
                                       (HsUnGuardedRhs
                                            (apply serverLoopE [ serverOptsE ])) []
 
                  handlerE handlerC adapterE methodName hsName =
                      apply handlerC [ apply methodNameC [ HsLit (HsString methodName) ]
                                     , apply adapterE [ HsVar (unqual_ hsName) ] ]
+
+                 update u v = HsFieldUpdate (unqual_ u) (HsVar (unqual_ v))
 
                  serverOptsE = HsRecUpdate defaultOptionsE
                      [ HsFieldUpdate (grpcName "optNormalHandlers")
@@ -685,8 +698,17 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service =
                                               convertServerRWHandlerE
                                               endpointName hsName
                                    | (endpointName, hsName, Streaming
-                                     , Streaming, _) <- fieldsD ]) ]
-             in HsFunBind [ serverFuncD ]
+                                     , Streaming, _) <- fieldsD ])
+                     , update "optServerHost" "serverHost"
+                     , update "optServerPort" "serverPort"
+                     , update "optUseCompression" "useCompression"
+                     , update "optUserAgentPrefix" "userAgentPrefix"
+                     , update "optUserAgentSuffix" "userAgentSuffix"
+                     , update "optInitialMetadata" "initialMetadata"
+                     , update "optSSLConfig" "sslConfig"
+                     , update "optLogger" "logger"
+                     ]
+             in HsFunBind [serverFuncD]
 
          clientT = tyApp (HsTyCon (unqual_ serviceName))
                          [ clientRequestT, clientResultT ]
@@ -776,13 +798,14 @@ convertServerRWHandlerE     = HsVar (grpcName "convertGeneratedServerRWHandler")
 clientRegisterMethodE = HsVar (grpcName "clientRegisterMethod")
 clientRequestE        = HsVar (grpcName "clientRequest")
 
-biDiStreamingC, serverStreamingC, clientStreamingC, normalC, ioActionT,
-  serverRequestT, serverResponseT, clientRequestT, clientResultT, ioT,
-  grpcClientT :: HsType
+biDiStreamingC, serverStreamingC, clientStreamingC, normalC, serviceOptionsC,
+  ioActionT, serverRequestT, serverResponseT, clientRequestT, clientResultT,
+  ioT, grpcClientT :: HsType
 biDiStreamingC   = HsTyCon (Qual (Module "'HsGRPC") (HsIdent "BiDiStreaming"))
 serverStreamingC = HsTyCon (Qual (Module "'HsGRPC") (HsIdent "ServerStreaming"))
 clientStreamingC = HsTyCon (Qual (Module "'HsGRPC") (HsIdent "ClientStreaming"))
 normalC          = HsTyCon (Qual (Module "'HsGRPC") (HsIdent "Normal"))
+serviceOptionsC  = HsTyCon (Qual (Module "HsGRPC") (HsIdent "ServiceOptions"))
 serverRequestT   = HsTyCon (grpcName "ServerRequest")
 serverResponseT  = HsTyCon (grpcName "ServerResponse")
 clientRequestT   = HsTyCon (grpcName "ClientRequest")
@@ -967,6 +990,9 @@ primType_ = HsTyCon . haskellName
 
 type_ :: String -> HsType
 type_ = HsTyCon . unqual_
+
+patVar :: String -> HsPat
+patVar =  HsPVar . HsIdent
 
 -- | For some reason, haskell-src-exts needs this 'SrcLoc' parameter
 --   for some data constructors. Its value does not affect

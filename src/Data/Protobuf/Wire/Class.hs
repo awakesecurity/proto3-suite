@@ -194,7 +194,7 @@ instance HasDefault (NestedVec a) where
   def = mempty
   isDefault = null . nestedvec
 
-instance Message a => HasDefault (Nested a) where
+instance HasDefault (Nested a) where
   def = Nested Nothing
   isDefault = isNothing . nested
 
@@ -206,7 +206,7 @@ class Named a where
   -- | Get the name of a type constructor
   nameOf :: IsString string => Proxy a -> string
 
-  default nameOf :: (IsString string, Generic a, GenericNamed (Rep a)) => Proxy a -> string
+  default nameOf :: (IsString string, GenericNamed (Rep a)) => Proxy a -> string
   nameOf _ = genericNameOf (Proxy :: Proxy (Rep a))
 
 class GenericNamed (f :: * -> *) where
@@ -228,7 +228,7 @@ class Enum a => Finite a where
   -- | Enumerate values of a finite type, along with names of constructors.
   enumerate :: IsString string => Proxy a -> [(string, Int)]
 
-  default enumerate :: (IsString string, Generic a, GenericFinite (Rep a)) => Proxy a -> [(string, Int)]
+  default enumerate :: (IsString string, GenericFinite (Rep a)) => Proxy a -> [(string, Int)]
   enumerate _ = snd (genericEnumerate (Proxy :: Proxy (Rep a)) 0)
 
 -- | Generate metadata for an enum type.
