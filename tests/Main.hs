@@ -20,6 +20,7 @@ import           Test.QuickCheck (Arbitrary, Property,
 import           Data.Protobuf.Wire
 import           Data.Protobuf.Wire.DotProto as AST
 import           Data.Int
+import           Data.Maybe (fromJust)
 import           Data.Word (Word64)
 import qualified Data.Text.Lazy as TL
 import           Data.Serialize.Get(runGet)
@@ -47,6 +48,13 @@ qcInverses msg = msg === (decode $ encode msg)
                     Left e -> error $ "got error parsing: " ++ show e
                     Right r -> r
         encode = BL.toStrict . toLazyByteString
+
+deeplyNested :: String -> Int -> TestTree
+deeplyNested name = go (qcInverses :: Trivial -> Property)
+  where
+    go :: (Message a, Named a, Arbitrary a, Eq a, Show a) => (a -> Property) -> Int -> TestTree
+    go prop 0 = testProperty name prop
+    go prop n = go (prop . fromJust . nested . unNestedAlways . unWrapped) (n - 1)
 
 qcProperties :: TestTree
 qcProperties = testGroup "QuickCheck properties"
@@ -80,6 +88,7 @@ qcProperties = testGroup "QuickCheck properties"
   , testProperty "decode inverts encode for repeated messages" $
     (qcInverses :: WithNestingRepeated -> Property)
 
+  , deeplyNested "decode inverts encode for deeply nested messages" 10000
   ]
 
 encodeUnitTests :: TestTree

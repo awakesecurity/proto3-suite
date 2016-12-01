@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module TestTypes where
 
@@ -13,7 +14,10 @@ import           Test.QuickCheck (Arbitrary, Gen, arbitrary, oneof)
 
 data Trivial = Trivial {trivialField :: Int32}
                 deriving (Show, Generic, Eq)
+
 instance Message Trivial
+
+instance Named Trivial
 
 instance Arbitrary Trivial where
   arbitrary = Trivial <$> arbitrary
@@ -72,6 +76,23 @@ instance Message WithNesting
 
 instance Arbitrary WithNesting where
   arbitrary = WithNesting <$> arbitrary
+
+-- A wrapper for Nested which always contains a value
+newtype NestedAlways a = NestedAlways { unNestedAlways :: Nested a }
+  deriving (Show, Generic, Eq, MessageField)
+
+instance Arbitrary a => Arbitrary (NestedAlways a) where
+  arbitrary = NestedAlways . Nested . Just <$> arbitrary
+
+data Wrapped a = Wrapped { unWrapped :: NestedAlways a }
+  deriving (Show, Generic, Eq)
+
+instance Named (Wrapped a)
+
+instance (Named a, Message a) => Message (Wrapped a)
+
+instance Arbitrary a => Arbitrary (Wrapped a) where
+  arbitrary = Wrapped <$> arbitrary
 
 data WithRepetition = WithRepetition {repeatedField1 :: PackedVec Int32}
                       deriving (Show, Generic, Eq)
