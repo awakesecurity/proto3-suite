@@ -95,7 +95,6 @@ module Data.Protobuf.Wire.Class
 
 import           Control.Monad
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Foldable as F
 import           Data.Functor (($>))
@@ -140,9 +139,9 @@ class HasDefault a where
 -- | Do not encode the default value
 omittingDefault
   :: HasDefault a
-  => (a -> BB.Builder)
+  => (a -> Encode.Builder)
   -> a
-  -> BB.Builder
+  -> Encode.Builder
 omittingDefault f p
   | isDefault p = mempty
   | otherwise = f p
@@ -268,7 +267,7 @@ instance GenericFinite f => GenericFinite (M1 S t f) where
 -- multiple 'embedded' fields.
 class Primitive a where
   -- | Encode a primitive value
-  encodePrimitive :: FieldNumber -> a -> BB.Builder
+  encodePrimitive :: FieldNumber -> a -> Encode.Builder
   -- | Decode a primitive value
   decodePrimitive :: Parser RawPrimitive a
   -- | Get the type which represents this type inside another message.
@@ -279,7 +278,7 @@ class Primitive a where
 
 -- | Serialize a message as a lazy 'BL.ByteString'.
 toLazyByteString :: Message a => a -> BL.ByteString
-toLazyByteString = BB.toLazyByteString . encodeMessage (fieldNumber 1)
+toLazyByteString = Encode.toLazyByteString . encodeMessage (fieldNumber 1)
 
 -- | Parse any message that can be decoded.
 fromByteString :: Message a => B.ByteString -> Either ParseError a
@@ -383,11 +382,11 @@ instance forall e. (Bounded e, Named e, Enum e) => Primitive (Enumerated e) wher
 -- 'Primitive' types
 class MessageField a where
   -- | Encode a message field
-  encodeMessageField :: FieldNumber -> a -> BB.Builder
+  encodeMessageField :: FieldNumber -> a -> Encode.Builder
   -- | Decode a message field
   decodeMessageField :: Parser RawField a
 
-  default encodeMessageField :: (HasDefault a, Primitive a) => FieldNumber -> a -> BB.Builder
+  default encodeMessageField :: (HasDefault a, Primitive a) => FieldNumber -> a -> Encode.Builder
   encodeMessageField num x
     | isDefault x = mempty
     | otherwise = encodePrimitive num x
@@ -526,19 +525,19 @@ decodePacked p = Parser $ \fs -> fmap (fromList . join . F.toList) $ TR.sequence
 -- | This class captures those types which correspond to protocol buffer messages.
 class Message a where
   -- | Encode a message
-  encodeMessage :: FieldNumber -> a -> BB.Builder
+  encodeMessage :: FieldNumber -> a -> Encode.Builder
   -- | Decode a message
   decodeMessage :: FieldNumber -> Parser RawMessage a
   -- | Generate a .proto message from the type information.
   dotProto :: Proxy a -> [DotProtoField]
 
-  default encodeMessage :: (Generic a, GenericMessage (Rep a)) => FieldNumber -> a -> BB.Builder
+  default encodeMessage :: (Generic a, GenericMessage (Rep a)) => FieldNumber -> a -> Encode.Builder
   encodeMessage num = genericEncodeMessage num . from
 
   default decodeMessage :: (Generic a, GenericMessage (Rep a)) => FieldNumber -> Parser RawMessage a
   decodeMessage = (fmap to .) genericDecodeMessage
 
-  default dotProto :: (Generic a, GenericMessage (Rep a)) => Proxy a -> [DotProtoField]
+  default dotProto :: GenericMessage (Rep a) => Proxy a -> [DotProtoField]
   dotProto _ = genericDotProto (Proxy :: Proxy (Rep a))
 
 -- | Generate metadata for a message type.
@@ -550,7 +549,7 @@ message pr = DotProtoMessage (Single $ nameOf pr) $ DotProtoMessageField <$> (do
 class GenericMessage f where
   type GenericFieldCount f :: Nat
 
-  genericEncodeMessage :: FieldNumber -> f a -> BB.Builder
+  genericEncodeMessage :: FieldNumber -> f a -> Encode.Builder
   genericDecodeMessage :: FieldNumber -> Parser RawMessage (f a)
   genericDotProto      :: Proxy f -> [DotProtoField]
 
