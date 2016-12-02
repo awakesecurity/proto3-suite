@@ -50,8 +50,8 @@ let config = {
         proto3-wire =
           let proto3-wire-src = pkgs.fetchgit {
             url    = "https://github.com/awakenetworks/proto3-wire.git";
-            rev    = "b5151914873b9ede230094e742953b5062566244";
-            sha256 = "09vjza18gnh5mf9l8vg3ka1c7rqfbjwviyjwpvam07hf90r0yg5b";
+            rev    = "d33d1e1d9e5408f4136585a4fd82ad44a59eecec";
+            sha256 = "1kfn3yh2565m7kfwnkwzjvsga4albqrm4ccd7aw86r666zan927v";
           };
           in
           haskellPackagesNew.callPackage proto3-wire-src { };
