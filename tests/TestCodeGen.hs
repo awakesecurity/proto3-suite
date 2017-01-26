@@ -8,7 +8,7 @@ import           Control.Applicative
 import           Data.List
 import qualified Data.Text as T
 import           Data.String (IsString)
-import           Paths_protobuf_wire (getDataFileName)
+import           Paths_proto3_suite (getDataFileName)
 import           Test.Tasty
 import           Test.Tasty.HUnit (Assertion, (@?=), (@=?), testCase, assertBool)
 import           Test.Tasty.QuickCheck (testProperty, (===))
@@ -17,8 +17,8 @@ import           Test.QuickCheck.Monadic (monadicIO)
 import           System.Exit
 import           Turtle
 
-import           Data.Protobuf.Wire.DotProto
-import           Data.Protobuf.Wire.DotProto.Generate
+import           Proto3.Suite.DotProto
+import           Proto3.Suite.DotProto.Generate
 
 codeGenTests :: TestTree
 codeGenTests = testGroup "Code generator unit tests"

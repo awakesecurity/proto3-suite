@@ -4,13 +4,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
-module Data.Protobuf.Wire.DotProto.Parsing
+module Proto3.Suite.DotProto.Parsing
   ( parseProto
   ) where
 
 import Control.Applicative hiding (empty)
 import Data.Functor
-import Data.Protobuf.Wire.DotProto.AST
+import Proto3.Suite.DotProto.AST
 import Proto3.Wire.Types (FieldNumber(..))
 import Text.Parsec (parse, ParseError)
 import Text.Parsec.String (Parser)

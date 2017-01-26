@@ -13,7 +13,7 @@
 --
 -- > {-# LANGUAGE DeriveGeneric #-}
 --
--- > import Data.Protobuf.Wire
+-- > import Proto3.Suite
 -- > import GHC.Generics
 --
 
@@ -29,12 +29,12 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.Protobuf.Wire.Tutorial where
+module Proto3.Suite.Tutorial where
 
 import Data.Int (Int32)
-import Data.Protobuf.Wire (Enumerated, Nested, NestedVec, PackedVec,
-                           Message, Named, Finite,
-                           DotProtoDefinition, enum, message, packageFromDefs, toProtoFileDef)
+import Proto3.Suite (Enumerated, Nested, NestedVec, PackedVec,
+                     Message, Named, Finite,
+                     DotProtoDefinition, enum, message, packageFromDefs, toProtoFileDef)
 import Data.Proxy
 import Data.Word (Word32)
 import GHC.Generics
@@ -54,16 +54,16 @@ import GHC.Generics
 --
 -- == Encoding Messages
 --
--- Now we can encode a value of type 'Foo' using 'Data.Protobuf.Wire.toLazyByteString'.
+-- Now we can encode a value of type 'Foo' using 'Proto3.Suite.toLazyByteString'.
 --
 -- For example:
 --
--- >>> Data.Protobuf.Wire.toLazyByteString (Foo 42 (Data.Protobuf.Wire.PackedVec (pure 123)))
+-- >>> Proto3.Suite.toLazyByteString (Foo 42 (Proto3.Suite.PackedVec (pure 123)))
 -- "\b*\DC2\SOH{"
 --
 -- We can also decode messages using `fromByteString`:
 --
--- >>> Data.Protobuf.Wire.fromByteString "\b*\DC2\SOH{" :: Either [Data.Protobuf.Wire.Decode.Parser.ParseError] Foo
+-- >>> Proto3.Suite.fromByteString "\b*\DC2\SOH{" :: Either [Proto3.Suite..Decode.Parser.ParseError] Foo
 -- Right (Foo {fooX = 42, fooY = PackedVec {packedvec = [123]}})
 data Foo = Foo
   { fooX :: Word32

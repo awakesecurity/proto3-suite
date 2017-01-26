@@ -10,7 +10,7 @@ import Test.Tasty
 import Test.Tasty.HUnit ((@?=), testCase)
 import Control.Applicative
 import Control.Monad
-import Data.Protobuf.Wire
+import Proto3.Suite
 import qualified Data.ByteString.Char8 as BC
 import System.IO
 import System.Exit

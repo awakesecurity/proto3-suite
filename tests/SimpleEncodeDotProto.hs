@@ -5,7 +5,7 @@ module Main where
 
 import           Test
 import qualified TestImport
-import           Data.Protobuf.Wire
+import           Proto3.Suite
 import qualified Data.ByteString.Lazy as BL
 
 outputMessage :: Message a => a -> IO ()

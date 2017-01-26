@@ -17,14 +17,14 @@ import           Test.Tasty.HUnit (Assertion, (@?=), (@=?), testCase, assertBool
 import           Test.Tasty.QuickCheck (testProperty, (===))
 import           Test.QuickCheck (Arbitrary, Property,
                                   arbitrary, counterexample, oneof)
-import           Data.Protobuf.Wire
-import           Data.Protobuf.Wire.DotProto as AST
 import           Data.Int
 import           Data.Maybe (fromJust)
 import           Data.Word (Word64)
 import qualified Data.Text.Lazy as TL
 import           Data.Serialize.Get(runGet)
 import           Data.Either (isRight)
+import           Proto3.Suite
+import           Proto3.Suite.DotProto as AST
 import           Proto3.Wire
 import           Proto3.Wire.Decode (ParseError)
 import qualified Proto3.Wire.Decode as Decode

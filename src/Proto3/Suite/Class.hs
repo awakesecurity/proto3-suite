@@ -14,7 +14,7 @@
 --
 -- The 'Message' class captures types which correspond to protocol buffers messages.
 -- Instances of 'Message' can be written by hand for your types by using the
--- functions in the 'Data.Protobuf.Wire.Encode' and 'Data.Protobuf.Wire.Decode'
+-- functions in the 'Proto3.Suite.Encode' and 'Proto3.Suite.Decode'
 -- modules. In the case where the message format is determined by your Haskell code,
 -- you might prefer to derive your 'Message' instances using generic deriving.
 --
@@ -71,7 +71,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedLists #-}
 
-module Data.Protobuf.Wire.Class
+module Proto3.Suite.Class
   ( Primitive(..)
   , MessageField(..)
   , Message(..)
@@ -87,7 +87,7 @@ module Data.Protobuf.Wire.Class
   , Named(..)
   , Finite(..)
   , message
-  , Data.Protobuf.Wire.Class.enum
+  , Proto3.Suite.Class.enum
 
   -- * Generic Classes
   , GenericMessage(..)
@@ -103,8 +103,8 @@ import           Data.Maybe (fromMaybe, isNothing)
 import           Data.Monoid ((<>))
 import           Data.Sequence (Seq)
 import           Data.String (IsString(..))
-import           Data.Protobuf.Wire.Types as Wire
-import           Data.Protobuf.Wire.DotProto as DotProto
+import           Proto3.Suite.Types as Wire
+import           Proto3.Suite.DotProto as DotProto
 import           Data.Proxy (Proxy(..))
 import           Data.Vector (Vector)
 import           Data.Word (Word32, Word64)

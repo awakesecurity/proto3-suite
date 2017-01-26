@@ -4,7 +4,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Data.Protobuf.Wire.DotProto.Generate
+module Proto3.Suite.DotProto.Generate
   ( CompileResult, CompileError(..), TypeContext
 
   , hsModuleForDotProto
@@ -18,7 +18,7 @@ module Data.Protobuf.Wire.DotProto.Generate
 
 import           Control.Applicative
 import           Control.Monad.Except
-import           Data.Protobuf.Wire.DotProto
+import           Proto3.Suite.DotProto
 import           Data.Char
 import           Data.List (intercalate, find, nub, sortBy)
 import qualified Data.Map as M
@@ -914,9 +914,9 @@ defaultImports usesGrpc =
          , importDecl_ networkGrpcLowLevelCallM         False (Just grpcNS) Nothing  ]
     else []
   where preludeM                  = Module "Prelude"
-        dataProtobufWireDotProtoM = Module "Data.Protobuf.Wire.DotProto"
-        dataProtobufWireClassM    = Module "Data.Protobuf.Wire.Class"
-        dataProtobufWireTypesM    = Module "Data.Protobuf.Wire.Types"
+        dataProtobufWireDotProtoM = Module "Proto3.Suite.DotProto"
+        dataProtobufWireClassM    = Module "Proto3.Suite.Class"
+        dataProtobufWireTypesM    = Module "Proto3.Suite.Types"
         proto3WireM               = Module "Proto3.Wire"
         controlApplicativeM       = Module "Control.Applicative"
         dataTextM                 = Module "Data.Text"

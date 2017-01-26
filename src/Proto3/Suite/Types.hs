@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ExplicitNamespaces #-}
 
-module Data.Protobuf.Wire.Types
+module Proto3.Suite.Types
   (
   -- * Integral Types
     Fixed(..)
