@@ -1,4 +1,4 @@
-# protobuf-wire
+# `proto3-suite`
 
 This package defines tools for working with protocol buffers version 3 in Haskell.
 
@@ -10,7 +10,7 @@ This library provides a higher-level API to
 - A higher-level approach to encoding and decoding, based on `GHC.Generics`
 - A way of creating `.proto` files from Haskell types.
 
-See the `Data.Protobuf.Wire.Tutorial` module for more details.
+See the `Proto3.Suite.Tutorial` module for more details.
 
 # Running the language interop tests
 
