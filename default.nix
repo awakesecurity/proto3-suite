@@ -4,7 +4,7 @@
 , tasty-hunit, tasty-quickcheck, text, transformers, turtle, vector
 }:
 mkDerivation {
-  pname = "protobuf-wire";
+  pname = "proto3-suite";
   version = "0.1.0.0";
   src = ./.;
   libraryHaskellDepends = [
@@ -17,6 +17,5 @@ mkDerivation {
     tasty-hunit tasty-quickcheck text transformers turtle
   ];
   description = "A low level library for writing out data in the Protocol Buffers wire format";
-  license = stdenv.lib.licenses.unfree;
-  doCheck = false;
+  license = stdenv.lib.licenses.asl20;
 }

@@ -2,7 +2,7 @@
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Data.Protobuf.Wire.DotProto.AST where
+module Proto3.Suite.DotProto.AST where
 
 import           Data.String        (IsString)
 import           Control.Monad

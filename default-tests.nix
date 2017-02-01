@@ -1,4 +1,4 @@
-{ protobuf-wire-no-tests
+{ proto3-suite-no-tests
 , bash
 , ghc
 , protobuf3_0
@@ -24,7 +24,7 @@ let
     '';
 
     testHaskellDepends = oldAttrs.testHaskellDepends ++ [
-      ghc protobuf-wire-no-tests protobuf3_0 python python_protobuf3_0
+      ghc proto3-suite-no-tests protobuf3_0 python python_protobuf3_0
     ];
 
     doCheck = true;

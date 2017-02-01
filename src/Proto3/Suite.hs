@@ -12,10 +12,10 @@
 -- * A higher-level approach to encoding and decoding, based on "GHC.Generics"
 -- * A way of creating .proto files from Haskell types.
 --
--- See the "Data.Protobuf.Wire.Tutorial" module for more details.
+-- See the "Proto3.Suite.Tutorial" module for more details.
 {-# LANGUAGE ExplicitNamespaces #-}
 
-module Data.Protobuf.Wire
+module Proto3.Suite
   (
   -- * Message Encoding/Decoding
     toLazyByteString
@@ -49,8 +49,8 @@ module Data.Protobuf.Wire
   , module DotProto
   ) where
 
-import Data.Protobuf.Wire.Class
-import Data.Protobuf.Wire.DotProto as DotProto
-import Data.Protobuf.Wire.Types
+import Proto3.Suite.Class
+import Proto3.Suite.DotProto as DotProto
+import Proto3.Suite.Types
 
 import Proto3.Wire.Types

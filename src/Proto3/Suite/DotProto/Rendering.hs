@@ -5,7 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# OPTIONS_GHC -fno-warn-orphans       #-}
 
-module Data.Protobuf.Wire.DotProto.Rendering
+module Proto3.Suite.DotProto.Rendering
   ( renderDotProto
   , defRenderingOptions
   , defSelectorName
@@ -16,7 +16,7 @@ module Data.Protobuf.Wire.DotProto.Rendering
   ) where
 
 import           Data.Char
-import           Data.Protobuf.Wire.DotProto.AST
+import           Proto3.Suite.DotProto.AST
 import           Proto3.Wire.Types               (FieldNumber (..))
 import           Text.PrettyPrint                (($$), (<+>), (<>))
 import qualified Text.PrettyPrint                as PP
