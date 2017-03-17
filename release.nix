@@ -1,6 +1,6 @@
 # To develop with this repository, open a Nix shell with:
 #
-#     $ nix-shell -A proto3-wire.env release.nix
+#     $ nix-shell -A proto3-suite.env release.nix
 #
 # ... then run `cabal` commands as you would normally do:
 #

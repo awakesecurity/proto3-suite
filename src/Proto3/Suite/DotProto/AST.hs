@@ -401,8 +401,8 @@ isPackableType Double = True
 --------------------------------------------------------------------------------
 -- | QC Arbitrary instance for generating random protobuf
 
-arbitraryService :: Gen DotProtoDefinition
-arbitraryService = do
+_arbitraryService :: Gen DotProtoDefinition
+_arbitraryService = do
   identifier <- arbitrarySingleIdentifier
   parts      <- smallListOf arbitrary
   return (DotProtoService identifier parts)
