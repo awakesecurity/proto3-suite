@@ -1,0 +1,30 @@
+syntax = "proto3";
+package tee;
+message Trivial {
+  int32 trivialField32           = 1;
+  int64 trivialField64           = 2;
+  repeated int32 repeatedField32 = 3;
+  repeated int64 repeatedField64 = 4;
+}
+message TwoField {
+  int32 fieldOne = 1;
+  bool  fieldTwo = 2;
+}
+message MultiField {
+  double multiFieldDouble = 1;
+  float  multiFieldFloat  = 2;
+  int32  multiFieldInt32  = 3;
+  int64  multiFieldInt64  = 4;
+  string multiFieldString = 5;
+  bool   multiFieldBool   = 6;
+}
+message WithNesting {
+  message Nested {
+    string nestedField1 = 1;
+    int32 nestedField2 = 2;
+  }
+  Nested nestedMessage = 1;
+}
+message WithRepetition {
+  repeated int32 repeatedField1 = 1;
+}

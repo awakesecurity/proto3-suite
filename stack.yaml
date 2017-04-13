@@ -6,3 +6,4 @@ packages:
     git: https://github.com/awakenetworks/proto3-wire.git
     commit: 4cf2f349cbf27ef36af28ae51e2712d6cf5f7723
   extra-dep: true
+extra-deps: [aeson-1.1.1.0]
