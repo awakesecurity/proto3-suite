@@ -171,23 +171,43 @@ instance HsProtobuf.Message Trivial where
                 Hs.Nothing)]
 
 --------------------------------------------------------------------------------
--- Instance for Trivial (these will be generated eventually)
+-- Instance for Trivial (these instances will be generated eventually)
+
+      -- encodeFld :: forall a t.
+      --              (PBRep a, A.KeyValue t, A.ToJSON (PBR a), Monoid (PBR a), Monoid t,
+      --               Eq a) =>
+      --              Text.Text -> a -> t
+
+encodeFld :: (Eq a, A.KeyValue m, Monoid m, Monoid (PBR a), A.ToJSON (PBR a), PBRep a)
+          => Hs.Text -> a -> m
+encodeFld lab (toPBR -> x) = if x == mempty then mempty else lab .= x
 
 instance A.ToJSON Trivial where
   toEncoding (Trivial x y v32 v64) = A.pairs . mconcat $
-    [ if toPBR   x == mempty then mempty else "trivialField32"  .= toPBR x
-    , if toPBR   y == mempty then mempty else "trivialField64"  .= toPBR y
-    , "repeatedField32" .= (toPBR <$> v32)
-    , "repeatedField64" .= (toPBR <$> v64)
+    [ encodeFld "trivialField32"  x
+    , encodeFld "trivialField64"  y
+    , encodeFld "repeatedField32" v32
+    , encodeFld "repeatedField64" v64
+    -- older
+    --   if toPBR   x == mempty then mempty else "trivialField32"  .= toPBR x
+    -- , if toPBR   y == mempty then mempty else "trivialField64"  .= toPBR y
+    -- , if toPBR v32 == mempty then mempty else "repeatedField32" .= toPBR v32
+    -- , if toPBR v64 == mempty then mempty else "repeatedField64" .= toPBR v64
+
+    -- older:
+    -- , "repeatedField32" .= (toPBR <$> v32)
+    -- , "repeatedField64" .= (toPBR <$> v64)
     ]
 
 instance A.FromJSON Trivial where
   parseJSON = A.withObject "Trivial" Hs.$ \obj ->
     pure Trivial
-    <*> do pbFld obj "trivialField32"
-    <*> do pbFld obj "trivialField64"
-    <*> do pbFld obj "repeatedField32"
-    <*> do pbFld obj "repeatedField64"
+    <*> pbFld obj "trivialField32"
+    <*> pbFld obj "trivialField64"
+    <*> pbFld obj "repeatedField32"
+    <*> pbFld obj "repeatedField64"
+    -- <*> do fromPBR <$> pbFld obj "repeatedField32"
+    -- <*> do fromPBR <$> pbFld obj "repeatedField64"
 
 --------------------------------------------------------------------------------
 -- PB <-> JSON
@@ -200,7 +220,7 @@ class PBRep a where
   toPBR   :: a -> PBR a
   fromPBR :: PBR a -> a
 
-instance (PBRep a, Functor f) => PBRep (f a) where
+instance (Functor f, PBRep a) => PBRep (f a) where
   data PBR (f a)     = PBReps (f (PBR a))
   toPBR v            = PBReps (toPBR <$> v)
   fromPBR (PBReps v) = fromPBR <$> v
@@ -209,14 +229,20 @@ instance (Functor f, Monoid (f a), PBRep a) => Monoid (PBR (f a)) where
   mempty                                = toPBR mempty
   mappend (fromPBR -> x) (fromPBR -> y) = toPBR (mappend x y)
 
-instance (PBRep a, A.FromJSON (PBR a)) => A.FromJSON (PBR (Hs.Vector a)) where
-  parseJSON v = toPBR . fmap fromPBR <$> A.parseJSON v
+instance (Eq a, PBRep a) => Eq (PBR a) where
+  (fromPBR -> a) == (fromPBR -> b) = a == b
+
+instance (A.FromJSON (PBR a), PBRep a) => A.FromJSON (PBR (Hs.Vector a)) where
+  parseJSON = fmap (toPBR . fmap fromPBR) . A.parseJSON
+
+instance (A.ToJSON (PBR a), PBRep a) => A.ToJSON (PBR (Hs.Vector a)) where
+  toJSON = A.toJSON . fmap toPBR . fromPBR
 
 --------------------------------------------------------------------------------
 -- PBRep Int32
 
 instance PBRep Hs.Int32 where
-  data PBR Hs.Int32  = PBInt32 Hs.Int32 deriving (Show, Generic, Eq)
+  data PBR Hs.Int32  = PBInt32 Hs.Int32 deriving (Show, Generic)
   toPBR               = PBInt32
   fromPBR (PBInt32 x) = x
 instance Monoid (PBR Hs.Int32) where
@@ -234,7 +260,7 @@ instance A.FromJSON (PBR Hs.Int32) where
 -- PBRep Int64
 
 instance PBRep Hs.Int64 where
-  data PBR Hs.Int64   = PBInt64 Hs.Int64 deriving (Show, Generic, Eq)
+  data PBR Hs.Int64   = PBInt64 Hs.Int64 deriving (Show, Generic)
   toPBR               = PBInt64
   fromPBR (PBInt64 x) = x
 instance Monoid (PBR Hs.Int64) where
@@ -243,7 +269,7 @@ instance Monoid (PBR Hs.Int64) where
   mappend (fromPBR -> x) (fromPBR -> 0) = toPBR x
   mappend _               x             = x
 instance A.ToJSON (PBR Hs.Int64) where
-  toEncoding (PBInt64 x) = A.int64Text x
+  toJSON = A.String . Text.pack . Hs.show . fromPBR
 instance A.FromJSON (PBR Hs.Int64) where
   parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
   parseJSON (A.String t) = fromDecimalString t
@@ -291,15 +317,12 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --------------------------------------------------------------------------------
 -- Scratch
 
--- TODO: We should hand-elaborate a little further and make sure we have a
+-- INPR: We should hand-elaborate a little further and make sure we have a
 -- strategy for dealing with message nesting before we push too much farther on
 -- the generic parser!
 
--- TODO: One thing to experiment with right here is the type-based lookup of
--- PBInt32/PBInt64 in the above code or in fromDecimalString below.
-
--- (0) Let's make sure we can do field nesting and repeating with our current
--- approach. HERE.
+-- (0) HERE: Let's make sure we can do field nesting and repeating with our current
+-- approach.
 --
 -- (1) Let's try writing the CollectFieldNames function in the form of a Generic
 -- pass, and then try it out with Trivial and a few similar types to make sure
