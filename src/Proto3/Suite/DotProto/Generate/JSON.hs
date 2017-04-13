@@ -202,12 +202,12 @@ instance A.ToJSON Trivial where
 instance A.FromJSON Trivial where
   parseJSON = A.withObject "Trivial" Hs.$ \obj ->
     pure Trivial
-    <*> pbFld obj "trivialField32"
-    <*> pbFld obj "trivialField64"
-    <*> pbFld obj "repeatedField32"
-    <*> pbFld obj "repeatedField64"
-    -- <*> do fromPBR <$> pbFld obj "repeatedField32"
-    -- <*> do fromPBR <$> pbFld obj "repeatedField64"
+    <*> parseFld obj "trivialField32"
+    <*> parseFld obj "trivialField64"
+    <*> parseFld obj "repeatedField32"
+    <*> parseFld obj "repeatedField64"
+    -- <*> do fromPBR <$> parseFld obj "repeatedField32"
+    -- <*> do fromPBR <$> parseFld obj "repeatedField64"
 
 --------------------------------------------------------------------------------
 -- PB <-> JSON
@@ -278,10 +278,10 @@ instance A.FromJSON (PBR Hs.Int64) where
 --------------------------------------------------------------------------------
 -- Helpers
 
-pbFld :: (A.FromJSON (PBR a), Monoid (PBR a), PBRep a) => A.Object -> Hs.Text -> A.Parser a
-pbFld o fldSel = fromPBR <$> (o .:? fldSel .!= Hs.mempty)
--- pbFld :: (A.FromJSON a, Monoid a) => A.Object -> Hs.Text -> A.Parser a
--- pbFld o fldSel = o .:? fldSel .!= Hs.mempty
+parseFld :: (A.FromJSON (PBR a), Monoid (PBR a), PBRep a) => A.Object -> Hs.Text -> A.Parser a
+parseFld o fldSel = fromPBR <$> (o .:? fldSel .!= Hs.mempty)
+-- parseFld :: (A.FromJSON a, Monoid a) => A.Object -> Hs.Text -> A.Parser a
+-- parseFld o fldSel = o .:? fldSel .!= Hs.mempty
 
 fromDecimalString :: (A.FromJSON a, PBRep a) => Hs.Text -> A.Parser (PBR a)
 fromDecimalString
