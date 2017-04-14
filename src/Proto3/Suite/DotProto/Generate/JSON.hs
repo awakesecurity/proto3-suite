@@ -230,15 +230,7 @@ instance A.ToJSON Trivial where
     , encodeField "trivialField64"  y
     , encodeField "repeatedField32" v32
     , encodeField "repeatedField64" v64
-    -- older
-    --   if toPBR   x == mempty then mempty else "trivialField32"  .= toPBR x
-    -- , if toPBR   y == mempty then mempty else "trivialField64"  .= toPBR y
-    -- , if toPBR v32 == mempty then mempty else "repeatedField32" .= toPBR v32
-    -- , if toPBR v64 == mempty then mempty else "repeatedField64" .= toPBR v64
-    -- older:
-    -- , "repeatedField32" .= (toPBR <$> v32)
-    -- , "repeatedField64" .= (toPBR <$> v64)
-    , encodeNested "nestedMessage" mnest -- foldMap ("nestedMessage" .=) mnest
+    , encodeNested "nestedMessage" mnest
     ]
 
 instance A.FromJSON Trivial where
@@ -249,8 +241,6 @@ instance A.FromJSON Trivial where
     <*> decodeField obj "repeatedField32"
     <*> decodeField obj "repeatedField64"
     <*> decodeNested obj "nestedMessage"
-    -- <*> do fromPBR <$> decodeField obj "repeatedField32"
-    -- <*> do fromPBR <$> decodeField obj "repeatedField64"
 
 --------------------------------------------------------------------------------
 -- PB <-> JSON
