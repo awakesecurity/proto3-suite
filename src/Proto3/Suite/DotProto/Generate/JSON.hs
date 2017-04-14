@@ -318,15 +318,16 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 -- Scratch
 
 -- INPR: We should hand-elaborate a little further and make sure we have a
--- strategy for dealing with message nesting before we push too much farther on
--- the generic parser!
-
+-- strategy for dealing with message nesting, repetition, packed vecs, etc.,
+-- before we push too much farther on the generic parser! I.e., we should be
+-- able to write clean/simple "brute force" codecs before we worry about the
+-- generic parser.
+--
 -- (0) HERE: Let's make sure we can do field nesting and repeating with our current
 -- approach.
 --
--- (1) Let's try writing the CollectFieldNames function in the form of a Generic
--- pass, and then try it out with Trivial and a few similar types to make sure
--- we understand it. Use http://www.stephendiehl.com/posts/generics.html as a
--- basic guide.
+-- (1) Then let's extend Int32/Int64 support for the fixed/unsigned variants as
+-- well and make sure we don't have any uncomfortable overlap or design flaws
+-- for types which are encoded the same way...
 --
--- (2) And then let's try our hand at gParseJSONPB slowly.
+-- (n) And then let's try our hand at gParseJSONPB slowly.
