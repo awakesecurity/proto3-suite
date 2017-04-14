@@ -5,6 +5,10 @@ message Trivial {
   int64 trivialField64           = 2;
   repeated int32 repeatedField32 = 3;
   repeated int64 repeatedField64 = 4;
+  message Nested {
+    int64 nestedField64 = 1;
+  }
+  Nested nestedMessage = 5;
 }
 message TwoField {
   int32 fieldOne = 1;

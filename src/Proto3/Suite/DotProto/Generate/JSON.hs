@@ -112,7 +112,8 @@ trivialDotProtoAST =
 data Trivial = Trivial{trivialTrivialField32 :: Hs.Int32,
                        trivialTrivialField64 :: Hs.Int64,
                        trivialRepeatedField32 :: Hs.Vector Hs.Int32,
-                       trivialRepeatedField64 :: Hs.Vector Hs.Int64}
+                       trivialRepeatedField64 :: Hs.Vector Hs.Int64,
+                       trivialNestedMessage :: Hs.Maybe Trivial_Nested}
              deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
 
 instance HsProtobuf.Named Trivial where
@@ -123,7 +124,8 @@ instance HsProtobuf.Message Trivial where
           Trivial{trivialTrivialField32 = trivialTrivialField32,
                   trivialTrivialField64 = trivialTrivialField64,
                   trivialRepeatedField32 = trivialRepeatedField32,
-                  trivialRepeatedField64 = trivialRepeatedField64}
+                  trivialRepeatedField64 = trivialRepeatedField64,
+                  trivialNestedMessage = trivialNestedMessage}
           = (Hs.mconcat
                [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
                    trivialTrivialField32),
@@ -132,7 +134,9 @@ instance HsProtobuf.Message Trivial where
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 3)
                    (HsProtobuf.PackedVec trivialRepeatedField32)),
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 4)
-                   (HsProtobuf.PackedVec trivialRepeatedField64))])
+                   (HsProtobuf.PackedVec trivialRepeatedField64)),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 5)
+                   (HsProtobuf.Nested trivialNestedMessage))])
         decodeMessage _
           = (Hs.pure Trivial) <*>
               (HsProtobuf.at HsProtobuf.decodeMessageField
@@ -148,6 +152,10 @@ instance HsProtobuf.Message Trivial where
               ((Hs.pure HsProtobuf.packedvec) <*>
                  (HsProtobuf.at HsProtobuf.decodeMessageField
                     (HsProtobuf.FieldNumber 4)))
+              <*>
+              ((Hs.pure HsProtobuf.nested) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 5)))
         dotProto _
           = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
                 (HsProtobuf.Prim HsProtobuf.Int32)
@@ -168,46 +176,81 @@ instance HsProtobuf.Message Trivial where
                 (HsProtobuf.Repeated HsProtobuf.Int64)
                 (HsProtobuf.Single "repeatedField64")
                 []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 5)
+                (HsProtobuf.Prim (HsProtobuf.Named (HsProtobuf.Single "Nested")))
+                (HsProtobuf.Single "nestedMessage")
+                []
                 Hs.Nothing)]
+
+data Trivial_Nested = Trivial_Nested{trivial_NestedNestedField64 ::
+                                     Hs.Int64}
+                    deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+
+instance HsProtobuf.Named Trivial_Nested where
+        nameOf _ = (Hs.fromString "Trivial_Nested")
+
+instance HsProtobuf.Message Trivial_Nested where
+        encodeMessage _
+          Trivial_Nested{trivial_NestedNestedField64 =
+                           trivial_NestedNestedField64}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   trivial_NestedNestedField64)])
+        decodeMessage _
+          = (Hs.pure Trivial_Nested) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.Int64)
+                (HsProtobuf.Single "nestedField64")
+                []
+                Hs.Nothing)]
+
+--------------------------------------------------------------------------------
+-- Instance for Trivial_Nested (these will be generated eventually)
+
+instance A.ToJSON Trivial_Nested where
+  toEncoding (Trivial_Nested x) = A.pairs . mconcat $
+    [ encodeField "nestedField64" x
+    ]
+
+instance A.FromJSON Trivial_Nested where
+  parseJSON = A.withObject "Trivial_Nested" $ \obj ->
+    pure Trivial_Nested
+    <*> decodeField obj "nestedField64"
 
 --------------------------------------------------------------------------------
 -- Instance for Trivial (these instances will be generated eventually)
 
-      -- encodeFld :: forall a t.
-      --              (PBRep a, A.KeyValue t, A.ToJSON (PBR a), Monoid (PBR a), Monoid t,
-      --               Eq a) =>
-      --              Text.Text -> a -> t
-
-encodeFld :: (Eq a, A.KeyValue m, Monoid m, Monoid (PBR a), A.ToJSON (PBR a), PBRep a)
-          => Hs.Text -> a -> m
-encodeFld lab (toPBR -> x) = if x == mempty then mempty else lab .= x
-
 instance A.ToJSON Trivial where
-  toEncoding (Trivial x y v32 v64) = A.pairs . mconcat $
-    [ encodeFld "trivialField32"  x
-    , encodeFld "trivialField64"  y
-    , encodeFld "repeatedField32" v32
-    , encodeFld "repeatedField64" v64
+  toEncoding (Trivial x y v32 v64 mnest) = A.pairs . mconcat $
+    [ encodeField "trivialField32"  x
+    , encodeField "trivialField64"  y
+    , encodeField "repeatedField32" v32
+    , encodeField "repeatedField64" v64
     -- older
     --   if toPBR   x == mempty then mempty else "trivialField32"  .= toPBR x
     -- , if toPBR   y == mempty then mempty else "trivialField64"  .= toPBR y
     -- , if toPBR v32 == mempty then mempty else "repeatedField32" .= toPBR v32
     -- , if toPBR v64 == mempty then mempty else "repeatedField64" .= toPBR v64
-
     -- older:
     -- , "repeatedField32" .= (toPBR <$> v32)
     -- , "repeatedField64" .= (toPBR <$> v64)
+    , encodeNested "nestedMessage" mnest -- foldMap ("nestedMessage" .=) mnest
     ]
 
 instance A.FromJSON Trivial where
-  parseJSON = A.withObject "Trivial" Hs.$ \obj ->
+  parseJSON = A.withObject "Trivial" $ \obj ->
     pure Trivial
-    <*> parseFld obj "trivialField32"
-    <*> parseFld obj "trivialField64"
-    <*> parseFld obj "repeatedField32"
-    <*> parseFld obj "repeatedField64"
-    -- <*> do fromPBR <$> parseFld obj "repeatedField32"
-    -- <*> do fromPBR <$> parseFld obj "repeatedField64"
+    <*> decodeField obj "trivialField32"
+    <*> decodeField obj "trivialField64"
+    <*> decodeField obj "repeatedField32"
+    <*> decodeField obj "repeatedField64"
+    <*> decodeNested obj "nestedMessage"
+    -- <*> do fromPBR <$> decodeField obj "repeatedField32"
+    -- <*> do fromPBR <$> decodeField obj "repeatedField64"
 
 --------------------------------------------------------------------------------
 -- PB <-> JSON
@@ -278,10 +321,21 @@ instance A.FromJSON (PBR Hs.Int64) where
 --------------------------------------------------------------------------------
 -- Helpers
 
-parseFld :: (A.FromJSON (PBR a), Monoid (PBR a), PBRep a) => A.Object -> Hs.Text -> A.Parser a
-parseFld o fldSel = fromPBR <$> (o .:? fldSel .!= Hs.mempty)
--- parseFld :: (A.FromJSON a, Monoid a) => A.Object -> Hs.Text -> A.Parser a
--- parseFld o fldSel = o .:? fldSel .!= Hs.mempty
+encodeField :: (Eq a, A.KeyValue m, Monoid m, Monoid (PBR a), A.ToJSON (PBR a), PBRep a)
+          => Hs.Text -> a -> m
+encodeField lab (toPBR -> x) = if x == mempty then mempty else lab .= x
+
+encodeNested :: (A.KeyValue m, A.ToJSON a, Monoid m) => Hs.Text -> Maybe a -> m
+encodeNested fldSel = foldMap (fldSel .=)
+
+decodeField :: (A.FromJSON (PBR a), Monoid (PBR a), PBRep a) => A.Object -> Hs.Text -> A.Parser a
+decodeField o fldSel = fromPBR <$> (o .:? fldSel .!= Hs.mempty)
+-- older:
+-- decodeField :: (A.FromJSON a, Monoid a) => A.Object -> Hs.Text -> A.Parser a
+-- decodeField o fldSel = o .:? fldSel .!= Hs.mempty
+
+decodeNested :: A.FromJSON a => A.Object -> Hs.Text -> A.Parser (Maybe a)
+decodeNested o fldSel = o .:? fldSel .!= Nothing
 
 fromDecimalString :: (A.FromJSON a, PBRep a) => Hs.Text -> A.Parser (PBR a)
 fromDecimalString
@@ -323,7 +377,7 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 -- able to write clean/simple "brute force" codecs before we worry about the
 -- generic parser.
 --
--- (0) HERE: Let's make sure we can do field nesting and repeating with our current
+-- (0) OK. Let's make sure we can do field nesting and repeating with our current
 -- approach.
 --
 -- (1) Then let's extend Int32/Int64 support for the fixed/unsigned variants as
