@@ -20,6 +20,7 @@ prototyping for the kind of code that we'll want to end up generating.
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -226,65 +227,68 @@ instance HsProtobuf.Message Trivial_Nested where
 -- Instance for Trivial_Nested (these will be generated eventually)
 
 instance A.ToJSON Trivial_Nested where
-  toEncoding (Trivial_Nested x) = A.pairs . mconcat $
-    [ encodeField "nestedField64" x
+  toJSON (Trivial_Nested i64) = A.object . mconcat $
+    [ fieldToJSON "nestedField64" i64
+    ]
+  toEncoding (Trivial_Nested i64) = A.pairs . mconcat $
+    [ fieldToEnc "nestedField64" i64
     ]
 
 instance A.FromJSON Trivial_Nested where
   parseJSON = A.withObject "Trivial_Nested" $ \obj ->
     pure Trivial_Nested
-    <*> decodeField obj "nestedField64"
+    <*> parseField obj "nestedField64"
 
 --------------------------------------------------------------------------------
 -- Instance for Trivial (these instances will be generated eventually)
 
--- newtype F32 = F32 (HsProtobuf.Fixed Hs.Word32) deriving (Eq)
-
 instance A.ToJSON Trivial where
-  toEncoding (Trivial i32 (f32) i64 v32 v64 mnest) = A.pairs . mconcat $
-    [ encodeField "trivialField32"  i32
-    , encodeField "trivialFieldF32" f32 -- HERE: fixed32 field
-    , encodeField "trivialField64"  i64
-    , encodeField "repeatedField32" v32
-    , encodeField "repeatedField64" v64
-    , encodeNested "nestedMessage" mnest
+  toJSON (Trivial i32 f32 i64 v32 v64 mnest) = A.object . mconcat $
+    [ fieldToJSON "trivialField32" i32
+    , fieldToJSON "trivialFieldF32" (F32 f32)
+    , fieldToJSON "trivialField64"  i64
+    , fieldToJSON "repeatedField32" v32
+    , fieldToJSON "repeatedField64" v64
+    , nestedFieldToJSON "nestedMessage" mnest
     ]
-
-instance PBRep (HsProtobuf.Fixed Hs.Word32) where
-  data PBR (HsProtobuf.Fixed Hs.Word32) = PBFixed32 (HsProtobuf.Fixed Hs.Word32) deriving (Show, Generic)
-  toPBR                                 = PBFixed32
-  fromPBR (PBFixed32 x)                 = x
-instance Monoid (PBR (HsProtobuf.Fixed Hs.Word32)) where
-  mempty                                = toPBR (HsProtobuf.Fixed 0)
-  mappend (fromPBR -> 0) (fromPBR -> y) = toPBR y
-  mappend (fromPBR -> x) (fromPBR -> 0) = toPBR x
-  mappend _               x             = x
-
-instance A.ToJSON (PBR (HsProtobuf.Fixed Hs.Word32))
-
--- orphan instance for this, test encoding to see if anything got fucked up.
-instance A.ToJSON (HsProtobuf.Fixed Hs.Word32) where
-  -- HERE: FUUUUUCK! So it's the yiffff line that gets executed, which means
-  -- that we need to (a) figure out whether we should be overloading toJSON or
-  -- toEncoding or both -- I think we may have to implement both? (b) newtype
-  -- wrap this locally so that it is not an orphan instance and we don't have to
-  -- burden it with a ToJSON instance of its own.
-
-  -- don't forget this piece -- when is it sufficient to only overload
-  -- toEncoding!?
-
-  toJSON = trace ("yiffffff") . A.toJSON . HsProtobuf.fixed
-  toEncoding = trace ("yaaaaaaaaaaar") . A.toEncoding . HsProtobuf.fixed
+  toEncoding (Trivial i32 f32 i64 v32 v64 mnest) = A.pairs . mconcat $
+    [ fieldToEnc "trivialField32"  i32
+    , fieldToEnc "trivialFieldF32" (F32 f32)
+    , fieldToEnc "trivialField64"  i64
+    , fieldToEnc "repeatedField32" v32
+    , fieldToEnc "repeatedField64" v64
+    , nestedFieldToEncoding "nestedMessage" mnest
+    ]
 
 instance A.FromJSON Trivial where
   parseJSON = A.withObject "Trivial" $ \obj ->
     pure Trivial
-    <*> decodeField obj "trivialField32"
-    <*> return 0 -- HERE: fixed32 field FIXME
-    <*> decodeField obj "trivialField64"
-    <*> decodeField obj "repeatedField32"
-    <*> decodeField obj "repeatedField64"
+    <*> parseField obj "trivialField32"
+    <*> do F32 x <- parseField obj "trivialFieldF32"; pure x
+    <*> parseField obj "trivialField64"
+    <*> parseField obj "repeatedField32"
+    <*> parseField obj "repeatedField64"
     <*> decodeNested obj "nestedMessage"
+
+newtype F32 = F32 (HsProtobuf.Fixed Hs.Word32) deriving (Eq, Show, Num)
+instance A.ToJSON F32 where
+  toJSON (F32 (HsProtobuf.Fixed n)) = A.toJSON n
+instance PBRep F32 where
+  data PBR F32          = PBFixed32 F32 deriving (Show, Generic)
+  toPBR                 = PBFixed32
+  fromPBR (PBFixed32 x) = x
+instance Monoid (PBR F32) where
+  mempty = toPBR 0
+  mappend (fromPBR -> 0) (fromPBR -> y) = toPBR y
+  mappend (fromPBR -> x) (fromPBR -> 0) = toPBR x
+  mappend _               x             = x
+instance A.ToJSON (PBR F32)
+instance A.FromJSON (PBR F32) where
+  parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
+  parseJSON (A.String t) = fromDecimalString t
+  parseJSON v            = A.typeMismatch "PBInt32" v
+instance A.FromJSON F32 where
+  parseJSON = fmap (F32 . HsProtobuf.Fixed) . A.parseJSON
 
 --------------------------------------------------------------------------------
 -- PB <-> JSON
@@ -382,15 +386,23 @@ instance A.FromJSON (PBR Hs.Int64) where
 --------------------------------------------------------------------------------
 -- Helpers
 
-encodeField :: (Eq a, A.KeyValue m, Monoid m, Monoid (PBR a), A.ToJSON (PBR a), PBRep a)
-          => Hs.Text -> a -> m
-encodeField lab (toPBR -> x) = if x == mempty then mempty else lab .= x
+fieldToJSON :: (PBRep a, A.KeyValue kv, A.ToJSON (PBR a), Monoid (PBR a), Monoid (f kv), Applicative f, Eq a)
+            => Text.Text -> a -> f kv
+fieldToJSON lab (toPBR -> x) = if x == mempty then mempty else pure (lab .= x)
 
-encodeNested :: (A.KeyValue m, A.ToJSON a, Monoid m) => Hs.Text -> Maybe a -> m
-encodeNested fldSel = foldMap (fldSel .=)
+fieldToEnc :: (Eq a, A.KeyValue m, Monoid m, Monoid (PBR a), A.ToJSON (PBR a), PBRep a)
+           => Hs.Text -> a -> m
+fieldToEnc lab (toPBR -> x) = if x == mempty then mempty else lab .= x
 
-decodeField :: (A.FromJSON (PBR a), Monoid (PBR a), PBRep a) => A.Object -> Hs.Text -> A.Parser a
-decodeField o fldSel = fromPBR <$> (o .:? fldSel .!= Hs.mempty)
+nestedFieldToJSON :: (A.KeyValue a, A.ToJSON v, Monoid (f a), Applicative f)
+              => Hs.Text -> Maybe v -> f a
+nestedFieldToJSON fldSel = foldMap (pure . (fldSel .=))
+
+nestedFieldToEncoding :: (A.KeyValue m, A.ToJSON a, Monoid m) => Hs.Text -> Maybe a -> m
+nestedFieldToEncoding fldSel = foldMap (fldSel .=)
+
+parseField :: (A.FromJSON (PBR a), Monoid (PBR a), PBRep a) => A.Object -> Hs.Text -> A.Parser a
+parseField o fldSel = fromPBR <$> (o .:? fldSel .!= Hs.mempty)
 
 decodeNested :: A.FromJSON a => A.Object -> Hs.Text -> A.Parser (Maybe a)
 decodeNested o fldSel = o .:? fldSel .!= Nothing
