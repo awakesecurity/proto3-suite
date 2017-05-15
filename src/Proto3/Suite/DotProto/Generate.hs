@@ -1,9 +1,8 @@
 -- | This module provides functions to generate Haskell declarations for proto buf messages
 
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE NamedFieldPuns   #-}
+{-# LANGUAGE TupleSections    #-}
 
 module Proto3.Suite.DotProto.Generate
   ( CompileResult, CompileError(..), TypeContext
