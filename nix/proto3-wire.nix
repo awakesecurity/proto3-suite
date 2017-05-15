@@ -6,7 +6,7 @@ mkDerivation {
   pname = "proto3-wire";
   version = "1.0.0";
   src = fetchgit {
-    url = "git@github.com:awakenetworks/proto3-wire";
+    url = "https://github.com/awakenetworks/proto3-wire.git";
     sha256 = "0s3b87rdbms0s261hbdnhxcw2ih17bv63l3v49dnb0z5xab4pszv";
     rev = "4cf2f349cbf27ef36af28ae51e2712d6cf5f7723";
   };
