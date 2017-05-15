@@ -270,26 +270,6 @@ instance A.FromJSON Trivial where
     <*> parseField obj "repeatedField64"
     <*> decodeNested obj "nestedMessage"
 
-newtype F32 = F32 (HsProtobuf.Fixed Hs.Word32) deriving (Eq, Show, Num)
-instance A.ToJSON F32 where
-  toJSON (F32 (HsProtobuf.Fixed n)) = A.toJSON n
-instance PBRep F32 where
-  data PBR F32          = PBFixed32 F32 deriving (Show, Generic)
-  toPBR                 = PBFixed32
-  fromPBR (PBFixed32 x) = x
-instance Monoid (PBR F32) where
-  mempty = toPBR 0
-  mappend (fromPBR -> 0) (fromPBR -> y) = toPBR y
-  mappend (fromPBR -> x) (fromPBR -> 0) = toPBR x
-  mappend _               x             = x
-instance A.ToJSON (PBR F32)
-instance A.FromJSON (PBR F32) where
-  parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
-  parseJSON (A.String t) = fromDecimalString t
-  parseJSON v            = A.typeMismatch "PBInt32" v
-instance A.FromJSON F32 where
-  parseJSON = fmap (F32 . HsProtobuf.Fixed) . A.parseJSON
-
 --------------------------------------------------------------------------------
 -- PB <-> JSON
 
@@ -332,7 +312,7 @@ instance (A.ToJSON (PBR a), PBRep a) => A.ToJSON (PBR (Hs.Vector a)) where
   toJSON = A.toJSON . fmap toPBR . fromPBR
 
 --------------------------------------------------------------------------------
--- PBRep Int32
+-- PBReps for int32, fixed32, uint32
 --
 -- int32, fixed32, uint32: JSON value will be a decimal number. Either numbers
 -- or strings are accepted.
@@ -350,16 +330,27 @@ instance A.ToJSON (PBR Hs.Int32)
 instance A.FromJSON (PBR Hs.Int32) where
   parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
   parseJSON (A.String t) = fromDecimalString t
-  parseJSON v            = A.typeMismatch "PBInt32" v
+  parseJSON v            = A.typeMismatch "PBR Int32" v
 
--- instance PBRep (HsProtobuf.Fixed Hs.Word32) where
---   data PBR (HsProtobuf.Fixed Hs.Word32) = PBFixed32 deriving (Show, Generic)
---   toPBR                                 = PBFixed32
---   fromPBR (PBFixed32 x)                 = x
-
--- instance A.ToJSON (PBR (HsProtobuf.Fixed Hs.Word32))
--- instance PBRep (HsProtobuf.Fixed Hs.Word32)
-
+newtype F32 = F32 (HsProtobuf.Fixed Hs.Word32) deriving (Eq, Show, Num)
+instance A.ToJSON F32 where
+  toJSON (F32 (HsProtobuf.Fixed n)) = A.toJSON n
+instance PBRep F32 where
+  data PBR F32          = PBFixed32 F32 deriving (Show, Generic)
+  toPBR                 = PBFixed32
+  fromPBR (PBFixed32 x) = x
+instance Monoid (PBR F32) where
+  mempty = toPBR 0
+  mappend (fromPBR -> 0) (fromPBR -> y) = toPBR y
+  mappend (fromPBR -> x) (fromPBR -> 0) = toPBR x
+  mappend _               x             = x
+instance A.ToJSON (PBR F32)
+instance A.FromJSON (PBR F32) where
+  parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
+  parseJSON (A.String t) = fromDecimalString t
+  parseJSON v            = A.typeMismatch "PBR F32" v
+instance A.FromJSON F32 where
+  parseJSON = fmap (F32 . HsProtobuf.Fixed) . A.parseJSON
 
 --------------------------------------------------------------------------------
 -- PBRep Int64
@@ -453,5 +444,9 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 -- [ ] HERE: Then let's extend Int32/Int64 support for the fixed/unsigned variants as
 -- well and make sure we don't have any uncomfortable overlap or design flaws
 -- for types which are encoded the same way...
+--
+--   - [ ] uint32
+--   - [ ] fixed64, uint64
+--
 --
 -- [ ] And then let's try our hand at gParseJSONPB slowly.
