@@ -21,7 +21,7 @@ library
                        Proto3.Suite.DotProto.Rendering
                        Proto3.Suite.Tutorial
                        Proto3.Suite.Types
-  build-depends:       aeson >= 1.1 && < 1.2,
+  build-depends:       aeson >= 1.1.1.0 && < 1.2,
                        base >=4.8 && <5.0,
                        bytestring >=0.10.6.0 && <0.11.0,
                        deepseq ==1.4.*,
@@ -50,7 +50,7 @@ test-suite tests
   main-is:             Main.hs
   other-modules:       TestTypes TestCodeGen
   hs-source-dirs:      tests
-  build-depends:       aeson,
+  build-depends:       aeson >= 1.1.1.0 && < 1.2,
                        base >=4.8 && <5.0,
                        tasty >= 0.11 && <0.12,
                        tasty-hunit >= 0.9 && <0.10,

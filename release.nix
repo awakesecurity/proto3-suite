@@ -19,8 +19,6 @@ let
       in
         { haskellPackages = pkgs.haskellPackages.override {
             overrides = haskellPackagesNew: haskellPackagesOld: rec {
-              proto3-wire =
-                haskellPackagesNew.callPackage ./nix/proto3-wire.nix { };
 
               proto3-suite-no-tests =
                 pkgs.haskell.lib.dontCheck
@@ -46,6 +44,34 @@ let
                       ];
                     }
                   );
+
+              # The following overrides to use QuickCheck 2.9 are needed because we want
+              # to use a newer aeson than the one in our pinned `nixpkgs`, and so must
+              # bump QuickCheck to 2.9 in a few places due to some of its transitive
+              # dependencies. However, we must do this *without* using QuickCheck-2.9
+              # everywhere, as we'll get some nasty conflicts from packages which depend
+              # on QuickCheck < 2.9. Yay, nix!
+
+              aeson = haskellPackagesNew.callPackage ./nix/aeson.nix { };
+
+              integer-logarithms = haskellPackagesNew.callPackage ./nix/integer-logarithms.nix {
+                QuickCheck = haskellPackagesNew.callPackage ./nix/QuickCheck-2.9.nix { };
+              };
+
+              proto3-wire = haskellPackagesNew.callPackage ./nix/proto3-wire.nix {
+                QuickCheck = haskellPackagesNew.callPackage ./nix/QuickCheck-2.9.nix { };
+              };
+
+              quickcheck-unicode = haskellPackagesNew.callPackage ./nix/quickcheck-unicode.nix {
+                QuickCheck = haskellPackagesNew.callPackage ./nix/QuickCheck-2.9.nix { };
+              };
+
+              scientific = pkgs.haskell.lib.dontCheck haskellPackagesOld.scientific;
+
+              tasty-quickcheck = haskellPackagesNew.callPackage ./nix/tasty-quickcheck.nix {
+                QuickCheck = haskellPackagesNew.callPackage ./nix/QuickCheck-2.9.nix { };
+              };
+
             };
           };
         };
