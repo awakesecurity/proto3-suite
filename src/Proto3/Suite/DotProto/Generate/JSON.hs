@@ -386,7 +386,7 @@ fieldToEnc :: (Eq a, A.KeyValue m, Monoid m, Monoid (PBR a), A.ToJSON (PBR a), P
 fieldToEnc lab (toPBR -> x) = if x == mempty then mempty else lab .= x
 
 nestedFieldToJSON :: (A.KeyValue a, A.ToJSON v, Monoid (f a), Applicative f)
-              => Hs.Text -> Maybe v -> f a
+                  => Hs.Text -> Maybe v -> f a
 nestedFieldToJSON fldSel = foldMap (pure . (fldSel .=))
 
 nestedFieldToEncoding :: (A.KeyValue m, A.ToJSON a, Monoid m) => Hs.Text -> Maybe a -> m
