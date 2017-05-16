@@ -9,14 +9,15 @@ message Trivial {
 
   int64          trivialField64   =  6;
   uint64         trivialFieldU64  =  7;
-  fixed64        trivialFieldF64  =  8;
-  sfixed64       trivialFieldSF64 =  9;
+  sint64         trivialFieldS64  =  8;
+  fixed64        trivialFieldF64  =  9;
+  sfixed64       trivialFieldSF64 = 10;
 
-  repeated int32 repeatedField32  = 10;
-  repeated int64 repeatedField64  = 11;
+  repeated int32 repeatedField32  = 11;
+  repeated int64 repeatedField64  = 12;
 
   message Nested {
     int64 nestedField64 = 1;
   }
-  Nested         nestedMessage    = 12;
+  Nested         nestedMessage    = 13;
 }
