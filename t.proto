@@ -3,18 +3,19 @@ package tee;
 message Trivial {
   int32          trivialField32   = 1;
   uint32         trivialFieldU32  = 2;
-  fixed32        trivialFieldF32  = 3;
-  sfixed32       trivialFieldSF32 = 4;
+  sint32         trivialFieldS32  = 3;
+  fixed32        trivialFieldF32  = 4;
+  sfixed32       trivialFieldSF32 = 5;
 
-  int64          trivialField64   = 5;
-  fixed64        trivialFieldF64  = 6;
-  sfixed64       trivialFieldSF64 = 7;
+  int64          trivialField64   = 6;
+  fixed64        trivialFieldF64  = 7;
+  sfixed64       trivialFieldSF64 = 8;
 
-  repeated int32 repeatedField32  = 8;
-  repeated int64 repeatedField64  = 9;
+  repeated int32 repeatedField32  = 9;
+  repeated int64 repeatedField64  = 10;
 
   message Nested {
     int64 nestedField64 = 1;
   }
-  Nested         nestedMessage    = 10;
+  Nested         nestedMessage    = 11;
 }
