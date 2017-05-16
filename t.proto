@@ -1,21 +1,22 @@
 syntax = "proto3";
 package tee;
 message Trivial {
-  int32          trivialField32   = 1;
-  uint32         trivialFieldU32  = 2;
-  sint32         trivialFieldS32  = 3;
-  fixed32        trivialFieldF32  = 4;
-  sfixed32       trivialFieldSF32 = 5;
+  int32          trivialField32   =  1;
+  uint32         trivialFieldU32  =  2;
+  sint32         trivialFieldS32  =  3;
+  fixed32        trivialFieldF32  =  4;
+  sfixed32       trivialFieldSF32 =  5;
 
-  int64          trivialField64   = 6;
-  fixed64        trivialFieldF64  = 7;
-  sfixed64       trivialFieldSF64 = 8;
+  int64          trivialField64   =  6;
+  uint64         trivialFieldU64  =  7;
+  fixed64        trivialFieldF64  =  8;
+  sfixed64       trivialFieldSF64 =  9;
 
-  repeated int32 repeatedField32  = 9;
-  repeated int64 repeatedField64  = 10;
+  repeated int32 repeatedField32  = 10;
+  repeated int64 repeatedField64  = 11;
 
   message Nested {
     int64 nestedField64 = 1;
   }
-  Nested         nestedMessage    = 11;
+  Nested         nestedMessage    = 12;
 }
