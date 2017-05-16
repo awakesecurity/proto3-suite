@@ -441,12 +441,14 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 -- [x] Let's make sure we can do field nesting and repeating with our current
 -- approach.
 --
--- [ ] HERE: Then let's extend Int32/Int64 support for the fixed/unsigned variants as
+-- [ ] HERE: Let's write some simple tests for what we already have working so
+-- we can ensure we do not have regressions going forward.
+--
+-- [ ] Then let's extend Int32/Int64 support for the fixed/unsigned variants as
 -- well and make sure we don't have any uncomfortable overlap or design flaws
 -- for types which are encoded the same way...
 --
 --   - [ ] uint32
 --   - [ ] fixed64, uint64
---
 --
 -- [ ] And then let's try our hand at gParseJSONPB slowly.
