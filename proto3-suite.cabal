@@ -63,4 +63,5 @@ test-suite tests
                        cereal >= 0.5.1 && <0.6,
                        semigroups ==0.18.*,
                        transformers >=0.4 && <0.6,
-                       turtle >= 1.2.0
+                       turtle >= 1.2.0,
+                       doctest >= 0.7.0 && <0.12

@@ -12,6 +12,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Char8 as BC
+import qualified Test.DocTest
 import           Test.Tasty
 import           Test.Tasty.HUnit (Assertion, (@?=), (@=?), testCase, assertBool)
 import           Test.Tasty.QuickCheck (testProperty, (===))
@@ -33,7 +34,12 @@ import           Proto3.Wire.Types as P
 import           GHC.Exts (fromList)
 
 main :: IO ()
-main = defaultMain tests
+main = do
+  Test.DocTest.doctest
+    [ "-isrc"
+    , "src/Proto3/Suite/DotProto/Generate/JSON.hs"
+    ]
+  defaultMain tests
 
 tests :: TestTree
 tests = testGroup "Tests" [qcProperties, encodeUnitTests, decodeUnitTests,

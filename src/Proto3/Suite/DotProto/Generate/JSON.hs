@@ -77,6 +77,11 @@ import GHC.Generics as Hs
 import GHC.Enum as Hs
 import Debug.Trace
 
+-- $setup
+--
+-- >>> :set -XOverloadedLists
+-- >>> :set -XOverloadedStrings
+
 -- Experiments scratch
 
 --------------------------------------------------------------------------------
@@ -84,24 +89,12 @@ import Debug.Trace
 
 -- Can obtain AST via e.g. (readDotProtoWithContext "/w/proto3-suite/t.proto")
 
--- message Trivial {
---   int32 trivialField32           = 1;
---   fixed32 trivialFieldF32        = 2;
---   fixed64 trivialFieldF64        = 3;
---   int64 trivialField64           = 4;
---   repeated int32 repeatedField32 = 5;
---   repeated int64 repeatedField64 = 6;
---   message Nested {
---     int64 nestedField64 = 1;
---   }
---   Nested nestedMessage = 7;
--- }
-
 -- Via eg. (renderHsModuleForDotProtoFile "/w/proto3-suite/t.proto" >>= \(Prelude.Right s) -> Prelude.putStrLn s)
 data Trivial = Trivial{trivialTrivialField32 :: Hs.Int32,
                        trivialTrivialFieldF32 :: HsProtobuf.Fixed Hs.Word32,
-                       trivialTrivailFieldF64 :: HsProtobuf.Fixed Hs.Word64,
+                       trivialTrivialFieldSF32 :: HsProtobuf.Fixed Hs.Int32,
                        trivialTrivialField64 :: Hs.Int64,
+                       trivialTrivialFieldF64 :: HsProtobuf.Fixed Hs.Word64,
                        trivialRepeatedField32 :: Hs.Vector Hs.Int32,
                        trivialRepeatedField64 :: Hs.Vector Hs.Int64,
                        trivialNestedMessage :: Hs.Maybe Trivial_Nested}
@@ -114,8 +107,9 @@ instance HsProtobuf.Message Trivial where
         encodeMessage _
           Trivial{trivialTrivialField32 = trivialTrivialField32,
                   trivialTrivialFieldF32 = trivialTrivialFieldF32,
-                  trivialTrivailFieldF64 = trivialTrivailFieldF64,
+                  trivialTrivialFieldSF32 = trivialTrivialFieldSF32,
                   trivialTrivialField64 = trivialTrivialField64,
+                  trivialTrivialFieldF64 = trivialTrivialFieldF64,
                   trivialRepeatedField32 = trivialRepeatedField32,
                   trivialRepeatedField64 = trivialRepeatedField64,
                   trivialNestedMessage = trivialNestedMessage}
@@ -125,14 +119,16 @@ instance HsProtobuf.Message Trivial where
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
                    trivialTrivialFieldF32),
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 3)
-                   trivialTrivailFieldF64),
+                   (HsProtobuf.Signed trivialTrivialFieldSF32)),
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 4)
                    trivialTrivialField64),
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 5)
-                   (HsProtobuf.PackedVec trivialRepeatedField32)),
+                   trivialTrivialFieldF64),
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 6)
-                   (HsProtobuf.PackedVec trivialRepeatedField64)),
+                   (HsProtobuf.PackedVec trivialRepeatedField32)),
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 7)
+                   (HsProtobuf.PackedVec trivialRepeatedField64)),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 8)
                    (HsProtobuf.Nested trivialNestedMessage))])
         decodeMessage _
           = (Hs.pure Trivial) <*>
@@ -142,23 +138,27 @@ instance HsProtobuf.Message Trivial where
               (HsProtobuf.at HsProtobuf.decodeMessageField
                  (HsProtobuf.FieldNumber 2))
               <*>
-              (HsProtobuf.at HsProtobuf.decodeMessageField
-                 (HsProtobuf.FieldNumber 3))
+              ((Hs.pure HsProtobuf.signed) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 3)))
               <*>
               (HsProtobuf.at HsProtobuf.decodeMessageField
                  (HsProtobuf.FieldNumber 4))
               <*>
-              ((Hs.pure HsProtobuf.packedvec) <*>
-                 (HsProtobuf.at HsProtobuf.decodeMessageField
-                    (HsProtobuf.FieldNumber 5)))
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 5))
               <*>
               ((Hs.pure HsProtobuf.packedvec) <*>
                  (HsProtobuf.at HsProtobuf.decodeMessageField
                     (HsProtobuf.FieldNumber 6)))
               <*>
-              ((Hs.pure HsProtobuf.nested) <*>
+              ((Hs.pure HsProtobuf.packedvec) <*>
                  (HsProtobuf.at HsProtobuf.decodeMessageField
                     (HsProtobuf.FieldNumber 7)))
+              <*>
+              ((Hs.pure HsProtobuf.nested) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 8)))
         dotProto _
           = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
                 (HsProtobuf.Prim HsProtobuf.Int32)
@@ -171,8 +171,8 @@ instance HsProtobuf.Message Trivial where
                 []
                 Hs.Nothing),
              (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 3)
-                (HsProtobuf.Prim HsProtobuf.Fixed64)
-                (HsProtobuf.Single "trivailFieldF64")
+                (HsProtobuf.Prim HsProtobuf.SFixed32)
+                (HsProtobuf.Single "trivialFieldSF32")
                 []
                 Hs.Nothing),
              (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 4)
@@ -181,16 +181,21 @@ instance HsProtobuf.Message Trivial where
                 []
                 Hs.Nothing),
              (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 5)
+                (HsProtobuf.Prim HsProtobuf.Fixed64)
+                (HsProtobuf.Single "trivailFieldF64")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 6)
                 (HsProtobuf.Repeated HsProtobuf.Int32)
                 (HsProtobuf.Single "repeatedField32")
                 []
                 Hs.Nothing),
-             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 6)
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 7)
                 (HsProtobuf.Repeated HsProtobuf.Int64)
                 (HsProtobuf.Single "repeatedField64")
                 []
                 Hs.Nothing),
-             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 7)
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 8)
                 (HsProtobuf.Prim (HsProtobuf.Named (HsProtobuf.Single "Nested")))
                 (HsProtobuf.Single "nestedMessage")
                 []
@@ -241,22 +246,24 @@ instance A.FromJSON Trivial_Nested where
 -- Instance for Trivial (these instances will be generated, eventually)
 
 instance A.ToJSON Trivial where
-  toJSON (Trivial i32 f32 f64 i64 v32 v64 mnest) = A.object . mconcat $
-    [ fieldToJSON "trivialField32" i32
-    , fieldToJSON "trivialFieldF32" (F32 f32)
-    , fieldToJSON "trivialFieldF64" (F64 f64)
-    , fieldToJSON "trivialField64"  i64
-    , fieldToJSON "repeatedField32" v32
-    , fieldToJSON "repeatedField64" v64
+  toJSON (Trivial i32 f32 sf32 i64 f64 v32 v64 mnest) = A.object . mconcat $
+    [ fieldToJSON "trivialField32"      i32
+    , fieldToJSON "trivialFieldF32"     (F32 f32)
+    , fieldToJSON "trivialFieldSF32"    (SF32 sf32)
+    , fieldToJSON "trivialField64"      i64
+    , fieldToJSON "trivialFieldF64"     (F64 f64)
+    , fieldToJSON "repeatedField32"     v32
+    , fieldToJSON "repeatedField64"     v64
     , nestedFieldToJSON "nestedMessage" mnest
     ]
-  toEncoding (Trivial i32 f32 f64 i64 v32 v64 mnest) = A.pairs . mconcat $
-    [ fieldToEnc "trivialField32"  i32
-    , fieldToEnc "trivialFieldF32" (F32 f32)
-    , fieldToEnc "trivialFieldF64" (F64 f64)
-    , fieldToEnc "trivialField64"  i64
-    , fieldToEnc "repeatedField32" v32
-    , fieldToEnc "repeatedField64" v64
+  toEncoding (Trivial i32 f32 sf32 i64 f64 v32 v64 mnest) = A.pairs . mconcat $
+    [ fieldToEnc "trivialField32"           i32
+    , fieldToEnc "trivialFieldF32"          (F32 f32)
+    , fieldToEnc "trivialFieldSF32"         (SF32 sf32)
+    , fieldToEnc "trivialField64"           i64
+    , fieldToEnc "trivialFieldF64"          (F64 f64)
+    , fieldToEnc "repeatedField32"          v32
+    , fieldToEnc "repeatedField64"          v64
     , nestedFieldToEncoding "nestedMessage" mnest
     ]
 
@@ -264,9 +271,10 @@ instance A.FromJSON Trivial where
   parseJSON = A.withObject "Trivial" $ \obj ->
     pure Trivial
     <*> parseField obj "trivialField32"
-    <*> do F32 x <- parseField obj "trivialFieldF32"; pure x
-    <*> do F64 x <- parseField obj "trivialFieldF64"; pure x
+    <*> do F32  x <- parseField obj "trivialFieldF32"; pure x
+    <*> do SF32 x <- parseField obj "trivialFieldSF32"; pure x
     <*> parseField obj "trivialField64"
+    <*> do F64 x <- parseField obj "trivialFieldF64"; pure x
     <*> parseField obj "repeatedField32"
     <*> parseField obj "repeatedField64"
     <*> decodeNested obj "nestedMessage"
@@ -354,6 +362,26 @@ instance A.FromJSON (PBR F32) where
 instance A.FromJSON F32 where
   parseJSON = fmap (F32 . HsProtobuf.Fixed) . A.parseJSON
 
+newtype SF32 = SF32 (HsProtobuf.Fixed Hs.Int32) deriving (Eq, Num, Show)
+instance A.ToJSON SF32 where
+  toJSON (SF32 (HsProtobuf.Fixed n)) = A.toJSON n
+instance PBRep SF32 where
+  data PBR SF32          = PBSFixed32 SF32 deriving (Show, Generic)
+  toPBR                  = PBSFixed32
+  fromPBR (PBSFixed32 x) = x
+instance Monoid (PBR SF32) where
+  mempty = toPBR 0
+  mappend (fromPBR -> 0) (fromPBR -> y) = toPBR y
+  mappend (fromPBR -> x) (fromPBR -> 0) = toPBR x
+  mappend _               x             = x
+instance A.ToJSON (PBR SF32)
+instance A.FromJSON (PBR SF32) where
+  parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
+  parseJSON (A.String t) = fromDecimalString t
+  parseJSON v            = A.typeMismatch "PBR SF32" v
+instance A.FromJSON SF32 where
+  parseJSON = fmap (SF32 . HsProtobuf.Fixed) . A.parseJSON
+
 --------------------------------------------------------------------------------
 -- PBReps for int64, fixed64, uint64
 --
@@ -429,12 +457,24 @@ fromDecimalString
   . LBS.fromStrict
   . Hs.encodeUtf8
 
+-- | Ensure that encoding and decoding are mutually inverse
+--
+-- >>> roundTrip (Trivial 99 43 17 66 67 [4,5] [6,7] (Just (Trivial_Nested 101)))
+-- Right True
 roundTrip :: (A.ToJSON a, A.FromJSON a, Eq a) => a -> Either String Bool
 roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 
+-- | Converting a PB payload to JSON is just encoding via Aeson.
+--
+-- >>> pbToJSON (Trivial 99 43 17 66 67 [4,5] [6,7] (Just (Trivial_Nested 101)))
+-- "{\"trivialField32\":99,\"trivialFieldF32\":43,\"trivialFieldSF32\":17,\"trivialField64\":\"66\",\"trivialFieldF64\":\"67\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"nestedMessage\":{\"nestedField64\":\"101\"}}"
 pbToJSON :: A.ToJSON a => a -> LBS.ByteString
 pbToJSON = A.encode
 
+-- | Converting from JSON to PB is just decoding via Aeson.
+--
+-- >>> jsonToPB "{\"trivialField32\":99,\"trivialFieldF32\":43,\"trivialFieldSF32\":17,\"trivialField64\":\"66\",\"trivialFieldF64\":\"67\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"nestedMessage\":{\"nestedField64\":\"101\"}}" :: Either String Trivial
+-- Right (Trivial {trivialTrivialField32 = 99, trivialTrivialFieldF32 = Fixed {fixed = 43}, trivialTrivialFieldSF32 = Fixed {fixed = 17}, trivialTrivialField64 = 66, trivialTrivialFieldF64 = Fixed {fixed = 67}, trivialRepeatedField32 = [4,5], trivialRepeatedField64 = [6,7], trivialNestedMessage = Just (Trivial_Nested {trivial_NestedNestedField64 = 101})})
 jsonToPB :: A.FromJSON a => LBS.ByteString -> Hs.Either Hs.String a
 jsonToPB = A.eitherDecode
 
@@ -455,7 +495,7 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 
 --------------------------------------------------------------------------------
 -- Scratch
-
+--
 -- We should hand-elaborate a little further and make sure we have a strategy
 -- for dealing with message nesting, repetition, packed vecs, etc., before we
 -- push too much farther on the generic parser. I.e., we should be able to write
@@ -464,21 +504,12 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 -- [x] Let's make sure we can do field nesting and repetition with our current
 -- approach.
 --
--- [ ] HERE: Let's write some simple tests for what we already have working so
--- we can ensure we do not have regressions going forward.
---
---   E.g.
---
---     pbToJSON/roundTrip (Trivial 99 43 66 [4,5] [6,7] (Just (Trivial_Nested 101)))
---
---   and the like. May be worth confirming against the golang encoding as well
---   as a sanity check.
---
 -- [ ] Then let's extend Int32/Int64 support for the fixed/unsigned variants as
 -- well and make sure we don't have any uncomfortable overlap or design flaws
 -- for types which are encoded the same way...
 --
---   - [ ] HERE: sfixed32, sfixed64
+--   - [ ] sfixed32
+--   - [ ] sfixed64
 --   - [ ] uint32, sint32
 --   - [ ] uint64, sint64
 --   - [ ] remaining scalar types: double float sfixed32 sfixed64 bool string bytes
