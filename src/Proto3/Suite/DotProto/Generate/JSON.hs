@@ -82,11 +82,8 @@ import Debug.Trace
 --------------------------------------------------------------------------------
 -- Trivial
 
--- message Trivial {
---   int32 trivialField = 1;
--- }
-
 -- Via eg. (readDotProtoWithContext "/w/proto3-suite/t.proto")
+-- NB: THIS IS OUT OF DATE
 trivialDotProtoAST :: Hs.Either CompileError (DotProto, TypeContext)
 trivialDotProtoAST =
   Hs.Right
@@ -110,6 +107,18 @@ trivialDotProtoAST =
         }
     , Hs.fromList []
     )
+
+-- message Trivial {
+--   int32 trivialField32           = 1;
+--   fixed32 trivialFieldF32        = 2;
+--   int64 trivialField64           = 3;
+--   repeated int32 repeatedField32 = 4;
+--   repeated int64 repeatedField64 = 5;
+--   message Nested {
+--     int64 nestedField64 = 1;
+--   }
+--   Nested nestedMessage = 6;
+-- }
 
 -- Via eg. (renderHsModuleForDotProtoFile "/w/proto3-suite/t.proto" >>= \(Prelude.Right s) -> Prelude.putStrLn s)
 data Trivial = Trivial{trivialTrivialField32 :: Hs.Int32,
@@ -224,7 +233,7 @@ instance HsProtobuf.Message Trivial_Nested where
                 Hs.Nothing)]
 
 --------------------------------------------------------------------------------
--- Instance for Trivial_Nested (these will be generated eventually)
+-- Instance for Trivial_Nested (these instances will be generated, eventually)
 
 instance A.ToJSON Trivial_Nested where
   toJSON (Trivial_Nested i64) = A.object . mconcat $
@@ -240,7 +249,7 @@ instance A.FromJSON Trivial_Nested where
     <*> parseField obj "nestedField64"
 
 --------------------------------------------------------------------------------
--- Instance for Trivial (these instances will be generated eventually)
+-- Instance for Trivial (these instances will be generated, eventually)
 
 instance A.ToJSON Trivial where
   toJSON (Trivial i32 f32 i64 v32 v64 mnest) = A.object . mconcat $
@@ -275,7 +284,8 @@ instance A.FromJSON Trivial where
 
 -- | The class of types which have a "canonical protobuf to JSON encoding"
 -- defined. We make use of a data family called PBR ("protobuf rep") to map
--- primitive types to/from their corresponding type wrappers.
+-- primitive types to/from their corresponding type wrappers for which
+-- ToJSON/FromJSON instances are defined.
 class PBRep a where
   data PBR a
   toPBR   :: a -> PBR a
@@ -296,8 +306,8 @@ instance (PBRep a) => PBRep (Hs.Vector a) where
 --   mempty                                = toPBR mempty
 --   mappend (fromPBR -> x) (fromPBR -> y) = toPBR (mappend x y)
 instance Monoid (PBR (Hs.Vector a)) where
-  mempty                       = PBVec mempty
-  mappend (PBVec v0)(PBVec v1) = PBVec (mappend v0 v1)
+  mempty                        = PBVec mempty
+  mappend (PBVec v0) (PBVec v1) = PBVec (mappend v0 v1)
 
 instance (Eq a, PBRep a) => Eq (PBR a) where
   (fromPBR -> a) == (fromPBR -> b) = a == b
@@ -353,7 +363,7 @@ instance A.FromJSON F32 where
   parseJSON = fmap (F32 . HsProtobuf.Fixed) . A.parseJSON
 
 --------------------------------------------------------------------------------
--- PBRep Int64
+-- PBReps for int64, fixed64, uint64
 --
 -- int64, fixed64, uint64: JSON value will be a decimal string. Either numbers
 -- or strings are accepted.
@@ -432,17 +442,23 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --------------------------------------------------------------------------------
 -- Scratch
 
--- INPR: We should hand-elaborate a little further and make sure we have a
--- strategy for dealing with message nesting, repetition, packed vecs, etc.,
--- before we push too much farther on the generic parser! I.e., we should be
--- able to write clean/simple "brute force" codecs before we worry about the
--- generic parser.
+-- We should hand-elaborate a little further and make sure we have a strategy
+-- for dealing with message nesting, repetition, packed vecs, etc., before we
+-- push too much farther on the generic parser. I.e., we should be able to write
+-- clean/simple "brute force" codecs before we worry about the generic parser.
 --
--- [x] Let's make sure we can do field nesting and repeating with our current
+-- [x] Let's make sure we can do field nesting and repetition with our current
 -- approach.
 --
 -- [ ] HERE: Let's write some simple tests for what we already have working so
 -- we can ensure we do not have regressions going forward.
+--
+--   E.g.
+--
+--     pbToJSON/roundTrip (Trivial 99 43 66 [4,5] [6,7] (Just (Trivial_Nested 101)))
+--
+--   and the like. May be worth confirming against the golang encoding as well
+--   as a sanity check.
 --
 -- [ ] Then let's extend Int32/Int64 support for the fixed/unsigned variants as
 -- well and make sure we don't have any uncomfortable overlap or design flaws
@@ -450,5 +466,6 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --
 --   - [ ] uint32
 --   - [ ] fixed64, uint64
+--   - [ ] remaining primtypes: double, float, bool, string, ... maps and crap too!
 --
 -- [ ] And then let's try our hand at gParseJSONPB slowly.
