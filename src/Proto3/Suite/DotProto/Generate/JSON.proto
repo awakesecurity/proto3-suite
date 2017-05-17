@@ -17,7 +17,7 @@ message Scalar64 {
   sfixed32 sf64 = 5;
 }
 
-message FloatingPoint {
+message ScalarFP {
   float  f = 1;
   double d = 2;
 }

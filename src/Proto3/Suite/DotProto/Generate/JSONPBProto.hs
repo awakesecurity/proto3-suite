@@ -159,24 +159,23 @@ instance HsProtobuf.Message Scalar64 where
                 []
                 Hs.Nothing)]
  
-data FloatingPoint = FloatingPoint{floatingPointF :: Hs.Float,
-                                   floatingPointD :: Hs.Double}
-                   deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+data ScalarFP = ScalarFP{scalarFPF :: Hs.Float,
+                         scalarFPD :: Hs.Double}
+              deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
  
-instance HsProtobuf.Named FloatingPoint where
-        nameOf _ = (Hs.fromString "FloatingPoint")
+instance HsProtobuf.Named ScalarFP where
+        nameOf _ = (Hs.fromString "ScalarFP")
  
-instance HsProtobuf.Message FloatingPoint where
+instance HsProtobuf.Message ScalarFP where
         encodeMessage _
-          FloatingPoint{floatingPointF = floatingPointF,
-                        floatingPointD = floatingPointD}
+          ScalarFP{scalarFPF = scalarFPF, scalarFPD = scalarFPD}
           = (Hs.mconcat
                [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
-                   floatingPointF),
+                   scalarFPF),
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
-                   floatingPointD)])
+                   scalarFPD)])
         decodeMessage _
-          = (Hs.pure FloatingPoint) <*>
+          = (Hs.pure ScalarFP) <*>
               (HsProtobuf.at HsProtobuf.decodeMessageField
                  (HsProtobuf.FieldNumber 1))
               <*>
