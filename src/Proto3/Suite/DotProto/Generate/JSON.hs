@@ -399,75 +399,6 @@ class PBRep a where
   toPBR   :: a -> PBR a
   fromPBR :: PBR a -> a
 
--- Premature abstraction
--- instance (Functor f, PBRep a) => PBRep (f a) where
---   data PBR (f a)     = PBReps (f (PBR a))
---   toPBR v            = PBReps (toPBR <$> v)
---   fromPBR (PBReps v) = fromPBR <$> v
-instance (PBRep a) => PBRep (Hs.Vector a) where
-  data PBR (Hs.Vector a) = PBVec (Hs.Vector (PBR a))
-  toPBR v                = PBVec (toPBR <$> v)
-  fromPBR (PBVec v)      = fromPBR <$> v
-
--- Premature abstraction:
--- instance (Functor f, Monoid (f a), PBRep a, PBRep(f a)) => Monoid (PBR (f a)) where
---   mempty                                = toPBR mempty
---   mappend (fromPBR -> x) (fromPBR -> y) = toPBR (mappend x y)
-instance Monoid (PBR (Hs.Vector a)) where
-  mempty                        = PBVec mempty
-  mappend (PBVec v0) (PBVec v1) = PBVec (mappend v0 v1)
-
-instance (Eq a, PBRep a) => Eq (PBR a) where
-  (fromPBR -> a) == (fromPBR -> b) = a == b
-
--- NB: Can probably quite safely abstract Vector a to Functor f => f a.
--- https://www.reddit.com/r/haskell/comments/64iuia/when_is_undecidableinstances_safe/
-
-instance (A.FromJSON (PBR a), PBRep a) => A.FromJSON (PBR (Hs.Vector a)) where
-  parseJSON = fmap (toPBR . fmap fromPBR) . A.parseJSON
-
-instance (A.ToJSON (PBR a), PBRep a) => A.ToJSON (PBR (Hs.Vector a)) where
-  toJSON = A.toJSON . fmap toPBR . fromPBR
-
---------------------------------------------------------------------------------
--- PBReps for float and double
---
--- JSON value will be a number or one of the special string values "NaN",
--- "Infinity", and "-Infinity". Either numbers or strings are accepted. Exponent
--- notation is also accepted.
-
--- float
-instance PBRep Hs.Float where
-  data PBR Hs.Float   = PBFloat Hs.Float deriving (Show, Generic)
-  toPBR               = PBFloat
-  fromPBR (PBFloat x) = x
-instance Monoid (PBR Hs.Float) where
-  mempty                                = toPBR 0
-  mappend (fromPBR -> 0) (fromPBR -> y) = toPBR y
-  mappend (fromPBR -> x) (fromPBR -> 0) = toPBR x
-  mappend _               x             = x
-instance A.ToJSON (PBR Hs.Float)
-instance A.FromJSON (PBR Hs.Float) where
-  parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
-  parseJSON (A.String t) = parseKeyPB t
-  parseJSON v            = A.typeMismatch "PBR Float" v
-
--- double
-instance PBRep Hs.Double where
-  data PBR Hs.Double  = PBDouble Hs.Double deriving (Show, Generic)
-  toPBR               = PBDouble
-  fromPBR (PBDouble x) = x
-instance Monoid (PBR Hs.Double) where
-  mempty                                = toPBR 0
-  mappend (fromPBR -> 0) (fromPBR -> y) = toPBR y
-  mappend (fromPBR -> x) (fromPBR -> 0) = toPBR x
-  mappend _               x             = x
-instance A.ToJSON (PBR Hs.Double)
-instance A.FromJSON (PBR Hs.Double) where
-  parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
-  parseJSON (A.String t) = parseKeyPB t
-  parseJSON v            = A.typeMismatch "PBR Double" v
-
 --------------------------------------------------------------------------------
 -- PBReps for int32, sint32, uint32, fixed32, sfixed32.
 --
@@ -634,6 +565,66 @@ instance A.FromJSON (HsProtobuf.Fixed Hs.Int64) where
   parseJSON = fmap HsProtobuf.Fixed . A.parseJSON
 
 --------------------------------------------------------------------------------
+-- PBReps for float and double
+--
+-- JSON value will be a number or one of the special string values "NaN",
+-- "Infinity", and "-Infinity". Either numbers or strings are accepted. Exponent
+-- notation is also accepted.
+
+-- float
+instance PBRep Hs.Float where
+  data PBR Hs.Float   = PBFloat Hs.Float deriving (Show, Generic)
+  toPBR               = PBFloat
+  fromPBR (PBFloat x) = x
+instance Monoid (PBR Hs.Float) where
+  mempty                                = toPBR 0
+  mappend (fromPBR -> 0) (fromPBR -> y) = toPBR y
+  mappend (fromPBR -> x) (fromPBR -> 0) = toPBR x
+  mappend _               x             = x
+instance A.ToJSON (PBR Hs.Float)
+instance A.FromJSON (PBR Hs.Float) where
+  parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
+  parseJSON (A.String t) = parseKeyPB t
+  parseJSON v            = A.typeMismatch "PBR Float" v
+
+-- double
+instance PBRep Hs.Double where
+  data PBR Hs.Double  = PBDouble Hs.Double deriving (Show, Generic)
+  toPBR               = PBDouble
+  fromPBR (PBDouble x) = x
+instance Monoid (PBR Hs.Double) where
+  mempty                                = toPBR 0
+  mappend (fromPBR -> 0) (fromPBR -> y) = toPBR y
+  mappend (fromPBR -> x) (fromPBR -> 0) = toPBR x
+  mappend _               x             = x
+instance A.ToJSON (PBR Hs.Double)
+instance A.FromJSON (PBR Hs.Double) where
+  parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
+  parseJSON (A.String t) = parseKeyPB t
+  parseJSON v            = A.typeMismatch "PBR Double" v
+
+--------------------------------------------------------------------------------
+-- PBRep for repeated
+
+instance (PBRep a) => PBRep (Hs.Vector a) where
+  data PBR (Hs.Vector a) = PBVec (Hs.Vector (PBR a))
+  toPBR v                = PBVec (toPBR <$> v)
+  fromPBR (PBVec v)      = fromPBR <$> v
+
+instance Monoid (PBR (Hs.Vector a)) where
+  mempty                        = PBVec mempty
+  mappend (PBVec v0) (PBVec v1) = PBVec (mappend v0 v1)
+
+instance (Eq a, PBRep a) => Eq (PBR a) where
+  (fromPBR -> a) == (fromPBR -> b) = a == b
+
+instance (A.FromJSON (PBR a), PBRep a) => A.FromJSON (PBR (Hs.Vector a)) where
+  parseJSON = fmap (toPBR . fmap fromPBR) . A.parseJSON
+
+instance (A.ToJSON (PBR a), PBRep a) => A.ToJSON (PBR (Hs.Vector a)) where
+  toJSON = A.toJSON . fmap toPBR . fromPBR
+
+--------------------------------------------------------------------------------
 -- Helpers
 
 parseKeyPB :: (PBRep a, A.FromJSONKey a) => Text.Text -> A.Parser (PBR a)
@@ -724,12 +715,6 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 -- push too much farther on the generic parser. I.e., we should be able to write
 -- clean/simple "brute force" codecs before we worry about the generic parser.
 --
--- [ ] Then let's extend Int32/Int64 support for the fixed/unsigned variants as
--- well and make sure we don't have any uncomfortable overlap or design flaws
--- for types which are encoded the same way...
---
--- HERE: test double type in Trivial value and add to doctests
---
 -- TODO: See if we can remove the intermediate F32 newtype and/or accurately
 --       describe why we cannot? I am starting to get the feeling that it is not
 --       needed.
@@ -737,5 +722,8 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --   - [ ] remaining scalar types: string bytes
 --   - [ ] other aggregate types eg maps and crap
 --   - [ ] 'any' type, blech
+--   - [ ] check packed vecs, other possible outliers
+--   - [ ] explore generation of Monoid instances and hiding the details about
+--         nestedFieldTo{Encoding,JSON} and decodeNested
 --
 -- [ ] And then let's try our hand at gParseJSONPB after that
