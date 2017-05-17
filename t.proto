@@ -23,4 +23,5 @@ message Trivial {
 
   float          trivialFieldFloat  = 14;
   double         trivialFieldDouble = 15;
+  string         trivialFieldString = 16;
 }
