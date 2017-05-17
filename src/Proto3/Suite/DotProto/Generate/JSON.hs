@@ -30,6 +30,7 @@ prototyping for the kind of code that we'll want to end up generating.
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 module Proto3.Suite.DotProto.Generate.JSON where
@@ -336,7 +337,7 @@ instance A.ToJSON Trivial where
     [ fieldToJSON "trivialField32"      i32
     , fieldToJSON "trivialFieldU32"     u32
     , fieldToJSON "trivialFieldS32"     s32
-    , fieldToJSON "trivialFieldF32"     (F32 f32)
+    , fieldToJSON "trivialFieldF32"     f32
     , fieldToJSON "trivialFieldSF32"    (SF32 sf32)
     , fieldToJSON "trivialField64"      i64
     , fieldToJSON "trivialFieldU64"     u64
@@ -353,7 +354,7 @@ instance A.ToJSON Trivial where
     [ fieldToEnc "trivialField32"           i32
     , fieldToEnc "trivialFieldU32"          u32
     , fieldToEnc "trivialFieldS32"          s32
-    , fieldToEnc "trivialFieldF32"          (F32 f32)
+    , fieldToEnc "trivialFieldF32"          f32
     , fieldToEnc "trivialFieldSF32"         (SF32 sf32)
     , fieldToEnc "trivialField64"           i64
     , fieldToEnc "trivialFieldU64"          u64
@@ -373,7 +374,7 @@ instance A.FromJSON Trivial where
     <*> parseField obj "trivialField32"
     <*> parseField obj "trivialFieldU32"
     <*> parseField obj "trivialFieldS32"
-    <*> do F32  x <- parseField obj "trivialFieldF32"; pure x
+    <*> parseField obj "trivialFieldF32"
     <*> do SF32 x <- parseField obj "trivialFieldSF32"; pure x
     <*> parseField obj "trivialField64"
     <*> parseField obj "trivialFieldU64"
@@ -508,25 +509,25 @@ instance A.FromJSON (PBR Hs.Word32) where
   parseJSON v            = A.typeMismatch "PBR Word32" v
 
 -- fixed32
-newtype F32 = F32 (HsProtobuf.Fixed Hs.Word32) deriving (Eq, Num, Show)
-instance A.ToJSON F32 where
-  toJSON (F32 (HsProtobuf.Fixed n)) = A.toJSON n
-instance PBRep F32 where
-  data PBR F32          = PBFixed32 F32 deriving (Show, Generic)
-  toPBR                 = PBFixed32
-  fromPBR (PBFixed32 x) = x
-instance Monoid (PBR F32) where
+instance PBRep (HsProtobuf.Fixed Hs.Word32) where
+  data PBR (HsProtobuf.Fixed Hs.Word32) = PBFixed32 (HsProtobuf.Fixed Hs.Word32) deriving (Show, Generic)
+  toPBR                                 = PBFixed32
+  fromPBR (PBFixed32 x)                 = x
+
+instance Monoid (PBR (HsProtobuf.Fixed Hs.Word32)) where
   mempty = toPBR 0
   mappend (fromPBR -> 0) (fromPBR -> y) = toPBR y
   mappend (fromPBR -> x) (fromPBR -> 0) = toPBR x
   mappend _               x             = x
-instance A.ToJSON (PBR F32)
-instance A.FromJSON (PBR F32) where
+instance A.ToJSON (HsProtobuf.Fixed Hs.Word32) where
+  toJSON (HsProtobuf.Fixed n) = A.toJSON n
+instance A.ToJSON (PBR (HsProtobuf.Fixed Hs.Word32))
+instance A.FromJSON (HsProtobuf.Fixed Hs.Word32) where
+  parseJSON = fmap HsProtobuf.Fixed . A.parseJSON
+instance A.FromJSON (PBR (HsProtobuf.Fixed Hs.Word32)) where
   parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
   parseJSON (A.String t) = fromDecimalString t
   parseJSON v            = A.typeMismatch "PBR F32" v
-instance A.FromJSON F32 where
-  parseJSON = fmap (F32 . HsProtobuf.Fixed) . A.parseJSON
 
 -- sfixed32
 newtype SF32 = SF32 (HsProtobuf.Fixed Hs.Int32) deriving (Eq, Num, Show)
@@ -730,7 +731,7 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --       describe why we cannot? I am starting to get the feeling that it is not
 --       needed.
 --
---   - [ ] remaining scalar types: double string bytes
+--   - [ ] remaining scalar types: string bytes
 --   - [ ] other aggregate types eg maps and crap
 --   - [ ] 'any' type, blech
 --
