@@ -158,6 +158,32 @@ instance A.FromJSON Repeat where
     <*> parseField obj "i32s"
     <*> parseField obj "i64s"
 
+-- Nested
+instance A.ToJSON Nested where
+  toJSON (Nested minner) = A.object . mconcat $
+    [ nestedFieldToJSON "nestedInner" minner
+    ]
+  toEncoding (Nested minner) = A.pairs . mconcat $
+    [ nestedFieldToEncoding "nestedInner" minner
+    ]
+instance A.FromJSON Nested where
+  parseJSON = A.withObject "Nested" $ \obj ->
+    pure Nested
+    <*> decodeNested obj "nestedInner"
+
+-- Nested_Inner
+instance A.ToJSON Nested_Inner where
+  toJSON (Nested_Inner i64) = A.object . mconcat $
+    [ fieldToJSON "i64" i64
+    ]
+  toEncoding (Nested_Inner i64) = A.pairs . mconcat $
+    [ fieldToEnc "i64" i64
+    ]
+instance A.FromJSON Nested_Inner where
+  parseJSON = A.withObject "Nested_Inner" $ \obj ->
+    pure Nested_Inner
+    <*> parseField obj "i64"
+
 -- Trivial
 instance A.ToJSON Trivial where
   toJSON (Trivial i32 u32 s32 f32 sf32 i64 u64 s64 f64 sf64 v32 v64 mnest float double string bytes) = A.object . mconcat $
@@ -563,6 +589,8 @@ fromDecimalString
 -- >>> let scalar32 = Scalar32 32 33 (-34) 35 36
 -- >>> let scalar64 = Scalar64 64 65 (-66) 67 68
 -- >>> let repeat' = Repeat [4,5] [6,7]
+-- >>> let nestedAbsent = Nested Nothing
+-- >>> let nestedPresent = Nested (Just (Nested_Inner 42))
 -- >>> let myTrivial = Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] (Just (Trivial_Nested 101)) 98.6 255.16 "foo" "encodeme"
 
 -- TODO test Repeat with empty lists serdes
@@ -576,6 +604,12 @@ fromDecimalString
 -- Right True
 --
 -- >>> roundTrip repeat'
+-- Right True
+--
+-- >>> roundTrip nestedAbsent
+-- Right True
+--
+-- >>> roundTrip nestedPresent
 -- Right True
 --
 -- >>> roundTrip myTrivial
@@ -597,6 +631,12 @@ roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 -- >>> pbToJSON repeat'
 -- "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
 --
+-- >>> pbToJSON nestedAbsent
+-- "{}"
+--
+-- >>> pbToJSON nestedPresent
+-- "{\"nestedInner\":{\"i64\":\"42\"}}"
+--
 -- >>> pbToJSON myTrivial
 -- "{\"trivialField32\":32,\"trivialFieldU32\":33,\"trivialFieldS32\":-34,\"trivialFieldF32\":35,\"trivialFieldSF32\":36,\"trivialField64\":\"64\",\"trivialFieldU64\":\"65\",\"trivialFieldS64\":\"-66\",\"trivialFieldF64\":\"67\",\"trivialFieldSF64\":\"68\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"nestedMessage\":{\"nestedField64\":\"101\"},\"trivialFieldFloat\":98.6,\"trivialFieldDouble\":255.16,\"trivialFieldString\":\"foo\",\"trivialFieldBytes\":\"ZW5jb2RlbWU=\"}"
 --
@@ -605,6 +645,8 @@ roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 --
 pbToJSON :: A.ToJSON a => a -> LBS.ByteString
 pbToJSON = A.encode
+
+-- TODO: a lot of these doctests could be simplified
 
 -- | Converting from JSON to PB is just decoding via Aeson.
 --
@@ -616,6 +658,12 @@ pbToJSON = A.encode
 --
 -- >>> jsonToPB "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}" :: Either String Repeat
 -- Right (Repeat {repeatI32s = [4,5], repeatI64s = [6,7]})
+--
+-- >>> jsonToPB "{}" :: Either String Nested
+-- Right (Nested {nestedNestedInner = Nothing})
+--
+-- >>> jsonToPB "{\"nestedInner\":{\"i64\":\"42\"}}" :: Either String Nested
+-- Right (Nested {nestedNestedInner = Just (Nested_Inner {nested_InnerI64 = 42})})
 --
 -- >>> jsonToPB (pbToJSON myTrivial) :: Either String Trivial
 -- Right (Trivial {trivialTrivialField32 = 32, trivialTrivialFieldU32 = 33, trivialTrivialFieldS32 = -34, trivialTrivialFieldF32 = Fixed {fixed = 35}, trivialTrivialFieldSF32 = Fixed {fixed = 36}, trivialTrivialField64 = 64, trivialTrivialFieldU64 = 65, trivialTrivialFieldS64 = -66, trivialTrivialFieldF64 = Fixed {fixed = 67}, trivialTrivialFieldSF64 = Fixed {fixed = 68}, trivialRepeatedField32 = [4,5], trivialRepeatedField64 = [6,7], trivialNestedMessage = Just (Trivial_Nested {trivial_NestedNestedField64 = 101}), trivialTrivialFieldFloat = 98.6, trivialTrivialFieldDouble = 255.16, trivialTrivialFieldString = "foo", trivialTrivialFieldBytes = "encodeme"})

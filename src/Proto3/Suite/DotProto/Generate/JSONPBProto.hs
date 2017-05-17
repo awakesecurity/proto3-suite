@@ -195,6 +195,51 @@ instance HsProtobuf.Message Repeat where
                 []
                 Hs.Nothing)]
  
+data Nested = Nested{nestedNestedInner :: Hs.Maybe Nested_Inner}
+            deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named Nested where
+        nameOf _ = (Hs.fromString "Nested")
+ 
+instance HsProtobuf.Message Nested where
+        encodeMessage _ Nested{nestedNestedInner = nestedNestedInner}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   (HsProtobuf.Nested nestedNestedInner))])
+        decodeMessage _
+          = (Hs.pure Nested) <*>
+              ((Hs.pure HsProtobuf.nested) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 1)))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim (HsProtobuf.Named (HsProtobuf.Single "Inner")))
+                (HsProtobuf.Single "nestedInner")
+                []
+                Hs.Nothing)]
+ 
+data Nested_Inner = Nested_Inner{nested_InnerI64 :: Hs.Int64}
+                  deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named Nested_Inner where
+        nameOf _ = (Hs.fromString "Nested_Inner")
+ 
+instance HsProtobuf.Message Nested_Inner where
+        encodeMessage _ Nested_Inner{nested_InnerI64 = nested_InnerI64}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   nested_InnerI64)])
+        decodeMessage _
+          = (Hs.pure Nested_Inner) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.Int64)
+                (HsProtobuf.Single "i64")
+                []
+                Hs.Nothing)]
+ 
 data Trivial = Trivial{trivialTrivialField32 :: Hs.Int32,
                        trivialTrivialFieldU32 :: Hs.Word32,
                        trivialTrivialFieldS32 :: Hs.Int32,
