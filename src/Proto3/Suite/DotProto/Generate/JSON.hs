@@ -88,14 +88,12 @@ import Debug.Trace
 -- >>> :set -XOverloadedStrings
 -- >>> let myTrivial = Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] (Just (Trivial_Nested 101)) 98.6 255.16 "foo" "encodeme"
 
--- Experiments scratch
-
 --------------------------------------------------------------------------------
--- Trivial
+-- Begin generated code for messages in ./JSON.proto
+-- Via e.g.:
+-- (renderHsModuleForDotProtoFile "/w/proto3-suite/src/Proto3/Suite/DotProto/Generate/JSON.proto" >>= \(Prelude.Right s) -> Prelude.putStrLn s)
+-- NB: AST can be obtained via readDotProtoWithContext
 
--- Can obtain AST via e.g. (readDotProtoWithContext "/w/proto3-suite/t.proto")
-
--- Via eg. (renderHsModuleForDotProtoFile "/w/proto3-suite/t.proto" >>= \(Prelude.Right s) -> Prelude.putStrLn s)
 data Trivial = Trivial{trivialTrivialField32 :: Hs.Int32,
                        trivialTrivialFieldU32 :: Hs.Word32,
                        trivialTrivialFieldS32 :: Hs.Int32,
@@ -341,25 +339,14 @@ instance HsProtobuf.Message Trivial_Nested where
                 []
                 Hs.Nothing)]
 
+-- End generated code for messages in ./JSON.proto
 --------------------------------------------------------------------------------
--- Instance for Trivial_Nested (these instances will be generated, eventually)
-
-instance A.ToJSON Trivial_Nested where
-  toJSON (Trivial_Nested i64) = A.object . mconcat $
-    [ fieldToJSON "nestedField64" i64
-    ]
-  toEncoding (Trivial_Nested i64) = A.pairs . mconcat $
-    [ fieldToEnc "nestedField64" i64
-    ]
-
-instance A.FromJSON Trivial_Nested where
-  parseJSON = A.withObject "Trivial_Nested" $ \obj ->
-    pure Trivial_Nested
-    <*> parseField obj "nestedField64"
 
 --------------------------------------------------------------------------------
--- Instance for Trivial (these instances will be generated, eventually)
+-- Begin hand-generated instances for JSON PB renderings; these instances will
+-- be generated once their design is finalized.
 
+-- Trivial
 instance A.ToJSON Trivial where
   toJSON (Trivial i32 u32 s32 f32 sf32 i64 u64 s64 f64 sf64 v32 v64 mnest float double string bytes) = A.object . mconcat $
     [ fieldToJSON "trivialField32"      i32
@@ -420,6 +407,24 @@ instance A.FromJSON Trivial where
     <*> parseField obj "trivialFieldDouble"
     <*> parseField obj "trivialFieldString"
     <*> parseField obj "trivialFieldBytes"
+
+-- Trivial_Nested
+
+instance A.ToJSON Trivial_Nested where
+  toJSON (Trivial_Nested i64) = A.object . mconcat $
+    [ fieldToJSON "nestedField64" i64
+    ]
+  toEncoding (Trivial_Nested i64) = A.pairs . mconcat $
+    [ fieldToEnc "nestedField64" i64
+    ]
+
+instance A.FromJSON Trivial_Nested where
+  parseJSON = A.withObject "Trivial_Nested" $ \obj ->
+    pure Trivial_Nested
+    <*> parseField obj "nestedField64"
+
+-- End hand-generated instances for JSON PB renderings
+--------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
 -- PB <-> JSON
@@ -747,8 +752,6 @@ fromDecimalString
 roundTrip :: (A.ToJSON a, A.FromJSON a, Eq a) => a -> Either String Bool
 roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 
--- Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] (Just (Trivial_Nested 101)) 98.6 255.16 "foo" "encodeme"
-
 -- | Converting a PB payload to JSON is just encoding via Aeson.
 --
 -- >>> pbToJSON myTrivial
@@ -791,13 +794,12 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --------------------------------------------------------------------------------
 -- TODOs
 --
--- HERE: once bytes is supported, let's split the existing monolithic proto into
--- a bunch of substructures for better grouping of type variants and better
+-- [ ] once bytes is supported, let's split the existing monolithic proto into a
+-- bunch of substructures for better grouping of type variants and better
 -- testing isolation. It will also give us much smaller instances to work with
 -- when doing preliminary code generation. The current Trivial datatype is
 -- becoming unwieldy.
 --
---   - [ ] bytes
 --   - [ ] enum
 --   - [ ] map<K,V>
 --   - [ ] bool
