@@ -83,6 +83,7 @@ import Debug.Trace
 --
 -- >>> :set -XOverloadedLists
 -- >>> :set -XOverloadedStrings
+-- >>> let myTrivial = Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] (Just (Trivial_Nested 101)) 98.6 255.16 "foo"
 
 -- Experiments scratch
 
@@ -693,7 +694,7 @@ fromDecimalString
 
 -- | Ensure that encoding and decoding are mutually inverse
 --
--- >>> roundTrip (Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] (Just (Trivial_Nested 101)) 98.6 255.16 "foo")
+-- >>> roundTrip myTrivial
 -- Right True
 -- >>> roundTrip (Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] Nothing 98.6 255.16 "foo")
 -- Right True
@@ -739,6 +740,12 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 
 --------------------------------------------------------------------------------
 -- TODOs
+--
+-- HERE: once bytes is supported, let's split the existing monolithic proto into
+-- a bunch of substructures for better grouping of type variants and better
+-- testing isolation. It will also give us much smaller instances to work with
+-- when doing preliminary code generation. The current Trivial datatype is
+-- becoming unwieldy.
 --
 --   - [ ] bytes
 --   - [ ] enum
