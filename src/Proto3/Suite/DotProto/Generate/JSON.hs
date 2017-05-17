@@ -216,83 +216,6 @@ instance A.FromJSON Nested_Inner where
     pure Nested_Inner
     <*> parseField obj "i64"
 
--- Trivial
-instance A.ToJSON Trivial where
-  toJSON (Trivial i32 u32 s32 f32 sf32 i64 u64 s64 f64 sf64 v32 v64 mnest float double string bytes) = A.object . mconcat $
-    [ fieldToJSON "trivialField32"      i32
-    , fieldToJSON "trivialFieldU32"     u32
-    , fieldToJSON "trivialFieldS32"     s32
-    , fieldToJSON "trivialFieldF32"     f32
-    , fieldToJSON "trivialFieldSF32"    sf32
-    , fieldToJSON "trivialField64"      i64
-    , fieldToJSON "trivialFieldU64"     u64
-    , fieldToJSON "trivialFieldS64"     s64
-    , fieldToJSON "trivialFieldF64"     f64
-    , fieldToJSON "trivialFieldSF64"    sf64
-    , fieldToJSON "repeatedField32"     v32
-    , fieldToJSON "repeatedField64"     v64
-    , nestedFieldToJSON "nestedMessage" mnest
-    , fieldToJSON "trivialFieldFloat"   float
-    , fieldToJSON "trivialFieldDouble"  double
-    , fieldToJSON "trivialFieldString"  string
-    , fieldToJSON "trivialFieldBytes"   bytes
-    ]
-  toEncoding (Trivial i32 u32 s32 f32 sf32 i64 u64 s64 f64 sf64 v32 v64 mnest float double string bytes) = A.pairs . mconcat $
-    [ fieldToEnc "trivialField32"           i32
-    , fieldToEnc "trivialFieldU32"          u32
-    , fieldToEnc "trivialFieldS32"          s32
-    , fieldToEnc "trivialFieldF32"          f32
-    , fieldToEnc "trivialFieldSF32"         sf32
-    , fieldToEnc "trivialField64"           i64
-    , fieldToEnc "trivialFieldU64"          u64
-    , fieldToEnc "trivialFieldS64"          s64
-    , fieldToEnc "trivialFieldF64"          f64
-    , fieldToEnc "trivialFieldSF64"         sf64
-    , fieldToEnc "repeatedField32"          v32
-    , fieldToEnc "repeatedField64"          v64
-    , nestedFieldToEncoding "nestedMessage" mnest
-    , fieldToEnc "trivialFieldFloat"        float
-    , fieldToEnc "trivialFieldDouble"       double
-    , fieldToEnc "trivialFieldString"       string
-    , fieldToEnc "trivialFieldBytes"        bytes
-    ]
-
-instance A.FromJSON Trivial where
-  parseJSON = A.withObject "Trivial" $ \obj ->
-    pure Trivial
-    <*> parseField obj "trivialField32"
-    <*> parseField obj "trivialFieldU32"
-    <*> parseField obj "trivialFieldS32"
-    <*> parseField obj "trivialFieldF32"
-    <*> parseField obj "trivialFieldSF32"
-    <*> parseField obj "trivialField64"
-    <*> parseField obj "trivialFieldU64"
-    <*> parseField obj "trivialFieldS64"
-    <*> parseField obj "trivialFieldF64"
-    <*> parseField obj "trivialFieldSF64"
-    <*> parseField obj "repeatedField32"
-    <*> parseField obj "repeatedField64"
-    <*> decodeNested obj "nestedMessage"
-    <*> parseField obj "trivialFieldFloat"
-    <*> parseField obj "trivialFieldDouble"
-    <*> parseField obj "trivialFieldString"
-    <*> parseField obj "trivialFieldBytes"
-
--- Trivial_Nested
-
-instance A.ToJSON Trivial_Nested where
-  toJSON (Trivial_Nested i64) = A.object . mconcat $
-    [ fieldToJSON "nestedField64" i64
-    ]
-  toEncoding (Trivial_Nested i64) = A.pairs . mconcat $
-    [ fieldToEnc "nestedField64" i64
-    ]
-
-instance A.FromJSON Trivial_Nested where
-  parseJSON = A.withObject "Trivial_Nested" $ \obj ->
-    pure Trivial_Nested
-    <*> parseField obj "nestedField64"
-
 -- End hand-generated instances for JSON PB renderings
 --------------------------------------------------------------------------------
 
@@ -620,12 +543,11 @@ fromDecimalString
 -- >>> :set -XOverloadedStrings
 -- >>> let scalar32 = Scalar32 32 33 (-34) 35 36
 -- >>> let scalar64 = Scalar64 64 65 (-66) 67 68
--- >>> let floatingPoint = ScalarFP 98.6 255.16
+-- >>> let scalarFP = ScalarFP 98.6 255.16
 -- >>> let stringly = Stringly "foo" "abc123!?$*&()'-=@~"
 -- >>> let repeat' = Repeat [4,5] [6,7]
 -- >>> let nestedAbsent = Nested Nothing
 -- >>> let nestedPresent = Nested (Just (Nested_Inner 42))
--- >>> let myTrivial = Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] (Just (Trivial_Nested 101)) 98.6 255.16 "foo" "encodeme"
 
 -- TODO test Repeat with empty lists serdes
 
@@ -637,7 +559,7 @@ fromDecimalString
 -- >>> roundTrip scalar64
 -- Right True
 --
--- >>> roundTrip floatingPoint
+-- >>> roundTrip scalarFP
 -- Right True
 --
 -- >>> roundTrip stringly
@@ -652,11 +574,6 @@ fromDecimalString
 -- >>> roundTrip nestedPresent
 -- Right True
 --
--- >>> roundTrip myTrivial
--- Right True
---
--- >>> roundTrip myTrivial{ trivialNestedMessage = Nothing }
--- Right True
 roundTrip :: (A.ToJSON a, A.FromJSON a, Eq a) => a -> Either String Bool
 roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 
@@ -668,7 +585,7 @@ roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 -- >>> pbToJSON scalar64
 -- "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}"
 --
--- >>> pbToJSON floatingPoint
+-- >>> pbToJSON scalarFP
 -- "{\"f\":98.6,\"d\":255.16}"
 --
 -- >>> pbToJSON stringly
@@ -682,12 +599,6 @@ roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 --
 -- >>> pbToJSON nestedPresent
 -- "{\"nestedInner\":{\"i64\":\"42\"}}"
---
--- >>> pbToJSON myTrivial
--- "{\"trivialField32\":32,\"trivialFieldU32\":33,\"trivialFieldS32\":-34,\"trivialFieldF32\":35,\"trivialFieldSF32\":36,\"trivialField64\":\"64\",\"trivialFieldU64\":\"65\",\"trivialFieldS64\":\"-66\",\"trivialFieldF64\":\"67\",\"trivialFieldSF64\":\"68\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"nestedMessage\":{\"nestedField64\":\"101\"},\"trivialFieldFloat\":98.6,\"trivialFieldDouble\":255.16,\"trivialFieldString\":\"foo\",\"trivialFieldBytes\":\"ZW5jb2RlbWU=\"}"
---
--- >>> pbToJSON myTrivial{ trivialNestedMessage = Nothing}
--- "{\"trivialField32\":32,\"trivialFieldU32\":33,\"trivialFieldS32\":-34,\"trivialFieldF32\":35,\"trivialFieldSF32\":36,\"trivialField64\":\"64\",\"trivialFieldU64\":\"65\",\"trivialFieldS64\":\"-66\",\"trivialFieldF64\":\"67\",\"trivialFieldSF64\":\"68\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"trivialFieldFloat\":98.6,\"trivialFieldDouble\":255.16,\"trivialFieldString\":\"foo\",\"trivialFieldBytes\":\"ZW5jb2RlbWU=\"}"
 --
 pbToJSON :: A.ToJSON a => a -> LBS.ByteString
 pbToJSON = A.encode
@@ -731,24 +642,6 @@ pbToJSON = A.encode
 --
 -- >>> jsonToPB "{\"nestedInner\":{\"i64\":\"42\"}}" :: Either String Nested
 -- Right (Nested {nestedNestedInner = Just (Nested_Inner {nested_InnerI64 = 42})})
---
---
---
---
--- >>> jsonToPB (pbToJSON myTrivial) :: Either String Trivial
--- Right (Trivial {trivialTrivialField32 = 32, trivialTrivialFieldU32 = 33, trivialTrivialFieldS32 = -34, trivialTrivialFieldF32 = Fixed {fixed = 35}, trivialTrivialFieldSF32 = Fixed {fixed = 36}, trivialTrivialField64 = 64, trivialTrivialFieldU64 = 65, trivialTrivialFieldS64 = -66, trivialTrivialFieldF64 = Fixed {fixed = 67}, trivialTrivialFieldSF64 = Fixed {fixed = 68}, trivialRepeatedField32 = [4,5], trivialRepeatedField64 = [6,7], trivialNestedMessage = Just (Trivial_Nested {trivial_NestedNestedField64 = 101}), trivialTrivialFieldFloat = 98.6, trivialTrivialFieldDouble = 255.16, trivialTrivialFieldString = "foo", trivialTrivialFieldBytes = "encodeme"})
---
--- >>> jsonToPB (pbToJSON myTrivial{ trivialNestedMessage = Nothing }) :: Either String Trivial
--- Right (Trivial {trivialTrivialField32 = 32, trivialTrivialFieldU32 = 33, trivialTrivialFieldS32 = -34, trivialTrivialFieldF32 = Fixed {fixed = 35}, trivialTrivialFieldSF32 = Fixed {fixed = 36}, trivialTrivialField64 = 64, trivialTrivialFieldU64 = 65, trivialTrivialFieldS64 = -66, trivialTrivialFieldF64 = Fixed {fixed = 67}, trivialTrivialFieldSF64 = Fixed {fixed = 68}, trivialRepeatedField32 = [4,5], trivialRepeatedField64 = [6,7], trivialNestedMessage = Nothing, trivialTrivialFieldFloat = 98.6, trivialTrivialFieldDouble = 255.16, trivialTrivialFieldString = "foo", trivialTrivialFieldBytes = "encodeme"})
---
--- >>> jsonToPB "{\"trivialField32\":32,\"trivialFieldU32\":33,\"trivialFieldS32\":-34,\"trivialFieldF32\":35,\"trivialFieldSF32\":36,\"trivialField64\":\"64\",\"trivialFieldU64\":\"65\",\"trivialFieldS64\":\"-66\",\"trivialFieldF64\":\"67\",\"trivialFieldSF64\":\"68\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"nestedMessage\":{\"nestedField64\":\"101\"},\"trivialFieldFloat\":\"1e6\",\"trivialFieldDouble\":255.16,\"trivialFieldString\":\"foo\",\"trivialFieldBytes\":\"ZW5jb2RlbWU=\"}" :: Either String Trivial
--- Right (Trivial {trivialTrivialField32 = 32, trivialTrivialFieldU32 = 33, trivialTrivialFieldS32 = -34, trivialTrivialFieldF32 = Fixed {fixed = 35}, trivialTrivialFieldSF32 = Fixed {fixed = 36}, trivialTrivialField64 = 64, trivialTrivialFieldU64 = 65, trivialTrivialFieldS64 = -66, trivialTrivialFieldF64 = Fixed {fixed = 67}, trivialTrivialFieldSF64 = Fixed {fixed = 68}, trivialRepeatedField32 = [4,5], trivialRepeatedField64 = [6,7], trivialNestedMessage = Just (Trivial_Nested {trivial_NestedNestedField64 = 101}), trivialTrivialFieldFloat = 1000000.0, trivialTrivialFieldDouble = 255.16, trivialTrivialFieldString = "foo", trivialTrivialFieldBytes = "encodeme"})
---
--- >>> jsonToPB "{\"trivialField32\":32,\"trivialFieldU32\":33,\"trivialFieldS32\":-34,\"trivialFieldF32\":35,\"trivialFieldSF32\":36,\"trivialField64\":\"64\",\"trivialFieldU64\":\"65\",\"trivialFieldS64\":\"-66\",\"trivialFieldF64\":\"67\",\"trivialFieldSF64\":\"68\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"nestedMessage\":{\"nestedField64\":\"101\"},\"trivialFieldFloat\":\"1e6\",\"trivialFieldDouble\":\"NaN\",\"trivialFieldString\":\"foo\",\"trivialFieldBytes\":\"ZW5jb2RlbWU=\"}" :: Either String Trivial
--- Right (Trivial {trivialTrivialField32 = 32, trivialTrivialFieldU32 = 33, trivialTrivialFieldS32 = -34, trivialTrivialFieldF32 = Fixed {fixed = 35}, trivialTrivialFieldSF32 = Fixed {fixed = 36}, trivialTrivialField64 = 64, trivialTrivialFieldU64 = 65, trivialTrivialFieldS64 = -66, trivialTrivialFieldF64 = Fixed {fixed = 67}, trivialTrivialFieldSF64 = Fixed {fixed = 68}, trivialRepeatedField32 = [4,5], trivialRepeatedField64 = [6,7], trivialNestedMessage = Just (Trivial_Nested {trivial_NestedNestedField64 = 101}), trivialTrivialFieldFloat = 1000000.0, trivialTrivialFieldDouble = NaN, trivialTrivialFieldString = "foo", trivialTrivialFieldBytes = "encodeme"})
---
--- >>> jsonToPB "{\"trivialField32\":32,\"trivialFieldU32\":33,\"trivialFieldS32\":-34,\"trivialFieldF32\":35,\"trivialFieldSF32\":36,\"trivialField64\":\"64\",\"trivialFieldU64\":\"65\",\"trivialFieldS64\":\"-66\",\"trivialFieldF64\":\"67\",\"trivialFieldSF64\":\"68\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"nestedMessage\":{\"nestedField64\":\"101\"},\"trivialFieldFloat\":\"Infinity\",\"trivialFieldDouble\":\"-Infinity\",\"trivialFieldString\":\"foo\",\"trivialFieldBytes\":\"ZW5jb2RlbWU=\"}" :: Either String Trivial
--- Right (Trivial {trivialTrivialField32 = 32, trivialTrivialFieldU32 = 33, trivialTrivialFieldS32 = -34, trivialTrivialFieldF32 = Fixed {fixed = 35}, trivialTrivialFieldSF32 = Fixed {fixed = 36}, trivialTrivialField64 = 64, trivialTrivialFieldU64 = 65, trivialTrivialFieldS64 = -66, trivialTrivialFieldF64 = Fixed {fixed = 67}, trivialTrivialFieldSF64 = Fixed {fixed = 68}, trivialRepeatedField32 = [4,5], trivialRepeatedField64 = [6,7], trivialNestedMessage = Just (Trivial_Nested {trivial_NestedNestedField64 = 101}), trivialTrivialFieldFloat = Infinity, trivialTrivialFieldDouble = -Infinity, trivialTrivialFieldString = "foo", trivialTrivialFieldBytes = "encodeme"})
 --
 jsonToPB :: A.FromJSON a => LBS.ByteString -> Hs.Either Hs.String a
 jsonToPB = A.eitherDecode
