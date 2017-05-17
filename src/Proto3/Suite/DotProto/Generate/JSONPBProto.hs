@@ -193,6 +193,40 @@ instance HsProtobuf.Message ScalarFP where
                 []
                 Hs.Nothing)]
  
+data Stringly = Stringly{stringlyStr :: Hs.Text,
+                         stringlyBs :: Hs.ByteString}
+              deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named Stringly where
+        nameOf _ = (Hs.fromString "Stringly")
+ 
+instance HsProtobuf.Message Stringly where
+        encodeMessage _
+          Stringly{stringlyStr = stringlyStr, stringlyBs = stringlyBs}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   stringlyStr),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                   stringlyBs)])
+        decodeMessage _
+          = (Hs.pure Stringly) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 2))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.String)
+                (HsProtobuf.Single "str")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
+                (HsProtobuf.Prim HsProtobuf.Bytes)
+                (HsProtobuf.Single "bs")
+                []
+                Hs.Nothing)]
+ 
 data Repeat = Repeat{repeatI32s :: Hs.Vector Hs.Int32,
                      repeatI64s :: Hs.Vector Hs.Int64}
             deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)

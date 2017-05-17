@@ -22,6 +22,11 @@ message ScalarFP {
   double d = 2;
 }
 
+message Stringly {
+  string str = 1;
+  bytes  bs  = 2;
+}
+
 message Repeat {
   repeated int32 i32s = 1;
   repeated int64 i64s = 2;

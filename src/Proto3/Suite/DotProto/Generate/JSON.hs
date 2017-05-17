@@ -158,6 +158,22 @@ instance A.FromJSON ScalarFP where
     <*> parseField obj "f"
     <*> parseField obj "d"
 
+-- Stringly
+instance A.ToJSON Stringly where
+  toJSON (Stringly str bs) = A.object . mconcat $
+    [ fieldToJSON "str" str
+    , fieldToJSON "bs" bs
+    ]
+  toEncoding (Stringly str bs) = A.pairs . mconcat $
+    [ fieldToEnc "str" str
+    , fieldToEnc "bs" bs
+    ]
+instance A.FromJSON Stringly where
+  parseJSON = A.withObject "Stringly" $ \obj ->
+    pure Stringly
+    <*> parseField obj "str"
+    <*> parseField obj "bs"
+
 -- Repeat
 instance A.ToJSON Repeat where
   toJSON (Repeat i32s i64s) = A.object . mconcat $
@@ -605,6 +621,7 @@ fromDecimalString
 -- >>> let scalar32 = Scalar32 32 33 (-34) 35 36
 -- >>> let scalar64 = Scalar64 64 65 (-66) 67 68
 -- >>> let floatingPoint = ScalarFP 98.6 255.16
+-- >>> let stringly = Stringly "foo" "abc123!?$*&()'-=@~"
 -- >>> let repeat' = Repeat [4,5] [6,7]
 -- >>> let nestedAbsent = Nested Nothing
 -- >>> let nestedPresent = Nested (Just (Nested_Inner 42))
@@ -621,6 +638,9 @@ fromDecimalString
 -- Right True
 --
 -- >>> roundTrip floatingPoint
+-- Right True
+--
+-- >>> roundTrip stringly
 -- Right True
 --
 -- >>> roundTrip repeat'
@@ -650,6 +670,9 @@ roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 --
 -- >>> pbToJSON floatingPoint
 -- "{\"f\":98.6,\"d\":255.16}"
+--
+-- >>> pbToJSON stringly
+-- "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
 --
 -- >>> pbToJSON repeat'
 -- "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
@@ -696,6 +719,9 @@ pbToJSON = A.encode
 --
 -- >>> jsonToPB "{\"f\":\"-Infinity\",\"d\":\"-Infinity\"}" :: Either String ScalarFP
 -- Right (ScalarFP {scalarFPF = -Infinity, scalarFPD = -Infinity})
+--
+-- >>> jsonToPB "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}" :: Either String Stringly
+-- Right (Stringly {stringlyStr = "foo", stringlyBs = "abc123!?$*&()'-=@~"})
 --
 -- >>> jsonToPB "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}" :: Either String Repeat
 -- Right (Repeat {repeatI32s = [4,5], repeatI64s = [6,7]})
@@ -766,6 +792,9 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --
 --   - [ ] Explore generation of Monoid instances and hiding the details about
 --         nestedFieldTo{Encoding,JSON} and decodeNested
+--
+-- [ ] Determine if we really NEED/WANT the PBR / data family approach; it feels
+--     like it might be extra cruft that isn't doing much heavy lifting for us.
 --
 -- [ ] Make sure we have all of the by-hand generation working, get it checked
 --     with Gabriel, and then move onto the Generics-based implementation.
