@@ -1,5 +1,14 @@
 syntax = "proto3";
-package tee;
+package jsonpbtests;
+
+message Scalar32 {
+  int32     i32  =  1;
+  uint32    u32  =  2;
+  sint32    s32  =  3;
+  fixed32   f32  =  4;
+  sfixed32  sf32 =  5;
+}
+
 message Trivial {
   int32          trivialField32     =  1;
   uint32         trivialFieldU32    =  2;

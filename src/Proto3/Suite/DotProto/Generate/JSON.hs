@@ -86,6 +86,7 @@ import Debug.Trace
 --
 -- >>> :set -XOverloadedLists
 -- >>> :set -XOverloadedStrings
+-- >>> let scalar32 = Scalar32 32 33 (-34) 35 36
 -- >>> let myTrivial = Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] (Just (Trivial_Nested 101)) 98.6 255.16 "foo" "encodeme"
 
 --------------------------------------------------------------------------------
@@ -93,6 +94,75 @@ import Debug.Trace
 -- Via e.g.:
 -- (renderHsModuleForDotProtoFile "/w/proto3-suite/src/Proto3/Suite/DotProto/Generate/JSON.proto" >>= \(Prelude.Right s) -> Prelude.putStrLn s)
 -- NB: AST can be obtained via readDotProtoWithContext
+
+data Scalar32 = Scalar32{scalar32I32 :: Hs.Int32,
+                         scalar32U32 :: Hs.Word32, scalar32S32 :: Hs.Int32,
+                         scalar32F32 :: HsProtobuf.Fixed Hs.Word32,
+                         scalar32Sf32 :: HsProtobuf.Fixed Hs.Int32}
+              deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+
+instance HsProtobuf.Named Scalar32 where
+        nameOf _ = (Hs.fromString "Scalar32")
+
+instance HsProtobuf.Message Scalar32 where
+        encodeMessage _
+          Scalar32{scalar32I32 = scalar32I32, scalar32U32 = scalar32U32,
+                   scalar32S32 = scalar32S32, scalar32F32 = scalar32F32,
+                   scalar32Sf32 = scalar32Sf32}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   scalar32I32),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                   scalar32U32),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 3)
+                   scalar32S32),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 4)
+                   scalar32F32),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 5)
+                   (HsProtobuf.Signed scalar32Sf32))])
+        decodeMessage _
+          = (Hs.pure Scalar32) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 2))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 3))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 4))
+              <*>
+              ((Hs.pure HsProtobuf.signed) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 5)))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.Int32)
+                (HsProtobuf.Single "i32")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
+                (HsProtobuf.Prim HsProtobuf.UInt32)
+                (HsProtobuf.Single "u32")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 3)
+                (HsProtobuf.Prim HsProtobuf.SInt32)
+                (HsProtobuf.Single "s32")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 4)
+                (HsProtobuf.Prim HsProtobuf.Fixed32)
+                (HsProtobuf.Single "f32")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 5)
+                (HsProtobuf.Prim HsProtobuf.SFixed32)
+                (HsProtobuf.Single "sf32")
+                []
+                Hs.Nothing)]
 
 data Trivial = Trivial{trivialTrivialField32 :: Hs.Int32,
                        trivialTrivialFieldU32 :: Hs.Word32,
@@ -345,6 +415,31 @@ instance HsProtobuf.Message Trivial_Nested where
 --------------------------------------------------------------------------------
 -- Begin hand-generated instances for JSON PB renderings; these instances will
 -- be generated once their design is finalized.
+
+-- Scalar32
+instance A.ToJSON Scalar32 where
+  toJSON (Scalar32 i32 u32 s32 f32 sf32) = A.object . mconcat $
+    [ fieldToJSON "i32"  i32
+    , fieldToJSON "u32"  u32
+    , fieldToJSON "s32"  s32
+    , fieldToJSON "f32"  f32
+    , fieldToJSON "sf32" sf32
+    ]
+  toEncoding (Scalar32 i32 u32 s32 f32 sf32) = A.pairs . mconcat $
+    [ fieldToEnc "i32"  i32
+    , fieldToEnc "u32"  u32
+    , fieldToEnc "s32"  s32
+    , fieldToEnc "f32"  f32
+    , fieldToEnc "sf32" sf32
+    ]
+instance A.FromJSON Scalar32 where
+  parseJSON = A.withObject "Scalar32" $ \obj ->
+    pure Scalar32
+    <*> parseField obj "i32"
+    <*> parseField obj "u32"
+    <*> parseField obj "s32"
+    <*> parseField obj "f32"
+    <*> parseField obj "sf32"
 
 -- Trivial
 instance A.ToJSON Trivial where
@@ -743,7 +838,10 @@ fromDecimalString
   . LBS.fromStrict
   . Hs.encodeUtf8
 
--- | Ensure that encoding and decoding are mutually inverse
+-- | Ensure that we can decode what we encode; @Right True@ indicates success.
+--
+-- >>> roundTrip scalar32
+-- Right True
 --
 -- >>> roundTrip myTrivial
 -- Right True
@@ -754,6 +852,9 @@ roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 
 -- | Converting a PB payload to JSON is just encoding via Aeson.
 --
+-- >>> pbToJSON scalar32
+-- "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}"
+--
 -- >>> pbToJSON myTrivial
 -- "{\"trivialField32\":32,\"trivialFieldU32\":33,\"trivialFieldS32\":-34,\"trivialFieldF32\":35,\"trivialFieldSF32\":36,\"trivialField64\":\"64\",\"trivialFieldU64\":\"65\",\"trivialFieldS64\":\"-66\",\"trivialFieldF64\":\"67\",\"trivialFieldSF64\":\"68\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"nestedMessage\":{\"nestedField64\":\"101\"},\"trivialFieldFloat\":98.6,\"trivialFieldDouble\":255.16,\"trivialFieldString\":\"foo\",\"trivialFieldBytes\":\"ZW5jb2RlbWU=\"}"
 -- >>> pbToJSON myTrivial{ trivialNestedMessage = Nothing}
@@ -762,6 +863,9 @@ pbToJSON :: A.ToJSON a => a -> LBS.ByteString
 pbToJSON = A.encode
 
 -- | Converting from JSON to PB is just decoding via Aeson.
+--
+-- >>> jsonToPB "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}" :: Either String Scalar32
+-- Right (Scalar32 {scalar32I32 = 32, scalar32U32 = 33, scalar32S32 = -34, scalar32F32 = Fixed {fixed = 35}, scalar32Sf32 = Fixed {fixed = 36}})
 --
 -- >>> jsonToPB (pbToJSON myTrivial) :: Either String Trivial
 -- Right (Trivial {trivialTrivialField32 = 32, trivialTrivialFieldU32 = 33, trivialTrivialFieldS32 = -34, trivialTrivialFieldF32 = Fixed {fixed = 35}, trivialTrivialFieldSF32 = Fixed {fixed = 36}, trivialTrivialField64 = 64, trivialTrivialFieldU64 = 65, trivialTrivialFieldS64 = -66, trivialTrivialFieldF64 = Fixed {fixed = 67}, trivialTrivialFieldSF64 = Fixed {fixed = 68}, trivialRepeatedField32 = [4,5], trivialRepeatedField64 = [6,7], trivialNestedMessage = Just (Trivial_Nested {trivial_NestedNestedField64 = 101}), trivialTrivialFieldFloat = 98.6, trivialTrivialFieldDouble = 255.16, trivialTrivialFieldString = "foo", trivialTrivialFieldBytes = "encodeme"})
