@@ -86,13 +86,31 @@ import Debug.Trace
 --   $ compile-proto-file --proto src/Proto3/Suite/DotProto/Generate/JSON.proto > src/Proto3/Suite/DotProto/Generate/JSONPBProto.hs
 import Proto3.Suite.DotProto.Generate.JSONPBProto
 
+-- $setup
+--
+-- >>> :set -XOverloadedLists
+-- >>> :set -XOverloadedStrings
+
 --------------------------------------------------------------------------------
 -- Begin hand-generated instances for JSON PB renderings; these instances will
 -- be generated once their design is finalized, and live in the same module as
 -- the other typedefs and instances (e.g.,
 -- Proto3.Suite.DotProto.Generate.JSONPBProto in this case).
+--
+-- We also put some placeholder doctests here for prelim regression checking
+-- until we get some property-based tests in place.
 
--- Scalar32
+-- | Scalar32
+--
+-- >>> roundTrip (Scalar32 32 33 (-34) 35 36)
+-- Right True
+--
+-- >>> pbToJSON (Scalar32 32 33 (-34) 35 36)
+-- "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}"
+--
+-- >>> Right (Scalar32 32 33 (-34) 35 36) == jsonToPB "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}"
+-- True
+
 instance A.ToJSON Scalar32 where
   toJSON (Scalar32 i32 u32 s32 f32 sf32) = A.object . mconcat $
     [ fieldToJSON "i32"  i32
@@ -117,7 +135,17 @@ instance A.FromJSON Scalar32 where
     <*> parseField obj "f32"
     <*> parseField obj "sf32"
 
--- Scalar64
+-- | Scalar64
+--
+-- >>> roundTrip (Scalar64 64 65 (-66) 67 68)
+-- Right True
+--
+-- >>> pbToJSON (Scalar64 64 65 (-66) 67 68)
+-- "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}"
+--
+-- >>> Right (Scalar64 64 65 (-66) 67 68) == jsonToPB "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}"
+-- True
+
 instance A.ToJSON Scalar64 where
   toJSON (Scalar64 i64 u64 s64 f64 sf64) = A.object . mconcat $
     [ fieldToJSON "i64"  i64
@@ -142,7 +170,32 @@ instance A.FromJSON Scalar64 where
     <*> parseField obj "f64"
     <*> parseField obj "sf64"
 
--- ScalarFP
+-- | ScalarFP
+--
+-- >>> roundTrip (ScalarFP 98.6 255.16)
+-- Right True
+--
+-- >>> pbToJSON (ScalarFP 98.6 255.16)
+-- "{\"f\":98.6,\"d\":255.16}"
+--
+-- >>> Right (ScalarFP 98.6 255.16) == jsonToPB "{\"f\":98.6,\"d\":255.16}"
+-- True
+--
+-- >>> Right (ScalarFP 23.6 (-99.001)) == jsonToPB "{\"f\":\"23.6\",\"d\":\"-99.001\"}"
+-- True
+--
+-- >>> Right (ScalarFP 1000000.0 (-1000.0)) == jsonToPB "{\"f\":\"1e6\",\"d\":\"-0.1e4\"}"
+-- True
+--
+-- >>> Right (ScalarFP (1/0) (1/0)) == jsonToPB "{\"f\":\"Infinity\",\"d\":\"Infinity\"}"
+-- True
+--
+-- >>> Right (ScalarFP (negate 1/0) (negate 1/0)) == jsonToPB "{\"f\":\"-Infinity\",\"d\":\"-Infinity\"}"
+-- True
+--
+-- >>> jsonToPB "{\"f\":\"NaN\",\"d\":\"NaN\"}" :: Either String ScalarFP
+-- Right (ScalarFP {scalarFPF = NaN, scalarFPD = NaN})
+
 instance A.ToJSON ScalarFP where
   toJSON (ScalarFP f d) = A.object . mconcat $
     [ fieldToJSON "f" f
@@ -158,7 +211,18 @@ instance A.FromJSON ScalarFP where
     <*> parseField obj "f"
     <*> parseField obj "d"
 
--- Stringly
+-- | Stringly
+--
+-- >>> roundTrip (Stringly "foo" "abc123!?$*&()'-=@~")
+-- Right True
+--
+-- >>> pbToJSON (Stringly "foo" "abc123!?$*&()'-=@~")
+-- "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
+--
+-- >>> Right (Stringly "foo" "abc123!?$*&()'-=@~") == jsonToPB "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
+-- True
+--
+
 instance A.ToJSON Stringly where
   toJSON (Stringly str bs) = A.object . mconcat $
     [ fieldToJSON "str" str
@@ -174,7 +238,32 @@ instance A.FromJSON Stringly where
     <*> parseField obj "str"
     <*> parseField obj "bs"
 
--- Repeat
+-- | Repeat
+--
+-- >>> roundTrip (Repeat [4,5] [6,7])
+-- Right True
+--
+-- >>> roundTrip (Repeat [] [6,7])
+-- Right True
+--
+-- >>> roundTrip (Repeat [4,5] [])
+-- Right True
+--
+-- >>> pbToJSON (Repeat [4,5] [6,7])
+-- "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
+--
+-- >>> Right (Repeat [4,5] [6,7]) == jsonToPB "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
+-- True
+--
+-- >>> Right (Repeat [] [6,7]) == jsonToPB "{\"i64s\":[\"6\",\"7\"]}"
+-- True
+--
+-- >>> Right (Repeat [4,5] []) == jsonToPB "{\"i32s\":[4,5]}"
+-- True
+--
+-- >>> Right (Repeat [] []) == jsonToPB "{}"
+-- True
+
 instance A.ToJSON Repeat where
   toJSON (Repeat i32s i64s) = A.object . mconcat $
     [ fieldToJSON "i32s" i32s
@@ -190,7 +279,27 @@ instance A.FromJSON Repeat where
     <*> parseField obj "i32s"
     <*> parseField obj "i64s"
 
--- Nested
+-- | Nested
+--
+-- >>> roundTrip (Nested Nothing)
+-- Right True
+--
+-- >>> roundTrip (Nested (Just (Nested_Inner 42)))
+-- Right True
+--
+-- >>> pbToJSON (Nested Nothing)
+-- "{}"
+--
+-- >>> pbToJSON (Nested (Just (Nested_Inner 42)))
+-- "{\"nestedInner\":{\"i64\":\"42\"}}"
+--
+-- >>> Right (Nested Nothing) == jsonToPB "{}"
+-- True
+--
+-- >>> Right (Nested (Just (Nested_Inner 42))) == jsonToPB "{\"nestedInner\":{\"i64\":\"42\"}}"
+-- True
+--
+
 instance A.ToJSON Nested where
   toJSON (Nested minner) = A.object . mconcat $
     [ nestedFieldToJSON "nestedInner" minner
@@ -276,7 +385,6 @@ instance PBRep (HsProtobuf.Fixed Hs.Word32) where
   data PBR (HsProtobuf.Fixed Hs.Word32) = PBFixed32 (HsProtobuf.Fixed Hs.Word32) deriving (Show, Generic)
   toPBR                                 = PBFixed32
   fromPBR (PBFixed32 x)                 = x
-
 instance Monoid (PBR (HsProtobuf.Fixed Hs.Word32)) where
   mempty = toPBR 0
   mappend (fromPBR -> 0) (fromPBR -> y) = toPBR y
@@ -485,22 +593,19 @@ instance (PBRep a) => PBRep (Hs.Vector a) where
   data PBR (Hs.Vector a) = PBVec (Hs.Vector (PBR a))
   toPBR v                = PBVec (toPBR <$> v)
   fromPBR (PBVec v)      = fromPBR <$> v
-
 instance Monoid (PBR (Hs.Vector a)) where
   mempty                        = PBVec mempty
   mappend (PBVec v0) (PBVec v1) = PBVec (mappend v0 v1)
-
-instance (Eq a, PBRep a) => Eq (PBR a) where
-  (fromPBR -> a) == (fromPBR -> b) = a == b
-
 instance (A.FromJSON (PBR a), PBRep a) => A.FromJSON (PBR (Hs.Vector a)) where
   parseJSON = fmap (toPBR . fmap fromPBR) . A.parseJSON
-
 instance (A.ToJSON (PBR a), PBRep a) => A.ToJSON (PBR (Hs.Vector a)) where
   toJSON = A.toJSON . fmap toPBR . fromPBR
 
 --------------------------------------------------------------------------------
 -- Helpers
+
+instance (Eq a, PBRep a) => Eq (PBR a) where
+  (fromPBR -> a) == (fromPBR -> b) = a == b
 
 parseKeyPB :: (PBRep a, A.FromJSONKey a) => Text.Text -> A.Parser (PBR a)
 parseKeyPB t = case A.fromJSONKey of
@@ -536,113 +641,15 @@ fromDecimalString
   . LBS.fromStrict
   . Hs.encodeUtf8
 
--- Define some tests values for use in doctests
--- $setup
---
--- >>> :set -XOverloadedLists
--- >>> :set -XOverloadedStrings
--- >>> let scalar32 = Scalar32 32 33 (-34) 35 36
--- >>> let scalar64 = Scalar64 64 65 (-66) 67 68
--- >>> let scalarFP = ScalarFP 98.6 255.16
--- >>> let stringly = Stringly "foo" "abc123!?$*&()'-=@~"
--- >>> let repeat' = Repeat [4,5] [6,7]
--- >>> let nestedAbsent = Nested Nothing
--- >>> let nestedPresent = Nested (Just (Nested_Inner 42))
-
--- TODO test Repeat with empty lists serdes
-
 -- | Ensure that we can decode what we encode; @Right True@ indicates success.
---
--- >>> roundTrip scalar32
--- Right True
---
--- >>> roundTrip scalar64
--- Right True
---
--- >>> roundTrip scalarFP
--- Right True
---
--- >>> roundTrip stringly
--- Right True
---
--- >>> roundTrip repeat'
--- Right True
---
--- >>> roundTrip nestedAbsent
--- Right True
---
--- >>> roundTrip nestedPresent
--- Right True
---
 roundTrip :: (A.ToJSON a, A.FromJSON a, Eq a) => a -> Either String Bool
 roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 
 -- | Converting a PB payload to JSON is just encoding via Aeson.
---
--- >>> pbToJSON scalar32
--- "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}"
---
--- >>> pbToJSON scalar64
--- "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}"
---
--- >>> pbToJSON scalarFP
--- "{\"f\":98.6,\"d\":255.16}"
---
--- >>> pbToJSON stringly
--- "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
---
--- >>> pbToJSON repeat'
--- "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
---
--- >>> pbToJSON nestedAbsent
--- "{}"
---
--- >>> pbToJSON nestedPresent
--- "{\"nestedInner\":{\"i64\":\"42\"}}"
---
 pbToJSON :: A.ToJSON a => a -> LBS.ByteString
 pbToJSON = A.encode
 
--- TODO: a lot of these doctests could be simplified
-
 -- | Converting from JSON to PB is just decoding via Aeson.
---
--- >>> jsonToPB "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}" :: Either String Scalar32
--- Right (Scalar32 {scalar32I32 = 32, scalar32U32 = 33, scalar32S32 = -34, scalar32F32 = Fixed {fixed = 35}, scalar32Sf32 = Fixed {fixed = 36}})
---
--- >>> jsonToPB "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}" :: Either String Scalar64
--- Right (Scalar64 {scalar64I64 = 64, scalar64U64 = 65, scalar64S64 = -66, scalar64F64 = Fixed {fixed = 67}, scalar64Sf64 = Fixed {fixed = 68}})
---
--- >>> jsonToPB "{\"f\":98.6,\"d\":255.16}" :: Either String ScalarFP
--- Right (ScalarFP {scalarFPF = 98.6, scalarFPD = 255.16})
---
--- >>> jsonToPB "{\"f\":\"23.6\",\"d\":\"-99.001\"}" :: Either String ScalarFP
--- Right (ScalarFP {scalarFPF = 23.6, scalarFPD = -99.001})
---
--- >>> jsonToPB "{\"f\":\"1e6\",\"d\":\"-0.1e4\"}" :: Either String ScalarFP
--- Right (ScalarFP {scalarFPF = 1000000.0, scalarFPD = -1000.0})
---
--- >>> jsonToPB "{\"f\":\"NaN\",\"d\":\"NaN\"}" :: Either String ScalarFP
--- Right (ScalarFP {scalarFPF = NaN, scalarFPD = NaN})
---
--- >>> jsonToPB "{\"f\":\"Infinity\",\"d\":\"Infinity\"}" :: Either String ScalarFP
--- Right (ScalarFP {scalarFPF = Infinity, scalarFPD = Infinity})
---
--- >>> jsonToPB "{\"f\":\"-Infinity\",\"d\":\"-Infinity\"}" :: Either String ScalarFP
--- Right (ScalarFP {scalarFPF = -Infinity, scalarFPD = -Infinity})
---
--- >>> jsonToPB "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}" :: Either String Stringly
--- Right (Stringly {stringlyStr = "foo", stringlyBs = "abc123!?$*&()'-=@~"})
---
--- >>> jsonToPB "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}" :: Either String Repeat
--- Right (Repeat {repeatI32s = [4,5], repeatI64s = [6,7]})
---
--- >>> jsonToPB "{}" :: Either String Nested
--- Right (Nested {nestedNestedInner = Nothing})
---
--- >>> jsonToPB "{\"nestedInner\":{\"i64\":\"42\"}}" :: Either String Nested
--- Right (Nested {nestedNestedInner = Just (Nested_Inner {nested_InnerI64 = 42})})
---
 jsonToPB :: A.FromJSON a => LBS.ByteString -> Hs.Either Hs.String a
 jsonToPB = A.eitherDecode
 
@@ -664,11 +671,8 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --------------------------------------------------------------------------------
 -- TODOs
 --
--- [ ] once bytes is supported, let's split the existing monolithic proto into a
--- bunch of substructures for better grouping of type variants and better
--- testing isolation. It will also give us much smaller instances to work with
--- when doing preliminary code generation. The current Trivial datatype is
--- becoming unwieldy.
+-- [ ] Determine if we really NEED/WANT the PBR / data family approach; it feels
+--     like it might be extra cruft that isn't doing much heavy lifting for us.
 --
 --   - [ ] enum
 --   - [ ] map<K,V>
@@ -686,9 +690,7 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --   - [ ] Explore generation of Monoid instances and hiding the details about
 --         nestedFieldTo{Enc,JSON} and parseNested
 --
--- [ ] Determine if we really NEED/WANT the PBR / data family approach; it feels
---     like it might be extra cruft that isn't doing much heavy lifting for us.
---
--- [ ] Make sure we have all of the by-hand generation working, get it checked
---     with Gabriel, and then move onto the Generics-based implementation.
+-- [ ] Make sure we have all of the by-hand generation pieces working, get it
+--     checked with Gabriel, and then whip up a brute force CG version before
+--     moving onto the Generics-based implementation.
 --
