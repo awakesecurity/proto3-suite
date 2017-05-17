@@ -86,13 +86,6 @@ import Debug.Trace
 --   $ compile-proto-file --proto src/Proto3/Suite/DotProto/Generate/JSON.proto > src/Proto3/Suite/DotProto/Generate/JSONPBProto.hs
 import Proto3.Suite.DotProto.Generate.JSONPBProto
 
--- $setup
---
--- >>> :set -XOverloadedLists
--- >>> :set -XOverloadedStrings
--- >>> let scalar32 = Scalar32 32 33 (-34) 35 36
--- >>> let myTrivial = Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] (Just (Trivial_Nested 101)) 98.6 255.16 "foo" "encodeme"
-
 --------------------------------------------------------------------------------
 -- Begin hand-generated instances for JSON PB renderings; these instances will
 -- be generated once their design is finalized, and live in the same module as
@@ -123,6 +116,31 @@ instance A.FromJSON Scalar32 where
     <*> parseField obj "s32"
     <*> parseField obj "f32"
     <*> parseField obj "sf32"
+
+-- Scalar64
+instance A.ToJSON Scalar64 where
+  toJSON (Scalar64 i64 u64 s64 f64 sf64) = A.object . mconcat $
+    [ fieldToJSON "i64"  i64
+    , fieldToJSON "u64"  u64
+    , fieldToJSON "s64"  s64
+    , fieldToJSON "f64"  f64
+    , fieldToJSON "sf64" sf64
+    ]
+  toEncoding (Scalar64 i64 u64 s64 f64 sf64) = A.pairs . mconcat $
+    [ fieldToEnc "i64"  i64
+    , fieldToEnc "u64"  u64
+    , fieldToEnc "s64"  s64
+    , fieldToEnc "f64"  f64
+    , fieldToEnc "sf64" sf64
+    ]
+instance A.FromJSON Scalar64 where
+  parseJSON = A.withObject "Scalar64" $ \obj ->
+    pure Scalar64
+    <*> parseField obj "i64"
+    <*> parseField obj "u64"
+    <*> parseField obj "s64"
+    <*> parseField obj "f64"
+    <*> parseField obj "sf64"
 
 -- Trivial
 instance A.ToJSON Trivial where
@@ -521,9 +539,20 @@ fromDecimalString
   . LBS.fromStrict
   . Hs.encodeUtf8
 
+-- Define some tests values for use in doctests
+-- $setup
+--
+-- >>> :set -XOverloadedLists
+-- >>> :set -XOverloadedStrings
+-- >>> let scalar32 = Scalar32 32 33 (-34) 35 36
+-- >>> let scalar64 = Scalar64 64 65 (-66) 67 68
+-- >>> let myTrivial = Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] (Just (Trivial_Nested 101)) 98.6 255.16 "foo" "encodeme"
+
 -- | Ensure that we can decode what we encode; @Right True@ indicates success.
 --
 -- >>> roundTrip scalar32
+-- Right True
+-- >>> roundTrip scalar64
 -- Right True
 --
 -- >>> roundTrip myTrivial
@@ -537,6 +566,8 @@ roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 --
 -- >>> pbToJSON scalar32
 -- "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}"
+-- >>> pbToJSON scalar64
+-- "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}"
 --
 -- >>> pbToJSON myTrivial
 -- "{\"trivialField32\":32,\"trivialFieldU32\":33,\"trivialFieldS32\":-34,\"trivialFieldF32\":35,\"trivialFieldSF32\":36,\"trivialField64\":\"64\",\"trivialFieldU64\":\"65\",\"trivialFieldS64\":\"-66\",\"trivialFieldF64\":\"67\",\"trivialFieldSF64\":\"68\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"nestedMessage\":{\"nestedField64\":\"101\"},\"trivialFieldFloat\":98.6,\"trivialFieldDouble\":255.16,\"trivialFieldString\":\"foo\",\"trivialFieldBytes\":\"ZW5jb2RlbWU=\"}"
@@ -549,6 +580,8 @@ pbToJSON = A.encode
 --
 -- >>> jsonToPB "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}" :: Either String Scalar32
 -- Right (Scalar32 {scalar32I32 = 32, scalar32U32 = 33, scalar32S32 = -34, scalar32F32 = Fixed {fixed = 35}, scalar32Sf32 = Fixed {fixed = 36}})
+-- >>> jsonToPB "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}" :: Either String Scalar64
+-- Right (Scalar64 {scalar64I64 = 64, scalar64U64 = 65, scalar64S64 = -66, scalar64F64 = Fixed {fixed = 67}, scalar64Sf64 = Fixed {fixed = 68}})
 --
 -- >>> jsonToPB (pbToJSON myTrivial) :: Either String Trivial
 -- Right (Trivial {trivialTrivialField32 = 32, trivialTrivialFieldU32 = 33, trivialTrivialFieldS32 = -34, trivialTrivialFieldF32 = Fixed {fixed = 35}, trivialTrivialFieldSF32 = Fixed {fixed = 36}, trivialTrivialField64 = 64, trivialTrivialFieldU64 = 65, trivialTrivialFieldS64 = -66, trivialTrivialFieldF64 = Fixed {fixed = 67}, trivialTrivialFieldSF64 = Fixed {fixed = 68}, trivialRepeatedField32 = [4,5], trivialRepeatedField64 = [6,7], trivialNestedMessage = Just (Trivial_Nested {trivial_NestedNestedField64 = 101}), trivialTrivialFieldFloat = 98.6, trivialTrivialFieldDouble = 255.16, trivialTrivialFieldString = "foo", trivialTrivialFieldBytes = "encodeme"})

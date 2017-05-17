@@ -90,6 +90,75 @@ instance HsProtobuf.Message Scalar32 where
                 []
                 Hs.Nothing)]
  
+data Scalar64 = Scalar64{scalar64I64 :: Hs.Int32,
+                         scalar64U64 :: Hs.Word32, scalar64S64 :: Hs.Int32,
+                         scalar64F64 :: HsProtobuf.Fixed Hs.Word32,
+                         scalar64Sf64 :: HsProtobuf.Fixed Hs.Int32}
+              deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named Scalar64 where
+        nameOf _ = (Hs.fromString "Scalar64")
+ 
+instance HsProtobuf.Message Scalar64 where
+        encodeMessage _
+          Scalar64{scalar64I64 = scalar64I64, scalar64U64 = scalar64U64,
+                   scalar64S64 = scalar64S64, scalar64F64 = scalar64F64,
+                   scalar64Sf64 = scalar64Sf64}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   scalar64I64),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                   scalar64U64),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 3)
+                   scalar64S64),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 4)
+                   scalar64F64),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 5)
+                   (HsProtobuf.Signed scalar64Sf64))])
+        decodeMessage _
+          = (Hs.pure Scalar64) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 2))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 3))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 4))
+              <*>
+              ((Hs.pure HsProtobuf.signed) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 5)))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.Int32)
+                (HsProtobuf.Single "i64")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
+                (HsProtobuf.Prim HsProtobuf.UInt32)
+                (HsProtobuf.Single "u64")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 3)
+                (HsProtobuf.Prim HsProtobuf.SInt32)
+                (HsProtobuf.Single "s64")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 4)
+                (HsProtobuf.Prim HsProtobuf.Fixed32)
+                (HsProtobuf.Single "f64")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 5)
+                (HsProtobuf.Prim HsProtobuf.SFixed32)
+                (HsProtobuf.Single "sf64")
+                []
+                Hs.Nothing)]
+ 
 data Trivial = Trivial{trivialTrivialField32 :: Hs.Int32,
                        trivialTrivialFieldU32 :: Hs.Word32,
                        trivialTrivialFieldS32 :: Hs.Int32,
