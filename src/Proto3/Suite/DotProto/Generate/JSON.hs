@@ -708,22 +708,26 @@ genericParseJSONPB :: (Generic a, A.GFromJSON A.Zero (Rep a))
 genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 
 --------------------------------------------------------------------------------
--- Scratch
+-- TODOs
 --
--- We should hand-elaborate a little further and make sure we have a strategy
--- for dealing with message nesting, repetition, packed vecs, etc., before we
--- push too much farther on the generic parser. I.e., we should be able to write
--- clean/simple "brute force" codecs before we worry about the generic parser.
+--   - [ ] string
+--   - [ ] bytes
+--   - [ ] enum
+--   - [ ] map<K,V>
+--   - [ ] bool
+--   - [ ] Any
+--   - [ ] Timestamp
+--   - [ ] Duration
+--   - [ ] Struct
+--   - [ ] Wrapper types (?)
+--   - [ ] FieldMask
+--   - [ ] ListValue
+--   - [ ] Value
+--   - [ ] NullValue
 --
--- TODO: See if we can remove the intermediate F32 newtype and/or accurately
---       describe why we cannot? I am starting to get the feeling that it is not
---       needed.
---
---   - [ ] remaining scalar types: string bytes
---   - [ ] other aggregate types eg maps and crap
---   - [ ] 'any' type, blech
---   - [ ] check packed vecs, other possible outliers
---   - [ ] explore generation of Monoid instances and hiding the details about
+--   - [ ] Explore generation of Monoid instances and hiding the details about
 --         nestedFieldTo{Encoding,JSON} and decodeNested
 --
--- [ ] And then let's try our hand at gParseJSONPB after that
+-- [ ] Make sure we have all of the by-hand generation working, get it checked
+--     with Gabriel, and then move onto the Generics-based implementation.
+--
