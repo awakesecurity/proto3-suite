@@ -34,15 +34,10 @@ import           Proto3.Wire.Types as P
 import           GHC.Exts (fromList)
 
 main :: IO ()
-main = do
-  Test.DocTest.doctest
-    [ "-isrc"
-    , "src/Proto3/Suite/DotProto/Generate/JSON.hs"
-    ]
-  defaultMain tests
+main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [qcProperties, encodeUnitTests, decodeUnitTests,
+tests = testGroup "Tests" [docTests, qcProperties, encodeUnitTests, decodeUnitTests,
                            parserUnitTests, dotProtoUnitTests, codeGenTests]
 
 instance Arbitrary WireType where
@@ -61,6 +56,14 @@ deeplyNested name = go (qcInverses :: Trivial -> Property)
     go :: (Message a, Named a, Arbitrary a, Eq a, Show a) => (a -> Property) -> Int -> TestTree
     go prop 0 = testProperty name prop
     go prop n = go (prop . fromJust . nested . unNestedAlways . unWrapped) (n - 1)
+
+docTests :: TestTree
+docTests = testCase "doctests" $ do
+  putStrLn "Running all doctests..."
+  Test.DocTest.doctest
+    [ "-isrc"
+    , "src/Proto3/Suite/DotProto/Generate/JSON.hs"
+    ]
 
 qcProperties :: TestTree
 qcProperties = testGroup "QuickCheck properties"
