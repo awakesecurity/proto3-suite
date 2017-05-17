@@ -17,6 +17,11 @@ message Scalar64 {
   sfixed32 sf64 = 5;
 }
 
+message Repeat {
+  repeated int32 i32s = 1;
+  repeated int64 i64s = 2;
+}
+
 message Trivial {
   int32          trivialField32     =  1;
   uint32         trivialFieldU32    =  2;

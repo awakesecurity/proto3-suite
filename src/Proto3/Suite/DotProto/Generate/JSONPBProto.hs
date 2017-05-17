@@ -159,6 +159,42 @@ instance HsProtobuf.Message Scalar64 where
                 []
                 Hs.Nothing)]
  
+data Repeat = Repeat{repeatI32s :: Hs.Vector Hs.Int32,
+                     repeatI64s :: Hs.Vector Hs.Int64}
+            deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named Repeat where
+        nameOf _ = (Hs.fromString "Repeat")
+ 
+instance HsProtobuf.Message Repeat where
+        encodeMessage _
+          Repeat{repeatI32s = repeatI32s, repeatI64s = repeatI64s}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   (HsProtobuf.PackedVec repeatI32s)),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                   (HsProtobuf.PackedVec repeatI64s))])
+        decodeMessage _
+          = (Hs.pure Repeat) <*>
+              ((Hs.pure HsProtobuf.packedvec) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 1)))
+              <*>
+              ((Hs.pure HsProtobuf.packedvec) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 2)))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Repeated HsProtobuf.Int32)
+                (HsProtobuf.Single "i32s")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
+                (HsProtobuf.Repeated HsProtobuf.Int64)
+                (HsProtobuf.Single "i64s")
+                []
+                Hs.Nothing)]
+ 
 data Trivial = Trivial{trivialTrivialField32 :: Hs.Int32,
                        trivialTrivialFieldU32 :: Hs.Word32,
                        trivialTrivialFieldS32 :: Hs.Int32,
