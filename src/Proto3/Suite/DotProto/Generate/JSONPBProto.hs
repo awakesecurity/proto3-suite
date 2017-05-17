@@ -90,10 +90,10 @@ instance HsProtobuf.Message Scalar32 where
                 []
                 Hs.Nothing)]
  
-data Scalar64 = Scalar64{scalar64I64 :: Hs.Int32,
-                         scalar64U64 :: Hs.Word32, scalar64S64 :: Hs.Int32,
-                         scalar64F64 :: HsProtobuf.Fixed Hs.Word32,
-                         scalar64Sf64 :: HsProtobuf.Fixed Hs.Int32}
+data Scalar64 = Scalar64{scalar64I64 :: Hs.Int64,
+                         scalar64U64 :: Hs.Word64, scalar64S64 :: Hs.Int64,
+                         scalar64F64 :: HsProtobuf.Fixed Hs.Word64,
+                         scalar64Sf64 :: HsProtobuf.Fixed Hs.Int64}
               deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
  
 instance HsProtobuf.Named Scalar64 where
@@ -134,27 +134,27 @@ instance HsProtobuf.Message Scalar64 where
                     (HsProtobuf.FieldNumber 5)))
         dotProto _
           = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
-                (HsProtobuf.Prim HsProtobuf.Int32)
+                (HsProtobuf.Prim HsProtobuf.Int64)
                 (HsProtobuf.Single "i64")
                 []
                 Hs.Nothing),
              (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
-                (HsProtobuf.Prim HsProtobuf.UInt32)
+                (HsProtobuf.Prim HsProtobuf.UInt64)
                 (HsProtobuf.Single "u64")
                 []
                 Hs.Nothing),
              (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 3)
-                (HsProtobuf.Prim HsProtobuf.SInt32)
+                (HsProtobuf.Prim HsProtobuf.SInt64)
                 (HsProtobuf.Single "s64")
                 []
                 Hs.Nothing),
              (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 4)
-                (HsProtobuf.Prim HsProtobuf.Fixed32)
+                (HsProtobuf.Prim HsProtobuf.Fixed64)
                 (HsProtobuf.Single "f64")
                 []
                 Hs.Nothing),
              (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 5)
-                (HsProtobuf.Prim HsProtobuf.SFixed32)
+                (HsProtobuf.Prim HsProtobuf.SFixed64)
                 (HsProtobuf.Single "sf64")
                 []
                 Hs.Nothing)]

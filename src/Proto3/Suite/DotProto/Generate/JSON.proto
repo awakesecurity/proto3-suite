@@ -10,11 +10,11 @@ message Scalar32 {
 }
 
 message Scalar64 {
-  int32     i64 = 1;
-  uint32    u64 = 2;
-  sint32    s64 = 3;
-  fixed32   f64 = 4;
-  sfixed32 sf64 = 5;
+  int64     i64 = 1;
+  uint64    u64 = 2;
+  sint64    s64 = 3;
+  fixed64   f64 = 4;
+  sfixed64 sf64 = 5;
 }
 
 message ScalarFP {
