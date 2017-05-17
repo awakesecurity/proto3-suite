@@ -343,7 +343,7 @@ instance A.ToJSON Trivial where
     , fieldToJSON "trivialFieldU64"     u64
     , fieldToJSON "trivialFieldS64"     s64
     , fieldToJSON "trivialFieldF64"     f64
-    , fieldToJSON "trivialFieldSF64"    (SF64 sf64)
+    , fieldToJSON "trivialFieldSF64"    sf64
     , fieldToJSON "repeatedField32"     v32
     , fieldToJSON "repeatedField64"     v64
     , nestedFieldToJSON "nestedMessage" mnest
@@ -360,7 +360,7 @@ instance A.ToJSON Trivial where
     , fieldToEnc "trivialFieldU64"          u64
     , fieldToEnc "trivialFieldS64"          s64
     , fieldToEnc "trivialFieldF64"          f64
-    , fieldToEnc "trivialFieldSF64"         (SF64 sf64)
+    , fieldToEnc "trivialFieldSF64"         sf64
     , fieldToEnc "repeatedField32"          v32
     , fieldToEnc "repeatedField64"          v64
     , nestedFieldToEncoding "nestedMessage" mnest
@@ -380,7 +380,7 @@ instance A.FromJSON Trivial where
     <*> parseField obj "trivialFieldU64"
     <*> parseField obj "trivialFieldS64"
     <*> parseField obj "trivialFieldF64"
-    <*> do SF64 x <- parseField obj "trivialFieldSF64"; pure x
+    <*> parseField obj "trivialFieldSF64"
     <*> parseField obj "repeatedField32"
     <*> parseField obj "repeatedField64"
     <*> decodeNested obj "nestedMessage"
@@ -592,9 +592,6 @@ instance A.FromJSON (PBR Hs.Word64) where
   parseJSON v            = A.typeMismatch "PBR Word64 {- uint64 -}" v
 
 -- fixed64
--- newtype F64 = F64 (HsProtobuf.Fixed Hs.Word64) deriving (Eq, Num, Show)
-
-
 instance A.ToJSON (HsProtobuf.Fixed Hs.Word64) where
   toJSON (HsProtobuf.Fixed n) = A.toJSON n
 instance PBRep (HsProtobuf.Fixed Hs.Word64) where
@@ -616,26 +613,25 @@ instance A.FromJSON (HsProtobuf.Fixed Hs.Word64) where
   parseJSON = fmap HsProtobuf.Fixed . A.parseJSON
 
 -- sfixed64
-newtype SF64 = SF64 (HsProtobuf.Fixed Hs.Int64) deriving (Eq, Num, Show)
-instance A.ToJSON SF64 where
-  toJSON (SF64 (HsProtobuf.Fixed n)) = A.toJSON n
-instance PBRep SF64 where
-  data PBR SF64          = PBSFixed64 SF64 deriving (Show, Generic)
-  toPBR                  = PBSFixed64
-  fromPBR (PBSFixed64 x) = x
-instance Monoid (PBR SF64) where
+instance A.ToJSON (HsProtobuf.Fixed Hs.Int64) where
+  toJSON (HsProtobuf.Fixed n) = A.toJSON n
+instance PBRep (HsProtobuf.Fixed Hs.Int64) where
+  data PBR (HsProtobuf.Fixed Hs.Int64) = PBSFixed64 (HsProtobuf.Fixed Hs.Int64) deriving (Show, Generic)
+  toPBR                                = PBSFixed64
+  fromPBR (PBSFixed64 x)               = x
+instance Monoid (PBR (HsProtobuf.Fixed Hs.Int64)) where
   mempty = toPBR 0
   mappend (fromPBR -> 0) (fromPBR -> y) = toPBR y
   mappend (fromPBR -> x) (fromPBR -> 0) = toPBR x
   mappend _               x             = x
-instance A.ToJSON (PBR SF64) where
-  toJSON = A.String . Text.pack . Hs.show . HsProtobuf.fixed . (\(SF64 x) -> x) . fromPBR
-instance A.FromJSON (PBR SF64) where
+instance A.ToJSON (PBR (HsProtobuf.Fixed Hs.Int64)) where
+  toJSON = A.String . Text.pack . Hs.show . HsProtobuf.fixed . fromPBR
+instance A.FromJSON (PBR (HsProtobuf.Fixed Hs.Int64)) where
   parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
   parseJSON (A.String t) = fromDecimalString t
-  parseJSON v            = A.typeMismatch "PBR SF64" v
-instance A.FromJSON SF64 where
-  parseJSON = fmap (SF64 . HsProtobuf.Fixed) . A.parseJSON
+  parseJSON v            = A.typeMismatch "PBR (Fixed Int64) {- sfixed64 -}" v
+instance A.FromJSON (HsProtobuf.Fixed Hs.Int64) where
+  parseJSON = fmap HsProtobuf.Fixed . A.parseJSON
 
 --------------------------------------------------------------------------------
 -- Helpers
