@@ -142,6 +142,22 @@ instance A.FromJSON Scalar64 where
     <*> parseField obj "f64"
     <*> parseField obj "sf64"
 
+-- FloatingPoint
+instance A.ToJSON FloatingPoint where
+  toJSON (FloatingPoint f d) = A.object . mconcat $
+    [ fieldToJSON "f" f
+    , fieldToJSON "d" d
+    ]
+  toEncoding (FloatingPoint f d) = A.pairs . mconcat $
+    [ fieldToEnc "f" f
+    , fieldToEnc "d" d
+    ]
+instance A.FromJSON FloatingPoint where
+  parseJSON = A.withObject "FloatingPoint" $ \obj ->
+    pure FloatingPoint
+    <*> parseField obj "f"
+    <*> parseField obj "d"
+
 -- Repeat
 instance A.ToJSON Repeat where
   toJSON (Repeat i32s i64s) = A.object . mconcat $
@@ -588,6 +604,7 @@ fromDecimalString
 -- >>> :set -XOverloadedStrings
 -- >>> let scalar32 = Scalar32 32 33 (-34) 35 36
 -- >>> let scalar64 = Scalar64 64 65 (-66) 67 68
+-- >>> let floatingPoint = FloatingPoint 98.6 255.16
 -- >>> let repeat' = Repeat [4,5] [6,7]
 -- >>> let nestedAbsent = Nested Nothing
 -- >>> let nestedPresent = Nested (Just (Nested_Inner 42))
@@ -601,6 +618,9 @@ fromDecimalString
 -- Right True
 --
 -- >>> roundTrip scalar64
+-- Right True
+--
+-- >>> roundTrip floatingPoint
 -- Right True
 --
 -- >>> roundTrip repeat'
@@ -627,6 +647,9 @@ roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 --
 -- >>> pbToJSON scalar64
 -- "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}"
+--
+-- >>> pbToJSON floatingPoint
+-- "{\"f\":98.6,\"d\":255.16}"
 --
 -- >>> pbToJSON repeat'
 -- "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
@@ -656,6 +679,24 @@ pbToJSON = A.encode
 -- >>> jsonToPB "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}" :: Either String Scalar64
 -- Right (Scalar64 {scalar64I64 = 64, scalar64U64 = 65, scalar64S64 = -66, scalar64F64 = Fixed {fixed = 67}, scalar64Sf64 = Fixed {fixed = 68}})
 --
+-- >>> jsonToPB "{\"f\":98.6,\"d\":255.16}" :: Either String FloatingPoint
+-- Right (FloatingPoint {floatingPointF = 98.6, floatingPointD = 255.16})
+--
+-- >>> jsonToPB "{\"f\":\"23.6\",\"d\":\"-99.001\"}" :: Either String FloatingPoint
+-- Right (FloatingPoint {floatingPointF = 23.6, floatingPointD = -99.001})
+--
+-- >>> jsonToPB "{\"f\":\"1e6\",\"d\":\"-0.1e4\"}" :: Either String FloatingPoint
+-- Right (FloatingPoint {floatingPointF = 1000000.0, floatingPointD = -1000.0})
+--
+-- >>> jsonToPB "{\"f\":\"NaN\",\"d\":\"NaN\"}" :: Either String FloatingPoint
+-- Right (FloatingPoint {floatingPointF = NaN, floatingPointD = NaN})
+--
+-- >>> jsonToPB "{\"f\":\"Infinity\",\"d\":\"Infinity\"}" :: Either String FloatingPoint
+-- Right (FloatingPoint {floatingPointF = Infinity, floatingPointD = Infinity})
+--
+-- >>> jsonToPB "{\"f\":\"-Infinity\",\"d\":\"-Infinity\"}" :: Either String FloatingPoint
+-- Right (FloatingPoint {floatingPointF = -Infinity, floatingPointD = -Infinity})
+--
 -- >>> jsonToPB "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}" :: Either String Repeat
 -- Right (Repeat {repeatI32s = [4,5], repeatI64s = [6,7]})
 --
@@ -664,6 +705,9 @@ pbToJSON = A.encode
 --
 -- >>> jsonToPB "{\"nestedInner\":{\"i64\":\"42\"}}" :: Either String Nested
 -- Right (Nested {nestedNestedInner = Just (Nested_Inner {nested_InnerI64 = 42})})
+--
+--
+--
 --
 -- >>> jsonToPB (pbToJSON myTrivial) :: Either String Trivial
 -- Right (Trivial {trivialTrivialField32 = 32, trivialTrivialFieldU32 = 33, trivialTrivialFieldS32 = -34, trivialTrivialFieldF32 = Fixed {fixed = 35}, trivialTrivialFieldSF32 = Fixed {fixed = 36}, trivialTrivialField64 = 64, trivialTrivialFieldU64 = 65, trivialTrivialFieldS64 = -66, trivialTrivialFieldF64 = Fixed {fixed = 67}, trivialTrivialFieldSF64 = Fixed {fixed = 68}, trivialRepeatedField32 = [4,5], trivialRepeatedField64 = [6,7], trivialNestedMessage = Just (Trivial_Nested {trivial_NestedNestedField64 = 101}), trivialTrivialFieldFloat = 98.6, trivialTrivialFieldDouble = 255.16, trivialTrivialFieldString = "foo", trivialTrivialFieldBytes = "encodeme"})

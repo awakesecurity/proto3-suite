@@ -159,6 +159,41 @@ instance HsProtobuf.Message Scalar64 where
                 []
                 Hs.Nothing)]
  
+data FloatingPoint = FloatingPoint{floatingPointF :: Hs.Float,
+                                   floatingPointD :: Hs.Double}
+                   deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named FloatingPoint where
+        nameOf _ = (Hs.fromString "FloatingPoint")
+ 
+instance HsProtobuf.Message FloatingPoint where
+        encodeMessage _
+          FloatingPoint{floatingPointF = floatingPointF,
+                        floatingPointD = floatingPointD}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   floatingPointF),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                   floatingPointD)])
+        decodeMessage _
+          = (Hs.pure FloatingPoint) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 2))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.Float)
+                (HsProtobuf.Single "f")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
+                (HsProtobuf.Prim HsProtobuf.Double)
+                (HsProtobuf.Single "d")
+                []
+                Hs.Nothing)]
+ 
 data Repeat = Repeat{repeatI32s :: Hs.Vector Hs.Int32,
                      repeatI64s :: Hs.Vector Hs.Int64}
             deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
