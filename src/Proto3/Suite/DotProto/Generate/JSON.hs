@@ -196,12 +196,12 @@ instance A.ToJSON Nested where
     [ nestedFieldToJSON "nestedInner" minner
     ]
   toEncoding (Nested minner) = A.pairs . mconcat $
-    [ nestedFieldToEncoding "nestedInner" minner
+    [ nestedFieldToEnc "nestedInner" minner
     ]
 instance A.FromJSON Nested where
   parseJSON = A.withObject "Nested" $ \obj ->
     pure Nested
-    <*> decodeNested obj "nestedInner"
+    <*> parseNested obj "nestedInner"
 
 -- Nested_Inner
 instance A.ToJSON Nested_Inner where
@@ -520,14 +520,14 @@ nestedFieldToJSON :: (A.KeyValue a, A.ToJSON v, Monoid (f a), Applicative f)
                   => Hs.Text -> Maybe v -> f a
 nestedFieldToJSON fldSel = foldMap (pure . (fldSel .=))
 
-nestedFieldToEncoding :: (A.KeyValue m, A.ToJSON a, Monoid m) => Hs.Text -> Maybe a -> m
-nestedFieldToEncoding fldSel = foldMap (fldSel .=)
+nestedFieldToEnc :: (A.KeyValue m, A.ToJSON a, Monoid m) => Hs.Text -> Maybe a -> m
+nestedFieldToEnc fldSel = foldMap (fldSel .=)
 
 parseField :: (A.FromJSON (PBR a), Monoid (PBR a), PBRep a) => A.Object -> Hs.Text -> A.Parser a
 parseField o fldSel = fromPBR <$> (o .:? fldSel .!= Hs.mempty)
 
-decodeNested :: A.FromJSON a => A.Object -> Hs.Text -> A.Parser (Maybe a)
-decodeNested o fldSel = o .:? fldSel .!= Nothing
+parseNested :: A.FromJSON a => A.Object -> Hs.Text -> A.Parser (Maybe a)
+parseNested o fldSel = o .:? fldSel .!= Nothing
 
 fromDecimalString :: (A.FromJSON a, PBRep a) => Hs.Text -> A.Parser (PBR a)
 fromDecimalString
@@ -684,7 +684,7 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --   - [ ] NullValue
 --
 --   - [ ] Explore generation of Monoid instances and hiding the details about
---         nestedFieldTo{Encoding,JSON} and decodeNested
+--         nestedFieldTo{Enc,JSON} and parseNested
 --
 -- [ ] Determine if we really NEED/WANT the PBR / data family approach; it feels
 --     like it might be extra cruft that isn't doing much heavy lifting for us.
