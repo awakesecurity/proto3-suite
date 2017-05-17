@@ -674,11 +674,15 @@ fromDecimalString
 --
 -- >>> roundTrip (Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] (Just (Trivial_Nested 101)) 98.6 255.16)
 -- Right True
+-- >>> roundTrip (Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] Nothing 98.6 255.16)
+-- Right True
 roundTrip :: (A.ToJSON a, A.FromJSON a, Eq a) => a -> Either String Bool
 roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 
 -- | Converting a PB payload to JSON is just encoding via Aeson.
 --
+-- >>> pbToJSON (Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] Nothing 195.6888 62.123)
+-- "{\"trivialField32\":32,\"trivialFieldU32\":33,\"trivialFieldS32\":-34,\"trivialFieldF32\":35,\"trivialFieldSF32\":36,\"trivialField64\":\"64\",\"trivialFieldU64\":\"65\",\"trivialFieldS64\":\"-66\",\"trivialFieldF64\":\"67\",\"trivialFieldSF64\":\"68\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"trivialFieldFloat\":195.6888,\"trivialFieldDouble\":62.123}"
 -- >>> pbToJSON (Trivial 32 33 (-34) 35 36 64 65 (-66) 67 68 [4,5] [6,7] (Just (Trivial_Nested 101)) 195.6888 62.123)
 -- "{\"trivialField32\":32,\"trivialFieldU32\":33,\"trivialFieldS32\":-34,\"trivialFieldF32\":35,\"trivialFieldSF32\":36,\"trivialField64\":\"64\",\"trivialFieldU64\":\"65\",\"trivialFieldS64\":\"-66\",\"trivialFieldF64\":\"67\",\"trivialFieldSF64\":\"68\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"nestedMessage\":{\"nestedField64\":\"101\"},\"trivialFieldFloat\":195.6888,\"trivialFieldDouble\":62.123}"
 pbToJSON :: A.ToJSON a => a -> LBS.ByteString
@@ -686,6 +690,8 @@ pbToJSON = A.encode
 
 -- | Converting from JSON to PB is just decoding via Aeson.
 --
+-- >>> jsonToPB "{\"trivialField32\":32,\"trivialFieldU32\":33,\"trivialFieldS32\":-34,\"trivialFieldF32\":35,\"trivialFieldSF32\":36,\"trivialField64\":\"64\",\"trivialFieldU64\":\"65\",\"trivialFieldS64\":\"-66\",\"trivialFieldF64\":\"67\",\"trivialFieldSF64\":\"68\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"trivialFieldFloat\":195.6888,\"trivialFieldDouble\":62.123}" :: Either String Trivial
+-- Right (Trivial {trivialTrivialField32 = 32, trivialTrivialFieldU32 = 33, trivialTrivialFieldS32 = -34, trivialTrivialFieldF32 = Fixed {fixed = 35}, trivialTrivialFieldSF32 = Fixed {fixed = 36}, trivialTrivialField64 = 64, trivialTrivialFieldU64 = 65, trivialTrivialFieldS64 = -66, trivialTrivialFieldF64 = Fixed {fixed = 67}, trivialTrivialFieldSF64 = Fixed {fixed = 68}, trivialRepeatedField32 = [4,5], trivialRepeatedField64 = [6,7], trivialNestedMessage = Nothing, trivialTrivialFieldFloat = 195.6888, trivialTrivialFieldDouble = 62.123})
 -- >>> jsonToPB "{\"trivialField32\":32,\"trivialFieldU32\":33,\"trivialFieldS32\":-34,\"trivialFieldF32\":35,\"trivialFieldSF32\":36,\"trivialField64\":\"64\",\"trivialFieldU64\":\"65\",\"trivialFieldS64\":\"-66\",\"trivialFieldF64\":\"67\",\"trivialFieldSF64\":\"68\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"nestedMessage\":{\"nestedField64\":\"101\"},\"trivialFieldFloat\":\"1e6\",\"trivialFieldDouble\":62.123}" :: Either String Trivial
 -- Right (Trivial {trivialTrivialField32 = 32, trivialTrivialFieldU32 = 33, trivialTrivialFieldS32 = -34, trivialTrivialFieldF32 = Fixed {fixed = 35}, trivialTrivialFieldSF32 = Fixed {fixed = 36}, trivialTrivialField64 = 64, trivialTrivialFieldU64 = 65, trivialTrivialFieldS64 = -66, trivialTrivialFieldF64 = Fixed {fixed = 67}, trivialTrivialFieldSF64 = Fixed {fixed = 68}, trivialRepeatedField32 = [4,5], trivialRepeatedField64 = [6,7], trivialNestedMessage = Just (Trivial_Nested {trivial_NestedNestedField64 = 101}), trivialTrivialFieldFloat = 1000000.0, trivialTrivialFieldDouble = 62.123})
 -- >>> jsonToPB "{\"trivialField32\":32,\"trivialFieldU32\":33,\"trivialFieldS32\":-34,\"trivialFieldF32\":35,\"trivialFieldSF32\":36,\"trivialField64\":\"64\",\"trivialFieldU64\":\"65\",\"trivialFieldS64\":\"-66\",\"trivialFieldF64\":\"67\",\"trivialFieldSF64\":\"68\",\"repeatedField32\":[4,5],\"repeatedField64\":[\"6\",\"7\"],\"nestedMessage\":{\"nestedField64\":\"101\"},\"trivialFieldFloat\":\"1e6\",\"trivialFieldDouble\":\"NaN\"}" :: Either String Trivial
