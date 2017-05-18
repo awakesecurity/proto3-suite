@@ -4,9 +4,10 @@
 #
 # ... then run `cabal` commands as you would normally do:
 #
-#     $ cabal configure
-#     $ cabal build
-#     $ cabal test
+#     [nix-shell]$ cabal configure --with-gcc=clang --enable-tests
+#     [nix-shell]$ cabal build
+#     [nix-shell]$ cabal test
+
 let
   config = {
     packageOverrides = pkgs:
@@ -66,8 +67,12 @@ let
         inherit (json) rev sha256;
       };
 
-  pkgs = import nixpkgs { inherit config; };
+   linuxPkgs = import nixpkgs { inherit config; system = "x86_64-linux" ; };
+  darwinPkgs = import nixpkgs { inherit config; system = "x86_64-darwin"; };
+        pkgs = import nixpkgs { inherit config; };
 
 in
-  { proto3-suite = pkgs.haskellPackages.proto3-suite;
+  { proto3-suite-linux  =  linuxPkgs.haskellPackages.proto3-suite;
+    proto3-suite-darwin = darwinPkgs.haskellPackages.proto3-suite;
+    proto3-suite        =       pkgs.haskellPackages.proto3-suite;
   }

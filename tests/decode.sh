@@ -2,7 +2,7 @@
 
 hsTmpDir=$1
 
-stack ghc --                          \
+ghc                                   \
     --make                            \
     -odir $hsTmpDir                   \
     -hidir $hsTmpDir                  \

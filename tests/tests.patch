@@ -5,10 +5,10 @@ index 59ad7cc..d1df62b 100755
 @@ -1,8 +1,8 @@
 -#!/bin/bash -eu
 +#! @bash@/bin/bash -eu
- 
+
  hsTmpDir=$1
- 
--stack ghc --                          \
+
+-ghc                                   \
 +@ghc@/bin/ghc                         \
      --make                            \
      -odir $hsTmpDir                   \
@@ -20,10 +20,10 @@ index 8ebea7e..bc79de2 100755
 @@ -1,8 +1,8 @@
 -#!/bin/bash -eu
 +#! @bash@/bin/bash -eu
- 
+
  hsTmpDir=$1
- 
--stack ghc --                          \
+
+-ghc                                   \
 +@ghc@/bin/ghc                         \
      --make                            \
      -odir $hsTmpDir                   \
