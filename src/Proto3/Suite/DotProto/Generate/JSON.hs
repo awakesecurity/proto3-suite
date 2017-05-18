@@ -111,6 +111,8 @@ import Proto3.Suite.DotProto.Generate.JSONPBProto
 -- >>> Right (Scalar32 32 33 (-34) 35 36) == jsonToPB "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}"
 -- True
 
+-- TODO: Use RecordWildCards to name the fields instead of an explicit pattern match
+
 instance A.ToJSON Scalar32 where
   toJSON (Scalar32 i32 u32 s32 f32 sf32) = A.object . mconcat $
     [ fieldToJSON "i32"  i32
@@ -126,6 +128,7 @@ instance A.ToJSON Scalar32 where
     , fieldToEnc "f32"  f32
     , fieldToEnc "sf32" sf32
     ]
+
 instance A.FromJSON Scalar32 where
   parseJSON = A.withObject "Scalar32" $ \obj ->
     pure Scalar32
@@ -336,8 +339,8 @@ instance A.FromJSON Nested_Inner where
 
 -- | The class of types which have a "canonical protobuf to JSON encoding"
 -- defined. We make use of a data family called PBR ("protobuf rep") to map
--- primitive types to/from their corresponding type wrappers for which
--- ToJSON/FromJSON instances are defined.
+-- underlying primitive types to/from their corresponding type wrappers for
+-- which the "jsonpb" ToJSON/FromJSON instances are defined.
 class PBRep a where
   data PBR a
   toPBR   :: a -> PBR a
@@ -361,12 +364,9 @@ instance Monoid (PBR Hs.Int32) where
 instance A.ToJSON (PBR Hs.Int32)
 instance A.FromJSON (PBR Hs.Int32) where
   parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
-  parseJSON (A.String t) = fromDecimalString t
+  parseJSON (A.String t) = fromDecString t
   parseJSON v            = A.typeMismatch "PBR Int32 {- int32 / sint32 -}" v
 
--- TODO: Spec seems to imply that "-10" is a valid value for a uint32; wha-huh?
--- Cf. go impl, I suppose.
---
 -- uint32
 instance PBRep Hs.Word32 where
   data PBR Hs.Word32   = PBUInt32 Hs.Word32 deriving (Show, Generic)
@@ -380,7 +380,7 @@ instance Monoid (PBR Hs.Word32) where
 instance A.ToJSON (PBR Hs.Word32)
 instance A.FromJSON (PBR Hs.Word32) where
   parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
-  parseJSON (A.String t) = fromDecimalString t
+  parseJSON (A.String t) = fromDecString t
   parseJSON v            = A.typeMismatch "PBR Word32 {- uint32 -}" v
 
 -- fixed32
@@ -400,7 +400,7 @@ instance A.FromJSON (HsProtobuf.Fixed Hs.Word32) where
   parseJSON = fmap HsProtobuf.Fixed . A.parseJSON
 instance A.FromJSON (PBR (HsProtobuf.Fixed Hs.Word32)) where
   parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
-  parseJSON (A.String t) = fromDecimalString t
+  parseJSON (A.String t) = fromDecString t
   parseJSON v            = A.typeMismatch "PBR (Fixed Word32) {- fixed32 -}" v
 
 -- sfixed32
@@ -418,7 +418,7 @@ instance Monoid (PBR (HsProtobuf.Fixed Hs.Int32)) where
 instance A.ToJSON (PBR (HsProtobuf.Fixed Hs.Int32))
 instance A.FromJSON (PBR (HsProtobuf.Fixed Hs.Int32)) where
   parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
-  parseJSON (A.String t) = fromDecimalString t
+  parseJSON (A.String t) = fromDecString t
   parseJSON v            = A.typeMismatch "PBR (Fixed Int32) {- sfixed32 -}" v
 instance A.FromJSON (HsProtobuf.Fixed Hs.Int32) where
   parseJSON = fmap HsProtobuf.Fixed . A.parseJSON
@@ -442,7 +442,7 @@ instance A.ToJSON (PBR Hs.Int64) where
   toJSON = A.String . Text.pack . Hs.show . fromPBR
 instance A.FromJSON (PBR Hs.Int64) where
   parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
-  parseJSON (A.String t) = fromDecimalString t
+  parseJSON (A.String t) = fromDecString t
   parseJSON v            = A.typeMismatch "PBR Int64 {- int64 / sint64 -}" v
 
 -- TODO: Spec seems to imply that "-10" is a valid value for a uint64; wha-huh?
@@ -462,7 +462,7 @@ instance A.ToJSON (PBR Hs.Word64) where
   toJSON = A.String . Text.pack . Hs.show . fromPBR
 instance A.FromJSON (PBR Hs.Word64) where
   parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
-  parseJSON (A.String t) = fromDecimalString t
+  parseJSON (A.String t) = fromDecString t
   parseJSON v            = A.typeMismatch "PBR Word64 {- uint64 -}" v
 
 -- fixed64
@@ -481,7 +481,7 @@ instance A.ToJSON (PBR (HsProtobuf.Fixed Hs.Word64)) where
   toJSON = A.String . Text.pack . Hs.show . HsProtobuf.fixed . fromPBR
 instance A.FromJSON (PBR (HsProtobuf.Fixed Hs.Word64)) where
   parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
-  parseJSON (A.String t) = fromDecimalString t
+  parseJSON (A.String t) = fromDecString t
   parseJSON v            = A.typeMismatch "PBR (Fixed Word64) {- fixed64 -}" v
 instance A.FromJSON (HsProtobuf.Fixed Hs.Word64) where
   parseJSON = fmap HsProtobuf.Fixed . A.parseJSON
@@ -502,7 +502,7 @@ instance A.ToJSON (PBR (HsProtobuf.Fixed Hs.Int64)) where
   toJSON = A.String . Text.pack . Hs.show . HsProtobuf.fixed . fromPBR
 instance A.FromJSON (PBR (HsProtobuf.Fixed Hs.Int64)) where
   parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
-  parseJSON (A.String t) = fromDecimalString t
+  parseJSON (A.String t) = fromDecString t
   parseJSON v            = A.typeMismatch "PBR (Fixed Int64) {- sfixed64 -}" v
 instance A.FromJSON (HsProtobuf.Fixed Hs.Int64) where
   parseJSON = fmap HsProtobuf.Fixed . A.parseJSON
@@ -610,19 +610,23 @@ instance (A.ToJSON (PBR a), PBRep a) => A.ToJSON (PBR (Hs.Vector a)) where
 instance (Eq a, PBRep a) => Eq (PBR a) where
   (fromPBR -> a) == (fromPBR -> b) = a == b
 
-parseKeyPB :: (PBRep a, A.FromJSONKey a) => Text.Text -> A.Parser (PBR a)
+parseKeyPB :: (PBRep a, A.FromJSONKey a) => Hs.Text -> A.Parser (PBR a)
 parseKeyPB t = case A.fromJSONKey of
   A.FromJSONKeyTextParser parse
     -> toPBR <$> parse t
   _ -> fail "internal: parseKeyPB: unexpected FromJSONKey summand"
 
-fieldToJSON :: (PBRep a, A.KeyValue kv, A.ToJSON (PBR a), Monoid (PBR a), Monoid (f kv), Applicative f, Eq a)
-            => Text.Text -> a -> f kv
-fieldToJSON lab (toPBR -> x) = if x == mempty then mempty else pure (lab .= x)
+-- TODO: consider using HasDefault instead of Monoid
+fieldToJSON :: (Eq a, Monoid (PBR a), PBRep a, A.ToJSON (PBR a)) => Hs.Text -> a -> [A.Pair]
+fieldToJSON lab (toPBR -> x)
+  | x == mempty = mempty
+  | otherwise   = [lab .= x]
 
-fieldToEnc :: (Eq a, A.KeyValue m, Monoid m, Monoid (PBR a), A.ToJSON (PBR a), PBRep a)
-           => Hs.Text -> a -> m
-fieldToEnc lab (toPBR -> x) = if x == mempty then mempty else lab .= x
+-- TODO: consider using HasDefault instead of Monoid
+fieldToEnc :: (Eq a, Monoid(PBR a), PBRep a, A.ToJSON (PBR a)) => Hs.Text -> a -> A.Series
+fieldToEnc lab (toPBR -> x)
+  | x == mempty = mempty
+  | otherwise   = lab .= x
 
 nestedFieldToJSON :: (A.KeyValue a, A.ToJSON v, Monoid (f a), Applicative f)
                   => Hs.Text -> Maybe v -> f a
@@ -632,17 +636,13 @@ nestedFieldToEnc :: (A.KeyValue m, A.ToJSON a, Monoid m) => Hs.Text -> Maybe a -
 nestedFieldToEnc fldSel = foldMap (fldSel .=)
 
 parseField :: (A.FromJSON (PBR a), Monoid (PBR a), PBRep a) => A.Object -> Hs.Text -> A.Parser a
-parseField o fldSel = fromPBR <$> (o .:? fldSel .!= Hs.mempty)
+parseField o fldSel = fromPBR <$> o .:? fldSel .!= Hs.mempty
 
 parseNested :: A.FromJSON a => A.Object -> Hs.Text -> A.Parser (Maybe a)
 parseNested o fldSel = o .:? fldSel .!= Nothing
 
-fromDecimalString :: (A.FromJSON a, PBRep a) => Hs.Text -> A.Parser (PBR a)
-fromDecimalString
-  = either fail (pure . toPBR)
-  . A.eitherDecode
-  . LBS.fromStrict
-  . Hs.encodeUtf8
+fromDecString :: (A.FromJSON a, PBRep a) => Hs.Text -> A.Parser (PBR a)
+fromDecString = either fail (pure . toPBR) . A.eitherDecode . LBS.fromStrict . Hs.encodeUtf8
 
 -- | Ensure that we can decode what we encode; @Right True@ indicates success.
 roundTrip :: (A.ToJSON a, A.FromJSON a, Eq a) => a -> Either String Bool
@@ -674,8 +674,20 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --------------------------------------------------------------------------------
 -- TODOs
 --
--- [ ] Determine if we really NEED/WANT the PBR / data family approach; it feels
---     like it might be extra cruft that isn't doing much heavy lifting for us.
+-- [ ] HERP DERP, there is already a HasDefault typeclass! Doh! We should use it
+--     and/or infer a Monoid instance. Fack! Also wondering if we should
+--     generate HasDefault instances for user types as well.
+--
+-- [ ] Look into bugfix regarding Fixed being used for sfixed32/64 fields; I
+--     think this should be using Signed instead, and we should write our
+--     classes/implementations accordingly. E.g. it seems like either sfixed32
+--     and/or sint32 should have a Signed wrapper somewhere, no? Check elsewhere
+--     in the codebase to see where it is used and so forth. Even if the current
+--     behavior is correct (which would surprise me because I think this means
+--     we are not distinguishing the codecs by expected-sign (which is the point
+--     of eg sint32 iirc)), I should understand why.
+--
+-- Other type support:
 --
 --   - [ ] enum
 --   - [ ] map<K,V>
@@ -691,7 +703,11 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --   - [ ] NullValue
 --
 --   - [ ] Explore generation of Monoid instances and hiding the details about
---         nestedFieldTo{Enc,JSON} and parseNested
+--         nestedFieldTo{Enc,JSON} and parseNested; and/or use HasDefault as
+--         mentioned above. There is some partial work in a branch for a PBRep
+--         (Maybe a) which might be of use to make the field emission/parsing
+--         helpers even more abstract w.r.t. field types (ie nested message can
+--         be treated just like others with a PBRep and such).
 --
 -- [ ] Make sure we have all of the by-hand generation pieces working, get it
 --     checked with Gabriel, and then whip up a brute force CG version before
