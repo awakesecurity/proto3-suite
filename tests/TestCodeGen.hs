@@ -8,7 +8,6 @@ import           Control.Applicative
 import           Data.List
 import qualified Data.Text as T
 import           Data.String (IsString)
-import           Paths_proto3_suite (getDataFileName)
 import           Test.Tasty
 import           Test.Tasty.HUnit (Assertion, (@?=), (@=?), testCase, assertBool)
 import           Test.Tasty.QuickCheck (testProperty, (===))
@@ -50,9 +49,7 @@ simpleEncodeDotProto =
 
        compileTestDotProto
 
-       encodeScript <- getDataFileName "tests/encode.sh"
-       chmod executable (fromString encodeScript)
-       exitCode <- proc (T.pack encodeScript) [hsTmpDir] empty
+       exitCode <- proc "tests/encode.sh" [hsTmpDir] empty
        exitCode @?= ExitSuccess
 
        exitCode <- shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test.proto"]) empty
@@ -81,9 +78,7 @@ simpleDecodeDotProto =
 
        compileTestDotProto
 
-       decodeScript <- getDataFileName "tests/decode.sh"
-       chmod executable (fromString decodeScript)
-       exitCode <- proc (T.pack decodeScript) [hsTmpDir] empty
+       exitCode <- proc "tests/decode.sh" [hsTmpDir] empty
        exitCode @?= ExitSuccess
 
        exitCode <- shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test.proto"]) empty
