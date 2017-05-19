@@ -132,7 +132,6 @@ instance ToJSONPB Scalar32 where
     , "f32"  .= f32
     , "sf32" .= sf32
     ]
-
 instance FromJSONPB Scalar32 where
   parseJSONPB = A.withObject "Scalar32" $ \obj ->
     pure Scalar32
@@ -144,41 +143,41 @@ instance FromJSONPB Scalar32 where
 
 -- | Scalar64
 --
--- >>> roundTrip' (Scalar64 64 65 (-66) 67 68)
+-- >>> roundTrip (Scalar64 64 65 (-66) 67 68)
 -- Right True
 --
--- >>> pbToJSON' (Scalar64 64 65 (-66) 67 68)
+-- >>> pbToJSON (Scalar64 64 65 (-66) 67 68)
 -- "{\"i64\":\"64\",\"u64\":\"65\",\"s64\":\"-66\",\"f64\":\"67\",\"sf64\":\"68\"}"
 --
--- >>> Right (Scalar64 64 65 (-66) 67 68) == jsonToPB' "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}"
+-- >>> Right (Scalar64 64 65 (-66) 67 68) == jsonToPB "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}"
 -- True
 --
--- >>> Right (Scalar64 0 65 66 67 68) == jsonToPB' "{\"u64\":\"65\",\"s64\":\"66\",\"f64\":\"67\",\"sf64\":\"68\"}"
+-- >>> Right (Scalar64 0 65 66 67 68) == jsonToPB "{\"u64\":\"65\",\"s64\":\"66\",\"f64\":\"67\",\"sf64\":\"68\"}"
 -- True
 
-instance A.ToJSON Scalar64 where
-  toJSON (Scalar64 i64 u64 s64 f64 sf64) = A.object . mconcat $
-    [ fieldToJSON "i64"  i64
-    , fieldToJSON "u64"  u64
-    , fieldToJSON "s64"  s64
-    , fieldToJSON "f64"  f64
-    , fieldToJSON "sf64" sf64
+instance ToJSONPB Scalar64 where
+  toJSONPB (Scalar64 i64 u64 s64 f64 sf64) = A.object . mconcat $
+    [ "i64"  .= i64
+    , "u64"  .= u64
+    , "s64"  .= s64
+    , "f64"  .= f64
+    , "sf64" .= sf64
     ]
-  toEncoding (Scalar64 i64 u64 s64 f64 sf64) = A.pairs . mconcat $
-    [ fieldToEnc "i64"  i64
-    , fieldToEnc "u64"  u64
-    , fieldToEnc "s64"  s64
-    , fieldToEnc "f64"  f64
-    , fieldToEnc "sf64" sf64
+  toEncodingPB (Scalar64 i64 u64 s64 f64 sf64) = A.pairs . mconcat $
+    [ "i64"  .= i64
+    , "u64"  .= u64
+    , "s64"  .= s64
+    , "f64"  .= f64
+    , "sf64" .= sf64
     ]
-instance A.FromJSON Scalar64 where
-  parseJSON = A.withObject "Scalar64" $ \obj ->
+instance FromJSONPB Scalar64 where
+  parseJSONPB = A.withObject "Scalar64" $ \obj ->
     pure Scalar64
-    <*> parseField obj "i64"
-    <*> parseField obj "u64"
-    <*> parseField obj "s64"
-    <*> parseField obj "f64"
-    <*> parseField obj "sf64"
+    <*> obj .: "i64"
+    <*> obj .: "u64"
+    <*> obj .: "s64"
+    <*> obj .: "f64"
+    <*> obj .: "sf64"
 
 -- | ScalarFP
 --
@@ -377,22 +376,25 @@ class KeyValuePB kv where
   (.=) :: (HsProtobuf.HasDefault v, ToJSONPB v) => Hs.Text -> v -> kv
   infixr 8 .=
 
+-- fixed32, fixed64, "sfixed32", "sfixed64"
+instance ToJSONPB a => ToJSONPB (HsProtobuf.Fixed a) where
+  toJSONPB = toJSONPB . HsProtobuf.fixed
+instance FromJSONPB a => FromJSONPB (HsProtobuf.Fixed a) where
+  parseJSONPB = fmap HsProtobuf.Fixed . parseJSONPB
+
+--------------------------------------------------------------------------------
+-- Instances for 32 bit integer primtypes: int32, sint32, uint32
+--
+-- JSON value will be a decimal number. Either numbers or strings are accepted.
+
 -- FIXME: I don't think sint32 should overlap with this (possible bug in CG); no Signed wrapper is generated?
--- int32
+-- int32 / "sint32"
 instance ToJSONPB Hs.Int32
-instance FromJSONPB Hs.Int32 where
-  parseJSONPB = parseNumOrDecimalString "int32 / sint32"
+instance FromJSONPB Hs.Int32 where parseJSONPB = parseNumOrDecimalString "int32 / sint32"
 
 -- uint32
 instance ToJSONPB Hs.Word32
-instance FromJSONPB Hs.Word32 where
-  parseJSONPB = parseNumOrDecimalString "uint32"
-
--- fixed32
-instance ToJSONPB (HsProtobuf.Fixed Hs.Word32) where
-  toJSONPB = A.toJSON . HsProtobuf.fixed
-instance FromJSONPB (HsProtobuf.Fixed Hs.Word32) where
-  parseJSONPB = parseNumOrDecimalString "fixed32"
+instance FromJSONPB Hs.Word32 where parseJSONPB = parseNumOrDecimalString "uint32"
 
 -- FIXME: As with sint32, CG might be buggy here for sfixed32; no Signed wrapper
 -- is generated? NB: there are no HasDefault instances for (Fixed Int32) which
@@ -403,12 +405,6 @@ instance FromJSONPB (HsProtobuf.Fixed Hs.Word32) where
 
 -- TODO: delete me once CG is fixed
 instance HsProtobuf.HasDefault (HsProtobuf.Fixed Hs.Int32)
-
--- sfixed32
-instance ToJSONPB (HsProtobuf.Fixed Hs.Int32) where
-  toJSONPB = A.toJSON . HsProtobuf.fixed
-instance FromJSONPB (HsProtobuf.Fixed Hs.Int32) where
-  parseJSONPB = parseNumOrDecimalString "sfixed32"
 
 --------------------------------------------------------------------------------
 -- PBReps for int32, sint32, uint32, fixed32, sfixed32.
@@ -486,6 +482,23 @@ instance A.FromJSON (PBR (HsProtobuf.Fixed Hs.Int32)) where
   parseJSON v            = A.typeMismatch "PBR (Fixed Int32) {- sfixed32 -}" v
 instance A.FromJSON (HsProtobuf.Fixed Hs.Int32) where
   parseJSON = fmap HsProtobuf.Fixed . A.parseJSON
+
+--------------------------------------------------------------------------------
+-- Instances for 64 bit integer primtypes: int64, sint64, uint64.
+--
+-- JSON value will be a decimal string. Either numbers or strings are accepted.
+
+-- FIXME: same issue for sint64 as remarked above for sint32 (no Signed etc.)
+-- int64 / "sint64"
+instance ToJSONPB Hs.Int64   where toJSONPB    = showDecimalString
+instance FromJSONPB Hs.Int64 where parseJSONPB = parseNumOrDecimalString "int64 / sint64"
+
+-- uint64
+instance ToJSONPB Hs.Word64   where toJSONPB    = showDecimalString
+instance FromJSONPB Hs.Word64 where parseJSONPB = parseNumOrDecimalString "uint64"
+
+-- TODO: delete me once CG is fixed
+instance HsProtobuf.HasDefault (HsProtobuf.Fixed Hs.Int64)
 
 --------------------------------------------------------------------------------
 -- PBReps for int64, sint64, uint64, fixed64, sfixed64.
@@ -689,6 +702,9 @@ parseNumOrDecimalString tyDesc v = case v of
   A.Number{} -> A.parseJSON v
   A.String t -> either fail pure . A.eitherDecode . LBS.fromStrict . Hs.encodeUtf8 $ t
   _          -> A.typeMismatch tyDesc v
+
+showDecimalString :: Show a => a -> A.Value
+showDecimalString = A.String . Text.pack . Hs.show
 
 parseKeyPB :: (PBRep a, A.FromJSONKey a) => Hs.Text -> A.Parser (PBR a)
 parseKeyPB t = case A.fromJSONKey of
