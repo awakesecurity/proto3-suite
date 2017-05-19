@@ -38,3 +38,5 @@ message Nested {
   }
   Inner nestedInner = 1;
 }
+
+// TODO: Continue doing tests atop test.proto once the Signedness issue is addressed.

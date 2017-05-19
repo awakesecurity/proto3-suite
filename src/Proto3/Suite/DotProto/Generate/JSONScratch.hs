@@ -1,4 +1,6 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | This module provides functions to generate Haskell code for doing JSON
@@ -27,6 +29,11 @@ import           Proto3.Suite.DotProto.JSONPB
 --   $ compile-proto-file --proto src/Proto3/Suite/DotProto/Generate/JSON.proto > src/Proto3/Suite/DotProto/Generate/JSONPBProto.hs
 
 import           Proto3.Suite.DotProto.Generate.JSONPBProto
+
+import           Proto3.Suite.DotProto.AST
+import           Proto3.Suite.DotProto.Generate
+
+import           Text.Show.Pretty
 
 -- $setup
 -- >>> :set -XOverloadedStrings
@@ -281,6 +288,15 @@ instance FromJSONPB Nested_Inner where
 roundTrip :: (ToJSONPB a, FromJSONPB a, Eq a) => a -> Either String Bool
 roundTrip x = either Left (Right . (x==)) . eitherDecode . encode $ x
 
+readDotProto :: String -> IO (DotProto, TypeContext)
+readDotProto path = either err pure =<< readDotProtoWithContext path
+  where
+    err e = fail ("readDotProto failed: " ++ show e)
+
+jsonProtoPath, testProtoPath :: String
+jsonProtoPath = "/w/proto3-suite/src/Proto3/Suite/DotProto/Generate/JSON.proto"
+testProtoPath = "/w/proto3-suite/test-files/test.proto"
+
 --------------------------------------------------------------------------------
 -- TODOs
 --
@@ -293,10 +309,49 @@ roundTrip x = either Left (Right . (x==)) . eitherDecode . encode $ x
 --     we are not distinguishing the codecs by expected-sign (which is the point
 --     of eg sint32 iirc)), I should understand why.
 --
---     -- HERE: One way to start exploring this might be to roundtrip the .proto
---     -- AST for eg Scalar32 and see if they are mutually inverses. If not, add
---     -- test cases for that and fix it. Then same thing with the other types
---     -- like repeateds and whatnot. Jah? Let's do it.
+--     So the protobuf AST itself contains the correct Prim a types where a ~
+--     SFixed32, Fixed32, and the like. I think it's the wrapper generation
+--     where we're going astray. So let's with the simplest, which I think
+--     should be SInt32, which should render as a Signed Int32 in the generated
+--     Haskell ADT but currently renders as just Int32.
+--
+--     Perhaps we should start by checking for and/or adding encoding of sint32s
+--     to the python tests as the first step.
+--
+--     Let's add explicit separate test cases for Signed32 and Signed64 maybe?
+--     -- Actually just carry through the SignedInts version the whole way -- it
+--     existed as a QC test but not the rest of the unit tests. So start
+--     there. And, good news! It looks like the non-Signed version is indeed
+--     failing to encode, so that's fucking brilliant.
+--
+--     We need to add tests in quite a few places:
+--
+--       encode unit tests: checkEncoding tests against golden .bin files from the python impl
+--
+--       decode unit tests: probably
+--
+--       parser unit tests
+--
+--       qc properties tests
+--
+--       haskell encode -> python decoder tests
+--
+--       python encoder -> haskell decoder tests
+--
+--  So:
+--
+--  HERE: sint32. Add a Signed32 message which contains a sint32. Add it to all
+--  of the tests above, with the codegen test coming last. Actually see above,
+--  just use the one for SignedInts, maybe after MultipleFields instead of
+--  before? Or near the Fixed tests.
+--
+--    probably want to manage these in a separate pull request/branch, so move
+--    these notes to .org files and split up the branch work a little bit, with
+--    some cleanups and squashing.
+--
+-- [ ] Hook up the json round trip tests to the test.proto coverate types and
+-- testbench logic; want to see if those tests can be extended to test the
+-- jsonpb codec on both ends, possibly against golang instead of python?
 --
 -- [ ] Also, it looks like Nested and some the *Vec variants aren't used in CG
 --     either, so we should determine if those are bugs or not. We need to
@@ -319,16 +374,9 @@ roundTrip x = either Left (Right . (x==)) . eitherDecode . encode $ x
 --   - [ ] Value
 --   - [ ] NullValue
 --
---   - [ ] Explore generation of Monoid instances and hiding the details about
---         nestedFieldTo{Enc,JSON} and parseNested; and/or use HasDefault[X] as
---         mentioned above. There is some partial work in a branch for a PBRep
---         (Maybe a) which might be of use to make the field emission/parsing
---         helpers even more abstract w.r.t. field types (ie nested message can
---         be treated just like others with a PBRep and such). I think it will
---         be obvious how this needs to work with the new typeclasses though.
---
--- [ ] Make sure we have all of the by-hand generation pieces working, get it
---     checked with Gabriel, and then whip up a brute force CG version before
---     moving onto the Generics-based implementation. jcarey wants to be able to
---     runthe emission atop protobuf value ASTs, so I think that increases the
---     priority for a Generic implementation.
+-- [ ] Consider Generics-based implementation over bruce-force codegen, as we do
+--     have use cases where a user may wish to emit JSON directly from protobuf
+--     value AST without having to emit any code externally.
+
+__unused_nowarn :: a
+__unused_nowarn = undefined (ppShow :: String -> String)
