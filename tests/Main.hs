@@ -62,7 +62,7 @@ docTests = testCase "doctests" $ do
   putStrLn "Running all doctests..."
   Test.DocTest.doctest
     [ "-isrc"
-    , "src/Proto3/Suite/DotProto/Generate/JSON.hs"
+    , "src/Proto3/Suite/DotProto/Generate/JSONScratch.hs"
     ]
 
 qcProperties :: TestTree

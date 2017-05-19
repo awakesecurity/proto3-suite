@@ -19,9 +19,7 @@ prototyping for the kind of code that we'll want to end up generating.
 
 -}
 
-
-
-module Proto3.Suite.DotProto.Generate.JSON where
+module Proto3.Suite.DotProto.Generate.JSONScratch where
 
 import qualified Data.Aeson                                 as A
 
@@ -300,6 +298,11 @@ roundTrip x = either Left (Right . (x==)) . eitherDecode . encode $ x
 --     behavior is correct (which would surprise me because I think this means
 --     we are not distinguishing the codecs by expected-sign (which is the point
 --     of eg sint32 iirc)), I should understand why.
+--
+--     -- HERE: One way to start exploring this might be to roundtrip the .proto
+--     -- AST for eg Scalar32 and see if they are mutually inverses. If not, add
+--     -- test cases for that and fix it. Then same thing with the other types
+--     -- like repeateds and whatnot. Jah? Let's do it.
 --
 -- [ ] Also, it looks like Nested and some the *Vec variants aren't used in CG
 --     either, so we should determine if those are bugs or not. We need to
