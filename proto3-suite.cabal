@@ -23,6 +23,7 @@ library
                        Proto3.Suite.Tutorial
                        Proto3.Suite.Types
   build-depends:       aeson >= 1.1.1.0 && < 1.2,
+                       attoparsec >= 0.13.0.1,
                        base >=4.8 && <5.0,
                        base64-bytestring >= 1.0.0.1 && < 1.1,
                        bytestring >=0.10.6.0 && <0.11.0,
@@ -53,6 +54,7 @@ test-suite tests
   other-modules:       TestTypes TestCodeGen
   hs-source-dirs:      tests
   build-depends:       aeson >= 1.1.1.0 && < 1.2,
+                       attoparsec >= 0.13.0.1,
                        base >=4.8 && <5.0,
                        tasty >= 0.11 && <0.12,
                        tasty-hunit >= 0.9 && <0.10,

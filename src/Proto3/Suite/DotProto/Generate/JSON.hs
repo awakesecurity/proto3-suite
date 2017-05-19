@@ -16,6 +16,7 @@ prototyping for the kind of code that we'll want to end up generating.
 
 -}
 
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
@@ -48,10 +49,13 @@ import qualified Data.Proxy as DP
 import qualified Proto3.Wire.Encode as Enc
 import qualified Proto3.Wire.Decode as Dec
 import qualified Control.Monad as Hs (fail)
-import           Data.Aeson ((.=), (.:?), (.!=))
+import qualified Data.Attoparsec.ByteString.Char8 as Atto (Parser, endOfInput)
+import qualified Data.Attoparsec.ByteString       as Atto (skipWhile)
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Parser as A (eitherDecodeWith)
 import qualified Data.Aeson.Types as A
-import qualified Data.Aeson.Encoding as A
+import qualified Data.Aeson.Internal as A (IResult(..), iparse, formatError)
+import qualified Data.Aeson.Encoding as E
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Base64.URL as B64URL
 import qualified Safe
@@ -113,43 +117,43 @@ import Proto3.Suite.DotProto.Generate.JSONPBProto
 
 -- TODO: Use RecordWildCards to name the fields instead of an explicit pattern match
 
-instance A.ToJSON Scalar32 where
-  toJSON (Scalar32 i32 u32 s32 f32 sf32) = A.object . mconcat $
-    [ fieldToJSON "i32"  i32
-    , fieldToJSON "u32"  u32
-    , fieldToJSON "s32"  s32
-    , fieldToJSON "f32"  f32
-    , fieldToJSON "sf32" sf32
+instance ToJSONPB Scalar32 where
+  toJSONPB (Scalar32 i32 u32 s32 f32 sf32) = A.object . mconcat $
+    [ "i32"  .= i32
+    , "u32"  .= u32
+    , "s32"  .= s32
+    , "f32"  .= f32
+    , "sf32" .= sf32
     ]
-  toEncoding (Scalar32 i32 u32 s32 f32 sf32) = A.pairs . mconcat $
-    [ fieldToEnc "i32"  i32
-    , fieldToEnc "u32"  u32
-    , fieldToEnc "s32"  s32
-    , fieldToEnc "f32"  f32
-    , fieldToEnc "sf32" sf32
+  toEncodingPB (Scalar32 i32 u32 s32 f32 sf32) = A.pairs . mconcat $
+    [ "i32"  .= i32
+    , "u32"  .= u32
+    , "s32"  .= s32
+    , "f32"  .= f32
+    , "sf32" .= sf32
     ]
 
-instance A.FromJSON Scalar32 where
-  parseJSON = A.withObject "Scalar32" $ \obj ->
+instance FromJSONPB Scalar32 where
+  parseJSONPB = A.withObject "Scalar32" $ \obj ->
     pure Scalar32
-    <*> parseField obj "i32"
-    <*> parseField obj "u32"
-    <*> parseField obj "s32"
-    <*> parseField obj "f32"
-    <*> parseField obj "sf32"
+    <*> obj .: "i32"
+    <*> obj .: "u32"
+    <*> obj .: "s32"
+    <*> obj .: "f32"
+    <*> obj .: "sf32"
 
 -- | Scalar64
 --
--- >>> roundTrip (Scalar64 64 65 (-66) 67 68)
+-- >>> roundTrip' (Scalar64 64 65 (-66) 67 68)
 -- Right True
 --
--- >>> pbToJSON (Scalar64 64 65 (-66) 67 68)
+-- >>> pbToJSON' (Scalar64 64 65 (-66) 67 68)
 -- "{\"i64\":\"64\",\"u64\":\"65\",\"s64\":\"-66\",\"f64\":\"67\",\"sf64\":\"68\"}"
 --
--- >>> Right (Scalar64 64 65 (-66) 67 68) == jsonToPB "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}"
+-- >>> Right (Scalar64 64 65 (-66) 67 68) == jsonToPB' "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}"
 -- True
 --
--- >>> Right (Scalar64 0 65 66 67 68) == jsonToPB "{\"u64\":\"65\",\"s64\":\"66\",\"f64\":\"67\",\"sf64\":\"68\"}"
+-- >>> Right (Scalar64 0 65 66 67 68) == jsonToPB' "{\"u64\":\"65\",\"s64\":\"66\",\"f64\":\"67\",\"sf64\":\"68\"}"
 -- True
 
 instance A.ToJSON Scalar64 where
@@ -178,28 +182,28 @@ instance A.FromJSON Scalar64 where
 
 -- | ScalarFP
 --
--- >>> roundTrip (ScalarFP 98.6 255.16)
+-- >>> roundTrip' (ScalarFP 98.6 255.16)
 -- Right True
 --
--- >>> pbToJSON (ScalarFP 98.6 255.16)
+-- >>> pbToJSON' (ScalarFP 98.6 255.16)
 -- "{\"f\":98.6,\"d\":255.16}"
 --
--- >>> Right (ScalarFP 98.6 255.16) == jsonToPB "{\"f\":98.6,\"d\":255.16}"
+-- >>> Right (ScalarFP 98.6 255.16) == jsonToPB' "{\"f\":98.6,\"d\":255.16}"
 -- True
 --
--- >>> Right (ScalarFP 23.6 (-99.001)) == jsonToPB "{\"f\":\"23.6\",\"d\":\"-99.001\"}"
+-- >>> Right (ScalarFP 23.6 (-99.001)) == jsonToPB' "{\"f\":\"23.6\",\"d\":\"-99.001\"}"
 -- True
 --
--- >>> Right (ScalarFP 1000000.0 (-1000.0)) == jsonToPB "{\"f\":\"1e6\",\"d\":\"-0.1e4\"}"
+-- >>> Right (ScalarFP 1000000.0 (-1000.0)) == jsonToPB' "{\"f\":\"1e6\",\"d\":\"-0.1e4\"}"
 -- True
 --
--- >>> Right (ScalarFP (1/0) (1/0)) == jsonToPB "{\"f\":\"Infinity\",\"d\":\"Infinity\"}"
+-- >>> Right (ScalarFP (1/0) (1/0)) == jsonToPB' "{\"f\":\"Infinity\",\"d\":\"Infinity\"}"
 -- True
 --
--- >>> Right (ScalarFP (negate 1/0) (negate 1/0)) == jsonToPB "{\"f\":\"-Infinity\",\"d\":\"-Infinity\"}"
+-- >>> Right (ScalarFP (negate 1/0) (negate 1/0)) == jsonToPB' "{\"f\":\"-Infinity\",\"d\":\"-Infinity\"}"
 -- True
 --
--- >>> jsonToPB "{\"f\":\"NaN\",\"d\":\"NaN\"}" :: Either String ScalarFP
+-- >>> jsonToPB' "{\"f\":\"NaN\",\"d\":\"NaN\"}" :: Either String ScalarFP
 -- Right (ScalarFP {scalarFPF = NaN, scalarFPD = NaN})
 
 instance A.ToJSON ScalarFP where
@@ -219,13 +223,13 @@ instance A.FromJSON ScalarFP where
 
 -- | Stringly
 --
--- >>> roundTrip (Stringly "foo" "abc123!?$*&()'-=@~")
+-- >>> roundTrip' (Stringly "foo" "abc123!?$*&()'-=@~")
 -- Right True
 --
--- >>> pbToJSON (Stringly "foo" "abc123!?$*&()'-=@~")
+-- >>> pbToJSON' (Stringly "foo" "abc123!?$*&()'-=@~")
 -- "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
 --
--- >>> Right (Stringly "foo" "abc123!?$*&()'-=@~") == jsonToPB "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
+-- >>> Right (Stringly "foo" "abc123!?$*&()'-=@~") == jsonToPB' "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
 -- True
 --
 
@@ -246,28 +250,28 @@ instance A.FromJSON Stringly where
 
 -- | Repeat
 --
--- >>> roundTrip (Repeat [4,5] [6,7])
+-- >>> roundTrip' (Repeat [4,5] [6,7])
 -- Right True
 --
--- >>> roundTrip (Repeat [] [6,7])
+-- >>> roundTrip' (Repeat [] [6,7])
 -- Right True
 --
--- >>> roundTrip (Repeat [4,5] [])
+-- >>> roundTrip' (Repeat [4,5] [])
 -- Right True
 --
--- >>> pbToJSON (Repeat [4,5] [6,7])
+-- >>> pbToJSON' (Repeat [4,5] [6,7])
 -- "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
 --
--- >>> Right (Repeat [4,5] [6,7]) == jsonToPB "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
+-- >>> Right (Repeat [4,5] [6,7]) == jsonToPB' "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
 -- True
 --
--- >>> Right (Repeat [] [6,7]) == jsonToPB "{\"i64s\":[\"6\",\"7\"]}"
+-- >>> Right (Repeat [] [6,7]) == jsonToPB' "{\"i64s\":[\"6\",\"7\"]}"
 -- True
 --
--- >>> Right (Repeat [4,5] []) == jsonToPB "{\"i32s\":[4,5]}"
+-- >>> Right (Repeat [4,5] []) == jsonToPB' "{\"i32s\":[4,5]}"
 -- True
 --
--- >>> Right (Repeat [] []) == jsonToPB "{}"
+-- >>> Right (Repeat [] []) == jsonToPB' "{}"
 -- True
 
 instance A.ToJSON Repeat where
@@ -287,22 +291,22 @@ instance A.FromJSON Repeat where
 
 -- | Nested
 --
--- >>> roundTrip (Nested Nothing)
+-- >>> roundTrip' (Nested Nothing)
 -- Right True
 --
--- >>> roundTrip (Nested (Just (Nested_Inner 42)))
+-- >>> roundTrip' (Nested (Just (Nested_Inner 42)))
 -- Right True
 --
--- >>> pbToJSON (Nested Nothing)
+-- >>> pbToJSON' (Nested Nothing)
 -- "{}"
 --
--- >>> pbToJSON (Nested (Just (Nested_Inner 42)))
+-- >>> pbToJSON' (Nested (Just (Nested_Inner 42)))
 -- "{\"nestedInner\":{\"i64\":\"42\"}}"
 --
--- >>> Right (Nested Nothing) == jsonToPB "{}"
+-- >>> Right (Nested Nothing) == jsonToPB' "{}"
 -- True
 --
--- >>> Right (Nested (Just (Nested_Inner 42))) == jsonToPB "{\"nestedInner\":{\"i64\":\"42\"}}"
+-- >>> Right (Nested (Just (Nested_Inner 42))) == jsonToPB' "{\"nestedInner\":{\"i64\":\"42\"}}"
 -- True
 --
 
@@ -345,6 +349,66 @@ class PBRep a where
   data PBR a
   toPBR   :: a -> PBR a
   fromPBR :: PBR a -> a
+
+-- | 'A.ToJSON' variant for jsonpb encoding to the aeson IR
+class ToJSONPB a where
+  -- | 'A.toJSON' variant for jsonpb encoder implementations. Equivalent to
+  -- 'A.toJSON' if an implementation is not provided.
+  toJSONPB :: a -> A.Value
+
+  default toJSONPB :: (A.ToJSON a) => a -> A.Value
+  toJSONPB = A.toJSON
+
+  -- | 'A.toEncoding' variant for jsonpb encoder implementations.
+  toEncodingPB :: a -> A.Encoding
+  toEncodingPB = E.value . toJSONPB
+
+-- | 'A.FromJSON' variant for jsonpb decoding from the aeson IR
+class FromJSONPB a where
+  -- | 'A.parseJSON' variant for jsonpb decoder implementations. Equivalent to
+  -- 'A.parseJSON' if an implementation is not provided.
+  parseJSONPB :: A.Value -> A.Parser a
+
+  default parseJSONPB :: (A.FromJSON a) => A.Value -> A.Parser a
+  parseJSONPB = A.parseJSON
+
+-- | 'A.KeyValue' variant for types in the 'ToJSONPB' typeclass
+class KeyValuePB kv where
+  (.=) :: (HsProtobuf.HasDefault v, ToJSONPB v) => Hs.Text -> v -> kv
+  infixr 8 .=
+
+-- FIXME: I don't think sint32 should overlap with this (possible bug in CG); no Signed wrapper is generated?
+-- int32
+instance ToJSONPB Hs.Int32
+instance FromJSONPB Hs.Int32 where
+  parseJSONPB = parseNumOrDecimalString "int32 / sint32"
+
+-- uint32
+instance ToJSONPB Hs.Word32
+instance FromJSONPB Hs.Word32 where
+  parseJSONPB = parseNumOrDecimalString "uint32"
+
+-- fixed32
+instance ToJSONPB (HsProtobuf.Fixed Hs.Word32) where
+  toJSONPB = A.toJSON . HsProtobuf.fixed
+instance FromJSONPB (HsProtobuf.Fixed Hs.Word32) where
+  parseJSONPB = parseNumOrDecimalString "fixed32"
+
+-- FIXME: As with sint32, CG might be buggy here for sfixed32; no Signed wrapper
+-- is generated? NB: there are no HasDefault instances for (Fixed Int32) which
+-- is another indication that this is a bug, because there IS a HasDefault
+-- instance for (Signed (Fixed Int32)) which I think is what should be generated
+-- here. As a stopgap we'll go ahead and define the instances for (Fixed Int32)
+-- here so we can make progress but we should nuke these as soon as we fix CG.
+
+-- TODO: delete me once CG is fixed
+instance HsProtobuf.HasDefault (HsProtobuf.Fixed Hs.Int32)
+
+-- sfixed32
+instance ToJSONPB (HsProtobuf.Fixed Hs.Int32) where
+  toJSONPB = A.toJSON . HsProtobuf.fixed
+instance FromJSONPB (HsProtobuf.Fixed Hs.Int32) where
+  parseJSONPB = parseNumOrDecimalString "sfixed32"
 
 --------------------------------------------------------------------------------
 -- PBReps for int32, sint32, uint32, fixed32, sfixed32.
@@ -607,8 +671,24 @@ instance (A.ToJSON (PBR a), PBRep a) => A.ToJSON (PBR (Hs.Vector a)) where
 --------------------------------------------------------------------------------
 -- Helpers
 
+instance KeyValuePB [A.Pair] where
+  k .= v
+    | HsProtobuf.isDefault v = mempty
+    | otherwise              = [(k, toJSONPB v)]
+
+instance KeyValuePB A.Series where
+  k .= v
+    | HsProtobuf.isDefault v = mempty
+    | otherwise              = E.pair k (toEncodingPB v)
+
 instance (Eq a, PBRep a) => Eq (PBR a) where
   (fromPBR -> a) == (fromPBR -> b) = a == b
+
+parseNumOrDecimalString :: (A.FromJSON a) => String -> A.Value -> A.Parser a
+parseNumOrDecimalString tyDesc v = case v of
+  A.Number{} -> A.parseJSON v
+  A.String t -> either fail pure . A.eitherDecode . LBS.fromStrict . Hs.encodeUtf8 $ t
+  _          -> A.typeMismatch tyDesc v
 
 parseKeyPB :: (PBRep a, A.FromJSONKey a) => Hs.Text -> A.Parser (PBR a)
 parseKeyPB t = case A.fromJSONKey of
@@ -620,41 +700,90 @@ parseKeyPB t = case A.fromJSONKey of
 fieldToJSON :: (Eq a, Monoid (PBR a), PBRep a, A.ToJSON (PBR a)) => Hs.Text -> a -> [A.Pair]
 fieldToJSON lab (toPBR -> x)
   | x == mempty = mempty
-  | otherwise   = [lab .= x]
+  | otherwise   = [lab A..= x]
 
 -- TODO: consider using HasDefault instead of Monoid
 fieldToEnc :: (Eq a, Monoid(PBR a), PBRep a, A.ToJSON (PBR a)) => Hs.Text -> a -> A.Series
 fieldToEnc lab (toPBR -> x)
   | x == mempty = mempty
-  | otherwise   = lab .= x
+  | otherwise   = lab A..= x
 
 nestedFieldToJSON :: (A.KeyValue a, A.ToJSON v, Monoid (f a), Applicative f)
                   => Hs.Text -> Maybe v -> f a
-nestedFieldToJSON fldSel = foldMap (pure . (fldSel .=))
+nestedFieldToJSON fldSel = foldMap (pure . (fldSel A..=))
 
 nestedFieldToEnc :: (A.KeyValue m, A.ToJSON a, Monoid m) => Hs.Text -> Maybe a -> m
-nestedFieldToEnc fldSel = foldMap (fldSel .=)
+nestedFieldToEnc fldSel = foldMap (fldSel A..=)
 
 parseField :: (A.FromJSON (PBR a), Monoid (PBR a), PBRep a) => A.Object -> Hs.Text -> A.Parser a
-parseField o fldSel = fromPBR <$> o .:? fldSel .!= Hs.mempty
+parseField o fldSel = fromPBR <$> o A..:? fldSel A..!= Hs.mempty
+
+-- | 'A..:' variant for jsonpb decoding; if the given key is missing from the
+-- object, we use the default value for the field type.
+(.:) :: (FromJSONPB a, HsProtobuf.HasDefault a) => A.Object -> Hs.Text -> A.Parser a
+obj .: key = obj .:? key A..!= HsProtobuf.def
+  where
+    (.:?) = A.explicitParseFieldMaybe parseJSONPB
 
 parseNested :: A.FromJSON a => A.Object -> Hs.Text -> A.Parser (Maybe a)
-parseNested o fldSel = o .:? fldSel .!= Nothing
+parseNested o fldSel = o A..:? fldSel A..!= Nothing
 
 fromDecString :: (A.FromJSON a, PBRep a) => Hs.Text -> A.Parser (PBR a)
 fromDecString = either fail (pure . toPBR) . A.eitherDecode . LBS.fromStrict . Hs.encodeUtf8
 
--- | Ensure that we can decode what we encode; @Right True@ indicates success.
-roundTrip :: (A.ToJSON a, A.FromJSON a, Eq a) => a -> Either String Bool
+fromDecString' :: (A.FromJSON a) => Hs.Text -> A.Parser a
+fromDecString' = either fail pure . A.eitherDecode . LBS.fromStrict . Hs.encodeUtf8
+
+-- | 'A.encode' variant for serializing a JSONPB value as a lazy
+-- 'LBS.ByteString'.
+--
+-- This is implemented in terms of the 'ToJSONPB' class's 'toEncodingPB' method.
+encode :: ToJSONPB a => a -> LBS.ByteString
+encode = E.encodingToLazyByteString . toEncodingPB
+{-# INLINE encode #-}
+
+-- | 'A.eitherDecode' variant for deserializing a JSONPB value from a lazy
+-- 'LBS.ByteString'.
+eitherDecode :: FromJSONPB a => LBS.ByteString -> Either String a
+eitherDecode = eitherFormatError . A.eitherDecodeWith jsonEOF (A.iparse parseJSONPB)
+  where
+    eitherFormatError = either (Left . uncurry A.formatError) Right
+    {-# INLINE eitherFormatError #-}
+
+    -- Cribbed from aeson-1.1.1.0:Data.Aeson.Parser.Internal.jsonEOF, which is
+    -- not exported. It's simple, so we just inline it here. Might be worth
+    -- submitting a PR to export this.
+    jsonEOF :: Atto.Parser A.Value
+    jsonEOF = A.json <* skipSpace <* Atto.endOfInput
+      where
+        skipSpace :: Atto.Parser ()
+        skipSpace = Atto.skipWhile $ \w -> w == 0x20 || w == 0x0a || w == 0x0d || w == 0x09
+        {-# INLINE skipSpace #-}
+{-# INLINE eitherDecode #-}
+
+pbToJSON :: ToJSONPB a => a -> LBS.ByteString
+pbToJSON = encode
+
+jsonToPB :: FromJSONPB a => LBS.ByteString -> Hs.Either Hs.String a
+jsonToPB = eitherDecode
+
+roundTrip :: (ToJSONPB a, FromJSONPB a, Eq a) => a -> Either String Bool
 roundTrip x = either Left (Right . (x==)) . jsonToPB . pbToJSON $ x
 
--- | Converting a PB payload to JSON is just encoding via Aeson.
-pbToJSON :: A.ToJSON a => a -> LBS.ByteString
-pbToJSON = A.encode
+-- OLD
+-- | Ensure that we can decode what we encode; @Right True@ indicates success.
+roundTrip' :: (A.ToJSON a, A.FromJSON a, Eq a) => a -> Either String Bool
+roundTrip' x = either Left (Right . (x==)) . jsonToPB' . pbToJSON' $ x
 
+-- OLD
+-- | Converting a PB payload to JSON is just encoding via Aeson.
+pbToJSON' :: A.ToJSON a => a -> LBS.ByteString
+pbToJSON' = A.encode
+
+-- OLD
 -- | Converting from JSON to PB is just decoding via Aeson.
-jsonToPB :: A.FromJSON a => LBS.ByteString -> Hs.Either Hs.String a
-jsonToPB = A.eitherDecode
+jsonToPB' :: A.FromJSON a => LBS.ByteString -> Hs.Either Hs.String a
+jsonToPB' = A.eitherDecode
 
 dropFldPfx :: HsProtobuf.Named a => DP.Proxy a -> Hs.String -> Hs.String
 dropFldPfx p s = case dropNamed s of [] -> []; (c:cs) -> Hs.toLower c : cs
@@ -674,9 +803,12 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --------------------------------------------------------------------------------
 -- TODOs
 --
--- [ ] HERP DERP, there is already a HasDefault typeclass! Doh! We should use it
---     and/or infer a Monoid instance. Fack! Also wondering if we should
---     generate HasDefault instances for user types as well.
+-- [ ] Let's try to avoid the type family approach and direction aeson instance
+--     construction, in favor of ToJSONPB and FromJSONPB typeclasses which are
+--     act-alikes for their aeson counterparts.
+--
+-- [ ] Migrate JSONPB typeclass and instances off to DotProto/JSONPB and cleanup
+-- imports and naming
 --
 -- [ ] Look into bugfix regarding Fixed being used for sfixed32/64 fields; I
 --     think this should be using Signed instead, and we should write our
@@ -703,13 +835,15 @@ genericParseJSONPB opts v = to <$> A.gParseJSON opts A.NoFromArgs v
 --   - [ ] NullValue
 --
 --   - [ ] Explore generation of Monoid instances and hiding the details about
---         nestedFieldTo{Enc,JSON} and parseNested; and/or use HasDefault as
+--         nestedFieldTo{Enc,JSON} and parseNested; and/or use HasDefault[X] as
 --         mentioned above. There is some partial work in a branch for a PBRep
 --         (Maybe a) which might be of use to make the field emission/parsing
 --         helpers even more abstract w.r.t. field types (ie nested message can
---         be treated just like others with a PBRep and such).
+--         be treated just like others with a PBRep and such). I think it will
+--         be obvious how this needs to work with the new typeclasses though.
 --
 -- [ ] Make sure we have all of the by-hand generation pieces working, get it
 --     checked with Gabriel, and then whip up a brute force CG version before
---     moving onto the Generics-based implementation.
---
+--     moving onto the Generics-based implementation. jcarey wants to be able to
+--     runthe emission atop protobuf value ASTs, so I think that increases the
+--     priority for a Generic implementation.
