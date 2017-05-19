@@ -339,24 +339,36 @@ instance A.FromJSON Repeat where
 
 -- | Nested
 --
--- >>> roundTrip' (Nested Nothing)
+-- >>> roundTrip (Nested Nothing)
 -- Right True
 --
--- >>> roundTrip' (Nested (Just (Nested_Inner 42)))
+-- >>> roundTrip (Nested (Just (Nested_Inner 42)))
 -- Right True
 --
--- >>> pbToJSON' (Nested Nothing)
+-- >>> pbToJSON (Nested Nothing)
 -- "{}"
 --
--- >>> pbToJSON' (Nested (Just (Nested_Inner 42)))
+-- >>> pbToJSON (Nested (Just (Nested_Inner 42)))
 -- "{\"nestedInner\":{\"i64\":\"42\"}}"
 --
--- >>> Right (Nested Nothing) == jsonToPB' "{}"
+-- >>> Right (Nested Nothing) == jsonToPB "{}"
 -- True
 --
--- >>> Right (Nested (Just (Nested_Inner 42))) == jsonToPB' "{\"nestedInner\":{\"i64\":\"42\"}}"
+-- >>> Right (Nested (Just (Nested_Inner 42))) == jsonToPB "{\"nestedInner\":{\"i64\":\"42\"}}"
 -- True
 --
+
+instance ToJSONPB Nested where
+  toJSONPB (Nested minner) = A.object . mconcat $
+    [ "nestedInner" .= minner
+    ]
+  toEncodingPB (Nested minner) = A.pairs . mconcat $
+    [ "nestedInner" .= minner
+    ]
+instance FromJSONPB Nested where
+  parseJSONPB = A.withObject "Nested" $ \obj ->
+    pure Nested
+    <*> obj .: "nestedInner"
 
 instance A.ToJSON Nested where
   toJSON (Nested minner) = A.object . mconcat $
@@ -371,6 +383,19 @@ instance A.FromJSON Nested where
     <*> parseNested obj "nestedInner"
 
 -- Nested_Inner
+
+instance ToJSONPB Nested_Inner where
+  toJSONPB (Nested_Inner i64) = A.object . mconcat $
+    [ "i64" .= i64
+    ]
+  toEncodingPB (Nested_Inner i64) = A.pairs . mconcat $
+    [ "i64" .= i64
+    ]
+instance FromJSONPB Nested_Inner where
+  parseJSONPB = A.withObject "Nested_Inner" $ \obj ->
+    pure Nested_Inner
+    <*> obj .: "i64"
+
 instance A.ToJSON Nested_Inner where
   toJSON (Nested_Inner i64) = A.object . mconcat $
     [ fieldToJSON "i64" i64
@@ -766,7 +791,7 @@ instance A.FromJSON (PBR Hs.ByteString) where
 -- JSON value will be the vector elements encoded as a JSON array. The null
 -- value is accepted as the empty list [].
 
--- TODO: move into Proto3.Suite.Class?
+-- TODO: move into Proto3.Suite.Class or somesuch?
 instance HsProtobuf.HasDefault (Hs.Vector a) where
   def       = V.empty
   isDefault = V.null
@@ -792,6 +817,28 @@ instance (A.FromJSON (PBR a), PBRep a) => A.FromJSON (PBR (Hs.Vector a)) where
   parseJSON = fmap (toPBR . fmap fromPBR) . A.parseJSON
 instance (A.ToJSON (PBR a), PBRep a) => A.ToJSON (PBR (Hs.Vector a)) where
   toJSON = A.toJSON . fmap toPBR . fromPBR
+
+--------------------------------------------------------------------------------
+-- Instances for nested messages
+--
+-- Generates JSON objects. Message field names are mapped to lowerCamelCase and
+-- become JSON object keys. null is accepted and treated as the default value of
+-- the corresponding field type.
+
+instance ToJSONPB a => ToJSONPB (Maybe a) where
+  toJSONPB = maybe A.Null toJSONPB
+instance FromJSONPB a => FromJSONPB (Maybe a) where
+  -- parseJSONPB :: A.Value -> A.Parser (Maybe a)
+  parseJSONPB A.Null = pure Nothing
+  parseJSONPB v      = fmap Just (parseJSONPB v)
+
+-- TODO: move into Proto3.Suite.Class or somesuch?
+instance HsProtobuf.HasDefault (Maybe a) where
+  def = Nothing
+
+  isDefault Nothing = True
+  isDefault _       = False
+
 
 --------------------------------------------------------------------------------
 -- Helpers
