@@ -181,29 +181,44 @@ instance FromJSONPB Scalar64 where
 
 -- | ScalarFP
 --
--- >>> roundTrip' (ScalarFP 98.6 255.16)
+-- >>> roundTrip (ScalarFP 98.6 255.16)
 -- Right True
 --
--- >>> pbToJSON' (ScalarFP 98.6 255.16)
+-- >>> pbToJSON (ScalarFP 98.6 255.16)
 -- "{\"f\":98.6,\"d\":255.16}"
 --
--- >>> Right (ScalarFP 98.6 255.16) == jsonToPB' "{\"f\":98.6,\"d\":255.16}"
+-- >>> Right (ScalarFP 98.6 255.16) == jsonToPB "{\"f\":98.6,\"d\":255.16}"
 -- True
 --
--- >>> Right (ScalarFP 23.6 (-99.001)) == jsonToPB' "{\"f\":\"23.6\",\"d\":\"-99.001\"}"
+-- >>> Right (ScalarFP 23.6 (-99.001)) == jsonToPB "{\"f\":\"23.6\",\"d\":\"-99.001\"}"
 -- True
 --
--- >>> Right (ScalarFP 1000000.0 (-1000.0)) == jsonToPB' "{\"f\":\"1e6\",\"d\":\"-0.1e4\"}"
+-- >>> Right (ScalarFP 1000000.0 (-1000.0)) == jsonToPB "{\"f\":\"1e6\",\"d\":\"-0.1e4\"}"
 -- True
 --
--- >>> Right (ScalarFP (1/0) (1/0)) == jsonToPB' "{\"f\":\"Infinity\",\"d\":\"Infinity\"}"
+-- >>> Right (ScalarFP (1/0) (1/0)) == jsonToPB "{\"f\":\"Infinity\",\"d\":\"Infinity\"}"
 -- True
 --
--- >>> Right (ScalarFP (negate 1/0) (negate 1/0)) == jsonToPB' "{\"f\":\"-Infinity\",\"d\":\"-Infinity\"}"
+-- >>> Right (ScalarFP (negate 1/0) (negate 1/0)) == jsonToPB "{\"f\":\"-Infinity\",\"d\":\"-Infinity\"}"
 -- True
 --
--- >>> jsonToPB' "{\"f\":\"NaN\",\"d\":\"NaN\"}" :: Either String ScalarFP
+-- >>> jsonToPB "{\"f\":\"NaN\",\"d\":\"NaN\"}" :: Either String ScalarFP
 -- Right (ScalarFP {scalarFPF = NaN, scalarFPD = NaN})
+
+instance ToJSONPB ScalarFP where
+  toJSONPB (ScalarFP f d) = A.object . mconcat $
+    [ "f" .= f
+    , "d" .= d
+    ]
+  toEncodingPB (ScalarFP f d) = A.pairs . mconcat $
+    [ "f" .= f
+    , "d" .= d
+    ]
+instance FromJSONPB ScalarFP where
+  parseJSONPB = A.withObject "ScalarFP" $ \obj ->
+    pure ScalarFP
+    <*> obj .: "f"
+    <*> obj .: "d"
 
 instance A.ToJSON ScalarFP where
   toJSON (ScalarFP f d) = A.object . mconcat $
@@ -585,11 +600,30 @@ instance A.FromJSON (HsProtobuf.Fixed Hs.Int64) where
   parseJSON = fmap HsProtobuf.Fixed . A.parseJSON
 
 --------------------------------------------------------------------------------
--- PBReps for float and double
+-- Instances for floating point types (float, double)
 --
 -- JSON value will be a number or one of the special string values "NaN",
 -- "Infinity", and "-Infinity". Either numbers or strings are accepted. Exponent
 -- notation is also accepted.
+
+parseFP :: (A.FromJSON a, A.FromJSONKey a) => String -> A.Value -> A.Parser a
+parseFP tyDesc v = case v of
+  A.Number{} -> A.parseJSON v
+  A.String t -> case A.fromJSONKey of
+                  A.FromJSONKeyTextParser p
+                    -> p t
+                  _ -> fail "internal: parseKeyPB: unexpected FromJSONKey summand"
+  _          -> A.typeMismatch tyDesc v
+
+instance ToJSONPB Hs.Float
+instance FromJSONPB Hs.Float where parseJSONPB = parseFP "float"
+
+instance ToJSONPB Hs.Double
+instance FromJSONPB Hs.Double where parseJSONPB = parseFP "double"
+
+--------------------------------------------------------------------------------
+-- PBReps for float and double
+--
 
 -- float
 instance PBRep Hs.Float where
@@ -606,6 +640,8 @@ instance A.FromJSON (PBR Hs.Float) where
   parseJSON v@A.Number{} = toPBR <$> A.parseJSON v
   parseJSON (A.String t) = parseKeyPB t
   parseJSON v            = A.typeMismatch "PBR Float" v
+
+
 
 -- double
 instance PBRep Hs.Double where
@@ -711,6 +747,12 @@ parseKeyPB t = case A.fromJSONKey of
   A.FromJSONKeyTextParser parse
     -> toPBR <$> parse t
   _ -> fail "internal: parseKeyPB: unexpected FromJSONKey summand"
+
+parseKeyPB' :: (A.FromJSONKey a) => Hs.Text -> A.Parser a
+parseKeyPB' t = case A.fromJSONKey of
+  A.FromJSONKeyTextParser parse
+   -> parse t
+  _ -> fail "internal: parseKeyPB': unexpected FromJSONKey summand"
 
 -- TODO: consider using HasDefault instead of Monoid
 fieldToJSON :: (Eq a, Monoid (PBR a), PBRep a, A.ToJSON (PBR a)) => Hs.Text -> a -> [A.Pair]
