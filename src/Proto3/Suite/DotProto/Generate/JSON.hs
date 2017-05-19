@@ -80,6 +80,7 @@ import qualified Data.ByteString as Hs
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.String as Hs (fromString)
 import qualified Data.Vector as Hs (Vector)
+import qualified Data.Vector as V
 import qualified Data.Int as Hs (Int16, Int32, Int64)
 import qualified Data.Word as Hs (Word16, Word32, Word64)
 import GHC.Generics as Hs
@@ -279,29 +280,47 @@ instance A.FromJSON Stringly where
 
 -- | Repeat
 --
--- >>> roundTrip' (Repeat [4,5] [6,7])
+-- >>> roundTrip (Repeat [4,5] [6,7])
 -- Right True
 --
--- >>> roundTrip' (Repeat [] [6,7])
+-- >>> roundTrip (Repeat [] [6,7])
 -- Right True
 --
--- >>> roundTrip' (Repeat [4,5] [])
+-- >>> roundTrip (Repeat [4,5] [])
 -- Right True
 --
--- >>> pbToJSON' (Repeat [4,5] [6,7])
+-- >>> pbToJSON (Repeat [4,5] [6,7])
 -- "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
 --
--- >>> Right (Repeat [4,5] [6,7]) == jsonToPB' "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
+-- >>> Right (Repeat [4,5] [6,7]) == jsonToPB "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
 -- True
 --
--- >>> Right (Repeat [] [6,7]) == jsonToPB' "{\"i64s\":[\"6\",\"7\"]}"
+-- >>> Right (Repeat [4,5] []) == jsonToPB "{\"i32s\":[4,5]}"
 -- True
 --
--- >>> Right (Repeat [4,5] []) == jsonToPB' "{\"i32s\":[4,5]}"
+-- >>> Right (Repeat [4,5] []) == jsonToPB "{\"i32s\":[4,5],\"i64s\":null}"
 -- True
 --
--- >>> Right (Repeat [] []) == jsonToPB' "{}"
+-- >>> Right (Repeat [4,5] []) == jsonToPB "{\"i32s\":[4,5],\"i64s\":[]}"
 -- True
+--
+-- >>> Right (Repeat [] []) == jsonToPB "{}"
+-- True
+
+instance ToJSONPB Repeat where
+  toJSONPB (Repeat i32s i64s) = A.object . mconcat $
+    [ "i32s" .= i32s
+    , "i64s" .= i64s
+    ]
+  toEncodingPB (Repeat i32s i64s) = A.pairs . mconcat $
+    [ "i32s" .= i32s
+    , "i64s" .= i64s
+    ]
+instance FromJSONPB Repeat where
+  parseJSONPB = A.withObject "Repeat" $ \obj ->
+    pure Repeat
+    <*> obj .: "i32s"
+    <*> obj .: "i64s"
 
 instance A.ToJSON Repeat where
   toJSON (Repeat i32s i64s) = A.object . mconcat $
@@ -739,6 +758,25 @@ instance A.ToJSON (PBR Hs.ByteString) where
 instance A.FromJSON (PBR Hs.ByteString) where
   parseJSON (A.String b64enc) = pure . toPBR . B64.decodeLenient . Hs.encodeUtf8 $ b64enc
   parseJSON v                 = A.typeMismatch "PBR ByteString {- bytes -}" v
+
+
+--------------------------------------------------------------------------------
+-- Instances for repeated
+--
+-- JSON value will be the vector elements encoded as a JSON array. The null
+-- value is accepted as the empty list [].
+
+-- TODO: move into Proto3.Suite.Class?
+instance HsProtobuf.HasDefault (Hs.Vector a) where
+  def       = V.empty
+  isDefault = V.null
+
+instance ToJSONPB a => ToJSONPB (Hs.Vector a) where
+  toJSONPB = A.Array . fmap toJSONPB
+instance FromJSONPB a => FromJSONPB (Hs.Vector a) where
+  parseJSONPB (A.Array vs) = mapM parseJSONPB vs
+  parseJSONPB A.Null       = pure []
+  parseJSONPB v            = A.typeMismatch "repeated" v
 
 --------------------------------------------------------------------------------
 -- PBRep for repeated
