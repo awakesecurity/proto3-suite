@@ -237,15 +237,30 @@ instance A.FromJSON ScalarFP where
 
 -- | Stringly
 --
--- >>> roundTrip' (Stringly "foo" "abc123!?$*&()'-=@~")
+-- >>> roundTrip (Stringly "foo" "abc123!?$*&()'-=@~")
 -- Right True
 --
--- >>> pbToJSON' (Stringly "foo" "abc123!?$*&()'-=@~")
+-- >>> pbToJSON (Stringly "foo" "abc123!?$*&()'-=@~")
 -- "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
 --
--- >>> Right (Stringly "foo" "abc123!?$*&()'-=@~") == jsonToPB' "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
+-- >>> Right (Stringly "foo" "abc123!?$*&()'-=@~") == jsonToPB "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
 -- True
 --
+
+instance ToJSONPB Stringly where
+  toJSONPB (Stringly str bs) = A.object . mconcat $
+    [ "str" .= str
+    , "bs"  .= bs
+    ]
+  toEncodingPB (Stringly str bs) = A.pairs . mconcat $
+    [ "str" .= str
+    , "bs"  .= bs
+    ]
+instance FromJSONPB Stringly where
+  parseJSONPB = A.withObject "Stringly" $ \obj ->
+    pure Stringly
+    <*> obj .: "str"
+    <*> obj .: "bs"
 
 instance A.ToJSON Stringly where
   toJSON (Stringly str bs) = A.object . mconcat $
@@ -641,8 +656,6 @@ instance A.FromJSON (PBR Hs.Float) where
   parseJSON (A.String t) = parseKeyPB t
   parseJSON v            = A.typeMismatch "PBR Float" v
 
-
-
 -- double
 instance PBRep Hs.Double where
   data PBR Hs.Double  = PBDouble Hs.Double deriving (Show, Generic)
@@ -659,6 +672,13 @@ instance A.FromJSON (PBR Hs.Double) where
   parseJSON (A.String t) = parseKeyPB t
   parseJSON v            = A.typeMismatch "PBR Double" v
 
+--------------------------------------------------------------------------------
+-- Instances for string
+--
+
+instance ToJSONPB Hs.Text
+instance FromJSONPB Hs.Text
+
 ------------------------------------------------------------------------------------------
 -- PBRep for string
 
@@ -673,6 +693,24 @@ instance Monoid (PBR (Hs.Text)) where
   mappend _               x               = x
 instance A.ToJSON (PBR Hs.Text)
 instance A.FromJSON (PBR Hs.Text)
+
+--------------------------------------------------------------------------------
+-- Instances for bytes
+--
+-- JSON value will be the data encoded as a string using standard base64
+-- encoding with paddings. Either standard or URL-safe base64 encoding
+-- with/without paddings are accepted.
+
+instance ToJSONPB Hs.ByteString where
+  toJSONPB bs = case Hs.decodeUtf8' (B64.encode bs) of
+    Left e -> error ("Failed to encode B64-encoded bytestring: " ++ show e)
+               -- decodeUtf8' should never fail because we B64-encode the
+               -- incoming bytestring, but we provide an explicit error here
+               -- rather than using the partial decodeUf8.
+    Right t -> A.toJSON t
+instance FromJSONPB Hs.ByteString where
+  parseJSONPB (A.String b64enc) = pure . B64.decodeLenient . Hs.encodeUtf8 $ b64enc
+  parseJSONPB v                 = A.typeMismatch "bytes" v
 
 --------------------------------------------------------------------------------
 -- PBRep for bytes
