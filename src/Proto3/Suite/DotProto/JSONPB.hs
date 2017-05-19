@@ -1,11 +1,20 @@
 module Proto3.Suite.DotProto.JSONPB
   ( -- * Typeclasses
-    ToJSONPB(..)
-  , FromJSONPB(..)
+    FromJSONPB(..)
+  , ToJSONPB(..)
+    -- * Operators
   , (.:)
-  , encode
+  , KeyValuePB((.=))
+    -- * Aeson re-exports
+  , A.object
+  , A.pairs
+  , A.withObject
+    -- * jsonpb codec entry points
   , eitherDecode
+  , encode
   )
 where
 
-import Proto3.Suite.DotProto.JSONPB.Class
+import qualified Data.Aeson                             as A
+import           Proto3.Suite.DotProto.JSONPB.Class
+import           Proto3.Suite.DotProto.JSONPB.Instances ()

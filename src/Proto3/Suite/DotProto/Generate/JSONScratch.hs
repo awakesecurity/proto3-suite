@@ -21,17 +21,11 @@ prototyping for the kind of code that we'll want to end up generating.
 
 module Proto3.Suite.DotProto.Generate.JSONScratch where
 
-import qualified Data.Aeson                                 as A
-
-import           Proto3.Suite.DotProto.JSONPB.Class         (FromJSONPB (..),
-                                                             KeyValuePB ((.=)),
-                                                             ToJSONPB (..),
-                                                             eitherDecode,
-                                                             encode, (.:))
-import           Proto3.Suite.DotProto.JSONPB.Instances     ()
+import           Proto3.Suite.DotProto.JSONPB
 
 -- Import the generated code from JSON.proto. This can be regenerated via e.g.:
 --   $ compile-proto-file --proto src/Proto3/Suite/DotProto/Generate/JSON.proto > src/Proto3/Suite/DotProto/Generate/JSONPBProto.hs
+
 import           Proto3.Suite.DotProto.Generate.JSONPBProto
 
 -- $setup
@@ -61,14 +55,14 @@ import           Proto3.Suite.DotProto.Generate.JSONPBProto
 -- TODO: Use RecordWildCards to name the fields instead of an explicit pattern match
 
 instance ToJSONPB Scalar32 where
-  toJSONPB (Scalar32 i32 u32 s32 f32 sf32) = A.object . mconcat $
+  toJSONPB (Scalar32 i32 u32 s32 f32 sf32) = object . mconcat $
     [ "i32"  .= i32
     , "u32"  .= u32
     , "s32"  .= s32
     , "f32"  .= f32
     , "sf32" .= sf32
     ]
-  toEncodingPB (Scalar32 i32 u32 s32 f32 sf32) = A.pairs . mconcat $
+  toEncodingPB (Scalar32 i32 u32 s32 f32 sf32) = pairs . mconcat $
     [ "i32"  .= i32
     , "u32"  .= u32
     , "s32"  .= s32
@@ -76,7 +70,7 @@ instance ToJSONPB Scalar32 where
     , "sf32" .= sf32
     ]
 instance FromJSONPB Scalar32 where
-  parseJSONPB = A.withObject "Scalar32" $ \obj ->
+  parseJSONPB = withObject "Scalar32" $ \obj ->
     pure Scalar32
     <*> obj .: "i32"
     <*> obj .: "u32"
@@ -99,14 +93,14 @@ instance FromJSONPB Scalar32 where
 -- True
 
 instance ToJSONPB Scalar64 where
-  toJSONPB (Scalar64 i64 u64 s64 f64 sf64) = A.object . mconcat $
+  toJSONPB (Scalar64 i64 u64 s64 f64 sf64) = object . mconcat $
     [ "i64"  .= i64
     , "u64"  .= u64
     , "s64"  .= s64
     , "f64"  .= f64
     , "sf64" .= sf64
     ]
-  toEncodingPB (Scalar64 i64 u64 s64 f64 sf64) = A.pairs . mconcat $
+  toEncodingPB (Scalar64 i64 u64 s64 f64 sf64) = pairs . mconcat $
     [ "i64"  .= i64
     , "u64"  .= u64
     , "s64"  .= s64
@@ -114,7 +108,7 @@ instance ToJSONPB Scalar64 where
     , "sf64" .= sf64
     ]
 instance FromJSONPB Scalar64 where
-  parseJSONPB = A.withObject "Scalar64" $ \obj ->
+  parseJSONPB = withObject "Scalar64" $ \obj ->
     pure Scalar64
     <*> obj .: "i64"
     <*> obj .: "u64"
@@ -149,16 +143,16 @@ instance FromJSONPB Scalar64 where
 -- Right (ScalarFP {scalarFPF = NaN, scalarFPD = NaN})
 
 instance ToJSONPB ScalarFP where
-  toJSONPB (ScalarFP f d) = A.object . mconcat $
+  toJSONPB (ScalarFP f d) = object . mconcat $
     [ "f" .= f
     , "d" .= d
     ]
-  toEncodingPB (ScalarFP f d) = A.pairs . mconcat $
+  toEncodingPB (ScalarFP f d) = pairs . mconcat $
     [ "f" .= f
     , "d" .= d
     ]
 instance FromJSONPB ScalarFP where
-  parseJSONPB = A.withObject "ScalarFP" $ \obj ->
+  parseJSONPB = withObject "ScalarFP" $ \obj ->
     pure ScalarFP
     <*> obj .: "f"
     <*> obj .: "d"
@@ -176,16 +170,16 @@ instance FromJSONPB ScalarFP where
 --
 
 instance ToJSONPB Stringly where
-  toJSONPB (Stringly str bs) = A.object . mconcat $
+  toJSONPB (Stringly str bs) = object . mconcat $
     [ "str" .= str
     , "bs"  .= bs
     ]
-  toEncodingPB (Stringly str bs) = A.pairs . mconcat $
+  toEncodingPB (Stringly str bs) = pairs . mconcat $
     [ "str" .= str
     , "bs"  .= bs
     ]
 instance FromJSONPB Stringly where
-  parseJSONPB = A.withObject "Stringly" $ \obj ->
+  parseJSONPB = withObject "Stringly" $ \obj ->
     pure Stringly
     <*> obj .: "str"
     <*> obj .: "bs"
@@ -220,16 +214,16 @@ instance FromJSONPB Stringly where
 -- True
 
 instance ToJSONPB Repeat where
-  toJSONPB (Repeat i32s i64s) = A.object . mconcat $
+  toJSONPB (Repeat i32s i64s) = object . mconcat $
     [ "i32s" .= i32s
     , "i64s" .= i64s
     ]
-  toEncodingPB (Repeat i32s i64s) = A.pairs . mconcat $
+  toEncodingPB (Repeat i32s i64s) = pairs . mconcat $
     [ "i32s" .= i32s
     , "i64s" .= i64s
     ]
 instance FromJSONPB Repeat where
-  parseJSONPB = A.withObject "Repeat" $ \obj ->
+  parseJSONPB = withObject "Repeat" $ \obj ->
     pure Repeat
     <*> obj .: "i32s"
     <*> obj .: "i64s"
@@ -256,28 +250,28 @@ instance FromJSONPB Repeat where
 --
 
 instance ToJSONPB Nested where
-  toJSONPB (Nested minner) = A.object . mconcat $
+  toJSONPB (Nested minner) = object . mconcat $
     [ "nestedInner" .= minner
     ]
-  toEncodingPB (Nested minner) = A.pairs . mconcat $
+  toEncodingPB (Nested minner) = pairs . mconcat $
     [ "nestedInner" .= minner
     ]
 instance FromJSONPB Nested where
-  parseJSONPB = A.withObject "Nested" $ \obj ->
+  parseJSONPB = withObject "Nested" $ \obj ->
     pure Nested
     <*> obj .: "nestedInner"
 
 -- Nested_Inner
 
 instance ToJSONPB Nested_Inner where
-  toJSONPB (Nested_Inner i64) = A.object . mconcat $
+  toJSONPB (Nested_Inner i64) = object . mconcat $
     [ "i64" .= i64
     ]
-  toEncodingPB (Nested_Inner i64) = A.pairs . mconcat $
+  toEncodingPB (Nested_Inner i64) = pairs . mconcat $
     [ "i64" .= i64
     ]
 instance FromJSONPB Nested_Inner where
-  parseJSONPB = A.withObject "Nested_Inner" $ \obj ->
+  parseJSONPB = withObject "Nested_Inner" $ \obj ->
     pure Nested_Inner
     <*> obj .: "i64"
 
