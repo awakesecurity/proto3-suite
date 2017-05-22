@@ -82,7 +82,7 @@ qcProperties = testGroup "QuickCheck properties"
   , testProperty "decode inverts encode for all packed repeated types" $
     (qcInverses :: AllPackedTypes -> Property)
 
-  , testProperty "decode inverts encode for signed int types" $
+  , testProperty "decode inverts encode for signed integer types" $
     (qcInverses :: SignedInts -> Property)
 
   , testProperty "decode inverts encode for repeated messages" $
@@ -96,6 +96,7 @@ encodeUnitTests = testGroup "Encoding unit tests"
                   [encodeTrivialMessage,
                    encodeNegativeInt,
                    encodeMultipleFields,
+                   encodeSignedInts,
                    encodeNestedMessage,
                    encodeEnumFirstAlternative,
                    encodeEnumSecondAlternative,
@@ -125,6 +126,11 @@ encodeMultipleFields = testCase
   "Encoding a message with many fields matches the official implementation" $
   checkEncoding "test-files/multiple_fields.bin" $
   MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
+
+encodeSignedInts :: TestTree
+encodeSignedInts = testCase
+  "Encoding a message containing signed ints matches the official implementation" $
+  checkEncoding "test-files/signedints.bin" (SignedInts (-42) (-84))
 
 encodeNestedMessage :: TestTree
 encodeNestedMessage = testCase
@@ -166,6 +172,7 @@ decodeUnitTests :: TestTree
 decodeUnitTests = testGroup "Decode unit tests"
                   [decodeKeyValsTrivial,
                    decodeKeyValsMultipleFields,
+                   decodeKeyValsSignedInts,
                    decodeKeyValsNestedMessage,
                    decodeKeyValsEnumFirstAlternative,
                    decodeKeyValsEnumSecondAlternative,
@@ -186,6 +193,11 @@ decodeKeyValsMultipleFields :: TestTree
 decodeKeyValsMultipleFields = testCase
   "Decoding a multi-field message to a key/val list succeeds" $
   decodeKeyValsTest "test-files/multiple_fields.bin"
+
+decodeKeyValsSignedInts :: TestTree
+decodeKeyValsSignedInts = testCase
+  "Decoding a message containing signed ints to a key/val list succeeds" $
+  decodeKeyValsTest "test-files/signedints.bin"
 
 decodeKeyValsNestedMessage :: TestTree
 decodeKeyValsNestedMessage = testCase
@@ -211,6 +223,7 @@ parserUnitTests :: TestTree
 parserUnitTests = testGroup "Parsing unit tests"
                   [parseTrivial
                    ,parseMultipleFields
+                   ,parseSignedInts
                    ,parseNestedMessage
                    ,parseEnumFirstAlternative
                    ,parseEnumSecondAlternative
@@ -243,6 +256,11 @@ parseMultipleFields = testCase
   "Parsing a message with multiple fields matches the official implementation" $
   testParser "test-files/multiple_fields.bin" fromByteString
   $ MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
+
+parseSignedInts :: TestTree
+parseSignedInts = testCase
+  "Parsing a message containing signed ints matches the official implementation" $
+  testParser "test-files/signedints.bin" fromByteString $ SignedInts (-42) (-84)
 
 parseNestedMessage :: TestTree
 parseNestedMessage = testCase

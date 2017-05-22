@@ -15,6 +15,11 @@ message MultipleFields {
   bool multiFieldBool = 6;
 }
 
+message SignedInts {
+  sint32 signed32 = 1;
+  sint64 signed64 = 2;
+}
+
 message WithEnum {
   enum TestEnum {
     ENUM1 = 0;
