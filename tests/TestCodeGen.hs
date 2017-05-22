@@ -19,12 +19,16 @@ import           Turtle
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.Generate
 
+import Proto3.Suite
+import GHC.Int
+
 codeGenTests :: TestTree
 codeGenTests = testGroup "Code generator unit tests"
   [ camelCaseMessageNames
   , camelCaseFieldNames
   , simpleEncodeDotProto
-  , simpleDecodeDotProto]
+  , simpleDecodeDotProto
+  ]
 
 camelCaseMessageNames :: TestTree
 camelCaseMessageNames = testGroup "CamelCase'ing of message names"
@@ -63,6 +67,11 @@ simpleEncodeDotProto =
            Nothing         -> fail "PYTHONPATH environment variable is not set"
            Just pythonPath -> return pythonPath
        export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
+
+       -- Useful when debugging intermediate codegen artifacts:
+       -- print "export PYTHONPATH=", (pythonPath <> ":" <> pyTmpDir)
+       -- assertBool "EARLY TERM BEFORE: test-files/tmp/simpleEncodeDotProto | python tests/check_simple_dot_proto.py" False
+
        exitCode <- shell (hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py") empty
        exitCode @?= ExitFailure 12  -- We exit the python test with a special error code to make sure all tests completed
 

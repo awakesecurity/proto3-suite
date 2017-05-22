@@ -22,6 +22,14 @@ testCase2 :: IO ()
 testCase2 =
   do outputMessage (MultipleFields 1.125 1e9 0x1135 0x7FFAFABADDEAFFA0 "Goodnight moon" False)
 
+testCaseSignedInts :: IO ()
+testCaseSignedInts =
+  do outputMessage (SignedInts 0 0)
+     outputMessage (SignedInts 42 84)
+     outputMessage (SignedInts (-42) (-84))
+     outputMessage (SignedInts (minBound) (minBound))
+     outputMessage (SignedInts (maxBound) (maxBound))
+
 testCase3 :: IO ()
 testCase3 =
   do outputMessage (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))
@@ -122,6 +130,7 @@ testCase16 =
 main :: IO ()
 main = do testCase1
           testCase2
+          testCaseSignedInts
           testCase3
           testCase4
           testCase5

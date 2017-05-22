@@ -21,6 +21,27 @@ assert case2.multiFieldInt64 == 0x7FFAFABADDEAFFA0
 assert case2.multiFieldString == "Goodnight moon"
 assert case2.multiFieldBool == False
 
+# Test case: SignedInts
+caseSignedZero = read_proto(SignedInts)
+assert caseSignedZero.signed32 == 0
+assert caseSignedZero.signed64 == 0
+
+caseSignedPosValues = read_proto(SignedInts)
+assert caseSignedPosValues.signed32 == 42
+assert caseSignedPosValues.signed64 == 84
+
+caseSignedNegValues = read_proto(SignedInts)
+assert caseSignedNegValues.signed32 == (-42)
+assert caseSignedNegValues.signed64 == (-84)
+
+caseSignedMinBound = read_proto(SignedInts)
+assert caseSignedMinBound.signed32 == -(2**31)
+assert caseSignedMinBound.signed64 == -(2**63)
+
+caseSignedMaxBound = read_proto(SignedInts)
+assert caseSignedMaxBound.signed32 == (2**32 - 1) / 2
+assert caseSignedMaxBound.signed64 == (2**64 - 1) / 2
+
 # Test case 3: Nested enumeration
 case3a = read_proto(WithEnum)
 assert case3a.enumField == WithEnum.ENUM1
