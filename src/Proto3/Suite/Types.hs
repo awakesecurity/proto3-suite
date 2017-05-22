@@ -39,7 +39,7 @@ newtype Fixed a = Fixed { fixed :: a }
 
 -- | 'Signed' provides a way to encode integers in the signed wire formats.
 newtype Signed a = Signed { signed :: a }
-  deriving (Show, Eq, Ord, Num, Generic, NFData, Arbitrary)
+  deriving (Show, Eq, Ord, Num, Generic, NFData, Arbitrary, Bounded)
 
 -- | 'Enumerated' lifts any type with an 'IsEnum' instance so that it can be encoded
 -- with 'HasEncoding'.
