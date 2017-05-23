@@ -69,7 +69,7 @@ simpleEncodeDotProto =
        export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
 
        -- Useful when debugging intermediate codegen artifacts:
-       -- print "export PYTHONPATH=", (pythonPath <> ":" <> pyTmpDir)
+       -- putStrLn (T.unpack $ "export PYTHONPATH=" <> pythonPath <> ":" <> pyTmpDir)
        -- assertBool "EARLY TERM BEFORE: test-files/tmp/simpleEncodeDotProto | python tests/check_simple_dot_proto.py" False
 
        exitCode <- shell (hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py") empty
@@ -101,6 +101,11 @@ simpleDecodeDotProto =
            Nothing         -> fail "PYTHONPATH environment variable is not set"
            Just pythonPath -> return pythonPath
        export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
+
+       -- Useful when debugging intermediate codegen artifacts:
+       -- putStrLn (T.unpack $ "export PYTHONPATH=" <> pythonPath <> ":" <> pyTmpDir)
+       -- assertBool "EARLY TERM BEFORE: python tests/send_simple_dot_proto.py | test-files/tmp/simpleDecodeDotProto" False
+
        exitCode <- shell ("python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto ") empty
        exitCode @?= ExitSuccess
 

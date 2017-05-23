@@ -7,7 +7,7 @@ module Main where
 import Test
 import qualified TestImport
 import Test.Tasty
-import Test.Tasty.HUnit ((@?=), testCase)
+import Test.Tasty.HUnit (Assertion, (@?=), (@=?), testCase)
 import Control.Applicative
 import Control.Monad
 import Proto3.Suite
@@ -23,10 +23,12 @@ tests, testCase1, testCase2, testCase3, testCase4, testCase5,
     testCase6, testCase8, testCase9, testCase10, testCase11,
     testCase12, testCase13, testCase14, testCase15 :: TestTree
 tests = testGroup "Decode protobuf messages from Python"
-          [  testCase1,  testCase2,  testCase3,  testCase4
-          ,  testCase5,  testCase6,  testCase7,  testCase8
-          ,  testCase9, testCase10, testCase11, testCase12
-          , testCase13, testCase14, testCase15, testCase16 ]
+          [  testCase1,  testCase2, testCaseSignedInts
+          ,  testCase3,  testCase4,  testCase5,  testCase6
+          ,  testCase7,  testCase8,  testCase9, testCase10
+          , testCase11, testCase12, testCase13, testCase14
+          , testCase15, testCase16
+          ]
 
 readProto :: Message a => IO a
 readProto = do length <- readLn
@@ -35,9 +37,11 @@ readProto = do length <- readLn
                  Left err -> fail ("readProto: " ++ show err)
                  Right  x -> pure x
 
+expect :: (Eq a, Message a, Show a) => a -> Assertion
+expect v = (v @=?) =<< readProto
+
 testCase1  = testCase "Trivial message" $
     do Trivial { .. } <- readProto
-
        trivialTrivialField @?= 0x7BADBEEF
 
 testCase2  = testCase "Multi-field message" $
@@ -49,6 +53,13 @@ testCase2  = testCase "Multi-field message" $
        multipleFieldsMultiFieldInt64  @?= 0x7FFAFABADDEAFFA0
        multipleFieldsMultiFieldString @?= "Goodnight moon"
        multipleFieldsMultiFieldBool   @?= False
+
+testCaseSignedInts = testCase "Signed integer types" $
+    do expect (SignedInts 0 0)
+       expect (SignedInts 42 84)
+       expect (SignedInts (-42) (-84))
+       expect (SignedInts minBound minBound)
+       expect (SignedInts maxBound maxBound)
 
 testCase3  = testCase "Nested enumeration" $
     do WithEnum { withEnumEnumField = Enumerated a } <- readProto
