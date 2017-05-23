@@ -10,7 +10,7 @@ def read_proto(cls):
 
 # Test case 1: Trivial message
 case1 = read_proto(Trivial)
-assert case1.trivialField == 0xBADBEEF
+assert case1.trivialField == 0x7BADBEEF
 
 # Test case 2: Multiple fields
 case2 = read_proto(MultipleFields)
@@ -53,7 +53,7 @@ case3c = read_proto(WithEnum)
 assert case3c.enumField == WithEnum.ENUM3
 
 case3d = read_proto(WithEnum)
-assert case3d.enumField == 0xABABABAB
+assert case3d.enumField == 0xBEEF
 
 # Test case 4: Nested messages
 case4a = read_proto(WithNesting)

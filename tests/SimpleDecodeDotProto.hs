@@ -28,6 +28,7 @@ tests = testGroup "Decode protobuf messages from Python"
           ,  testCase7,  testCase8,  testCase9, testCase10
           , testCase11, testCase12, testCase13, testCase14
           , testCase15, testCase16
+          , allTestsDone -- this should always run last
           ]
 
 readProto :: Message a => IO a
@@ -76,7 +77,7 @@ testCase3  = testCase "Nested enumeration" $
 
 testCase4  = testCase "Nested message" $
     do WithNesting { withNestingNestedMessage = a } <- readProto
-       a @?= Just (WithNesting_Nested "testCase4 nestedField1" 0x1010)
+       a @?= Just (WithNesting_Nested "testCase4 nestedField1" 0xABCD)
 
        WithNesting { withNestingNestedMessage = b } <- readProto
        b @?= Nothing
@@ -86,7 +87,7 @@ testCase5  = testCase "Nested repeated message" $
        length a @?= 3
        let [a1, a2, a3] = a
 
-       a1 @?= WithNestingRepeated_Nested "testCase5 nestedField1" 0xDCBA [5, 3, 2, 1, 1] [0xBADBEEF, 0x40302001, 0xACBA, 3]
+       a1 @?= WithNestingRepeated_Nested "testCase5 nestedField1" 0xDCBA [1, 1, 2, 3, 5] [0xB, 0xABCD, 0xBADBEEF, 0x10203040]
        a2 @?= WithNestingRepeated_Nested "Hello world" 0x7FFFFFFF [0, 0, 0] []
        a3 @?= WithNestingRepeated_Nested "" 0 [] []
 
@@ -211,7 +212,7 @@ testCase13 = testCase "Nested message with the same name as another package-leve
 
 testCase14 = testCase "Qualified name resolution" $
     do WithQualifiedName { .. } <- readProto
-       withQualifiedNameQname1 @?= Just (ShadowedMessage "int value" 2)
+       withQualifiedNameQname1 @?= Just (ShadowedMessage "int value" 42)
        withQualifiedNameQname2 @?= Just (MessageShadower_ShadowedMessage "string value" "hello world")
 
 testCase15 = testCase "Imported message resolution" $
@@ -224,3 +225,7 @@ testCase16 = testCase "Proper resolution of shadowed message names" $
        usingImportedImportedNesting @?= Just (TestImport.WithNesting (Just (TestImport.WithNesting_Nested 1 2))
                                                                      (Just (TestImport.WithNesting_Nested 3 4)))
        usingImportedLocalNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF)))
+
+allTestsDone = testCase "Receive end of test suite sentinel message" $
+   do MultipleFields{..} <- readProto
+      multipleFieldsMultiFieldString @?= "All tests complete"
