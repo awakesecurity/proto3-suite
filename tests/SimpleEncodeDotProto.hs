@@ -15,7 +15,7 @@ outputMessage msg =
 
 testCase1 :: IO ()
 testCase1 =
-  let trivial = Trivial 0xBADBEEF
+  let trivial = Trivial 0x7BADBEEF
   in outputMessage trivial
 
 testCase2 :: IO ()
@@ -27,7 +27,7 @@ testCase3 =
   do outputMessage (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))
      outputMessage (WithEnum (Enumerated (Right WithEnum_TestEnumENUM2)))
      outputMessage (WithEnum (Enumerated (Right WithEnum_TestEnumENUM3)))
-     outputMessage (WithEnum (Enumerated (Left 0xABABABAB)))
+     outputMessage (WithEnum (Enumerated (Left 0xBEEF)))
 
 testCase4 :: IO ()
 testCase4 =
