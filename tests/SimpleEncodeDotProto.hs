@@ -27,8 +27,8 @@ testCaseSignedInts =
   do outputMessage (SignedInts 0 0)
      outputMessage (SignedInts 42 84)
      outputMessage (SignedInts (-42) (-84))
-     outputMessage (SignedInts (minBound) (minBound))
-     outputMessage (SignedInts (maxBound) (maxBound))
+     outputMessage (SignedInts minBound minBound)
+     outputMessage (SignedInts maxBound maxBound)
 
 testCase3 :: IO ()
 testCase3 =
