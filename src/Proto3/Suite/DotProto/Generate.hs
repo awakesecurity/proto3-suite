@@ -229,8 +229,8 @@ hsTypeFromDotProto _    (Map _ _) =
 hsTypeFromDotProtoPrim :: TypeContext -> DotProtoPrimType -> CompileResult HsType
 hsTypeFromDotProtoPrim _    Int32           = pure $ primType_ "Int32"
 hsTypeFromDotProtoPrim _    Int64           = pure $ primType_ "Int64"
-hsTypeFromDotProtoPrim _    SInt32          = pure $ HsTyApp (protobufType_ "Signed") (primType_ "Int32")
-hsTypeFromDotProtoPrim _    SInt64          = pure $ HsTyApp (protobufType_ "Signed") (primType_ "Int64")
+hsTypeFromDotProtoPrim _    SInt32          = pure $ primType_ "Int32"
+hsTypeFromDotProtoPrim _    SInt64          = pure $ primType_ "Int64"
 hsTypeFromDotProtoPrim _    UInt32          = pure $ primType_ "Word32"
 hsTypeFromDotProtoPrim _    UInt64          = pure $ primType_ "Word64"
 hsTypeFromDotProtoPrim _    Fixed32         = pure $ HsTyApp (protobufType_ "Fixed")
@@ -499,16 +499,20 @@ wrapPrimE, unwrapPrimE :: TypeContext -> DotProtoPrimType -> HsExp -> HsExp
 wrapPrimE ctxt (Named tyName)
     | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
         = wrapWithFuncE "Nested"
+wrapPrimE _ SInt32   = wrapWithFuncE "Signed"
+wrapPrimE _ SInt64   = wrapWithFuncE "Signed"
 wrapPrimE _ SFixed32 = wrapWithFuncE "Signed"
 wrapPrimE _ SFixed64 = wrapWithFuncE "Signed"
-wrapPrimE _ _ = id
+wrapPrimE _ _        = id
 
 unwrapPrimE ctxt (Named tyName)
     | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
         = unwrapWithFuncE "nested"
+unwrapPrimE _ SInt32   = unwrapWithFuncE "signed"
+unwrapPrimE _ SInt64   = unwrapWithFuncE "signed"
 unwrapPrimE _ SFixed32 = unwrapWithFuncE "signed"
 unwrapPrimE _ SFixed64 = unwrapWithFuncE "signed"
-unwrapPrimE _ _ = id
+unwrapPrimE _ _        = id
 
 wrapWithFuncE, unwrapWithFuncE :: String -> HsExp -> HsExp
 wrapWithFuncE wrappingFunc = HsParen . HsApp (HsVar (protobufName wrappingFunc))
