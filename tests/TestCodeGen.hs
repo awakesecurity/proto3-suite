@@ -68,11 +68,13 @@ simpleEncodeDotProto =
            Just pythonPath -> return pythonPath
        export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
 
-       -- Useful when debugging intermediate codegen artifacts:
-       -- putStrLn (T.unpack $ "export PYTHONPATH=" <> pythonPath <> ":" <> pyTmpDir)
-       -- assertBool "EARLY TERM BEFORE: test-files/tmp/simpleEncodeDotProto | python tests/check_simple_dot_proto.py" False
+       let cmd = (hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py")
 
-       exitCode <- shell (hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py") empty
+       -- Can be useful when debugging intermediate codegen artifacts:
+       -- putStrLn (T.unpack $ "\nexport PYTHONPATH=" <> pythonPath <> ":" <> pyTmpDir)
+       -- assertBool ("EARLY TERM BEFORE: " <> T.unpack cmd) False
+
+       exitCode <- shell cmd empty
        exitCode @?= ExitFailure 12  -- We exit the python test with a special error code to make sure all tests completed
 
        -- Not using bracket so that we can inspect the output to fix the tests
@@ -102,11 +104,13 @@ simpleDecodeDotProto =
            Just pythonPath -> return pythonPath
        export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
 
-       -- Useful when debugging intermediate codegen artifacts:
-       -- putStrLn (T.unpack $ "export PYTHONPATH=" <> pythonPath <> ":" <> pyTmpDir)
-       -- assertBool "EARLY TERM BEFORE: python tests/send_simple_dot_proto.py | test-files/tmp/simpleDecodeDotProto" False
+       let cmd = "python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto "
 
-       exitCode <- shell ("python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto ") empty
+       -- Can be useful when debugging intermediate codegen artifacts:
+       -- putStrLn (T.unpack $ "\nexport PYTHONPATH=" <> pythonPath <> ":" <> pyTmpDir)
+       -- assertBool ("EARLY TERM BEFORE: " <> T.unpack cmd) False
+
+       exitCode <- shell cmd empty
        exitCode @?= ExitSuccess
 
        rmtree hsTmpDir
@@ -115,7 +119,7 @@ simpleDecodeDotProto =
 -- * Helpers
 
 hsTmpDir, pyTmpDir :: IsString a => a
-hsTmpDir = "test-files/tmp"
+hsTmpDir = "test-files/hs-tmp"
 pyTmpDir = "test-files/py-tmp"
 
 compileTestDotProto =
@@ -125,7 +129,7 @@ compileTestDotProto =
          Right (dp, ctxt) ->
            case renderHsModuleForDotProto dp ctxt of
              Left err -> fail ("compileTestDotProto: Error compiling test.proto: " <> show err)
-             Right hsSrc -> writeFile "test-files/tmp/Test.hs" hsSrc
+             Right hsSrc -> writeFile (hsTmpDir <> "/Test.hs") hsSrc
 
        dpRes <- readDotProtoWithContext "test-files/test_import.proto"
        case dpRes of
@@ -133,4 +137,4 @@ compileTestDotProto =
          Right (dp, ctxt) ->
            case renderHsModuleForDotProto dp ctxt of
              Left err -> fail ("compileTestDotProto: Error compiling test_import.proto: " <> show err)
-             Right hsSrc -> writeFile "test-files/tmp/TestImport.hs" hsSrc
+             Right hsSrc -> writeFile (hsTmpDir <> "/TestImport.hs") hsSrc
