@@ -229,8 +229,8 @@ hsTypeFromDotProto _    (Map _ _) =
 hsTypeFromDotProtoPrim :: TypeContext -> DotProtoPrimType -> CompileResult HsType
 hsTypeFromDotProtoPrim _    Int32           = pure $ primType_ "Int32"
 hsTypeFromDotProtoPrim _    Int64           = pure $ primType_ "Int64"
-hsTypeFromDotProtoPrim _    SInt32          = pure $ primType_ "Int32"
-hsTypeFromDotProtoPrim _    SInt64          = pure $ primType_ "Int64"
+hsTypeFromDotProtoPrim _    SInt32          = pure $ HsTyApp (protobufType_ "Signed") (primType_ "Int32")
+hsTypeFromDotProtoPrim _    SInt64          = pure $ HsTyApp (protobufType_ "Signed") (primType_ "Int64")
 hsTypeFromDotProtoPrim _    UInt32          = pure $ primType_ "Word32"
 hsTypeFromDotProtoPrim _    UInt64          = pure $ primType_ "Word64"
 hsTypeFromDotProtoPrim _    Fixed32         = pure $ HsTyApp (protobufType_ "Fixed")
