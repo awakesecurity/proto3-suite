@@ -39,15 +39,15 @@ write_proto(WithEnum(enumField = 0xBEEF))
 write_proto(
     WithNesting(nestedMessage=
                 WithNesting.Nested(nestedField1 = "testCase4 nestedField1",
-                                   nestedField2 = 0xABCD)))
+                                   nestedField2 = 0x1010)))
 write_proto(WithNesting())
 
 # Test case 5: Nested repeated message
 write_proto(WithNestingRepeated(nestedMessages =
     [ WithNestingRepeated.Nested(nestedField1 = "testCase5 nestedField1",
                                  nestedField2 = 0xDCBA,
-                                 nestedPacked = [1, 1, 2, 3, 5],
-                                 nestedUnpacked = [0xB, 0xABCD, 0xBADBEEF, 0x10203040]),
+                                 nestedPacked = [5, 3, 2, 1, 1],
+                                 nestedUnpacked = [0xBADBEEF, 0x40302001, 0xACBA, 3]),
       WithNestingRepeated.Nested(nestedField1 = "Hello world",
                                  nestedField2 = 0x7FFFFFFF,
                                  nestedPacked = [0, 0, 0],
@@ -151,7 +151,7 @@ write_proto(MessageShadower(shadowed_message = MessageShadower.ShadowedMessage(n
 write_proto(MessageShadower.ShadowedMessage(name = "another name", value = "another string"))
 
 # Test case 14: Qualified name resolution
-write_proto(WithQualifiedName(qname1 = ShadowedMessage(name="int value", value=42),
+write_proto(WithQualifiedName(qname1 = ShadowedMessage(name="int value", value=2),
                               qname2 = MessageShadower.ShadowedMessage(name="string value", value="hello world")))
 
 # Test case 15: Imported message resolution
@@ -161,6 +161,3 @@ write_proto(test_import.WithNesting(nestedMessage1 = test_import.WithNesting.Nes
 write_proto(UsingImported(importedNesting = test_import.WithNesting(nestedMessage1 = test_import.WithNesting.Nested(nestedField1 = 1, nestedField2 = 2),
                                                                     nestedMessage2 = test_import.WithNesting.Nested(nestedField1 = 3, nestedField2 = 4)),
                           localNesting = WithNesting(nestedMessage = WithNesting.Nested(nestedField1 = "field", nestedField2 = 0xBEEF))))
-
-# Send the special 'done' message
-write_proto(MultipleFields(multiFieldString = "All tests complete"))
