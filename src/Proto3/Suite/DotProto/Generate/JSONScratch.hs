@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -47,6 +48,37 @@ import           Text.Show.Pretty
 --
 -- We also put some placeholder doctests here for prelim regression checking
 -- until we get some property-based tests in place.
+
+-- | SignedInts
+--
+-- >>> roundTrip (SignedInts minBound minBound)
+-- Right True
+-- >>> roundTrip (SignedInts maxBound maxBound)
+-- Right True
+--
+-- >>> encode (SignedInts minBound minBound)
+-- "{\"s32\":-2147483648,\"s64\":\"-9223372036854775808\"}"
+--
+-- >>> encode (SignedInts maxBound maxBound)
+-- "{\"s32\":2147483647,\"s64\":\"9223372036854775807\"}"
+--
+-- >>> Right (SignedInts 2147483647 9223372036854775807) == eitherDecode "{\"s32\":2147483647,\"s64\":\"9223372036854775807\"}"
+-- True
+
+instance ToJSONPB SignedInts where
+  toJSONPB SignedInts{..} = object . mconcat $
+    [ "s32" .= signedIntsS32
+    , "s64" .= signedIntsS64
+    ]
+  toEncodingPB SignedInts{..} = pairs . mconcat $
+    [ "s32" .= signedIntsS32
+    , "s64" .= signedIntsS64
+    ]
+instance FromJSONPB SignedInts where
+  parseJSONPB = withObject "SignedInts" $ \obj ->
+    pure SignedInts
+    <*> obj .: "s32"
+    <*> obj .: "s64"
 
 -- | Scalar32
 --

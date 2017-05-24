@@ -21,6 +21,41 @@ import qualified Data.Word as Hs (Word16, Word32, Word64)
 import GHC.Generics as Hs
 import GHC.Enum as Hs
  
+data SignedInts = SignedInts{signedIntsS32 :: Hs.Int32,
+                             signedIntsS64 :: Hs.Int64}
+                deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named SignedInts where
+        nameOf _ = (Hs.fromString "SignedInts")
+ 
+instance HsProtobuf.Message SignedInts where
+        encodeMessage _
+          SignedInts{signedIntsS32 = signedIntsS32,
+                     signedIntsS64 = signedIntsS64}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 0)
+                   signedIntsS32),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   signedIntsS64)])
+        decodeMessage _
+          = (Hs.pure SignedInts) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 0))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 0)
+                (HsProtobuf.Prim HsProtobuf.SInt32)
+                (HsProtobuf.Single "s32")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.SInt64)
+                (HsProtobuf.Single "s64")
+                []
+                Hs.Nothing)]
+ 
 data Scalar32 = Scalar32{scalar32I32 :: Hs.Int32,
                          scalar32U32 :: Hs.Word32, scalar32S32 :: Hs.Int32,
                          scalar32F32 :: HsProtobuf.Fixed Hs.Word32,

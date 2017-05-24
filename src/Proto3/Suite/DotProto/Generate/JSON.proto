@@ -1,6 +1,11 @@
 syntax = "proto3";
 package Proto3.Suite.DotProto.Generate.JSONPBProto;
 
+message SignedInts {
+  sint32 s32 = 0;
+  sint64 s64 = 1;
+}
+
 message Scalar32 {
   int32     i32 = 1;
   uint32    u32 = 2;
