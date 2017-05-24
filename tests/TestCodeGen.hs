@@ -19,12 +19,16 @@ import           Turtle
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.Generate
 
+import Proto3.Suite
+import GHC.Int
+
 codeGenTests :: TestTree
 codeGenTests = testGroup "Code generator unit tests"
   [ camelCaseMessageNames
   , camelCaseFieldNames
   , simpleEncodeDotProto
-  , simpleDecodeDotProto]
+  , simpleDecodeDotProto
+  ]
 
 camelCaseMessageNames :: TestTree
 camelCaseMessageNames = testGroup "CamelCase'ing of message names"
@@ -63,7 +67,14 @@ simpleEncodeDotProto =
            Nothing         -> fail "PYTHONPATH environment variable is not set"
            Just pythonPath -> return pythonPath
        export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
-       exitCode <- shell (hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py") empty
+
+       let cmd = (hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py")
+
+       -- Can be useful when debugging intermediate codegen artifacts:
+       -- putStrLn (T.unpack $ "\nexport PYTHONPATH=" <> pythonPath <> ":" <> pyTmpDir)
+       -- assertBool ("EARLY TERM BEFORE: " <> T.unpack cmd) False
+
+       exitCode <- shell cmd empty
        exitCode @?= ExitFailure 12  -- We exit the python test with a special error code to make sure all tests completed
 
        -- Not using bracket so that we can inspect the output to fix the tests
@@ -92,7 +103,14 @@ simpleDecodeDotProto =
            Nothing         -> fail "PYTHONPATH environment variable is not set"
            Just pythonPath -> return pythonPath
        export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
-       exitCode <- shell ("python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto ") empty
+
+       let cmd = "python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto "
+
+       -- Can be useful when debugging intermediate codegen artifacts:
+       -- putStrLn (T.unpack $ "\nexport PYTHONPATH=" <> pythonPath <> ":" <> pyTmpDir)
+       -- assertBool ("EARLY TERM BEFORE: " <> T.unpack cmd) False
+
+       exitCode <- shell cmd empty
        exitCode @?= ExitSuccess
 
        rmtree hsTmpDir
@@ -101,7 +119,7 @@ simpleDecodeDotProto =
 -- * Helpers
 
 hsTmpDir, pyTmpDir :: IsString a => a
-hsTmpDir = "test-files/tmp"
+hsTmpDir = "test-files/hs-tmp"
 pyTmpDir = "test-files/py-tmp"
 
 compileTestDotProto =
@@ -111,7 +129,7 @@ compileTestDotProto =
          Right (dp, ctxt) ->
            case renderHsModuleForDotProto dp ctxt of
              Left err -> fail ("compileTestDotProto: Error compiling test.proto: " <> show err)
-             Right hsSrc -> writeFile "test-files/tmp/Test.hs" hsSrc
+             Right hsSrc -> writeFile (hsTmpDir <> "/Test.hs") hsSrc
 
        dpRes <- readDotProtoWithContext "test-files/test_import.proto"
        case dpRes of
@@ -119,4 +137,4 @@ compileTestDotProto =
          Right (dp, ctxt) ->
            case renderHsModuleForDotProto dp ctxt of
              Left err -> fail ("compileTestDotProto: Error compiling test_import.proto: " <> show err)
-             Right hsSrc -> writeFile "test-files/tmp/TestImport.hs" hsSrc
+             Right hsSrc -> writeFile (hsTmpDir <> "/TestImport.hs") hsSrc

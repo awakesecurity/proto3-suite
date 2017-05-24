@@ -499,16 +499,20 @@ wrapPrimE, unwrapPrimE :: TypeContext -> DotProtoPrimType -> HsExp -> HsExp
 wrapPrimE ctxt (Named tyName)
     | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
         = wrapWithFuncE "Nested"
+wrapPrimE _ SInt32   = wrapWithFuncE "Signed"
+wrapPrimE _ SInt64   = wrapWithFuncE "Signed"
 wrapPrimE _ SFixed32 = wrapWithFuncE "Signed"
 wrapPrimE _ SFixed64 = wrapWithFuncE "Signed"
-wrapPrimE _ _ = id
+wrapPrimE _ _        = id
 
 unwrapPrimE ctxt (Named tyName)
     | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
         = unwrapWithFuncE "nested"
+unwrapPrimE _ SInt32   = unwrapWithFuncE "signed"
+unwrapPrimE _ SInt64   = unwrapWithFuncE "signed"
 unwrapPrimE _ SFixed32 = unwrapWithFuncE "signed"
 unwrapPrimE _ SFixed64 = unwrapWithFuncE "signed"
-unwrapPrimE _ _ = id
+unwrapPrimE _ _        = id
 
 wrapWithFuncE, unwrapWithFuncE :: String -> HsExp -> HsExp
 wrapWithFuncE wrappingFunc = HsParen . HsApp (HsVar (protobufName wrappingFunc))

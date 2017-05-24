@@ -22,6 +22,13 @@ write_proto(
         multiFieldString = "Goodnight moon",
         multiFieldBool = False))
 
+# Test case: SignedInts
+write_proto(SignedInts(signed32 = 0, signed64 = 0))
+write_proto(SignedInts(signed32 = 42, signed64 = 84))
+write_proto(SignedInts(signed32 = (-42), signed64 = (-84)))
+write_proto(SignedInts(signed32 = -(2**31), signed64 = -(2**63)))
+write_proto(SignedInts(signed32 = (2**32 - 1) / 2, signed64 = (2**64 - 1) / 2))
+
 # Test case 3: Nested enumeration
 write_proto(WithEnum(enumField = WithEnum.ENUM1))
 write_proto(WithEnum(enumField = WithEnum.ENUM2))

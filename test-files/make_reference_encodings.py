@@ -8,8 +8,7 @@ def serialize_to_file(msg, fp):
 def main():
     triv = test_pb2.Trivial()
     triv.trivialField = 123
-    with open('trivial.bin', 'wb') as f:
-        f.write(triv.SerializeToString())
+    serialize_to_file(triv, 'trivial.bin')
 
     multipleFields = test_pb2.MultipleFields()
     multipleFields.multiFieldDouble = 1.23
@@ -19,6 +18,11 @@ def main():
     multipleFields.multiFieldString = "Hello, world!"
     multipleFields.multiFieldBool = True
     serialize_to_file(multipleFields, 'multiple_fields.bin')
+
+    signedints= test_pb2.SignedInts()
+    signedints.signed32 = -42
+    signedints.signed64 = -84
+    serialize_to_file(signedints, 'signedints.bin')
 
     withEnum = test_pb2.WithEnum()
     withEnum.enumField = test_pb2.WithEnum.ENUM1
