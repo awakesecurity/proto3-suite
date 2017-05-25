@@ -35,8 +35,8 @@ import           Test.Tasty.HUnit        (Assertion, assertBool, testCase,
                                           (@=?), (@?=))
 import           Test.Tasty.QuickCheck   (testProperty, (===))
 
+import qualified OldTestTypes            as OTT
 import           TestCodeGen
-import           TestTypes
 
 main :: IO ()
 main = defaultMain tests
@@ -64,22 +64,22 @@ qcProperties = testGroup "QuickCheck properties"
 
 qcPropDecEncId :: TestTree
 qcPropDecEncId = testGroup "Property: (decode . encode = id) for various message types"
-  [ testProperty "Trivial"             (prop :: MsgProp Trivial)
-  , testProperty "MultipleFields"      (prop :: MsgProp MultipleFields)
-  , testProperty "WithEnum"            (prop :: MsgProp WithEnum)
-  , testProperty "WithNesting"         (prop :: MsgProp WithNesting)
-  , testProperty "WithRepetition"      (prop :: MsgProp WithRepetition)
-  , testProperty "WithFixed"           (prop :: MsgProp WithFixed)
-  , testProperty "WithBytes"           (prop :: MsgProp WithBytes)
-  , testProperty "AllPackedTypes"      (prop :: MsgProp AllPackedTypes)
-  , testProperty "SignedInts"          (prop :: MsgProp SignedInts)
-  , testProperty "WithNestingRepeated" (prop :: MsgProp WithNestingRepeated)
+  [ testProperty "Trivial"             (prop :: MsgProp OTT.Trivial)
+  , testProperty "MultipleFields"      (prop :: MsgProp OTT.MultipleFields)
+  , testProperty "WithEnum"            (prop :: MsgProp OTT.WithEnum)
+  , testProperty "WithNesting"         (prop :: MsgProp OTT.WithNesting)
+  , testProperty "WithRepetition"      (prop :: MsgProp OTT.WithRepetition)
+  , testProperty "WithFixed"           (prop :: MsgProp OTT.WithFixed)
+  , testProperty "WithBytes"           (prop :: MsgProp OTT.WithBytes)
+  , testProperty "AllPackedTypes"      (prop :: MsgProp OTT.AllPackedTypes)
+  , testProperty "SignedInts"          (prop :: MsgProp OTT.SignedInts)
+  , testProperty "WithNestingRepeated" (prop :: MsgProp OTT.WithNestingRepeated)
   , let
       go :: (Message a, Named a, Arbitrary a, Eq a, Show a) => (a -> Property) -> Int -> TestTree
       go pf 0 = testProperty "Deeply nested" pf
-      go pf n = go (pf . fromJust . nested . unNestedAlways . unWrapped) (n - 1)
+      go pf n = go (pf . fromJust . nested . OTT.unNestedAlways . OTT.unWrapped) (n - 1)
    in
-     go (prop :: MsgProp Trivial) 10000
+     go (prop :: MsgProp OTT.Trivial) 10000
   ]
   where
     prop :: (Message a, Arbitrary a, Eq a, Show a) => MsgProp a
@@ -101,18 +101,18 @@ encodeUnitTests = testGroup "Encoder unit tests"
 -- rather than having them in the repository.
 encoderMatchesGoldens :: TestTree
 encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
-  [ check "trivial.bin"               $ Trivial 123
-  , check "trivial_negative.bin"      $ Trivial (-1)
-  , check "multiple_fields.bin"       $ MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
-  , check "signedints.bin"            $ SignedInts (-42) (-84)
-  , check "with_nesting.bin"          $ WithNesting $ Nested $ Just $ NestedMsg "123abc" 123456 [] []
-  , check "with_enum0.bin"            $ WithEnum $ Enumerated $ Right ENUM1
-  , check "with_enum1.bin"            $ WithEnum $ Enumerated $ Right ENUM2
-  , check "with_repetition.bin"       $ WithRepetition [1..5]
-  , check "with_bytes.bin"            $ WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
-  , check "with_nesting_repeated.bin" $ WithNestingRepeated
-                                          [ NestedMsg "123abc" 123456 [1,2,3,4] [5,6,7,8]
-                                          , NestedMsg "abc123" 654321 [0,9,8,7] [6,5,4,3]
+  [ check "trivial.bin"               $ OTT.Trivial 123
+  , check "trivial_negative.bin"      $ OTT.Trivial (-1)
+  , check "multiple_fields.bin"       $ OTT.MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
+  , check "signedints.bin"            $ OTT.SignedInts (-42) (-84)
+  , check "with_nesting.bin"          $ OTT.WithNesting $ Nested $ Just $ OTT.NestedMsg "123abc" 123456 [] []
+  , check "with_enum0.bin"            $ OTT.WithEnum $ Enumerated $ Right OTT.ENUM1
+  , check "with_enum1.bin"            $ OTT.WithEnum $ Enumerated $ Right OTT.ENUM2
+  , check "with_repetition.bin"       $ OTT.WithRepetition [1..5]
+  , check "with_bytes.bin"            $ OTT.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
+  , check "with_nesting_repeated.bin" $ OTT.WithNestingRepeated
+                                          [ OTT.NestedMsg "123abc" 123456 [1,2,3,4] [5,6,7,8]
+                                          , OTT.NestedMsg "abc123" 654321 [0,9,8,7] [6,5,4,3]
                                           ]
   ]
   where
@@ -156,18 +156,18 @@ parserUnitTests = testGroup "Parser unit tests"
 
 parseFromGoldens :: TestTree
 parseFromGoldens = testGroup "Parse golden encodings"
-  [ check "trivial.bin"               $ Trivial 123
-  , check "multiple_fields.bin"       $ MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
-  , check "signedints.bin"            $ SignedInts (-42) (-84)
-  , check "with_nesting.bin"          $ WithNesting $ Nested $ Just $ NestedMsg "123abc" 123456 [] []
-  , check "with_enum0.bin"            $ WithEnum $ Enumerated (Right ENUM1)
-  , check "with_enum1.bin"            $ WithEnum $ Enumerated (Right ENUM2)
-  , check "with_repetition.bin"       $ WithRepetition [1..5]
-  , check "with_fixed.bin"            $ WithFixed (Fixed 16) (Signed $ Fixed (-123))
+  [ check "trivial.bin"               $ OTT.Trivial 123
+  , check "multiple_fields.bin"       $ OTT.MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
+  , check "signedints.bin"            $ OTT.SignedInts (-42) (-84)
+  , check "with_nesting.bin"          $ OTT.WithNesting $ Nested $ Just $ OTT.NestedMsg "123abc" 123456 [] []
+  , check "with_enum0.bin"            $ OTT.WithEnum $ Enumerated (Right OTT.ENUM1)
+  , check "with_enum1.bin"            $ OTT.WithEnum $ Enumerated (Right OTT.ENUM2)
+  , check "with_repetition.bin"       $ OTT.WithRepetition [1..5]
+  , check "with_fixed.bin"            $ OTT.WithFixed (Fixed 16) (Signed $ Fixed (-123))
                                           (Fixed 4096) (Signed $ Fixed (-4096))
-  , check "with_bytes.bin"            $ WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
-  , check "with_packing.bin"          $ WithPacking [1,2,3] [1,2,3]
-  , check "all_packed_types.bin"      $ AllPackedTypes [1,2,3]
+  , check "with_bytes.bin"            $ OTT.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
+  , check "with_packing.bin"          $ OTT.WithPacking [1,2,3] [1,2,3]
+  , check "all_packed_types.bin"      $ OTT.AllPackedTypes [1,2,3]
                                           [1,2,3]
                                           [-1,-2,-3]
                                           [-1,-2,-3]
@@ -177,11 +177,11 @@ parseFromGoldens = testGroup "Parse golden encodings"
                                           [1.0,-1.0]
                                           (fromList $ map (Signed . Fixed) [1,2,3])
                                           (fromList $ map (Signed . Fixed) [1,2,3])
-  , check "with_nesting_repeated.bin" $ WithNestingRepeated [NestedMsg "123abc" 123456 [1,2,3,4] [5,6,7,8],
-                                          NestedMsg "abc123" 654321 [0,9,8,7] [6,5,4,3]]
-  , check "with_nesting_repeated.bin" $ WithNestingRepeatedAbsent $ Nested $
-                                          Just $ NestedMsg "abc123" 654321 [1,2,3,4,0,9,8,7] [5,6,7,8,6,5,4,3]
-  , check "with_nesting_ints.bin"     $ WithNestingRepeatedInts $ Nested $ Just $ NestedInt 2 2
+  , check "with_nesting_repeated.bin" $ OTT.WithNestingRepeated [OTT.NestedMsg "123abc" 123456 [1,2,3,4] [5,6,7,8],
+                                          OTT.NestedMsg "abc123" 654321 [0,9,8,7] [6,5,4,3]]
+  , check "with_nesting_repeated.bin" $ OTT.WithNestingRepeatedAbsent $ Nested $
+                                          Just $ OTT.NestedMsg "abc123" 654321 [1,2,3,4,0,9,8,7] [5,6,7,8,6,5,4,3]
+  , check "with_nesting_ints.bin"     $ OTT.WithNestingRepeatedInts $ Nested $ Just $ OTT.NestedInt 2 2
   ]
   where
     check fp = testCase fp . testParser (testFilesPfx <> fp) fromByteString

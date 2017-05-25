@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module TestTypes where
+module OldTestTypes where
 
 import qualified Data.ByteString as B
 import           Data.Int

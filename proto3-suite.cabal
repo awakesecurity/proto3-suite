@@ -46,7 +46,7 @@ library
 test-suite tests
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
-  other-modules:       TestTypes TestCodeGen
+  other-modules:       OldTestTypes TestCodeGen
   hs-source-dirs:      tests
   build-depends:       base >=4.8 && <5.0,
                        tasty >= 0.11 && <0.12,
