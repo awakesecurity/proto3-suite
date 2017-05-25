@@ -4,8 +4,7 @@
 
 module Main where
 
-import Test
-import qualified TestImport
+
 import Test.Tasty
 import Test.Tasty.HUnit (Assertion, (@?=), (@=?), testCase)
 import Control.Applicative
@@ -14,6 +13,9 @@ import Proto3.Suite
 import qualified Data.ByteString.Char8 as BC
 import System.IO
 import System.Exit
+
+import GeneratedTestTypes
+import qualified GeneratedImportedTestTypes
 
 main :: IO ()
 main = do putStr "\n"
@@ -216,14 +218,16 @@ testCase14 = testCase "Qualified name resolution" $
        withQualifiedNameQname2 @?= Just (MessageShadower_ShadowedMessage "string value" "hello world")
 
 testCase15 = testCase "Imported message resolution" $
-    do TestImport.WithNesting { .. } <- readProto
-       withNestingNestedMessage1 @?= Just (TestImport.WithNesting_Nested 1 2)
+    do GeneratedImportedTestTypes.WithNesting { .. } <- readProto
+       withNestingNestedMessage1 @?= Just (GeneratedImportedTestTypes.WithNesting_Nested 1 2)
        withNestingNestedMessage2 @?= Nothing
 
 testCase16 = testCase "Proper resolution of shadowed message names" $
     do UsingImported { .. } <- readProto
-       usingImportedImportedNesting @?= Just (TestImport.WithNesting (Just (TestImport.WithNesting_Nested 1 2))
-                                                                     (Just (TestImport.WithNesting_Nested 3 4)))
+       usingImportedImportedNesting @?=
+         Just (GeneratedImportedTestTypes.WithNesting
+                 (Just (GeneratedImportedTestTypes.WithNesting_Nested 1 2))
+                 (Just (GeneratedImportedTestTypes.WithNesting_Nested 3 4)))
        usingImportedLocalNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF)))
 
 allTestsDone = testCase "Receive end of test suite sentinel message" $

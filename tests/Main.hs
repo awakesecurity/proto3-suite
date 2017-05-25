@@ -35,8 +35,8 @@ import           Test.Tasty.HUnit        (Assertion, assertBool, testCase,
                                           (@=?), (@?=))
 import           Test.Tasty.QuickCheck   (testProperty, (===))
 
-import qualified OldTestTypes            as OTT
 import           TestCodeGen
+import qualified OldTestTypes as OTT
 
 main :: IO ()
 main = defaultMain tests

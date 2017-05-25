@@ -3,8 +3,8 @@
 
 module Main where
 
-import           Test
-import qualified TestImport
+import           GeneratedTestTypes
+import qualified GeneratedImportedTestTypes
 import           Proto3.Suite
 import qualified Data.ByteString.Lazy as BL
 
@@ -113,17 +113,17 @@ testCase14 =
 
 testCase15 :: IO ()
 testCase15 =
-  outputMessage (TestImport.WithNesting { TestImport.withNestingNestedMessage1 =
-                                            Just (TestImport.WithNesting_Nested { TestImport.withNesting_NestedNestedField1 = 1
-                                                                                , TestImport.withNesting_NestedNestedField2 = 2 })
-                                        , TestImport.withNestingNestedMessage2 = Nothing })
+  outputMessage (GeneratedImportedTestTypes.WithNesting { GeneratedImportedTestTypes.withNestingNestedMessage1 =
+                                            Just (GeneratedImportedTestTypes.WithNesting_Nested { GeneratedImportedTestTypes.withNesting_NestedNestedField1 = 1
+                                                                                , GeneratedImportedTestTypes.withNesting_NestedNestedField2 = 2 })
+                                        , GeneratedImportedTestTypes.withNestingNestedMessage2 = Nothing })
 
 testCase16 :: IO ()
 testCase16 =
   outputMessage (UsingImported { usingImportedImportedNesting =
-                                   Just (TestImport.WithNesting
-                                          (Just (TestImport.WithNesting_Nested 1 2))
-                                          (Just (TestImport.WithNesting_Nested 3 4)))
+                                   Just (GeneratedImportedTestTypes.WithNesting
+                                          (Just (GeneratedImportedTestTypes.WithNesting_Nested 1 2))
+                                          (Just (GeneratedImportedTestTypes.WithNesting_Nested 3 4)))
                                , usingImportedLocalNesting =
                                    Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF))) })
 

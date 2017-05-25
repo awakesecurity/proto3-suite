@@ -1,5 +1,5 @@
 syntax = "proto3";
-package test;
+package GeneratedTestTypes;
 import "test-files/test_import.proto";
 
 message Trivial {
@@ -116,6 +116,6 @@ message WithQualifiedName {
 }
 
 message UsingImported {
-  test_import.WithNesting importedNesting = 100;
+  GeneratedImportedTestTypes.WithNesting importedNesting = 100;
   WithNesting localNesting = 200;
 }

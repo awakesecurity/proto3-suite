@@ -120,11 +120,11 @@ compileTestDotProto = do
     Right (dp, ctxt) ->
       case renderHsModuleForDotProto dp ctxt of
         Left err -> fail ("compileTestDotProto: Error compiling test.proto: " <> show err)
-        Right hsSrc -> writeFile (hsTmpDir <> "/Test.hs") hsSrc
+        Right hsSrc -> writeFile (hsTmpDir <> "/GeneratedTestTypes.hs") hsSrc
 
   readDotProtoWithContext "test-files/test_import.proto" >>= \case
     Left err -> fail (show err)
     Right (dp, ctxt) ->
       case renderHsModuleForDotProto dp ctxt of
         Left err -> fail ("compileTestDotProto: Error compiling test_import.proto: " <> show err)
-        Right hsSrc -> writeFile (hsTmpDir <> "/TestImport.hs") hsSrc
+        Right hsSrc -> writeFile (hsTmpDir <> "/GeneratedImportedTestTypes.hs") hsSrc
