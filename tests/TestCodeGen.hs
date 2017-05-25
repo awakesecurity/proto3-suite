@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module TestCodeGen where
@@ -14,7 +15,7 @@ import           Test.Tasty.QuickCheck (testProperty, (===))
 import           Test.QuickCheck (Arbitrary(..), Property, elements)
 import           Test.QuickCheck.Monadic (monadicIO)
 import           System.Exit
-import           Turtle
+import           Turtle hiding (err)
 
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.Generate
@@ -31,17 +32,17 @@ codeGenTests = testGroup "Code generator unit tests"
   ]
 
 camelCaseMessageNames :: TestTree
-camelCaseMessageNames = testGroup "CamelCase'ing of message names"
+camelCaseMessageNames = testGroup "CamelCasing of message names"
   [ testCase "Capitalizes letters after underscores" (typeLikeName "protocol_analysis" @?= Right "ProtocolAnalysis")
   , testCase "Preserves casing of interior letters"  (typeLikeName "analyze_HTTP" @?= Right "AnalyzeHTTP")
   , testCase "Handles non-alphanumeric characters after underscore" (typeLikeName "analyze_http_2" @?= Right "AnalyzeHttp2")
   , testCase "Preserves one underscore in double underscore sequence" (typeLikeName "Analyze__HTTP" @?= Right "Analyze_HTTP")
-  , testCase "Handles names prefixed with undedrscore" (typeLikeName "_message_name" @?= Right "XMessageName")
+  , testCase "Handles names prefixed with underscore" (typeLikeName "_message_name" @?= Right "XMessageName")
   , testCase "Preserves trailing underscore" (typeLikeName "message_name_" @?= Right "MessageName_") ]
 
 
 camelCaseFieldNames :: TestTree
-camelCaseFieldNames = testGroup "camelCase'ing of field names"
+camelCaseFieldNames = testGroup "camelCasing of field names"
   [ testCase "Preserves capitalization patterns" (fieldLikeName "IP" @?= "ip")
   , testCase "Preserves underscores"             (fieldLikeName "IP_address" @?= "ip_address") ]
 
@@ -69,11 +70,6 @@ simpleEncodeDotProto =
        export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
 
        let cmd = (hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py")
-
-       -- Can be useful when debugging intermediate codegen artifacts:
-       -- putStrLn (T.unpack $ "\nexport PYTHONPATH=" <> pythonPath <> ":" <> pyTmpDir)
-       -- assertBool ("EARLY TERM BEFORE: " <> T.unpack cmd) False
-
        exitCode <- shell cmd empty
        exitCode @?= ExitFailure 12  -- We exit the python test with a special error code to make sure all tests completed
 
@@ -105,11 +101,6 @@ simpleDecodeDotProto =
        export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
 
        let cmd = "python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto "
-
-       -- Can be useful when debugging intermediate codegen artifacts:
-       -- putStrLn (T.unpack $ "\nexport PYTHONPATH=" <> pythonPath <> ":" <> pyTmpDir)
-       -- assertBool ("EARLY TERM BEFORE: " <> T.unpack cmd) False
-
        exitCode <- shell cmd empty
        exitCode @?= ExitSuccess
 
@@ -122,19 +113,18 @@ hsTmpDir, pyTmpDir :: IsString a => a
 hsTmpDir = "test-files/hs-tmp"
 pyTmpDir = "test-files/py-tmp"
 
-compileTestDotProto =
-    do dpRes <- readDotProtoWithContext "test-files/test.proto"
-       case dpRes of
-         Left err -> fail (show err)
-         Right (dp, ctxt) ->
-           case renderHsModuleForDotProto dp ctxt of
-             Left err -> fail ("compileTestDotProto: Error compiling test.proto: " <> show err)
-             Right hsSrc -> writeFile (hsTmpDir <> "/Test.hs") hsSrc
+compileTestDotProto :: IO ()
+compileTestDotProto = do
+  readDotProtoWithContext "test-files/test.proto" >>= \case
+    Left err -> fail (show err)
+    Right (dp, ctxt) ->
+      case renderHsModuleForDotProto dp ctxt of
+        Left err -> fail ("compileTestDotProto: Error compiling test.proto: " <> show err)
+        Right hsSrc -> writeFile (hsTmpDir <> "/Test.hs") hsSrc
 
-       dpRes <- readDotProtoWithContext "test-files/test_import.proto"
-       case dpRes of
-         Left err -> fail (show err)
-         Right (dp, ctxt) ->
-           case renderHsModuleForDotProto dp ctxt of
-             Left err -> fail ("compileTestDotProto: Error compiling test_import.proto: " <> show err)
-             Right hsSrc -> writeFile (hsTmpDir <> "/TestImport.hs") hsSrc
+  readDotProtoWithContext "test-files/test_import.proto" >>= \case
+    Left err -> fail (show err)
+    Right (dp, ctxt) ->
+      case renderHsModuleForDotProto dp ctxt of
+        Left err -> fail ("compileTestDotProto: Error compiling test_import.proto: " <> show err)
+        Right hsSrc -> writeFile (hsTmpDir <> "/TestImport.hs") hsSrc
