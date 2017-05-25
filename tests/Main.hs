@@ -63,12 +63,12 @@ tests = testGroup "Tests"
 
 type MsgProp a = a -> Property
 
--- decode . encode = id
 qcProperties :: TestTree
 qcProperties = testGroup "QuickCheck properties"
   [ qcPropDecEncId
   ]
 
+-- | Verifies that @decode . encode = id@ for various message types
 qcPropDecEncId :: TestTree
 qcPropDecEncId = testGroup "Property: (decode . encode = id) for various message types"
   [ testProperty "Trivial"             (prop :: MsgProp OTT.Trivial)
