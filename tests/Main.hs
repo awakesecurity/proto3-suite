@@ -102,7 +102,6 @@ encodeUnitTests = testGroup "Encoding unit tests"
                    encodeEnumSecondAlternative,
                    encodeRepetition,
                    encodeBytes,
-                   --encodeNestedMaybe
                    encodeWithNestingRepeated
                    ]
 
