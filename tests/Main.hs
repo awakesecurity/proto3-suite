@@ -35,8 +35,15 @@ import           Test.Tasty.HUnit        (Assertion, assertBool, testCase,
                                           (@=?), (@?=))
 import           Test.Tasty.QuickCheck   (testProperty, (===))
 
+-- NB: For the time being, this module (and its dependent module) is manually generated via:
+--   [nix-shell]$ compile-proto-file --proto test-files/test.proto        > tests/GeneratedTestTypes.hs
+--   [nix-shell]$ compile-proto-file --proto test-files/test_import.proto > tests/GeneratedImportedTestTypes.hs
+-- These commands need to be run whenever test.proto or test_import.proto change.
+-- TODO: Automate generation of these modules as a part of the build process.
+import qualified GeneratedTestTypes      as GTT
+
+import qualified OldTestTypes            as OTT
 import           TestCodeGen
-import qualified OldTestTypes as OTT
 
 main :: IO ()
 main = defaultMain tests
