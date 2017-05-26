@@ -8,43 +8,41 @@ module Main where
 
 import           Control.Applicative
 import           Control.Exception
-import qualified Data.ByteString         as B
-import qualified Data.ByteString.Builder as BB
-import qualified Data.ByteString.Char8   as BC
-import qualified Data.ByteString.Lazy    as BL
-import           Data.Either             (isRight)
+import qualified Data.ByteString             as B
+import qualified Data.ByteString.Builder     as BB
+import qualified Data.ByteString.Char8       as BC
+import qualified Data.ByteString.Lazy        as BL
+import           Data.Either                 (isRight)
 import           Data.Int
-import           Data.Maybe              (fromJust)
+import           Data.Maybe                  (fromJust)
 import           Data.Monoid
-import           Data.Serialize.Get      (runGet)
+import           Data.Serialize.Get          (runGet)
 import           Data.String
-import qualified Data.Text.Lazy          as TL
-import           Data.Word               (Word64)
-import           GHC.Exts                (fromList)
+import qualified Data.Text.Lazy              as TL
+import           Data.Word                   (Word64)
+import           GHC.Exts                    (fromList)
 import           Proto3.Suite
-import           Proto3.Suite.DotProto   as AST
+import           Proto3.Suite.DotProto       as AST
 import           Proto3.Wire
-import           Proto3.Wire.Decode      (ParseError)
-import qualified Proto3.Wire.Decode      as Decode
-import qualified Proto3.Wire.Encode      as Encode
-import           Proto3.Wire.Types       as P
-import           Test.QuickCheck         (Arbitrary, Property, arbitrary,
-                                          counterexample, oneof)
+import           Proto3.Wire.Decode          (ParseError)
+import qualified Proto3.Wire.Decode          as Decode
+import qualified Proto3.Wire.Encode          as Encode
+import           Proto3.Wire.Types           as P
+import           Test.QuickCheck             (Arbitrary, Property, arbitrary,
+                                              counterexample, oneof)
 import           Test.Tasty
-import           Test.Tasty.HUnit        (Assertion, assertBool, testCase,
-                                          (@=?), (@?=))
-import           Test.Tasty.QuickCheck   (testProperty, (===))
-
-import Debug.Trace (trace)
+import           Test.Tasty.HUnit            (Assertion, assertBool, testCase,
+                                              (@=?), (@?=))
+import           Test.Tasty.QuickCheck       (testProperty, (===))
 
 -- NB: For the time being, this module (and its dependent module) is manually generated via:
 --   [nix-shell]$ compile-proto-file --proto test-files/test.proto        > tests/GeneratedTestTypes.hs
 --   [nix-shell]$ compile-proto-file --proto test-files/test_import.proto > tests/GeneratedImportedTestTypes.hs
 -- These commands need to be run whenever test.proto or test_import.proto change.
 -- TODO: Automate generation of these modules as a part of the build process.
-import qualified GeneratedTestTypes      as GTT
-import           ArbitraryGeneratedTestTypes
-import qualified OldTestTypes            as OTT
+import           ArbitraryGeneratedTestTypes ()
+import qualified GeneratedTestTypes          as GTT
+import qualified OldTestTypes                as OTT
 import           TestCodeGen
 
 main :: IO ()
@@ -115,8 +113,8 @@ encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
   , check "multiple_fields.bin"       $ GTT.MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
   , check "signedints.bin"            $ GTT.SignedInts (-42) (-84)
   , check "with_nesting.bin"          $ GTT.WithNesting $ Just $ GTT.WithNesting_Nested "123abc" 123456 [] []
-  , check "with_enum0.bin"            $ GTT.WithEnum $ Enumerated $ Right GTT.WithEnum_TestEnumENUM1
-  , check "with_enum1.bin"            $ GTT.WithEnum $ Enumerated $ Right GTT.WithEnum_TestEnumENUM2
+  , check "with_enum0.bin"            $ GTT.WithEnum $ Enumerated $ Right $ GTT.WithEnum_TestEnumENUM1
+  , check "with_enum1.bin"            $ GTT.WithEnum $ Enumerated $ Right $ GTT.WithEnum_TestEnumENUM2
   , check "with_repetition.bin"       $ GTT.WithRepetition [1..5]
   , check "with_bytes.bin"            $ GTT.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
   , check "with_nesting_repeated.bin" $ GTT.WithNestingRepeated
@@ -165,18 +163,18 @@ parserUnitTests = testGroup "Parser unit tests"
 
 parseFromGoldens :: TestTree
 parseFromGoldens = testGroup "Parse golden encodings"
-  [ check "trivial.bin"               $ OTT.Trivial 123
-  , check "multiple_fields.bin"       $ OTT.MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
-  , check "signedints.bin"            $ OTT.SignedInts (-42) (-84)
-  , check "with_nesting.bin"          $ OTT.WithNesting $ Nested $ Just $ OTT.NestedMsg "123abc" 123456 [] []
-  , check "with_enum0.bin"            $ OTT.WithEnum $ Enumerated (Right OTT.ENUM1)
-  , check "with_enum1.bin"            $ OTT.WithEnum $ Enumerated (Right OTT.ENUM2)
-  , check "with_repetition.bin"       $ OTT.WithRepetition [1..5]
-  , check "with_fixed.bin"            $ OTT.WithFixed (Fixed 16) (Signed $ Fixed (-123))
-                                          (Fixed 4096) (Signed $ Fixed (-4096))
-  , check "with_bytes.bin"            $ OTT.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
-  , check "with_packing.bin"          $ OTT.WithPacking [1,2,3] [1,2,3]
-  , check "all_packed_types.bin"      $ OTT.AllPackedTypes [1,2,3]
+  [ check "trivial.bin"               $ GTT.Trivial 123
+  , check "multiple_fields.bin"       $ GTT.MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
+  , check "signedints.bin"            $ GTT.SignedInts (-42) (-84)
+  , check "with_nesting.bin"          $ GTT.WithNesting $ Just $ GTT.WithNesting_Nested "123abc" 123456 [] []
+  , check "with_enum0.bin"            $ GTT.WithEnum $ Enumerated $ Right $ GTT.WithEnum_TestEnumENUM1
+  , check "with_enum1.bin"            $ GTT.WithEnum $ Enumerated $ Right $ GTT.WithEnum_TestEnumENUM2
+  , check "with_repetition.bin"       $ GTT.WithRepetition [1..5]
+  , check "with_fixed.bin"            $ GTT.WithFixed (Fixed 16) (Fixed (-123)) (Fixed 4096) (Fixed (-4096))
+  , check "with_bytes.bin"            $ GTT.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
+  , check "with_packing.bin"          $ GTT.WithPacking [1,2,3] [1,2,3]
+  , check "all_packed_types.bin"      $ GTT.AllPackedTypes
+                                          [1,2,3]
                                           [1,2,3]
                                           [-1,-2,-3]
                                           [-1,-2,-3]
@@ -184,13 +182,19 @@ parseFromGoldens = testGroup "Parse golden encodings"
                                           (fromList $ map Fixed [1..3])
                                           [1.0,2.0]
                                           [1.0,-1.0]
-                                          (fromList $ map (Signed . Fixed) [1,2,3])
-                                          (fromList $ map (Signed . Fixed) [1,2,3])
-  , check "with_nesting_repeated.bin" $ OTT.WithNestingRepeated [OTT.NestedMsg "123abc" 123456 [1,2,3,4] [5,6,7,8],
-                                          OTT.NestedMsg "abc123" 654321 [0,9,8,7] [6,5,4,3]]
-  , check "with_nesting_repeated.bin" $ OTT.WithNestingRepeatedAbsent $ Nested $
-                                          Just $ OTT.NestedMsg "abc123" 654321 [1,2,3,4,0,9,8,7] [5,6,7,8,6,5,4,3]
-  , check "with_nesting_ints.bin"     $ OTT.WithNestingRepeatedInts $ Nested $ Just $ OTT.NestedInt 2 2
+                                          (fromList $ map Fixed [1,2,3])
+                                          (fromList $ map Fixed [1,2,3])
+  , check "with_nesting_repeated.bin" $ GTT.WithNestingRepeated
+                                          [ GTT.WithNestingRepeated_Nested "123abc" 123456 [1,2,3,4] [5,6,7,8]
+                                          , GTT.WithNestingRepeated_Nested "abc123" 654321 [0,9,8,7] [6,5,4,3]
+                                          ]
+  , -- Checks parsing repeated embedded messages when one is expected (i.e.,
+    -- this tests correct merging; this value was encoded as a
+    -- WithNestingRepeated).
+    check "with_nesting_repeated.bin" $ GTT.WithNesting $ Just $ GTT.WithNesting_Nested "abc123" 654321 [1,2,3,4,0,9,8,7] [5,6,7,8,6,5,4,3]
+  , -- Checks that embedded message merging works correctly when fields have
+    -- default values; this value was encoded as a WithNestingRepeatedInts
+    check "with_nesting_ints.bin"     $ GTT.WithNestingInts $ Just $ GTT.NestedInts 2 2
   ]
   where
     check fp = testCase fp . testParser (testFilesPfx <> fp) fromByteString

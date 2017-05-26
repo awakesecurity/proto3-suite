@@ -60,13 +60,13 @@ write_proto(WithNestingRepeated(nestedMessages =
 write_proto(WithNestingRepeated())
 
 # Test case 6: Nested repeated int message
-write_proto(WithNestingRepeatedInts(nestedInts=[WithNestingRepeatedInts.NestedInts(nestedInt1 = 636513, nestedInt2 = 619021)]))
+write_proto(WithNestingRepeatedInts(nestedInts=[NestedInts(nestedInt1 = 636513, nestedInt2 = 619021)]))
 write_proto(WithNestingRepeatedInts(nestedInts=[]))
 write_proto(WithNestingRepeatedInts(nestedInts=
-    [ WithNestingRepeatedInts.NestedInts(nestedInt1 = 636513, nestedInt2 = 619021),
-      WithNestingRepeatedInts.NestedInts(nestedInt1 = 423549, nestedInt2 = 687069),
-      WithNestingRepeatedInts.NestedInts(nestedInt1 = 545506, nestedInt2 = 143731),
-      WithNestingRepeatedInts.NestedInts(nestedInt1 = 193605, nestedInt2 = 385360) ]))
+    [ NestedInts(nestedInt1 = 636513, nestedInt2 = 619021),
+      NestedInts(nestedInt1 = 423549, nestedInt2 = 687069),
+      NestedInts(nestedInt1 = 545506, nestedInt2 = 143731),
+      NestedInts(nestedInt1 = 193605, nestedInt2 = 385360) ]))
 
 # Test case 7: Repeated int32 field
 write_proto(WithRepetition())

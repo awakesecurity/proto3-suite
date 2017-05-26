@@ -98,16 +98,16 @@ testCase5  = testCase "Nested repeated message" $
 
 testCase6  = testCase "Nested repeated int message" $
     do WithNestingRepeatedInts { withNestingRepeatedIntsNestedInts = a } <- readProto
-       a @?= [ WithNestingRepeatedInts_NestedInts 636513 619021 ]
+       a @?= [ NestedInts 636513 619021 ]
 
        WithNestingRepeatedInts { withNestingRepeatedIntsNestedInts = b } <- readProto
        b @?= []
 
        WithNestingRepeatedInts { withNestingRepeatedIntsNestedInts = c } <- readProto
-       c @?= [ WithNestingRepeatedInts_NestedInts 636513 619021
-             , WithNestingRepeatedInts_NestedInts 423549 687069
-             , WithNestingRepeatedInts_NestedInts 545506 143731
-             , WithNestingRepeatedInts_NestedInts 193605 385360 ]
+       c @?= [ NestedInts 636513 619021
+             , NestedInts 423549 687069
+             , NestedInts 545506 143731
+             , NestedInts 193605 385360 ]
 
 testCase7  = testCase "Repeated int32 field" $
     do WithRepetition { withRepetitionRepeatedField1 = a } <- readProto

@@ -54,10 +54,10 @@ testCase5 =
 
 testCase6 :: IO ()
 testCase6 =
-  do let nested1 = WithNestingRepeatedInts_NestedInts 636513 619021
-         nested2 = WithNestingRepeatedInts_NestedInts 423549 687069
-         nested3 = WithNestingRepeatedInts_NestedInts 545506 143731
-         nested4 = WithNestingRepeatedInts_NestedInts 193605 385360
+  do let nested1 = NestedInts 636513 619021
+         nested2 = NestedInts 423549 687069
+         nested3 = NestedInts 545506 143731
+         nested4 = NestedInts 193605 385360
      outputMessage (WithNestingRepeatedInts [nested1])
      outputMessage (WithNestingRepeatedInts [])
      outputMessage (WithNestingRepeatedInts [nested1, nested2, nested3, nested4])
