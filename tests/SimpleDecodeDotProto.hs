@@ -117,23 +117,23 @@ testCase7  = testCase "Repeated int32 field" $
        b @?= [1..10000]
 
 testCase8  = testCase "Fixed-width integer types" $
-    do WithFixedTypes { .. } <- readProto
-       withFixedTypesFixed1 @?= 0
-       withFixedTypesFixed2 @?= 0
-       withFixedTypesFixed3 @?= 0
-       withFixedTypesFixed4 @?= 0
+    do WithFixed { .. } <- readProto
+       withFixedFixed1 @?= 0
+       withFixedFixed2 @?= 0
+       withFixedFixed3 @?= 0
+       withFixedFixed4 @?= 0
 
-       WithFixedTypes { .. } <- readProto
-       withFixedTypesFixed1 @?= maxBound
-       withFixedTypesFixed2 @?= maxBound
-       withFixedTypesFixed3 @?= maxBound
-       withFixedTypesFixed4 @?= maxBound
+       WithFixed { .. } <- readProto
+       withFixedFixed1 @?= maxBound
+       withFixedFixed2 @?= maxBound
+       withFixedFixed3 @?= maxBound
+       withFixedFixed4 @?= maxBound
 
-       WithFixedTypes { .. } <- readProto
-       withFixedTypesFixed1 @?= minBound
-       withFixedTypesFixed2 @?= minBound
-       withFixedTypesFixed3 @?= minBound
-       withFixedTypesFixed4 @?= minBound
+       WithFixed { .. } <- readProto
+       withFixedFixed1 @?= minBound
+       withFixedFixed2 @?= minBound
+       withFixedFixed3 @?= minBound
+       withFixedFixed4 @?= minBound
 
 testCase9  = testCase "Bytes fields" $
     do WithBytes { .. } <- readProto

@@ -71,15 +71,15 @@ write_proto(WithRepetition())
 write_proto(WithRepetition(repeatedField1 = range(1, 10001)))
 
 # Test case 8: Fixed-width integer types
-write_proto(WithFixedTypes(fixed1 = 0, fixed2 = 0, fixed3 = 0, fixed4 = 0))
-write_proto(WithFixedTypes(fixed1 = 2**32 - 1,
-                           fixed2 = (2**32 - 1) / 2,
-                           fixed3 = 2**64 - 1,
-                           fixed4 = (2**64 - 1) / 2))
-write_proto(WithFixedTypes(fixed1 = 0,
-                           fixed2 = -(2**31),
-                           fixed3 = 0,
-                           fixed4 = -(2**63)))
+write_proto(WithFixed(fixed1 = 0, fixed2 = 0, fixed3 = 0, fixed4 = 0))
+write_proto(WithFixed(fixed1 = 2**32 - 1,
+                      fixed2 = (2**32 - 1) / 2,
+                      fixed3 = 2**64 - 1,
+                      fixed4 = (2**64 - 1) / 2))
+write_proto(WithFixed(fixed1 = 0,
+                      fixed2 = -(2**31),
+                      fixed3 = 0,
+                      fixed4 = -(2**63)))
 
 # Test case 9: bytes fields
 write_proto(WithBytes(bytes1 = "\x00\x00\x00\x01\x02\x03\xFF\xFF\x00\x01",

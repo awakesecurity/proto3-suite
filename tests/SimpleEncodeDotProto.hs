@@ -69,9 +69,9 @@ testCase7 =
 
 testCase8 :: IO ()
 testCase8 =
-  do outputMessage (WithFixedTypes 0 0 0 0)
-     outputMessage (WithFixedTypes maxBound maxBound maxBound maxBound)
-     outputMessage (WithFixedTypes minBound minBound minBound minBound)
+  do outputMessage (WithFixed 0 0 0 0)
+     outputMessage (WithFixed maxBound maxBound maxBound maxBound)
+     outputMessage (WithFixed minBound minBound minBound minBound)
 
 testCase9 :: IO ()
 testCase9 =

@@ -35,13 +35,15 @@ import           Test.Tasty.HUnit        (Assertion, assertBool, testCase,
                                           (@=?), (@?=))
 import           Test.Tasty.QuickCheck   (testProperty, (===))
 
+import Debug.Trace (trace)
+
 -- NB: For the time being, this module (and its dependent module) is manually generated via:
 --   [nix-shell]$ compile-proto-file --proto test-files/test.proto        > tests/GeneratedTestTypes.hs
 --   [nix-shell]$ compile-proto-file --proto test-files/test_import.proto > tests/GeneratedImportedTestTypes.hs
 -- These commands need to be run whenever test.proto or test_import.proto change.
 -- TODO: Automate generation of these modules as a part of the build process.
 import qualified GeneratedTestTypes      as GTT
-
+import           ArbitraryGeneratedTestTypes
 import qualified OldTestTypes            as OTT
 import           TestCodeGen
 
@@ -71,29 +73,29 @@ qcProperties = testGroup "QuickCheck properties"
 -- | Verifies that @decode . encode = id@ for various message types
 qcPropDecEncId :: TestTree
 qcPropDecEncId = testGroup "Property: (decode . encode = id) for various message types"
-  [ testProperty "Trivial"             (prop :: MsgProp OTT.Trivial)
-  , testProperty "MultipleFields"      (prop :: MsgProp OTT.MultipleFields)
-  , testProperty "WithEnum"            (prop :: MsgProp OTT.WithEnum)
-  , testProperty "WithNesting"         (prop :: MsgProp OTT.WithNesting)
-  , testProperty "WithRepetition"      (prop :: MsgProp OTT.WithRepetition)
-  , testProperty "WithFixed"           (prop :: MsgProp OTT.WithFixed)
-  , testProperty "WithBytes"           (prop :: MsgProp OTT.WithBytes)
-  , testProperty "AllPackedTypes"      (prop :: MsgProp OTT.AllPackedTypes)
-  , testProperty "SignedInts"          (prop :: MsgProp OTT.SignedInts)
-  , testProperty "WithNestingRepeated" (prop :: MsgProp OTT.WithNestingRepeated)
-  , let
-      go :: (Message a, Named a, Arbitrary a, Eq a, Show a) => (a -> Property) -> Int -> TestTree
-      go pf 0 = testProperty "Deeply nested" pf
-      go pf n = go (pf . fromJust . nested . OTT.unNestedAlways . OTT.unWrapped) (n - 1)
-   in
-     go (prop :: MsgProp OTT.Trivial) 10000
+  [ testProperty "Trivial"             (prop :: MsgProp GTT.Trivial)
+  , testProperty "MultipleFields"      (prop :: MsgProp GTT.MultipleFields)
+  , testProperty "WithEnum"            (prop :: MsgProp GTT.WithEnum)
+  , testProperty "WithNesting"         (prop :: MsgProp GTT.WithNesting)
+  , testProperty "WithRepetition"      (prop :: MsgProp GTT.WithRepetition)
+  , testProperty "WithFixed"           (prop :: MsgProp GTT.WithFixed)
+  , testProperty "WithBytes"           (prop :: MsgProp GTT.WithBytes)
+  , testProperty "AllPackedTypes"      (prop :: MsgProp GTT.AllPackedTypes)
+  , testProperty "SignedInts"          (prop :: MsgProp GTT.SignedInts)
+  , testProperty "WithNestingRepeated" (prop :: MsgProp GTT.WithNestingRepeated)
+  , deeplyNest prop 1000
   ]
   where
     prop :: (Message a, Arbitrary a, Eq a, Show a) => MsgProp a
     prop msg = msg === (dec . enc) msg
       where
-        dec = either (error . ("got error parsing: " <>) . show) id . fromByteString
+        dec = either (error . ("error parsing: " <>) . show) id . fromByteString
         enc = BL.toStrict . toLazyByteString
+
+    deeplyNest :: MsgProp GTT.Wrapped -> Int -> TestTree
+    deeplyNest pf 0 = testProperty "Deeply nested" pf
+    deeplyNest pf n = deeplyNest (pf . GTT.Wrapped . Just) (n-1)
+
 
 --------------------------------------------------------------------------------
 -- Encoding

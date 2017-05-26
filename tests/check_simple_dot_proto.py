@@ -109,19 +109,19 @@ case7b = read_proto(WithRepetition)
 assert list(case7b.repeatedField1) == range(1,10001)
 
 # Test case 8: Fixed-width integer types
-case8a = read_proto(WithFixedTypes)
+case8a = read_proto(WithFixed)
 assert case8a.fixed1 == 0
 assert case8a.fixed2 == 0
 assert case8a.fixed3 == 0
 assert case8a.fixed4 == 0
 
-case8b = read_proto(WithFixedTypes)
+case8b = read_proto(WithFixed)
 assert case8b.fixed1 == 2**32 - 1
 assert case8b.fixed2 == (2**32 - 1) / 2
 assert case8b.fixed3 == 2**64 - 1
 assert case8b.fixed4 == (2**64 - 1) / 2
 
-case8c = read_proto(WithFixedTypes)
+case8c = read_proto(WithFixed)
 assert case8c.fixed1 == 0
 assert case8c.fixed2 == -(2**31)
 assert case8c.fixed3 == 0

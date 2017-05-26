@@ -59,7 +59,7 @@ message WithRepetition {
   repeated int32 repeatedField1 = 1;
 }
 
-message WithFixedTypes {
+message WithFixed {
   fixed32 fixed1 = 1;
   sfixed32 fixed2 = 2;
   fixed64 fixed3 = 3;
@@ -118,4 +118,8 @@ message WithQualifiedName {
 message UsingImported {
   GeneratedImportedTestTypes.WithNesting importedNesting = 100;
   WithNesting localNesting = 200;
+}
+
+message Wrapped {
+  Wrapped wrapped = 1;
 }

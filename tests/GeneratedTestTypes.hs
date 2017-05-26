@@ -142,16 +142,18 @@ instance HsProtobuf.Message SignedInts where
                      signedIntsSigned64 = signedIntsSigned64}
           = (Hs.mconcat
                [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
-                   signedIntsSigned32),
+                   (HsProtobuf.Signed signedIntsSigned32)),
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
-                   signedIntsSigned64)])
+                   (HsProtobuf.Signed signedIntsSigned64))])
         decodeMessage _
           = (Hs.pure SignedInts) <*>
-              (HsProtobuf.at HsProtobuf.decodeMessageField
-                 (HsProtobuf.FieldNumber 1))
+              ((Hs.pure HsProtobuf.signed) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 1)))
               <*>
-              (HsProtobuf.at HsProtobuf.decodeMessageField
-                 (HsProtobuf.FieldNumber 2))
+              ((Hs.pure HsProtobuf.signed) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 2)))
         dotProto _
           = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
                 (HsProtobuf.Prim HsProtobuf.SInt32)
@@ -199,7 +201,7 @@ instance Hs.Enum WithEnum_TestEnum where
         toEnum 0 = WithEnum_TestEnumENUM1
         toEnum 1 = WithEnum_TestEnumENUM2
         toEnum 2 = WithEnum_TestEnumENUM3
-        toEnum i = (Hs.toEnumError "WithEnum_TestEnum" i (0, 2))
+        toEnum i = (Hs.toEnumError "WithEnum_TestEnum" i (0 :: Hs.Int, 2))
         fromEnum (WithEnum_TestEnumENUM1) = 0
         fromEnum (WithEnum_TestEnumENUM2) = 1
         fromEnum (WithEnum_TestEnumENUM3) = 2
@@ -465,33 +467,33 @@ instance HsProtobuf.Message WithRepetition where
                 []
                 Hs.Nothing)]
  
-data WithFixedTypes = WithFixedTypes{withFixedTypesFixed1 ::
-                                     HsProtobuf.Fixed Hs.Word32,
-                                     withFixedTypesFixed2 :: HsProtobuf.Fixed Hs.Int32,
-                                     withFixedTypesFixed3 :: HsProtobuf.Fixed Hs.Word64,
-                                     withFixedTypesFixed4 :: HsProtobuf.Fixed Hs.Int64}
-                    deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+data WithFixed = WithFixed{withFixedFixed1 ::
+                           HsProtobuf.Fixed Hs.Word32,
+                           withFixedFixed2 :: HsProtobuf.Fixed Hs.Int32,
+                           withFixedFixed3 :: HsProtobuf.Fixed Hs.Word64,
+                           withFixedFixed4 :: HsProtobuf.Fixed Hs.Int64}
+               deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
  
-instance HsProtobuf.Named WithFixedTypes where
-        nameOf _ = (Hs.fromString "WithFixedTypes")
+instance HsProtobuf.Named WithFixed where
+        nameOf _ = (Hs.fromString "WithFixed")
  
-instance HsProtobuf.Message WithFixedTypes where
+instance HsProtobuf.Message WithFixed where
         encodeMessage _
-          WithFixedTypes{withFixedTypesFixed1 = withFixedTypesFixed1,
-                         withFixedTypesFixed2 = withFixedTypesFixed2,
-                         withFixedTypesFixed3 = withFixedTypesFixed3,
-                         withFixedTypesFixed4 = withFixedTypesFixed4}
+          WithFixed{withFixedFixed1 = withFixedFixed1,
+                    withFixedFixed2 = withFixedFixed2,
+                    withFixedFixed3 = withFixedFixed3,
+                    withFixedFixed4 = withFixedFixed4}
           = (Hs.mconcat
                [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
-                   withFixedTypesFixed1),
+                   withFixedFixed1),
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
-                   (HsProtobuf.Signed withFixedTypesFixed2)),
+                   (HsProtobuf.Signed withFixedFixed2)),
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 3)
-                   withFixedTypesFixed3),
+                   withFixedFixed3),
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 4)
-                   (HsProtobuf.Signed withFixedTypesFixed4))])
+                   (HsProtobuf.Signed withFixedFixed4))])
         decodeMessage _
-          = (Hs.pure WithFixedTypes) <*>
+          = (Hs.pure WithFixed) <*>
               (HsProtobuf.at HsProtobuf.decodeMessageField
                  (HsProtobuf.FieldNumber 1))
               <*>
@@ -1023,5 +1025,28 @@ instance HsProtobuf.Message UsingImported where
                 (HsProtobuf.Prim
                    (HsProtobuf.Named (HsProtobuf.Single "WithNesting")))
                 (HsProtobuf.Single "localNesting")
+                []
+                Hs.Nothing)]
+ 
+data Wrapped = Wrapped{wrappedWrapped :: Hs.Maybe Wrapped}
+             deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named Wrapped where
+        nameOf _ = (Hs.fromString "Wrapped")
+ 
+instance HsProtobuf.Message Wrapped where
+        encodeMessage _ Wrapped{wrappedWrapped = wrappedWrapped}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   (HsProtobuf.Nested wrappedWrapped))])
+        decodeMessage _
+          = (Hs.pure Wrapped) <*>
+              ((Hs.pure HsProtobuf.nested) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 1)))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim (HsProtobuf.Named (HsProtobuf.Single "Wrapped")))
+                (HsProtobuf.Single "wrapped")
                 []
                 Hs.Nothing)]
