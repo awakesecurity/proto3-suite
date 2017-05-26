@@ -222,23 +222,6 @@ parseFromGoldens = testGroup "Parse golden encodings"
   where
     check fp = testCase fp . testParser (testFilesPfx <> fp) fromByteString
 
---------------------------------------------------------------------------------
--- Helpers
-
-dotProtoFor :: (Named a, Message a) => Proxy a -> DotProto
-dotProtoFor proxy = DotProto [] [] DotProtoNoPackage
-  [ DotProtoMessage (Single (nameOf proxy)) (DotProtoMessageField <$> dotProto proxy)
-  ]
-
-showDotProtoFor :: (Named a, Message a) => Proxy a -> IO ()
-showDotProtoFor = putStrLn . toProtoFileDef . dotProtoFor
-
-instance Arbitrary WireType where
-  arbitrary = oneof $ map return [Varint, P.Fixed32, P.Fixed64, LengthDelimited]
-
-testFilesPfx :: IsString a => a
-testFilesPfx = "test-files/"
-
 testParser :: (Show a, Eq a)
            => FilePath -> (B.ByteString -> Either ParseError a) -> a -> IO ()
 testParser fp p reference = do
@@ -324,3 +307,20 @@ qcDotProtoRoundtrip = testProperty
                                   ++ "\n\nWhen attempting to parse:\n\n"
                                   ++ generated
                                   ++ "\n\nInitial AST:\n\n"
+
+--------------------------------------------------------------------------------
+-- Helpers
+
+dotProtoFor :: (Named a, Message a) => Proxy a -> DotProto
+dotProtoFor proxy = DotProto [] [] DotProtoNoPackage
+  [ DotProtoMessage (Single (nameOf proxy)) (DotProtoMessageField <$> dotProto proxy)
+  ]
+
+showDotProtoFor :: (Named a, Message a) => Proxy a -> IO ()
+showDotProtoFor = putStrLn . toProtoFileDef . dotProtoFor
+
+instance Arbitrary WireType where
+  arbitrary = oneof $ map return [Varint, P.Fixed32, P.Fixed64, LengthDelimited]
+
+testFilesPfx :: IsString a => a
+testFilesPfx = "test-files/"
