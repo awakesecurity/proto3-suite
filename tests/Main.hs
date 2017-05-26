@@ -6,28 +6,17 @@
 
 module Main where
 
-import           Control.Applicative
-import           Control.Exception
 import qualified Data.ByteString             as B
-import qualified Data.ByteString.Builder     as BB
 import qualified Data.ByteString.Char8       as BC
 import qualified Data.ByteString.Lazy        as BL
 import           Data.Either                 (isRight)
-import           Data.Int
-import           Data.Maybe                  (fromJust)
 import           Data.Monoid
-import           Data.Serialize.Get          (runGet)
-import           Data.String
-import qualified Data.Text.Lazy              as TL
 import           Data.Proxy
-import           Data.Word                   (Word64)
+import           Data.String
 import           GHC.Exts                    (fromList)
 import           Proto3.Suite
-import           Proto3.Suite.DotProto       as AST
-import           Proto3.Wire
 import           Proto3.Wire.Decode          (ParseError)
 import qualified Proto3.Wire.Decode          as Decode
-import qualified Proto3.Wire.Encode          as Encode
 import           Proto3.Wire.Types           as P
 import           Test.QuickCheck             (Arbitrary, Property, arbitrary,
                                               counterexample, oneof)
@@ -62,10 +51,9 @@ import           Test.Tasty.QuickCheck       (testProperty, (===))
 -- TODO: Get compile-proto-file into the repository.
 -- TODO: Automate generation of these modules as a part of the build process.
 
-import qualified GeneratedTestTypes          as GTT
 import           ArbitraryGeneratedTestTypes ()
+import qualified GeneratedTestTypes          as GTT
 
-import qualified OldTestTypes                as OTT
 import           TestCodeGen
 
 main :: IO ()

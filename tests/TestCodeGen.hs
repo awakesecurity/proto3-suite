@@ -1,27 +1,18 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module TestCodeGen where
 
-import           Control.Monad
-import           Control.Monad.IO.Class
 import           Control.Applicative
-import           Data.List
-import qualified Data.Text as T
-import           Data.String (IsString)
-import           Test.Tasty
-import           Test.Tasty.HUnit (Assertion, (@?=), (@=?), testCase, assertBool)
-import           Test.Tasty.QuickCheck (testProperty, (===))
-import           Test.QuickCheck (Arbitrary(..), Property, elements)
-import           Test.QuickCheck.Monadic (monadicIO)
+import           Data.String                    (IsString)
+import qualified Data.Text                      as T
 import           System.Exit
-import           Turtle hiding (err)
+import           Test.Tasty
+import           Test.Tasty.HUnit               (testCase, (@?=))
+import           Turtle                         hiding (err)
 
-import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.Generate
 
-import Proto3.Suite
-import GHC.Int
 
 codeGenTests :: TestTree
 codeGenTests = testGroup "Code generator unit tests"
@@ -54,13 +45,9 @@ simpleEncodeDotProto =
 
        compileTestDotProto
 
-       exitCode <- proc "tests/encode.sh" [hsTmpDir] empty
-       exitCode @?= ExitSuccess
-
-       exitCode <- shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test.proto"]) empty
-       exitCode @?= ExitSuccess
-       exitCode <- shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test_import.proto"]) empty
-       exitCode @?= ExitSuccess
+       (@?= ExitSuccess) =<< proc "tests/encode.sh" [hsTmpDir] empty
+       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test.proto"]) empty
+       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test_import.proto"]) empty
        touch (pyTmpDir </> "test_files" </> "__init__.py")
 
        m <- need "PYTHONPATH"
@@ -70,8 +57,9 @@ simpleEncodeDotProto =
        export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
 
        let cmd = (hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py")
-       exitCode <- shell cmd empty
-       exitCode @?= ExitFailure 12  -- We exit the python test with a special error code to make sure all tests completed
+       -- The python test exits with a special error code to indicate all tests
+       -- were successful
+       (@?= ExitFailure 12) =<< shell cmd empty
 
        -- Not using bracket so that we can inspect the output to fix the tests
        rmtree hsTmpDir
@@ -85,13 +73,9 @@ simpleDecodeDotProto =
 
        compileTestDotProto
 
-       exitCode <- proc "tests/decode.sh" [hsTmpDir] empty
-       exitCode @?= ExitSuccess
-
-       exitCode <- shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test.proto"]) empty
-       exitCode @?= ExitSuccess
-       exitCode <- shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test_import.proto"]) empty
-       exitCode @?= ExitSuccess
+       (@?= ExitSuccess) =<< proc "tests/decode.sh" [hsTmpDir] empty
+       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test.proto"]) empty
+       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test_import.proto"]) empty
        touch (pyTmpDir </> "test_files" </> "__init__.py")
 
        m <- need "PYTHONPATH"
@@ -101,8 +85,7 @@ simpleDecodeDotProto =
        export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
 
        let cmd = "python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto "
-       exitCode <- shell cmd empty
-       exitCode @?= ExitSuccess
+       (@?= ExitSuccess) =<< shell cmd empty
 
        rmtree hsTmpDir
        rmtree pyTmpDir
