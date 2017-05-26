@@ -31,6 +31,7 @@ library
                        parsec >= 3.1.9 && <3.2.0,
                        parsers >= 0.12 && <0.13,
                        pretty ==1.1.*,
+                       pretty-show >= 1.6.12 && < 1.7,
                        proto3-wire == 1.0.*,
                        QuickCheck >=2.8 && <3.0,
                        semigroups ==0.18.*,
@@ -61,4 +62,5 @@ test-suite tests
                        semigroups ==0.18.*,
                        transformers >=0.4 && <0.6,
                        turtle >= 1.2.0,
+                       pretty-show >= 1.6.12 && < 1.7,
                        vector >=0.11 && < 0.13

@@ -1,7 +1,7 @@
 { mkDerivation, base, bytestring, cereal, containers, deepseq
-, filepath, haskell-src, mtl, parsec, parsers, pretty, proto3-wire
-, QuickCheck, safe, semigroups, stdenv, tasty, tasty-hunit
-, tasty-quickcheck, text, transformers, turtle, vector
+, filepath, haskell-src, mtl, parsec, parsers, pretty, pretty-show
+, proto3-wire, QuickCheck, safe, semigroups, stdenv, tasty
+, tasty-hunit, tasty-quickcheck, text, transformers, turtle, vector
 }:
 mkDerivation {
   pname = "proto3-suite";
@@ -9,12 +9,13 @@ mkDerivation {
   src = ./.;
   libraryHaskellDepends = [
     base bytestring cereal containers deepseq filepath haskell-src mtl
-    parsec parsers pretty proto3-wire QuickCheck safe semigroups text
-    transformers vector
+    parsec parsers pretty pretty-show proto3-wire QuickCheck safe
+    semigroups text transformers vector
   ];
   testHaskellDepends = [
-    base bytestring cereal proto3-wire QuickCheck semigroups tasty
-    tasty-hunit tasty-quickcheck text transformers turtle vector
+    base bytestring cereal pretty-show proto3-wire QuickCheck
+    semigroups tasty tasty-hunit tasty-quickcheck text transformers
+    turtle vector
   ];
   description = "A low level library for writing out data in the Protocol Buffers wire format";
   license = stdenv.lib.licenses.asl20;
