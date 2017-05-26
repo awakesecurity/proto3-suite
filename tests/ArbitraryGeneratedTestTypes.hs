@@ -2,12 +2,10 @@
 
 module ArbitraryGeneratedTestTypes where
 
-import qualified Data.ByteString     as BS
-import qualified Data.Text           as T
-import qualified Data.Text.Arbitrary as T
-import qualified Data.Vector         as V
-import           GHC.Int
-import           Test.QuickCheck     (Arbitrary, Gen, arbitrary, listOf, oneof)
+import qualified Data.ByteString    as BS
+import qualified Data.Text          as T
+import qualified Data.Vector        as V
+import           Test.QuickCheck    (Arbitrary, arbitrary, listOf)
 
 import           GeneratedTestTypes
 
@@ -18,7 +16,8 @@ instance Arbitrary Trivial where
   arbitrary = Trivial <$> arbitrary
 
 instance Arbitrary MultipleFields where
-  arbitrary = MultipleFields
+  arbitrary =
+    MultipleFields
     <$> arbitrary
     <*> arbitrary
     <*> arbitrary
@@ -30,7 +29,7 @@ instance Arbitrary WithEnum where
   arbitrary = WithEnum <$> arbitrary
 
 instance Arbitrary WithNesting_Nested where
-  arbitrary = WithNesting_Nested <$> arbitrary <*> arbitrary
+  arbitrary = WithNesting_Nested <$> fmap T.pack arbitrary <*> arbitrary
 
 instance Arbitrary WithNesting where
   arbitrary = WithNesting <$> arbitrary
@@ -48,10 +47,10 @@ instance Arbitrary BS.ByteString where
   arbitrary = BS.pack <$> arbitrary
 
 instance Arbitrary AllPackedTypes where
-  arbitrary = AllPackedTypes <$> arbitrary <*> arbitrary <*> arbitrary
-                             <*> arbitrary <*> arbitrary <*> arbitrary
-                             <*> arbitrary <*> arbitrary <*> arbitrary
-                             <*> arbitrary
+  arbitrary =
+    AllPackedTypes
+    <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+    <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary SignedInts where
   arbitrary = SignedInts <$> arbitrary <*> arbitrary
@@ -60,7 +59,12 @@ instance Arbitrary WithNestingRepeated where
   arbitrary = WithNestingRepeated <$> arbitrary
 
 instance Arbitrary WithNestingRepeated_Nested where
-  arbitrary = WithNestingRepeated_Nested <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary =
+    WithNestingRepeated_Nested
+    <$> fmap T.pack arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
 
 instance Arbitrary Wrapped where
   arbitrary = Wrapped <$> arbitrary
