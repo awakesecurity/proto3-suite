@@ -33,6 +33,8 @@ message WithNesting {
   message Nested {
     string nestedField1 = 1;
     int32 nestedField2 = 2;
+    repeated int32 nestedPacked = 3 [packed=true];
+    repeated int32 nestedUnpacked = 4 [packed=false];
   }
   Nested nestedMessage = 1;
 }

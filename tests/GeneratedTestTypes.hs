@@ -239,7 +239,9 @@ instance HsProtobuf.Message WithNesting where
  
 data WithNesting_Nested = WithNesting_Nested{withNesting_NestedNestedField1
                                              :: Hs.Text,
-                                             withNesting_NestedNestedField2 :: Hs.Int32}
+                                             withNesting_NestedNestedField2 :: Hs.Int32,
+                                             withNesting_NestedNestedPacked :: Hs.Vector Hs.Int32,
+                                             withNesting_NestedNestedUnpacked :: Hs.Vector Hs.Int32}
                         deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
  
 instance HsProtobuf.Named WithNesting_Nested where
@@ -249,12 +251,19 @@ instance HsProtobuf.Message WithNesting_Nested where
         encodeMessage _
           WithNesting_Nested{withNesting_NestedNestedField1 =
                                withNesting_NestedNestedField1,
-                             withNesting_NestedNestedField2 = withNesting_NestedNestedField2}
+                             withNesting_NestedNestedField2 = withNesting_NestedNestedField2,
+                             withNesting_NestedNestedPacked = withNesting_NestedNestedPacked,
+                             withNesting_NestedNestedUnpacked =
+                               withNesting_NestedNestedUnpacked}
           = (Hs.mconcat
                [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
                    withNesting_NestedNestedField1),
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
-                   withNesting_NestedNestedField2)])
+                   withNesting_NestedNestedField2),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 3)
+                   (HsProtobuf.PackedVec withNesting_NestedNestedPacked)),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 4)
+                   (HsProtobuf.UnpackedVec withNesting_NestedNestedUnpacked))])
         decodeMessage _
           = (Hs.pure WithNesting_Nested) <*>
               (HsProtobuf.at HsProtobuf.decodeMessageField
@@ -262,6 +271,14 @@ instance HsProtobuf.Message WithNesting_Nested where
               <*>
               (HsProtobuf.at HsProtobuf.decodeMessageField
                  (HsProtobuf.FieldNumber 2))
+              <*>
+              ((Hs.pure HsProtobuf.packedvec) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 3)))
+              <*>
+              ((Hs.pure HsProtobuf.unpackedvec) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 4)))
         dotProto _
           = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
                 (HsProtobuf.Prim HsProtobuf.String)
@@ -272,6 +289,18 @@ instance HsProtobuf.Message WithNesting_Nested where
                 (HsProtobuf.Prim HsProtobuf.Int32)
                 (HsProtobuf.Single "nestedField2")
                 []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 3)
+                (HsProtobuf.Repeated HsProtobuf.Int32)
+                (HsProtobuf.Single "nestedPacked")
+                [(HsProtobuf.DotProtoOption (HsProtobuf.Single "packed")
+                    (HsProtobuf.BoolLit Hs.True))]
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 4)
+                (HsProtobuf.Repeated HsProtobuf.Int32)
+                (HsProtobuf.Single "nestedUnpacked")
+                [(HsProtobuf.DotProtoOption (HsProtobuf.Single "packed")
+                    (HsProtobuf.BoolLit Hs.False))]
                 Hs.Nothing)]
  
 data WithNestingRepeated = WithNestingRepeated{withNestingRepeatedNestedMessages

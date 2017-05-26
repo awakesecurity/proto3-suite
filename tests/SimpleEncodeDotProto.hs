@@ -39,7 +39,7 @@ testCase3 =
 
 testCase4 :: IO ()
 testCase4 =
-  do let nested = WithNesting_Nested "testCase4 nestedField1" 0xABCD
+  do let nested = WithNesting_Nested "testCase4 nestedField1" 0xABCD [] []
      outputMessage (WithNesting (Just nested))
      outputMessage (WithNesting Nothing)
 
@@ -125,7 +125,7 @@ testCase16 =
                                           (Just (GeneratedImportedTestTypes.WithNesting_Nested 1 2))
                                           (Just (GeneratedImportedTestTypes.WithNesting_Nested 3 4)))
                                , usingImportedLocalNesting =
-                                   Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF))) })
+                                   Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] []))) })
 
 main :: IO ()
 main = do testCase1

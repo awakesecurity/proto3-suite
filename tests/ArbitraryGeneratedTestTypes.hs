@@ -29,7 +29,12 @@ instance Arbitrary WithEnum where
   arbitrary = WithEnum <$> arbitrary
 
 instance Arbitrary WithNesting_Nested where
-  arbitrary = WithNesting_Nested <$> fmap T.pack arbitrary <*> arbitrary
+  arbitrary =
+    WithNesting_Nested
+    <$> fmap T.pack arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
 
 instance Arbitrary WithNesting where
   arbitrary = WithNesting <$> arbitrary

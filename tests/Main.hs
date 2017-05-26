@@ -110,18 +110,18 @@ encodeUnitTests = testGroup "Encoder unit tests"
 -- rather than having them in the repository.
 encoderMatchesGoldens :: TestTree
 encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
-  [ check "trivial.bin"               $ OTT.Trivial 123
-  , check "trivial_negative.bin"      $ OTT.Trivial (-1)
-  , check "multiple_fields.bin"       $ OTT.MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
-  , check "signedints.bin"            $ OTT.SignedInts (-42) (-84)
-  , check "with_nesting.bin"          $ OTT.WithNesting $ Nested $ Just $ OTT.NestedMsg "123abc" 123456 [] []
-  , check "with_enum0.bin"            $ OTT.WithEnum $ Enumerated $ Right OTT.ENUM1
-  , check "with_enum1.bin"            $ OTT.WithEnum $ Enumerated $ Right OTT.ENUM2
-  , check "with_repetition.bin"       $ OTT.WithRepetition [1..5]
-  , check "with_bytes.bin"            $ OTT.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
-  , check "with_nesting_repeated.bin" $ OTT.WithNestingRepeated
-                                          [ OTT.NestedMsg "123abc" 123456 [1,2,3,4] [5,6,7,8]
-                                          , OTT.NestedMsg "abc123" 654321 [0,9,8,7] [6,5,4,3]
+  [ check "trivial.bin"               $ GTT.Trivial 123
+  , check "trivial_negative.bin"      $ GTT.Trivial (-1)
+  , check "multiple_fields.bin"       $ GTT.MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
+  , check "signedints.bin"            $ GTT.SignedInts (-42) (-84)
+  , check "with_nesting.bin"          $ GTT.WithNesting $ Just $ GTT.WithNesting_Nested "123abc" 123456 [] []
+  , check "with_enum0.bin"            $ GTT.WithEnum $ Enumerated $ Right GTT.WithEnum_TestEnumENUM1
+  , check "with_enum1.bin"            $ GTT.WithEnum $ Enumerated $ Right GTT.WithEnum_TestEnumENUM2
+  , check "with_repetition.bin"       $ GTT.WithRepetition [1..5]
+  , check "with_bytes.bin"            $ GTT.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
+  , check "with_nesting_repeated.bin" $ GTT.WithNestingRepeated
+                                          [ GTT.WithNestingRepeated_Nested "123abc" 123456 [1,2,3,4] [5,6,7,8]
+                                          , GTT.WithNestingRepeated_Nested "abc123" 654321 [0,9,8,7] [6,5,4,3]
                                           ]
   ]
   where

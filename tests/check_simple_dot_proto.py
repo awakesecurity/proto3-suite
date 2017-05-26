@@ -60,6 +60,8 @@ case4a = read_proto(WithNesting)
 assert case4a.HasField('nestedMessage')
 assert case4a.nestedMessage.nestedField1 == "testCase4 nestedField1"
 assert case4a.nestedMessage.nestedField2 == 0xABCD
+assert case4a.nestedMessage.nestedPacked == []
+assert case4a.nestedMessage.nestedUnpacked == []
 
 case4b = read_proto(WithNesting)
 assert not case4b.HasField('nestedMessage')
@@ -241,6 +243,8 @@ assert case16.importedNesting.nestedMessage2.nestedField1 == 3
 assert case16.importedNesting.nestedMessage2.nestedField2 == 4
 assert case16.localNesting.nestedMessage.nestedField1 == "field"
 assert case16.localNesting.nestedMessage.nestedField2 == 0xBEEF
+assert case16.localNesting.nestedMessage.nestedPacked == []
+assert case16.localNesting.nestedMessage.nestedUnpacked == []
 
 # Wait for the special 'done' messsage
 done_msg = read_proto(MultipleFields)

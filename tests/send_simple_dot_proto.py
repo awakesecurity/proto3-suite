@@ -38,8 +38,10 @@ write_proto(WithEnum(enumField = 0xBEEF))
 # Test case 4: Nested messages
 write_proto(
     WithNesting(nestedMessage=
-                WithNesting.Nested(nestedField1 = "testCase4 nestedField1",
-                                   nestedField2 = 0xABCD)))
+                WithNesting.Nested(nestedField1   = "testCase4 nestedField1",
+                                   nestedField2   = 0xABCD,
+                                   nestedPacked   = [],
+                                   nestedUnpacked = [])))
 write_proto(WithNesting())
 
 # Test case 5: Nested repeated message
@@ -160,7 +162,7 @@ write_proto(test_import.WithNesting(nestedMessage1 = test_import.WithNesting.Nes
 # Test case 16: Proper resolution of shadowed message names
 write_proto(UsingImported(importedNesting = test_import.WithNesting(nestedMessage1 = test_import.WithNesting.Nested(nestedField1 = 1, nestedField2 = 2),
                                                                     nestedMessage2 = test_import.WithNesting.Nested(nestedField1 = 3, nestedField2 = 4)),
-                          localNesting = WithNesting(nestedMessage = WithNesting.Nested(nestedField1 = "field", nestedField2 = 0xBEEF))))
+                          localNesting = WithNesting(nestedMessage = WithNesting.Nested(nestedField1 = "field", nestedField2 = 0xBEEF, nestedPacked = [], nestedUnpacked = []))))
 
 # Send the special 'done' message
 write_proto(MultipleFields(multiFieldString = "All tests complete"))

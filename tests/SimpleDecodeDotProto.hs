@@ -79,7 +79,7 @@ testCase3  = testCase "Nested enumeration" $
 
 testCase4  = testCase "Nested message" $
     do WithNesting { withNestingNestedMessage = a } <- readProto
-       a @?= Just (WithNesting_Nested "testCase4 nestedField1" 0xABCD)
+       a @?= Just (WithNesting_Nested "testCase4 nestedField1" 0xABCD [] [])
 
        WithNesting { withNestingNestedMessage = b } <- readProto
        b @?= Nothing
@@ -228,7 +228,7 @@ testCase16 = testCase "Proper resolution of shadowed message names" $
          Just (GeneratedImportedTestTypes.WithNesting
                  (Just (GeneratedImportedTestTypes.WithNesting_Nested 1 2))
                  (Just (GeneratedImportedTestTypes.WithNesting_Nested 3 4)))
-       usingImportedLocalNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF)))
+       usingImportedLocalNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] [])))
 
 allTestsDone = testCase "Receive end of test suite sentinel message" $
    do MultipleFields{..} <- readProto
