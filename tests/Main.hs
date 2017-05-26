@@ -19,6 +19,7 @@ import           Data.Monoid
 import           Data.Serialize.Get          (runGet)
 import           Data.String
 import qualified Data.Text.Lazy              as TL
+import           Data.Proxy
 import           Data.Word                   (Word64)
 import           GHC.Exts                    (fromList)
 import           Proto3.Suite
@@ -35,13 +36,35 @@ import           Test.Tasty.HUnit            (Assertion, assertBool, testCase,
                                               (@=?), (@?=))
 import           Test.Tasty.QuickCheck       (testProperty, (===))
 
--- NB: For the time being, this module (and its dependent module) is manually generated via:
+-- NB: GeneratedTestTypes.hs etc. should be manually generated via something
+-- like:
+--
 --   [nix-shell]$ compile-proto-file --proto test-files/test.proto        > tests/GeneratedTestTypes.hs
 --   [nix-shell]$ compile-proto-file --proto test-files/test_import.proto > tests/GeneratedImportedTestTypes.hs
--- These commands need to be run whenever test.proto or test_import.proto change.
+--
+-- And these commands would need to be run whenever test.proto or
+-- test_import.proto change.
+--
+-- However, compile-proto-file hasn't been taken out of grpc-haskell and put
+-- into this package where it belongs, and so doing the above doesn't work yet
+-- while iterating on the code generation. Here's the quick and dirty way to
+-- invoke CG in the meantime (a fix for this is intended soon):
+--
+-- Load this module into ghci from the root of the repository, then:
+--
+--   > Right (dp, tc) <- readDotProtoWithContext "/path/to/repo/root/test-files/test.proto"
+--   > let Right src = renderHsModuleForDotProto dp tc
+--   > writeFile "/path/to/repo/root/tests/GeneratedTestTypes.hs" src
+--   > Right (dp, tc) <- readDotProtoWithContext "/path/to/repo/root/test-files/test_import.proto"
+--   > let Right src = renderHsModuleForDotProto dp tc
+--   > writeFile "/path/to/repo/root/tests/GeneratedImportedTestTypes.hs" src
+--
+-- TODO: Get compile-proto-file into the repository.
 -- TODO: Automate generation of these modules as a part of the build process.
-import           ArbitraryGeneratedTestTypes ()
+
 import qualified GeneratedTestTypes          as GTT
+import           ArbitraryGeneratedTestTypes ()
+
 import qualified OldTestTypes                as OTT
 import           TestCodeGen
 
@@ -201,6 +224,14 @@ parseFromGoldens = testGroup "Parse golden encodings"
 
 --------------------------------------------------------------------------------
 -- Helpers
+
+dotProtoFor :: (Named a, Message a) => Proxy a -> DotProto
+dotProtoFor proxy = DotProto [] [] DotProtoNoPackage
+  [ DotProtoMessage (Single (nameOf proxy)) (DotProtoMessageField <$> dotProto proxy)
+  ]
+
+showDotProtoFor :: (Named a, Message a) => Proxy a -> IO ()
+showDotProtoFor = putStrLn . toProtoFileDef . dotProtoFor
 
 instance Arbitrary WireType where
   arbitrary = oneof $ map return [Varint, P.Fixed32, P.Fixed64, LengthDelimited]
