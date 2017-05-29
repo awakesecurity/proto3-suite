@@ -12,7 +12,7 @@ This library provides a higher-level API to
 
 See the `Proto3.Suite.Tutorial` module for more details.
 
-# Running the language interop tests
+## Running the language interop tests
 
 We test inter-language interop using protoc's built-in Python code generation. In
 order to successfully run these tests, you'll need to install the google protobuf
@@ -37,7 +37,7 @@ $ nix-shell release.nix -A proto3-suite.env
 [nix-shell]$ cabal test
 ```
 
-# `compile-proto-file`
+## `compile-proto-file`
 
 Run the following commmand from the root of this repository to install the
 `compile-proto-file` executable:
