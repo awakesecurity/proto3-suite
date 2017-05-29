@@ -19,10 +19,35 @@ order to successfully run these tests, you'll need to install the google protobu
 Python library. It's best to create a virtualenv and then use pip to install the
 right version (virtualenv is a python utility which can be installed with pip).
 
-```
+```bash
 $ virtualenv pyenv
 $ source pyenv/bin/activate
 $ pip install protobuf==3.0.0b3  # Need the latest version for the newest protoc
 ```
 
 `brew install python` may also work.
+
+Alternate, the `nix-shell` environment provides a complete incremental build
+and test environment. From the root fo this repository:
+
+```bash
+$ nix-shell release.nix -A proto3-suite.env
+[nix-shell]$ cabal configure --with-gcc=clang --enable-tests
+[nix-shell]$ cabal build
+[nix-shell]$ cabal test
+```
+
+# `compile-proto-file`
+
+Run the following commmand from the root of this repository to install the
+`compile-proto-file` executable:
+
+```bash
+$ nix-env -iA proto3-suite -f release.nix
+```
+
+To remove it from your nix user profile path, use:
+
+```bash
+$ nix-env -e proto3-suite
+```
