@@ -1,5 +1,5 @@
 syntax = "proto3";
-package test;
+package GeneratedTestTypes;
 import "test-files/test_import.proto";
 
 message Trivial {
@@ -33,6 +33,8 @@ message WithNesting {
   message Nested {
     string nestedField1 = 1;
     int32 nestedField2 = 2;
+    repeated int32 nestedPacked = 3 [packed=true];
+    repeated int32 nestedUnpacked = 4 [packed=false];
   }
   Nested nestedMessage = 1;
 }
@@ -47,19 +49,24 @@ message WithNestingRepeated {
   repeated Nested nestedMessages = 1;
 }
 
-message WithNestingRepeatedInts {
-  message NestedInts {
+message NestedInts {
     int32 nestedInt1 = 1;
     int32 nestedInt2 = 2;
   }
+
+message WithNestingRepeatedInts {
   repeated NestedInts nestedInts = 1;
+}
+
+message WithNestingInts {
+  NestedInts nestedInts = 1;
 }
 
 message WithRepetition {
   repeated int32 repeatedField1 = 1;
 }
 
-message WithFixedTypes {
+message WithFixed {
   fixed32 fixed1 = 1;
   sfixed32 fixed2 = 2;
   fixed64 fixed3 = 3;
@@ -116,6 +123,10 @@ message WithQualifiedName {
 }
 
 message UsingImported {
-  test_import.WithNesting importedNesting = 100;
+  GeneratedImportedTestTypes.WithNesting importedNesting = 100;
   WithNesting localNesting = 200;
+}
+
+message Wrapped {
+  Wrapped wrapped = 1;
 }
