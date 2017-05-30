@@ -32,7 +32,7 @@ and test environment. From the root of this repository:
 
 ```bash
 $ nix-shell release.nix -A proto3-suite.env
-[nix-shell]$ cabal configure --with-gcc=clang --enable-tests
+[nix-shell]$ cabal configure --enable-tests
 [nix-shell]$ cabal build
 [nix-shell]$ cabal test
 ```
@@ -43,11 +43,11 @@ Run the following commmand from the root of this repository to install the
 `compile-proto-file` executable:
 
 ```bash
-$ nix-env -iA proto3-suite -f release.nix
+$ nix-env --install --attr proto3-suite -f release.nix
 ```
 
 To remove it from your nix user profile path, use:
 
 ```bash
-$ nix-env -e proto3-suite
+$ nix-env --uninstall proto3-suite
 ```
