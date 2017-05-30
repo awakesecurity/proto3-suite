@@ -38,8 +38,10 @@ write_proto(WithEnum(enumField = 0xBEEF))
 # Test case 4: Nested messages
 write_proto(
     WithNesting(nestedMessage=
-                WithNesting.Nested(nestedField1 = "testCase4 nestedField1",
-                                   nestedField2 = 0xABCD)))
+                WithNesting.Nested(nestedField1   = "testCase4 nestedField1",
+                                   nestedField2   = 0xABCD,
+                                   nestedPacked   = [],
+                                   nestedUnpacked = [])))
 write_proto(WithNesting())
 
 # Test case 5: Nested repeated message
@@ -58,28 +60,28 @@ write_proto(WithNestingRepeated(nestedMessages =
 write_proto(WithNestingRepeated())
 
 # Test case 6: Nested repeated int message
-write_proto(WithNestingRepeatedInts(nestedInts=[WithNestingRepeatedInts.NestedInts(nestedInt1 = 636513, nestedInt2 = 619021)]))
+write_proto(WithNestingRepeatedInts(nestedInts=[NestedInts(nestedInt1 = 636513, nestedInt2 = 619021)]))
 write_proto(WithNestingRepeatedInts(nestedInts=[]))
 write_proto(WithNestingRepeatedInts(nestedInts=
-    [ WithNestingRepeatedInts.NestedInts(nestedInt1 = 636513, nestedInt2 = 619021),
-      WithNestingRepeatedInts.NestedInts(nestedInt1 = 423549, nestedInt2 = 687069),
-      WithNestingRepeatedInts.NestedInts(nestedInt1 = 545506, nestedInt2 = 143731),
-      WithNestingRepeatedInts.NestedInts(nestedInt1 = 193605, nestedInt2 = 385360) ]))
+    [ NestedInts(nestedInt1 = 636513, nestedInt2 = 619021),
+      NestedInts(nestedInt1 = 423549, nestedInt2 = 687069),
+      NestedInts(nestedInt1 = 545506, nestedInt2 = 143731),
+      NestedInts(nestedInt1 = 193605, nestedInt2 = 385360) ]))
 
 # Test case 7: Repeated int32 field
 write_proto(WithRepetition())
 write_proto(WithRepetition(repeatedField1 = range(1, 10001)))
 
 # Test case 8: Fixed-width integer types
-write_proto(WithFixedTypes(fixed1 = 0, fixed2 = 0, fixed3 = 0, fixed4 = 0))
-write_proto(WithFixedTypes(fixed1 = 2**32 - 1,
-                           fixed2 = (2**32 - 1) / 2,
-                           fixed3 = 2**64 - 1,
-                           fixed4 = (2**64 - 1) / 2))
-write_proto(WithFixedTypes(fixed1 = 0,
-                           fixed2 = -(2**31),
-                           fixed3 = 0,
-                           fixed4 = -(2**63)))
+write_proto(WithFixed(fixed1 = 0, fixed2 = 0, fixed3 = 0, fixed4 = 0))
+write_proto(WithFixed(fixed1 = 2**32 - 1,
+                      fixed2 = (2**32 - 1) / 2,
+                      fixed3 = 2**64 - 1,
+                      fixed4 = (2**64 - 1) / 2))
+write_proto(WithFixed(fixed1 = 0,
+                      fixed2 = -(2**31),
+                      fixed3 = 0,
+                      fixed4 = -(2**63)))
 
 # Test case 9: bytes fields
 write_proto(WithBytes(bytes1 = "\x00\x00\x00\x01\x02\x03\xFF\xFF\x00\x01",
@@ -160,7 +162,7 @@ write_proto(test_import.WithNesting(nestedMessage1 = test_import.WithNesting.Nes
 # Test case 16: Proper resolution of shadowed message names
 write_proto(UsingImported(importedNesting = test_import.WithNesting(nestedMessage1 = test_import.WithNesting.Nested(nestedField1 = 1, nestedField2 = 2),
                                                                     nestedMessage2 = test_import.WithNesting.Nested(nestedField1 = 3, nestedField2 = 4)),
-                          localNesting = WithNesting(nestedMessage = WithNesting.Nested(nestedField1 = "field", nestedField2 = 0xBEEF))))
+                          localNesting = WithNesting(nestedMessage = WithNesting.Nested(nestedField1 = "field", nestedField2 = 0xBEEF, nestedPacked = [], nestedUnpacked = []))))
 
 # Send the special 'done' message
 write_proto(MultipleFields(multiFieldString = "All tests complete"))

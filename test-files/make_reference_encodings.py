@@ -67,7 +67,7 @@ def main():
     trivNeg.trivialField = -1
     serialize_to_file(trivNeg, 'trivial_negative.bin')
 
-    withFixed = test_pb2.WithFixedTypes()
+    withFixed = test_pb2.WithFixed()
     withFixed.fixed1 = 16
     withFixed.fixed2 = -123
     withFixed.fixed3 = 4096

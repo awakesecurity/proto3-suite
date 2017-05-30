@@ -4,8 +4,7 @@
 
 module Main where
 
-import Test
-import qualified TestImport
+
 import Test.Tasty
 import Test.Tasty.HUnit (Assertion, (@?=), (@=?), testCase)
 import Control.Applicative
@@ -14,6 +13,9 @@ import Proto3.Suite
 import qualified Data.ByteString.Char8 as BC
 import System.IO
 import System.Exit
+
+import GeneratedTestTypes
+import qualified GeneratedImportedTestTypes
 
 main :: IO ()
 main = do putStr "\n"
@@ -77,7 +79,7 @@ testCase3  = testCase "Nested enumeration" $
 
 testCase4  = testCase "Nested message" $
     do WithNesting { withNestingNestedMessage = a } <- readProto
-       a @?= Just (WithNesting_Nested "testCase4 nestedField1" 0xABCD)
+       a @?= Just (WithNesting_Nested "testCase4 nestedField1" 0xABCD [] [])
 
        WithNesting { withNestingNestedMessage = b } <- readProto
        b @?= Nothing
@@ -96,16 +98,16 @@ testCase5  = testCase "Nested repeated message" $
 
 testCase6  = testCase "Nested repeated int message" $
     do WithNestingRepeatedInts { withNestingRepeatedIntsNestedInts = a } <- readProto
-       a @?= [ WithNestingRepeatedInts_NestedInts 636513 619021 ]
+       a @?= [ NestedInts 636513 619021 ]
 
        WithNestingRepeatedInts { withNestingRepeatedIntsNestedInts = b } <- readProto
        b @?= []
 
        WithNestingRepeatedInts { withNestingRepeatedIntsNestedInts = c } <- readProto
-       c @?= [ WithNestingRepeatedInts_NestedInts 636513 619021
-             , WithNestingRepeatedInts_NestedInts 423549 687069
-             , WithNestingRepeatedInts_NestedInts 545506 143731
-             , WithNestingRepeatedInts_NestedInts 193605 385360 ]
+       c @?= [ NestedInts 636513 619021
+             , NestedInts 423549 687069
+             , NestedInts 545506 143731
+             , NestedInts 193605 385360 ]
 
 testCase7  = testCase "Repeated int32 field" $
     do WithRepetition { withRepetitionRepeatedField1 = a } <- readProto
@@ -115,23 +117,23 @@ testCase7  = testCase "Repeated int32 field" $
        b @?= [1..10000]
 
 testCase8  = testCase "Fixed-width integer types" $
-    do WithFixedTypes { .. } <- readProto
-       withFixedTypesFixed1 @?= 0
-       withFixedTypesFixed2 @?= 0
-       withFixedTypesFixed3 @?= 0
-       withFixedTypesFixed4 @?= 0
+    do WithFixed { .. } <- readProto
+       withFixedFixed1 @?= 0
+       withFixedFixed2 @?= 0
+       withFixedFixed3 @?= 0
+       withFixedFixed4 @?= 0
 
-       WithFixedTypes { .. } <- readProto
-       withFixedTypesFixed1 @?= maxBound
-       withFixedTypesFixed2 @?= maxBound
-       withFixedTypesFixed3 @?= maxBound
-       withFixedTypesFixed4 @?= maxBound
+       WithFixed { .. } <- readProto
+       withFixedFixed1 @?= maxBound
+       withFixedFixed2 @?= maxBound
+       withFixedFixed3 @?= maxBound
+       withFixedFixed4 @?= maxBound
 
-       WithFixedTypes { .. } <- readProto
-       withFixedTypesFixed1 @?= minBound
-       withFixedTypesFixed2 @?= minBound
-       withFixedTypesFixed3 @?= minBound
-       withFixedTypesFixed4 @?= minBound
+       WithFixed { .. } <- readProto
+       withFixedFixed1 @?= minBound
+       withFixedFixed2 @?= minBound
+       withFixedFixed3 @?= minBound
+       withFixedFixed4 @?= minBound
 
 testCase9  = testCase "Bytes fields" $
     do WithBytes { .. } <- readProto
@@ -216,15 +218,17 @@ testCase14 = testCase "Qualified name resolution" $
        withQualifiedNameQname2 @?= Just (MessageShadower_ShadowedMessage "string value" "hello world")
 
 testCase15 = testCase "Imported message resolution" $
-    do TestImport.WithNesting { .. } <- readProto
-       withNestingNestedMessage1 @?= Just (TestImport.WithNesting_Nested 1 2)
+    do GeneratedImportedTestTypes.WithNesting { .. } <- readProto
+       withNestingNestedMessage1 @?= Just (GeneratedImportedTestTypes.WithNesting_Nested 1 2)
        withNestingNestedMessage2 @?= Nothing
 
 testCase16 = testCase "Proper resolution of shadowed message names" $
     do UsingImported { .. } <- readProto
-       usingImportedImportedNesting @?= Just (TestImport.WithNesting (Just (TestImport.WithNesting_Nested 1 2))
-                                                                     (Just (TestImport.WithNesting_Nested 3 4)))
-       usingImportedLocalNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF)))
+       usingImportedImportedNesting @?=
+         Just (GeneratedImportedTestTypes.WithNesting
+                 (Just (GeneratedImportedTestTypes.WithNesting_Nested 1 2))
+                 (Just (GeneratedImportedTestTypes.WithNesting_Nested 3 4)))
+       usingImportedLocalNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] [])))
 
 allTestsDone = testCase "Receive end of test suite sentinel message" $
    do MultipleFields{..} <- readProto
