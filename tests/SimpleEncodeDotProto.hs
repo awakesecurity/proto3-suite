@@ -3,8 +3,8 @@
 
 module Main where
 
-import           Test
-import qualified TestImport
+import           GeneratedTestTypes
+import qualified GeneratedImportedTestTypes
 import           Proto3.Suite
 import qualified Data.ByteString.Lazy as BL
 
@@ -39,7 +39,7 @@ testCase3 =
 
 testCase4 :: IO ()
 testCase4 =
-  do let nested = WithNesting_Nested "testCase4 nestedField1" 0xABCD
+  do let nested = WithNesting_Nested "testCase4 nestedField1" 0xABCD [] []
      outputMessage (WithNesting (Just nested))
      outputMessage (WithNesting Nothing)
 
@@ -54,10 +54,10 @@ testCase5 =
 
 testCase6 :: IO ()
 testCase6 =
-  do let nested1 = WithNestingRepeatedInts_NestedInts 636513 619021
-         nested2 = WithNestingRepeatedInts_NestedInts 423549 687069
-         nested3 = WithNestingRepeatedInts_NestedInts 545506 143731
-         nested4 = WithNestingRepeatedInts_NestedInts 193605 385360
+  do let nested1 = NestedInts 636513 619021
+         nested2 = NestedInts 423549 687069
+         nested3 = NestedInts 545506 143731
+         nested4 = NestedInts 193605 385360
      outputMessage (WithNestingRepeatedInts [nested1])
      outputMessage (WithNestingRepeatedInts [])
      outputMessage (WithNestingRepeatedInts [nested1, nested2, nested3, nested4])
@@ -69,9 +69,9 @@ testCase7 =
 
 testCase8 :: IO ()
 testCase8 =
-  do outputMessage (WithFixedTypes 0 0 0 0)
-     outputMessage (WithFixedTypes maxBound maxBound maxBound maxBound)
-     outputMessage (WithFixedTypes minBound minBound minBound minBound)
+  do outputMessage (WithFixed 0 0 0 0)
+     outputMessage (WithFixed maxBound maxBound maxBound maxBound)
+     outputMessage (WithFixed minBound minBound minBound minBound)
 
 testCase9 :: IO ()
 testCase9 =
@@ -113,19 +113,19 @@ testCase14 =
 
 testCase15 :: IO ()
 testCase15 =
-  outputMessage (TestImport.WithNesting { TestImport.withNestingNestedMessage1 =
-                                            Just (TestImport.WithNesting_Nested { TestImport.withNesting_NestedNestedField1 = 1
-                                                                                , TestImport.withNesting_NestedNestedField2 = 2 })
-                                        , TestImport.withNestingNestedMessage2 = Nothing })
+  outputMessage (GeneratedImportedTestTypes.WithNesting { GeneratedImportedTestTypes.withNestingNestedMessage1 =
+                                            Just (GeneratedImportedTestTypes.WithNesting_Nested { GeneratedImportedTestTypes.withNesting_NestedNestedField1 = 1
+                                                                                , GeneratedImportedTestTypes.withNesting_NestedNestedField2 = 2 })
+                                        , GeneratedImportedTestTypes.withNestingNestedMessage2 = Nothing })
 
 testCase16 :: IO ()
 testCase16 =
   outputMessage (UsingImported { usingImportedImportedNesting =
-                                   Just (TestImport.WithNesting
-                                          (Just (TestImport.WithNesting_Nested 1 2))
-                                          (Just (TestImport.WithNesting_Nested 3 4)))
+                                   Just (GeneratedImportedTestTypes.WithNesting
+                                          (Just (GeneratedImportedTestTypes.WithNesting_Nested 1 2))
+                                          (Just (GeneratedImportedTestTypes.WithNesting_Nested 3 4)))
                                , usingImportedLocalNesting =
-                                   Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF))) })
+                                   Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] []))) })
 
 main :: IO ()
 main = do testCase1

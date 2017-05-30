@@ -8,11 +8,11 @@ index 59ad7cc..d1df62b 100755
 
  hsTmpDir=$1
 
--ghc                                   \
-+@ghc@/bin/ghc                         \
-     --make                            \
-     -odir $hsTmpDir                   \
-     -hidir $hsTmpDir                  \
+-ghc                                         \
++@ghc@/bin/ghc                               \
+     --make                                  \
+     -odir $hsTmpDir                         \
+     -hidir $hsTmpDir                        \
 diff --git a/tests/encode.sh b/tests/encode.sh
 index 8ebea7e..bc79de2 100755
 --- a/tests/encode.sh
@@ -23,8 +23,8 @@ index 8ebea7e..bc79de2 100755
 
  hsTmpDir=$1
 
--ghc                                   \
-+@ghc@/bin/ghc                         \
-     --make                            \
-     -odir $hsTmpDir                   \
-     -hidir $hsTmpDir                  \
+-ghc                                         \
++@ghc@/bin/ghc                               \
+     --make                                  \
+     -odir $hsTmpDir                         \
+     -hidir $hsTmpDir                        \

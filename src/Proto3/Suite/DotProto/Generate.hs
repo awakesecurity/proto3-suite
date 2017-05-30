@@ -559,7 +559,10 @@ dotProtoEnumD parentIdent enumIdent enumParts =
          -- TODO assert that there is more than one enumeration constructor
          minEnumVal = fst (head enumCons)
          maxEnumVal = fst (last enumCons)
-         boundsE = HsTuple [intE minEnumVal, intE maxEnumVal]
+         boundsE = HsTuple
+                     [ HsExpTypeSig l (intE minEnumVal) (HsQualType [] (HsTyCon (haskellName "Int")))
+                     , intE maxEnumVal
+                     ]
 
          toEnumD = toEnumDPatterns <> [ toEnumFailure ]
          fromEnumD =

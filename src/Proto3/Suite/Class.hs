@@ -458,7 +458,7 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
 instance MessageField (PackedVec Word32) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromIntegral
   decodeMessageField = decodePacked Decode.packedVarints
-  protoType _ = messageField (Prim UInt32) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated UInt32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Word64) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromIntegral

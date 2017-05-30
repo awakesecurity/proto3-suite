@@ -1,7 +1,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -fno-warn-orphans       #-}
 
-module TestTypes where
+module OldTestTypes where
 
 import qualified Data.ByteString as B
 import           Data.Int
@@ -31,6 +32,7 @@ data MultipleFields =
                   multiFieldBool :: Bool}
                   deriving (Show, Generic, Eq)
 instance Message MultipleFields
+instance Named MultipleFields
 
 instance Arbitrary MultipleFields where
   arbitrary = MultipleFields
@@ -73,6 +75,7 @@ instance Arbitrary NestedMsg where
 data WithNesting = WithNesting {nestedMessage :: Nested NestedMsg}
                     deriving (Show, Generic, Eq)
 instance Message WithNesting
+instance Named WithNesting
 
 instance Arbitrary WithNesting where
   arbitrary = WithNesting <$> arbitrary
@@ -97,6 +100,7 @@ instance Arbitrary a => Arbitrary (Wrapped a) where
 data WithRepetition = WithRepetition {repeatedField1 :: PackedVec Int32}
                       deriving (Show, Generic, Eq)
 instance Message WithRepetition
+instance Named WithRepetition
 
 instance Arbitrary WithRepetition where
   arbitrary = WithRepetition <$> arbitrary
@@ -107,6 +111,7 @@ data WithFixed = WithFixed {fixed1 :: (Fixed Word32),
                             fixed4 :: (Signed (Fixed Int64))}
                             deriving (Show, Generic, Eq)
 instance Message WithFixed
+instance Named WithFixed
 
 instance Arbitrary WithFixed where
   arbitrary = WithFixed <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
@@ -115,6 +120,7 @@ data WithBytes = WithBytes {bytes1 :: B.ByteString,
                             bytes2 :: UnpackedVec B.ByteString}
                             deriving (Show, Generic, Eq)
 instance Message WithBytes
+instance Named WithBytes
 
 instance Arbitrary B.ByteString where
   arbitrary = fmap B.pack arbitrary
@@ -126,6 +132,7 @@ data WithPacking = WithPacking {packing1 :: UnpackedVec Int32,
                                 packing2 :: PackedVec Int32}
                                 deriving (Show, Generic, Eq)
 instance Message WithPacking
+instance Named WithPacking
 
 instance Arbitrary WithPacking where
   arbitrary = WithPacking <$> arbitrary <*> arbitrary
@@ -143,6 +150,7 @@ data AllPackedTypes =
                   packedSFixed64 :: PackedVec (Signed (Fixed Int64))}
                   deriving (Show, Generic, Eq)
 instance Message AllPackedTypes
+instance Named AllPackedTypes
 
 instance Arbitrary AllPackedTypes where
   arbitrary = AllPackedTypes <$> arbitrary <*> arbitrary <*> arbitrary
@@ -155,6 +163,7 @@ data SignedInts =
               signed64 :: Signed Int64}
               deriving (Show, Generic, Eq)
 instance Message SignedInts
+instance Named SignedInts
 
 instance Arbitrary SignedInts where
   arbitrary = SignedInts <$> arbitrary <*> arbitrary
@@ -163,6 +172,7 @@ data WithNestingRepeated =
   WithNestingRepeated {nestedMessages :: NestedVec NestedMsg}
     deriving (Show, Eq, Generic)
 instance Message WithNestingRepeated
+instance Named WithNestingRepeated
 
 instance Arbitrary WithNestingRepeated where
   arbitrary = WithNestingRepeated <$> arbitrary
@@ -184,3 +194,4 @@ data WithNestingRepeatedInts =
   WithNestingRepeatedInts {nestedInts :: Nested NestedInt}
   deriving (Show, Eq, Generic)
 instance Message WithNestingRepeatedInts
+instance Named WithNestingRepeatedInts
