@@ -27,8 +27,8 @@ $ pip install protobuf==3.0.0b3  # Need the latest version for the newest protoc
 
 `brew install python` may also work.
 
-Alternate, the `nix-shell` environment provides a complete incremental build
-and test environment. From the root fo this repository:
+Alternately, the `nix-shell` environment provides a complete incremental build
+and test environment. From the root of this repository:
 
 ```bash
 $ nix-shell release.nix -A proto3-suite.env
