@@ -546,7 +546,7 @@ message pr = DotProtoMessage (Single $ nameOf pr) $ DotProtoMessageField <$> (do
 
 -- * Generic Instances
 
-class GenericMessage f where
+class GenericMessage (f :: * -> *) where
   type GenericFieldCount f :: Nat
 
   genericEncodeMessage :: FieldNumber -> f a -> Encode.MessageBuilder
@@ -580,7 +580,7 @@ instance MessageField c => GenericMessage (K1 i c) where
   genericDotProto _ = [protoType (Proxy :: Proxy c)]
 
 instance (Selector s, GenericMessage f) => GenericMessage (M1 S s f) where
-  type GenericFieldCount (M1 S t f) = GenericFieldCount f
+  type GenericFieldCount (M1 S s f) = GenericFieldCount f
   genericEncodeMessage num (M1 x) = genericEncodeMessage num x
   genericDecodeMessage num = fmap M1 $ genericDecodeMessage num
   genericDotProto _ = map applyName $ genericDotProto (Proxy :: Proxy f)
