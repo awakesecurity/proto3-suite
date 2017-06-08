@@ -9,6 +9,7 @@ module Proto3.Suite.DotProto.Rendering
   ( renderDotProto
   , defRenderingOptions
   , defSelectorName
+  , defEnumMemberName
   , packageFromDefs
   , toProtoFile
   , toProtoFileDef
@@ -37,13 +38,17 @@ data RenderingOptions = RenderingOptions
 -- | Default rendering options.
 defRenderingOptions :: RenderingOptions
 defRenderingOptions =
-    RenderingOptions { roSelectorName = defSelectorName
-                     , roEnumMemberName = const pPrint
+    RenderingOptions { roSelectorName   = defSelectorName
+                     , roEnumMemberName = defEnumMemberName
                      }
 
 -- | The default choice of field name for a selector.
 defSelectorName :: DotProtoIdentifier -> DotProtoIdentifier -> FieldNumber -> PP.Doc
 defSelectorName _ fieldName _ = pPrint fieldName
+
+-- | The default choice of enum member name for an enum
+defEnumMemberName :: DotProtoIdentifier -> DotProtoIdentifier -> PP.Doc
+defEnumMemberName = const pPrint
 
 -- | Traverses a DotProto AST and generates a .proto file from it
 renderDotProto :: RenderingOptions -> DotProto -> PP.Doc
