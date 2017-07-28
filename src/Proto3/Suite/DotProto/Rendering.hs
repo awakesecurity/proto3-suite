@@ -90,7 +90,6 @@ prettyPrintProtoDefinition opts = defn where
   defn (DotProtoMessage name parts) = PP.text "message" <+> pPrint name <+> (braces $ PP.vcat $ msgPart name <$> parts)
   defn (DotProtoEnum    name parts) = PP.text "enum"    <+> pPrint name <+> (PP.braces $ PP.vcat $ enumPart name <$> parts)
   defn (DotProtoService name parts) = PP.text "service" <+> pPrint name <+> (PP.braces $ PP.vcat $ pPrint <$> parts)
-  defn DotProtoNullDef              = PP.empty
 
   -- Put the final closing brace on the next line.
   -- This is important, since the final field might have a comment, and

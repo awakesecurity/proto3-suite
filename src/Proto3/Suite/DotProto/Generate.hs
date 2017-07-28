@@ -342,7 +342,6 @@ dotProtoDefinitionD _ _ (DotProtoEnum messageName dotProtoEnum) =
   dotProtoEnumD Anonymous messageName dotProtoEnum
 dotProtoDefinitionD pkgIdent ctxt (DotProtoService serviceName dotProtoService) =
   dotProtoServiceD pkgIdent ctxt serviceName dotProtoService
-dotProtoDefinitionD _ _ DotProtoNullDef = pure []
 
 -- | Generate 'Named' instance for a type in this package
 namedInstD :: String -> HsDecl

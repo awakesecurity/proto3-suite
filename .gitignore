@@ -10,3 +10,5 @@ test-files/test_pb2.py
 # Auto-generated when creating test .bins
 test-files/test_files/
 *.hi
+# Ignore Emacs backup files
+*~
