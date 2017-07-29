@@ -48,10 +48,10 @@ $ nix-shell release.nix -A proto3-suite.env
 The above steps will work only if your Haskell source compiles, because
 some of the tests require the current `compile-proto-file` executable.
 
-## `compile-proto-file` and `canonical-proto-file`
+## `compile-proto-file` and `canonicalize-proto-file`
 
 Run the following commmand from the root of this repository to install
-the `compile-proto-file` and `canonical-proto-file` executables:
+the `compile-proto-file` and `canonicalize-proto-file` executables:
 
 ```bash
 $ nix-env --install --attr proto3-suite -f release.nix

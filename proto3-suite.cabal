@@ -76,9 +76,9 @@ executable compile-proto-file
                        , system-filepath
                        , turtle
 
-executable canonical-proto-file
+executable canonicalize-proto-file
   main-is:             Main.hs
-  hs-source-dirs:      tools/canonical-proto-file
+  hs-source-dirs:      tools/canonicalize-proto-file
   default-language:    Haskell2010
   build-depends:       base >=4.8 && <5.0
                        , containers ==0.5.*
