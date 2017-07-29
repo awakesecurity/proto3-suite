@@ -16,7 +16,7 @@ mkDerivation {
     semigroups text transformers vector
   ];
   executableHaskellDepends = [
-    base optparse-generic system-filepath turtle
+    base containers optparse-generic proto3-wire system-filepath turtle
   ];
   testHaskellDepends = [
     base bytestring cereal pretty-show proto3-wire QuickCheck
