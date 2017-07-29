@@ -71,7 +71,7 @@ instance Canonicalize DotProtoOption where
 
 instance Canonicalize DotProtoPackageSpec where
   canonicalize = \case
-    DotProtoPackageSpec nm -> DotProtoPackageSpec (canonicalize nm)
+    DotProtoPackageSpec name -> DotProtoPackageSpec (canonicalize name)
     DotProtoNoPackage -> DotProtoNoPackage
 
 instance Canonicalize [DotProtoDefinition] where canonicalize = canonicalSort
