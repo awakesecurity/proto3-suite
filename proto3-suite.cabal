@@ -75,3 +75,16 @@ executable compile-proto-file
                        , proto3-suite
                        , system-filepath
                        , turtle
+
+executable canonicalize-proto-file
+  main-is:             Main.hs
+  hs-source-dirs:      tools/canonicalize-proto-file
+  default-language:    Haskell2010
+  build-depends:       base >=4.8 && <5.0
+                       , containers ==0.5.*
+                       , optparse-generic
+                       , proto3-suite
+                       , proto3-wire == 1.0.*
+                       , range-set-list >=0.1.2 && <0.2
+                       , system-filepath
+                       , turtle

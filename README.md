@@ -27,8 +27,16 @@ $ pip install protobuf==3.0.0b3  # Need the latest version for the newest protoc
 
 `brew install python` may also work.
 
-Alternately, the `nix-shell` environment provides a complete incremental build
-and test environment. From the root of this repository:
+Alternately, the `nix-shell` environment provides an incremental build
+environment (but see below for testing). From the root of this repository:
+
+```bash
+$ nix-shell release.nix -A proto3-suite-no-tests.env
+[nix-shell]$ cabal configure
+[nix-shell]$ cabal build
+```
+
+Once your source code compiles and you want to test, do this instead:
 
 ```bash
 $ nix-shell release.nix -A proto3-suite.env
@@ -37,10 +45,13 @@ $ nix-shell release.nix -A proto3-suite.env
 [nix-shell]$ cabal test
 ```
 
-## `compile-proto-file`
+The above steps will work only if your Haskell source compiles, because
+some of the tests require the current `compile-proto-file` executable.
 
-Run the following commmand from the root of this repository to install the
-`compile-proto-file` executable:
+## `compile-proto-file` and `canonicalize-proto-file`
+
+Run the following commmand from the root of this repository to install
+the `compile-proto-file` and `canonicalize-proto-file` executables:
 
 ```bash
 $ nix-env --install --attr proto3-suite -f release.nix

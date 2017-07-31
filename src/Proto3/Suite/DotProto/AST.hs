@@ -71,7 +71,7 @@ data DotProtoIdentifier
 data DotProtoImport = DotProtoImport
   { dotProtoImportQualifier :: DotProtoImportQualifier
   , dotProtoImportPath      :: String
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Ord)
 
 instance Arbitrary DotProtoImport where
     arbitrary = do
@@ -83,7 +83,7 @@ data DotProtoImportQualifier
   = DotProtoImportPublic
   | DotProtoImportWeak
   | DotProtoImportDefault
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 instance Arbitrary DotProtoImportQualifier where
   arbitrary = elements
@@ -109,7 +109,7 @@ instance Arbitrary DotProtoPackageSpec where
 data DotProtoOption = DotProtoOption
   { dotProtoOptionIdentifier :: DotProtoIdentifier
   , dotProtoOptionValue      :: DotProtoValue
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Ord)
 
 instance Arbitrary DotProtoOption where
     arbitrary = do
@@ -125,7 +125,6 @@ data DotProtoDefinition
   = DotProtoMessage DotProtoIdentifier [DotProtoMessagePart]
   | DotProtoEnum    DotProtoIdentifier [DotProtoEnumPart]
   | DotProtoService DotProtoIdentifier [DotProtoServicePart]
-  | DotProtoNullDef
   deriving (Show, Eq)
 
 instance Arbitrary DotProtoDefinition where
@@ -167,7 +166,7 @@ data DotProtoValue
   | IntLit     Int
   | FloatLit   Double
   | BoolLit    Bool
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 instance Arbitrary DotProtoValue where
   arbitrary = oneof
