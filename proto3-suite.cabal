@@ -85,5 +85,6 @@ executable canonicalize-proto-file
                        , optparse-generic
                        , proto3-suite
                        , proto3-wire == 1.0.*
+                       , range-set-list >=0.1.2 && <0.2
                        , system-filepath
                        , turtle

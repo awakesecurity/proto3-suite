@@ -10,17 +10,17 @@
 
 module Main (main) where
 
-import           Data.List                            (sortOn)
-import           Data.Semigroup                       (Min(..), Option(..))
-import qualified Data.Set                             as Set
-import           Filesystem.Path.CurrentOS            (encodeString)
+import           Data.List                        (sort, sortOn)
+import           Data.RangeSet.List               (fromRangeList, toRangeList)
+import           Data.Semigroup                   (Min(..), Option(..))
+import           Filesystem.Path.CurrentOS        (encodeString)
 import           Options.Generic
-import           Prelude                              hiding (FilePath)
+import           Prelude                          hiding (FilePath)
 import           Proto3.Suite.DotProto.AST
 import           Proto3.Suite.DotProto.Generate
 import           Proto3.Suite.DotProto.Rendering
-import           Proto3.Wire.Types                    (FieldNumber (..))
-import           Turtle                               (FilePath)
+import           Proto3.Wire.Types                (FieldNumber (..))
+import           Turtle                           (FilePath)
 
 data Args = Args
   { proto :: FilePath <?> "Path to input .proto file"
@@ -162,25 +162,21 @@ instance Canonicalize DotProtoType where canonicalize = id
 instance Canonicalize [DotProtoReservedField] where
   canonicalize fields = numbers ++ names
     where
-      (numberSet, nameSet) = flip foldMap fields $ \case
-        SingleField number -> (Set.singleton number, Set.empty)
-        FieldRange lo hi -> (Set.fromList [lo .. hi], Set.empty)
-        ReservedIdentifier name -> (Set.empty, Set.singleton name)
+      (rangeList, nameList) = flip foldMap fields $ \case
+        SingleField number -> ([(number, number)], [])
+        FieldRange lo hi -> ([(lo, hi)], [])
+        ReservedIdentifier name -> ([], [name])
 
-      names = map ReservedIdentifier (Set.toList nameSet)
+      names = map ReservedIdentifier (unique (sort nameList))
 
-      numbers = consolidate (Set.toList numberSet)
+      unique [] = []
+      unique [n] = [n]
+      unique (x : xs@(y : _)) = (if x == y then id else (x :)) (unique xs)
 
-      consolidate [] = []
-      consolidate [n] = [SingleField n]
-      consolidate (n1 : n2 : ns)
-        | n1 + 1 == n2 = consolidate2 n1 n2 ns
-        | otherwise    = SingleField n1 : consolidate (n2 : ns)
+      numbers = map reserveNumbers (toRangeList (fromRangeList rangeList))
 
-      consolidate2 lo hi [] = [FieldRange lo hi]
-      consolidate2 lo hi (n2 : ns)
-        | hi + 1 == n2 = consolidate2 lo n2 ns
-        | otherwise    = FieldRange lo hi : consolidate (n2 : ns)
+      reserveNumbers (lo, hi) | lo == hi = SingleField lo
+                              | otherwise = FieldRange lo hi
 
 instance Canonicalize [DotProtoEnumPart] where
   canonicalize = canonicalSort . filter keep
