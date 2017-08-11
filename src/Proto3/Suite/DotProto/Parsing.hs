@@ -2,6 +2,7 @@
 --   It uses String for easier compatibility with DotProto.Generator, which needs it for not very good reasons
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module Proto3.Suite.DotProto.Parsing
@@ -228,10 +229,10 @@ rpcOptions :: Parser [DotProtoOption]
 rpcOptions = braces $ many topOption
 
 rpcClause :: Parser (DotProtoIdentifier, Streaming)
-rpcClause = do streaming <- (string "stream" $> Streaming) <|> pure NonStreaming
-               whiteSpace
-               name <- identifier
-               return $ (name, streaming)
+rpcClause = do
+  let sid ctx = (,ctx) <$> identifier
+  -- NB: Distinguish "stream stream.foo" from "stream.foo"
+  try (string "stream" *> whiteSpace *> sid Streaming) <|> sid NonStreaming
 
 rpc :: Parser DotProtoServicePart
 rpc = do string "rpc"
