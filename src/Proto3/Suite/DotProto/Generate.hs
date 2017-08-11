@@ -573,7 +573,7 @@ dotProtoEnumD parentIdent enumIdent enumParts =
 
          toEnumDPatterns =
              [ match_ (HsIdent "toEnum")
-                      [ HsPLit (HsInt (fromIntegral conIdx)) ]
+                      [ intP conIdx ]
                       (HsUnGuardedRhs (HsVar (unqual_ conName))) []
              | (conIdx, conName) <- enumCons ]
 
@@ -826,7 +826,10 @@ apOp :: HsQOp
 apOp  = HsQVarOp (UnQual (HsSymbol "<*>"))
 
 intE :: Integral a => a -> HsExp
-intE = HsLit . HsInt . fromIntegral
+intE x = (if x < 0 then HsParen else id) . HsLit . HsInt . fromIntegral $ x
+
+intP :: Integral a => a -> HsPat
+intP x = (if x < 0 then HsPParen else id) . HsPLit . HsInt . fromIntegral $ x
 
 -- ** Expressions for protobuf-wire types
 
