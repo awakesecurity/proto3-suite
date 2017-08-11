@@ -912,8 +912,8 @@ defaultImports usesGrpc =
   , importDecl_ dataWordM                 True  (Just haskellNS)
                 (Just (False, [ importSym "Word16", importSym "Word32"
                               , importSym "Word64" ]))
-  , importDecl_ ghcGenericsM              False (Just haskellNS) Nothing
-  , importDecl_ ghcEnumM                  False (Just haskellNS) Nothing
+  , importDecl_ ghcGenericsM              True (Just haskellNS) Nothing
+  , importDecl_ ghcEnumM                  True (Just haskellNS) Nothing
   ] <>
   if usesGrpc
     then [ importDecl_ networkGrpcHighLevelGeneratedM   False (Just grpcNS) Nothing
