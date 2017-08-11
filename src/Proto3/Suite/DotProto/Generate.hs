@@ -30,6 +30,7 @@ import           Language.Haskell.Syntax
 import           Language.Haskell.Pretty
 import           System.FilePath
 import           Text.Parsec (ParseError)
+import           Debug.Trace (trace)
 
 -- * Public interface
 
@@ -374,7 +375,11 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                   fullTy <- hsTypeFromDotProto ctxt' ty
                   pure [ ([HsIdent fullName], HsUnBangedTy fullTy ) ]
            messagePartFieldD (DotProtoMessageOneOf {}) =
-             unimplementedError "oneof"
+             -- unimplementedError "oneof"
+             trace
+               ("WARNING: ignoring oneof construct since support for it is unimplemented! "
+                <> "Continuing with CG, but note that it is _NOT FAITHFUL_ to the input .proto!)")
+               (pure [])
            messagePartFieldD _ = pure []
 
            nestedDecls :: DotProtoDefinition -> CompileResult [HsDecl]
@@ -528,11 +533,11 @@ isUnpacked opts =
         Just (DotProtoOption _ (BoolLit x)) -> not x
         _ -> False
 
-internalError, invalidTypeNameError, unimplementedError
+internalError, invalidTypeNameError, _unimplementedError
     :: String -> CompileResult a
 internalError = Left . InternalError
 invalidTypeNameError = Left . InvalidTypeName
-unimplementedError = Left . Unimplemented
+_unimplementedError = Left . Unimplemented
 
 invalidMethodNameError, noSuchTypeError :: DotProtoIdentifier -> CompileResult a
 noSuchTypeError = Left . NoSuchType
