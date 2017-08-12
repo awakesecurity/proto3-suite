@@ -41,10 +41,47 @@ fieldNumber = FieldNumber . fromInteger <$> integer
 -- [issue] this is a terrible, naive way to strip comments
 --         any string that contains "//" breaks
 --         a regex would be better, but the best thing to do is to just replace all the string logic with a lexer
+_stripComments :: String -> String
+_stripComments ('/':'/':rest) = _stripComments (dropWhile (/= '\n') rest)
+_stripComments (x:rest)       = x:_stripComments rest
+_stripComments []             = []
+
+-- [issue] This is still a terrible and naive way to strip comments, was written
+-- hastily, and has been only lightly tested. However, it improves upon
+-- `_stripComments` above: it handles /* block comments /* with nesting */ */,
+-- "// string lits with comments in them", etc., and thus is closer to the
+-- protobuf3 grammar. The right solution is still to replace this with a proper
+-- lexer -- extra credit for injecting comments into the AST so that they can be
+-- marshaled into the generated code, and for ensuring that line numbers
+-- reported in errors are correct. Although this is handy to toss out in the
+-- interests of getting some .protos through, it's probably not worth
+-- maintaining, and has an ad-hoc smell. If we find ourselves mucking with this
+-- much at all in the very near short term, let's just pay the freight and use
+-- `Text.Parsec.Token` or somesuch.
+data StripCommentState
+       --               | starts  | ends | error on?       |
+  = BC -- block comment | "/*"    | "*/" | mismatch        |
+  | DQ -- double quote  | '"'     | '"'  | mismatch        |
+  | LC -- line comment  | "//"    | '\n' | mismatch ('\n') |
+  deriving Show
+
 stripComments :: String -> String
-stripComments ('/':'/':rest) = stripComments (dropWhile (/= '\n') rest)
-stripComments (x:rest)       = x:stripComments rest
-stripComments []             = []
+stripComments = go [] where
+  go []        ('/':'*':cs) = go [BC] cs
+  go st@(BC:_) ('/':'*':cs) = go (BC:st) cs
+  go []        ('*':'/':_)  = error "*/ without preceding /*"
+  go (BC:st)   ('*':'/':cs) = go st cs
+  go st@(BC:_) (_:cs)       = go st cs
+  go []        ('/':'/':cs) = go [LC] cs
+  go []        ('"':cs)     = '"' : go [DQ] cs
+  go (LC:st)   cs@('\n':_)  = go st cs
+  go st@(LC:_) (_:cs)       = go st cs
+  go (DQ:st)   ('"':cs)     = '"' : go st cs
+  go st        (c:cs)       = c : go st cs
+  go []        []           = []
+  go (BC:_)    []           = error "unterminated block comment"
+  go (DQ:_)    []           = error "unterminated double-quote"
+  go (LC:_)    []           = error "unterminated line comment (missing newline)"
 
 ----------------------------------------
 -- identifiers
