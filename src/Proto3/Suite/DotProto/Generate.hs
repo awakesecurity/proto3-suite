@@ -31,6 +31,7 @@ import           Data.Char
 import           Data.List                 (find, intercalate, nub, sortBy)
 import qualified Data.Map                  as M
 import           Data.Monoid
+import           Data.Maybe                (catMaybes)
 import           Data.Ord                  (comparing)
 import qualified Data.Set                  as S
 import           Data.String               (fromString)
@@ -496,11 +497,13 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                 dpIdentUnqualName msgIdent
 
      qualifiedFields <-
-       sequence [ dpIdentUnqualName fieldIdent >>=
+        (catMaybes <$>) . forM messageParts $ \part -> case part of
+            DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options _) ->
+                dpIdentUnqualName fieldIdent >>=
                   prefixedFieldName msgName >>=
-                  pure . (fieldNum, dpType, , options)
-                | DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options _)
-                  <- messageParts ]
+                  pure . Just . (fieldNum, dpType, , options)
+            _ ->
+                pure Nothing
 
      encodeMessagePartEs <- sequence
          [ wrapE ctxt dpType options (HsVar (unqual_ fieldName)) >>= \fieldE ->
