@@ -461,12 +461,12 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                               dpIdentUnqualName fieldName
                   fullTy <- hsTypeFromDotProto ctxt' ty
                   pure [ ([HsIdent fullName], HsUnBangedTy fullTy ) ]
-           messagePartFieldD (DotProtoMessageOneOf {}) =
-             -- unimplementedError "oneof"
-             trace
-               ("WARNING: ignoring oneof construct since support for it is unimplemented! "
-                <> "Continuing with CG, but note that it is _NOT FAITHFUL_ to the input .proto!)")
-               (pure [])
+           messagePartFieldD (DotProtoMessageOneOf fieldName _) =
+               do fullName <- prefixedFieldName messageName =<<
+                              dpIdentUnqualName fieldName
+                  fullTy <- prefixedConName messageName =<<
+                            dpIdentUnqualName fieldName
+                  pure [ ([HsIdent fullName], HsUnBangedTy (type_ fullTy) ) ]
            messagePartFieldD _ = pure []
 
            nestedDecls :: DotProtoDefinition -> CompileResult [HsDecl]
