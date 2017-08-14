@@ -506,6 +506,9 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
        pure ([ dataDecl_ messageName [ conDecl ] defaultMessageDeriving
              , namedInstD messageName, messageInst ] <> nestedOneofs_ <> nestedDecls_)
 
+data FieldValue =
+      FieldOneOf [(FieldNumber, String)]
+    | FieldNormal FieldNumber DotProtoType [DotProtoOption]
 
 messageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifier
              -> [DotProtoMessagePart] -> CompileResult HsDecl
@@ -518,20 +521,50 @@ messageInstD ctxt parentIdent msgIdent messageParts =
             DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options _) ->
                 dpIdentUnqualName fieldIdent >>=
                   prefixedFieldName msgName >>=
-                  pure . Just . (fieldNum, dpType, , options)
+                  pure . Just . (, FieldNormal fieldNum dpType options)
+            DotProtoMessageOneOf fieldIdent elems ->
+                do fieldName <- dpIdentUnqualName fieldIdent >>= prefixedFieldName msgName
+                   consName  <- dpIdentUnqualName fieldIdent >>= prefixedConName msgName
+                   fieldElems <- sequence
+                        [ dpIdentUnqualName subFieldName >>=
+                            prefixedConName consName >>=
+                            pure . (fieldNum,)
+                        | DotProtoField fieldNum _ subFieldName _ _ <- elems
+                        ]
+                   pure $ Just $ (fieldName, FieldOneOf fieldElems)
             _ ->
                 pure Nothing
 
-     encodeMessagePartEs <- sequence
-         [ wrapE ctxt dpType options (HsVar (unqual_ fieldName)) >>= \fieldE ->
-             pure (apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ])
-         | (fieldNum, dpType, fieldName, options) <- qualifiedFields ]
+     encodeMessagePartEs <- forM qualifiedFields $ \(fieldName, field) ->
+        case field of
+            FieldNormal fieldNum dpType options ->
+                do fieldE <- wrapE ctxt dpType options (HsVar (unqual_ fieldName))
+                   pure (apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ])
+            FieldOneOf elems ->
+                do -- create all pattern match&expr for each constructor of the form
+                   --    Constructor x -> encodeField fieldNumber x
+                   alts <- sequence
+                        [ pure $ alt_ (HsPApp (unqual_ conName) [patVar "x"])
+                                      (HsUnGuardedAlt $ apply encodeMessageFieldE [ fieldNumberE fieldNum, HsVar (unqual_ "x") ])
+                                      []
+                        | (fieldNum, conName) <- elems ]
+                   pure $ HsCase (HsVar (unqual_ fieldName)) alts
 
      decodeMessagePartEs <- sequence
-         [ unwrapE ctxt dpType options $
-           apply atE [ decodeMessageFieldE
-                     , fieldNumberE fieldNum ]
-         | (fieldNum, dpType, _, options) <- qualifiedFields ]
+        [ case fieldType of
+            FieldNormal fieldNum dpType options ->
+                unwrapE ctxt dpType options $ apply atE
+                        [ decodeMessageFieldE, fieldNumberE fieldNum ]
+            FieldOneOf elems ->
+                -- create a list of (fieldNumber, Cons <$> parser)
+                do let toListParser (fieldNumber,consName) = HsTuple
+                        [ fieldNumberE fieldNumber
+                        , HsInfixApp (apply pureE [ HsVar (unqual_ consName) ])
+                                     apOp
+                                     decodeMessageFieldE ]
+                   pure $ apply oneofE
+                          [ HsList $ map toListParser elems ]
+        | (_, fieldType) <- qualifiedFields ]
 
      dotProtoE <- HsList <$> sequence
          [ dpTypeE dpType >>= \typeE ->
@@ -552,7 +585,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
 
          punnedFieldsP =
              [ HsPFieldPat (unqual_ fieldName) (HsPVar (HsIdent fieldName))
-             | (_, _, fieldName, _) <- qualifiedFields ]
+             | (fieldName, _) <- qualifiedFields ]
 
          encodeMessageE = apply mconcatE [ HsList encodeMessagePartEs ]
          decodeMessageE = foldl (\f -> HsInfixApp f apOp)
@@ -1117,6 +1150,9 @@ type_ = HsTyCon . unqual_
 
 patVar :: String -> HsPat
 patVar =  HsPVar . HsIdent
+
+alt_ :: HsPat -> HsGuardedAlts -> [HsDecl] -> HsAlt
+alt_ = HsAlt l
 
 -- | For some reason, haskell-src-exts needs this 'SrcLoc' parameter
 --   for some data constructors. Its value does not affect
