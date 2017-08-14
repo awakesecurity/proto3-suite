@@ -31,10 +31,13 @@ module Proto3.Suite.DotProto.AST
     , isPackableType
   ) where
 
-import           Data.String        (IsString)
+import           Data.String               (IsString)
+import qualified Filesystem.Path.CurrentOS as FP
 import           Numeric.Natural
-import           Proto3.Wire.Types  (FieldNumber (..))
+import           Prelude                   hiding (FilePath)
+import           Proto3.Wire.Types         (FieldNumber (..))
 import           Test.QuickCheck
+import           Turtle                    (FilePath)
 
 -- | The name of a message
 newtype MessageName = MessageName
@@ -70,13 +73,13 @@ data DotProtoIdentifier
 -- | Top-level import declaration
 data DotProtoImport = DotProtoImport
   { dotProtoImportQualifier :: DotProtoImportQualifier
-  , dotProtoImportPath      :: String
+  , dotProtoImportPath      :: FilePath
   } deriving (Show, Eq, Ord)
 
 instance Arbitrary DotProtoImport where
     arbitrary = do
       dotProtoImportQualifier <- arbitrary
-      let dotProtoImportPath = ""
+      let dotProtoImportPath = FP.empty
       return (DotProtoImport {..})
 
 data DotProtoImportQualifier

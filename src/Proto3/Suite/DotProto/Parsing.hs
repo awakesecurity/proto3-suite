@@ -11,6 +11,8 @@ module Proto3.Suite.DotProto.Parsing
 
 import Control.Applicative hiding (empty)
 import Data.Functor
+import qualified Data.Text as T
+import qualified Filesystem.Path.CurrentOS as FP
 import Proto3.Suite.DotProto.AST
 import Proto3.Wire.Types (FieldNumber(..))
 import Text.Parsec (parse, ParseError)
@@ -209,7 +211,7 @@ import_ = do string "import"
              whiteSpace
              qualifier <- option DotProtoImportDefault ((string "weak" $> DotProtoImportWeak) <|> (string "public" $> DotProtoImportPublic))
              whiteSpace
-             target <- stringLit
+             target <- FP.fromText . T.pack <$> stringLit
              string ";"
              return $ DotProtoImport qualifier target
 

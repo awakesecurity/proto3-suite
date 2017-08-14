@@ -13,7 +13,6 @@ module Main (main) where
 import           Data.List                        (sort, sortOn)
 import           Data.RangeSet.List               (fromRangeList, toRangeList)
 import           Data.Semigroup                   (Min(..), Option(..))
-import           Filesystem.Path.CurrentOS        (encodeString)
 import           Options.Generic
 import           Prelude                          hiding (FilePath)
 import           Proto3.Suite.DotProto.AST
@@ -29,9 +28,9 @@ instance ParseRecord Args
 
 main :: IO ()
 main = do
-  protoPath <- encodeString . unHelpful . proto <$> getRecord "Dumps a canonical .proto file to stdout"
+  protoPath <- unHelpful . proto <$> getRecord "Dumps a canonical .proto file to stdout"
   readDotProtoWithContext protoPath >>= \case
-    Left err        -> fail (show err)
+    Left err      -> fail (show err)
     Right (dp, _) -> putStr (toProtoFile defRenderingOptions (canonicalize dp))
 
 class Canonicalize a where

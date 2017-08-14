@@ -17,6 +17,8 @@ module Proto3.Suite.DotProto.Rendering
   ) where
 
 import           Data.Char
+import qualified Data.Text                       as T
+import           Filesystem.Path.CurrentOS       (toText)
 import           Proto3.Suite.DotProto.AST
 import           Proto3.Wire.Types               (FieldNumber (..))
 import           Text.PrettyPrint                (($$), (<+>), (<>))
@@ -64,7 +66,12 @@ instance Pretty DotProtoPackageSpec where
   pPrint (DotProtoNoPackage)     = PP.empty
 
 instance Pretty DotProtoImport where
-  pPrint (DotProtoImport q i) = PP.text "import" <+> pPrint q <+> pPrint i <> PP.text ";"
+  pPrint (DotProtoImport q i) =
+    PP.text "import" <+> pPrint q <+> PP.text fp <> PP.text ";"
+    where
+      fp = case T.unpack . either id id . toText $ i of
+             [] -> show ("" :: String)
+             x  -> x
 
 instance Pretty DotProtoImportQualifier where
   pPrint DotProtoImportDefault = PP.empty

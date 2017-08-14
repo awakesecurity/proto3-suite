@@ -1,11 +1,14 @@
 -- | This module provides functions to generate Haskell declarations for proto buf messages
 
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE NamedFieldPuns   #-}
+{-# LANGUAGE TupleSections    #-}
+{-# LANGUAGE ViewPatterns     #-}
 
 module Proto3.Suite.DotProto.Generate
-  ( CompileResult, CompileError(..), TypeContext
+  ( CompileResult
+  , CompileError(..)
+  , TypeContext
 
   , hsModuleForDotProto
   , renderHsModuleForDotProto
@@ -13,24 +16,28 @@ module Proto3.Suite.DotProto.Generate
   , readDotProtoWithContext
 
   -- * Exposed for unit-testing
-  , typeLikeName, fieldLikeName
+  , typeLikeName
+  , fieldLikeName
   ) where
 
 import           Control.Applicative
 import           Control.Monad.Except
-import           Proto3.Suite.DotProto
 import           Data.Char
-import           Data.List (intercalate, find, nub, sortBy)
-import qualified Data.Map as M
-import qualified Data.Set as S
+import           Data.List                 (find, intercalate, nub, sortBy)
+import qualified Data.Map                  as M
 import           Data.Monoid
-import           Data.Ord (comparing)
-import           Proto3.Wire.Types  (FieldNumber (..))
-import           Language.Haskell.Syntax
+import           Data.Ord                  (comparing)
+import qualified Data.Set                  as S
+import           Debug.Trace               (trace)
+import           Filesystem.Path.CurrentOS (encodeString)
 import           Language.Haskell.Pretty
-import           System.FilePath
-import           Text.Parsec (ParseError)
-import           Debug.Trace (trace)
+import           Language.Haskell.Syntax
+import           Prelude                   hiding (FilePath)
+import           Proto3.Suite.DotProto
+import           Proto3.Wire.Types         (FieldNumber (..))
+import           Text.Parsec               (ParseError)
+import           Turtle                    (FilePath)
+
 
 -- * Public interface
 
@@ -86,20 +93,15 @@ hsModuleForDotProto _ _ =
 readDotProtoWithContext :: FilePath -> IO (CompileResult (DotProto, TypeContext))
 readDotProtoWithContext dotProtoPath = runExceptT go
   where
-    dotProtoPathSanitized = normalise dotProtoPath
-
-    go = do dpRes <- parseProto <$> liftIO (readFile dotProtoPath)
+    go = do dpRes <- parseProto <$> readFile' dotProtoPath
             case dpRes of
-              Right dp -> (dp,) . mconcat <$> mapM (readImportTypeContext (S.singleton dotProtoPathSanitized)) (protoImports dp)
+              Right dp -> (dp,) . mconcat <$> mapM (readImportTypeContext (S.singleton dotProtoPath)) (protoImports dp)
               Left err -> throwError (CompileParseError err)
-
-    wrapError :: (err' -> err) -> Either err' a -> ExceptT err IO a
-    wrapError f = either (throwError . f) pure
 
     readImportTypeContext alreadyRead (DotProtoImport _ path)
       | path `S.member` alreadyRead = throwError (CircularImport path)
       | otherwise =
-          do import_ <- wrapError CompileParseError =<< (parseProto <$> liftIO (readFile path))
+          do import_ <- wrapError CompileParseError =<< (parseProto <$> readFile' path)
              case protoPackage import_ of
                DotProtoPackageSpec importPkg ->
                  do importTypeContext <- wrapError id (dotProtoTypeContext import_)
@@ -114,12 +116,18 @@ readDotProtoWithContext dotProtoPath = runExceptT go
                         | importImport@(DotProtoImport DotProtoImportPublic _) <- protoImports import_]
                _ -> throwError NoPackageDeclaration
 
+    readFile' :: MonadIO m => FilePath -> m String
+    readFile' = liftIO . readFile . encodeString
+
+    wrapError :: (err' -> err) -> Either err' a -> ExceptT err IO a
+    wrapError f = either (throwError . f) pure
+
 -- | Compile the .proto file at the given path into a haskell module, returned as a string
 renderHsModuleForDotProtoFile :: FilePath -> IO (CompileResult String)
 renderHsModuleForDotProtoFile dotProtoPath =
   do res <- readDotProtoWithContext dotProtoPath
      case res of
-       Left err -> pure (Left err)
+       Left err       -> pure (Left err)
        Right (dp, tc) -> pure (renderHsModuleForDotProto dp tc)
 
 
@@ -288,11 +296,11 @@ camelCased :: String -> String
 camelCased s = do (prev, cur) <- zip (Nothing:map Just s) (map Just s ++ [Nothing])
                   case (prev, cur) of
                     (Just '_', Just x) | isAlpha x -> pure (toUpper x)
-                    (Just '_', Nothing) -> pure '_'
+                    (Just '_', Nothing)  -> pure '_'
                     (Just '_', Just '_') -> pure '_'
-                    (_, Just '_') -> empty
-                    (_, Just x) -> pure x
-                    (_, _) -> empty
+                    (_, Just '_')        -> empty
+                    (_, Just x)          -> pure x
+                    (_, _)               -> empty
 
 typeLikeName :: String -> CompileResult String
 typeLikeName ident@(firstChar:remainingChars)

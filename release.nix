@@ -19,6 +19,12 @@ let
       in
         { haskellPackages = pkgs.haskellPackages.override {
             overrides = haskellPackagesNew: haskellPackagesOld: rec {
+              optparse-applicative =
+                haskellPackagesNew.callPackage ./nix/optparse-applicative.nix { } ;
+
+              optparse-generic =
+                haskellPackagesNew.callPackage ./nix/optparse-generic.nix { } ;
+
               proto3-wire =
                 haskellPackagesNew.callPackage ./nix/proto3-wire.nix { };
 
@@ -46,6 +52,10 @@ let
                       ];
                     }
                   );
+
+              turtle =
+                haskellPackagesNew.callPackage ./nix/turtle.nix { } ;
+
             };
           };
         };

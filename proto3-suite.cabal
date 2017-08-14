@@ -25,7 +25,6 @@ library
                        deepseq ==1.4.*,
                        cereal >= 0.5.1 && <0.6,
                        containers ==0.5.*,
-                       filepath >=1.4 && <1.5,
                        haskell-src ==1.0.*,
                        mtl ==2.2.*,
                        parsec >= 3.1.9 && <3.2.0,
@@ -36,8 +35,10 @@ library
                        QuickCheck >=2.8 && <3.0,
                        semigroups ==0.18.*,
                        safe ==0.3.*,
+                       system-filepath,
                        text >= 0.2 && <1.3,
                        transformers >=0.4 && <0.6,
+                       turtle,
                        vector >=0.11 && < 0.13
 
   hs-source-dirs:      src
@@ -62,7 +63,7 @@ test-suite tests
                        cereal >= 0.5.1 && <0.6,
                        semigroups ==0.18.*,
                        transformers >=0.4 && <0.6,
-                       turtle >= 1.2.0,
+                       turtle,
                        pretty-show >= 1.6.12 && < 1.7,
                        vector >=0.11 && < 0.13
 
@@ -74,6 +75,7 @@ executable compile-proto-file
                        , optparse-generic
                        , proto3-suite
                        , system-filepath
+                       , text
                        , turtle
 
 executable canonicalize-proto-file

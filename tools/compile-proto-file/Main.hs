@@ -4,12 +4,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators     #-}
 
-import           Data.Monoid                          ((<>))
-import           Filesystem.Path.CurrentOS            (encodeString)
+import           Data.Monoid                    ((<>))
+import           Filesystem.Path.CurrentOS      (encodeString)
 import           Options.Generic
+import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate
-import           Prelude                              hiding (FilePath)
-import           Turtle                               (FilePath)
+import           Turtle                         (FilePath)
 
 data Args = Args
   { proto :: FilePath <?> "Path to input .proto file"
@@ -18,9 +18,9 @@ instance ParseRecord Args
 
 main :: IO ()
 main = do
-  protoPath <- encodeString . unHelpful . proto <$> getRecord "Dumps a compiled .proto file to stdout"
+  protoPath <- unHelpful . proto <$> getRecord "Dumps a compiled .proto file to stdout"
   readDotProtoWithContext protoPath >>= \case
     Left err        -> fail (show err)
     Right (dp, ctx) -> case renderHsModuleForDotProto dp ctx of
-      Left err  -> fail ("Error compiling " <> protoPath <> ": " <> show err)
+      Left err  -> fail ("Error compiling " <> encodeString protoPath <> ": " <> show err)
       Right src -> putStrLn src
