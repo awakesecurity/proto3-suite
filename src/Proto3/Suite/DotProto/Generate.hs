@@ -478,16 +478,33 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                   dotProtoEnumD parentIdent' subEnumName subEnumDef
            nestedDecls _ = pure []
 
+           nestedOneOfDecls :: DotProtoIdentifier -> [DotProtoField] -> CompileResult [HsDecl]
+           nestedOneOfDecls identifier fields =
+               do fullName <- prefixedConName messageName =<<
+                              dpIdentUnqualName identifier
+                  let oneOfCons (DotProtoField _ ty fieldName _ _) =
+                        do consTy <- hsTypeFromDotProto ctxt' ty
+                           consName <- prefixedConName fullName =<< dpIdentUnqualName fieldName
+                           pure $ conDecl_ (HsIdent consName) [HsUnBangedTy consTy]
+                      oneOfCons DotProtoEmptyField =
+                          internalError "field type : empty field"
+
+                  cons <- mapM oneOfCons fields
+                  pure [dataDecl_ fullName cons defaultMessageDeriving ]
+
        conDecl <- recDecl_ (HsIdent messageName) . mconcat <$>
                   mapM messagePartFieldD message
 
        nestedDecls_ <- mconcat <$>
            sequence [ nestedDecls def | DotProtoMessageDefinition def <- message]
+       nestedOneofs_ <- mconcat <$>
+           sequence [ nestedOneOfDecls ident fields
+                    | DotProtoMessageOneOf ident fields <- message ]
 
        messageInst <- messageInstD ctxt' parentIdent messageIdent message
 
        pure ([ dataDecl_ messageName [ conDecl ] defaultMessageDeriving
-             , namedInstD messageName, messageInst ] <> nestedDecls_)
+             , namedInstD messageName, messageInst ] <> nestedOneofs_ <> nestedDecls_)
 
 
 messageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifier
