@@ -850,8 +850,8 @@ dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC,
   identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC,
   unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
   methodNameC, nothingC, justC, mconcatE, encodeMessageFieldE, fromStringE,
-  decodeMessageFieldE, pureE, atE, succErrorE, predErrorE, toEnumErrorE, fmapE,
-  defaultOptionsE, serverLoopE, convertServerHandlerE,
+  decodeMessageFieldE, pureE, atE, oneofE, succErrorE, predErrorE, toEnumErrorE,
+  fmapE, defaultOptionsE, serverLoopE, convertServerHandlerE,
   convertServerReaderHandlerE, convertServerWriterHandlerE,
   convertServerRWHandlerE, clientRegisterMethodE, clientRequestE :: HsExp
 dotProtoFieldC        = HsVar (protobufName "DotProtoField")
@@ -885,6 +885,7 @@ justC                 = HsVar (haskellName "Just")
 encodeMessageFieldE   = HsVar (protobufName "encodeMessageField")
 decodeMessageFieldE   = HsVar (protobufName "decodeMessageField")
 atE                   = HsVar (protobufName "at")
+oneofE                = HsVar (protobufName "oneof")
 mconcatE              = HsVar (haskellName "mconcat")
 fromStringE           = HsVar (haskellName "fromString")
 pureE                 = HsVar (haskellName "pure")
