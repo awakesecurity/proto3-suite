@@ -6,6 +6,8 @@
 {-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE StandaloneDeriving     #-}
 {-# LANGUAGE TypeOperators          #-}
 
 module Main (main) where
@@ -21,15 +23,17 @@ import           Proto3.Suite.DotProto.Rendering
 import           Proto3.Wire.Types                (FieldNumber (..))
 import           Turtle                           (FilePath)
 
-data Args = Args
-  { proto :: FilePath <?> "Path to input .proto file"
-  } deriving (Generic, Show)
-instance ParseRecord Args
+data Args w = Args
+  { proto      :: w ::: FilePath   <?> "Path to input .proto file"
+  , includeDir :: w ::: [FilePath] <?> "Path to search for included .proto files (can be repeated, and paths will be searched in order)"
+  } deriving Generic
+instance ParseRecord (Args Wrapped)
+deriving instance Show (Args Unwrapped)
 
 main :: IO ()
 main = do
-  protoPath <- unHelpful . proto <$> getRecord "Dumps a canonical .proto file to stdout"
-  readDotProtoWithContext protoPath >>= \case
+  Args{..} :: Args Unwrapped <- unwrapRecord "Dumps a canonical .proto file to stdout"
+  readDotProtoWithContext includeDir proto >>= \case
     Left err      -> fail (show err)
     Right (dp, _) -> putStr (toProtoFile defRenderingOptions (canonicalize dp))
 

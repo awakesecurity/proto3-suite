@@ -1,6 +1,6 @@
 syntax = "proto3";
 package GeneratedTestTypes;
-import "test-files/test_import.proto";
+import "test_import.proto";
 
 message Trivial {
   int32 trivialField = 1;

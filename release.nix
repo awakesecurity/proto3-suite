@@ -19,6 +19,9 @@ let
       in
         { haskellPackages = pkgs.haskellPackages.override {
             overrides = haskellPackagesNew: haskellPackagesOld: rec {
+              neat-interpolation =
+                haskellPackagesNew.callPackage ./nix/neat-interpolation.nix { };
+
               optparse-applicative =
                 haskellPackagesNew.callPackage ./nix/optparse-applicative.nix { } ;
 

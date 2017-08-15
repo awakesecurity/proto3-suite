@@ -1,8 +1,8 @@
 #!/usr/bin/python
 import sys
 import os
-from test_files.test_pb2 import *  # Import protoc generated serializers
-import test_files.test_import_pb2 as test_import
+from test_pb2 import *  # Import protoc generated serializers
+import test_import_pb2 as test_import
 
 def write_proto(msg):
     out = msg.SerializeToString()

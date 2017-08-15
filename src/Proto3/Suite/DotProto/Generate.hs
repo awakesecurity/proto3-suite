@@ -1,9 +1,12 @@
 -- | This module provides functions to generate Haskell declarations for proto buf messages
 
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE NamedFieldPuns   #-}
-{-# LANGUAGE TupleSections    #-}
-{-# LANGUAGE ViewPatterns     #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE NamedFieldPuns    #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Proto3.Suite.DotProto.Generate
   ( CompileResult
@@ -22,22 +25,29 @@ module Proto3.Suite.DotProto.Generate
 
 import           Control.Applicative
 import           Control.Monad.Except
+import qualified Control.Foldl             as FL
 import           Data.Char
 import           Data.List                 (find, intercalate, nub, sortBy)
 import qualified Data.Map                  as M
 import           Data.Monoid
 import           Data.Ord                  (comparing)
 import qualified Data.Set                  as S
+import qualified Data.Text                 as T
 import           Debug.Trace               (trace)
-import           Filesystem.Path.CurrentOS (encodeString)
+import           Filesystem.Path.CurrentOS ((</>), encodeString, toText)
 import           Language.Haskell.Pretty
 import           Language.Haskell.Syntax
+import qualified NeatInterpolation         as Neat
 import           Prelude                   hiding (FilePath)
 import           Proto3.Suite.DotProto
 import           Proto3.Wire.Types         (FieldNumber (..))
 import           Text.Parsec               (ParseError)
 import           Turtle                    (FilePath)
-
+import           Turtle.Prelude            (pwd, testfile)
+import           Turtle.Shell              (select)
+import qualified Turtle
+import qualified Turtle.Format             as F
+import           Turtle.Format             ((%))
 
 -- * Public interface
 
@@ -88,20 +98,24 @@ hsModuleForDotProto dp@(DotProto { protoPackage = DotProtoPackageSpec pkgIdent
 hsModuleForDotProto _ _ =
     Left NoPackageDeclaration
 
--- | Parses the file at the given path and produces an AST along with
--- a 'TypeContext' representing all types from imported '.proto' files
-readDotProtoWithContext :: FilePath -> IO (CompileResult (DotProto, TypeContext))
-readDotProtoWithContext dotProtoPath = runExceptT go
+-- | Parses the file at the given path and produces an AST along with a
+-- 'TypeContext' representing all types from imported @.proto@ files, using the
+-- first parameter as a list of paths to search for imported files. Terminates
+-- with exit code 1 when an included file cannot be found in the search path.
+readDotProtoWithContext :: [FilePath] -> FilePath -> IO (CompileResult (DotProto, TypeContext))
+readDotProtoWithContext searchPaths dotProtoPath = runExceptT go
   where
     go = do dpRes <- parseProto <$> readFile' dotProtoPath
             case dpRes of
               Right dp -> (dp,) . mconcat <$> mapM (readImportTypeContext (S.singleton dotProtoPath)) (protoImports dp)
               Left err -> throwError (CompileParseError err)
 
+    readImportTypeContext :: S.Set FilePath -> DotProtoImport
+                          -> ExceptT CompileError IO (M.Map DotProtoIdentifier DotProtoTypeInfo)
     readImportTypeContext alreadyRead (DotProtoImport _ path)
       | path `S.member` alreadyRead = throwError (CircularImport path)
       | otherwise =
-          do import_ <- wrapError CompileParseError =<< (parseProto <$> readFile' path)
+          do import_ <- wrapError CompileParseError =<< importProto searchPaths path
              case protoPackage import_ of
                DotProtoPackageSpec importPkg ->
                  do importTypeContext <- wrapError id (dotProtoTypeContext import_)
@@ -116,16 +130,42 @@ readDotProtoWithContext dotProtoPath = runExceptT go
                         | importImport@(DotProtoImport DotProtoImportPublic _) <- protoImports import_]
                _ -> throwError NoPackageDeclaration
 
+    importProto :: MonadIO m => [FilePath] -> FilePath -> m (Either ParseError DotProto)
+    importProto [] protoFP = do
+      -- no search path, so default to using CWD, as `protoc` does
+      cwd <- pwd
+      importProto [cwd] protoFP
+    importProto paths protoFP = do
+      let cands = do fp <- (</> protoFP) <$> select paths
+                     True <- testfile fp
+                     pure fp
+      Turtle.fold cands FL.head >>= \case
+        Just fp -> parseProto <$> readFile' fp
+        Nothing -> do
+          let paths'        = T.unlines (Turtle.format ("  "%F.fp) . (</> protoFP) <$> paths)
+              dotProtoPath' = either id id . toText $ dotProtoPath
+              protoFP'      = either id id . toText $ protoFP
+          mapM_ Turtle.err . Turtle.textToLines $ [Neat.text|
+            Error: while processing the transitive includes for "${dotProtoPath'}", failed
+            to find the imported file "${protoFP'}", after looking in the following
+            locations (controlled via the --includeDir switch(es)):
+
+            $paths'
+          |]
+          Turtle.exit (Turtle.ExitFailure 1)
+
     readFile' :: MonadIO m => FilePath -> m String
     readFile' = liftIO . readFile . encodeString
 
     wrapError :: (err' -> err) -> Either err' a -> ExceptT err IO a
     wrapError f = either (throwError . f) pure
 
--- | Compile the .proto file at the given path into a haskell module, returned as a string
-renderHsModuleForDotProtoFile :: FilePath -> IO (CompileResult String)
-renderHsModuleForDotProtoFile dotProtoPath =
-  do res <- readDotProtoWithContext dotProtoPath
+-- | Compile the .proto file at the given path into a haskell module, returned
+-- as a string. First parameter is an ordered list of paths to be searched for
+-- any included .proto files.
+renderHsModuleForDotProtoFile :: [FilePath] -> FilePath -> IO (CompileResult String)
+renderHsModuleForDotProtoFile searchPaths dotProtoPath =
+  do res <- readDotProtoWithContext searchPaths dotProtoPath
      case res of
        Left err       -> pure (Left err)
        Right (dp, tc) -> pure (renderHsModuleForDotProto dp tc)

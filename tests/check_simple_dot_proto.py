@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import sys
-from test_files.test_pb2 import *  # Import protoc's generated decoder/encoder
-from test_files.test_import_pb2 import WithNesting as ImportedWithNesting
+from test_pb2 import *  # Import protoc's generated decoder/encoder
+from test_import_pb2 import WithNesting as ImportedWithNesting
 
 def read_proto(cls):
     length = int(raw_input())
