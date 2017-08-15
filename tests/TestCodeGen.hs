@@ -98,14 +98,14 @@ pyTmpDir = "test-files/py-tmp"
 
 compileTestDotProto :: IO ()
 compileTestDotProto = do
-  readDotProtoWithContext ["test-files"] "test-files/test.proto" >>= \case
+  readDotProtoWithContext ["test-files"] "test.proto" >>= \case
     Left err -> fail (show err)
     Right (dp, ctxt) ->
       case renderHsModuleForDotProto dp ctxt of
         Left err -> fail ("compileTestDotProto: Error compiling test.proto: " <> show err)
         Right hsSrc -> writeFile (hsTmpDir <> "/GeneratedTestTypes.hs") hsSrc
 
-  readDotProtoWithContext ["test-files"] "test-files/test_import.proto" >>= \case
+  readDotProtoWithContext ["test-files"] "test_import.proto" >>= \case
     Left err -> fail (show err)
     Right (dp, ctxt) ->
       case renderHsModuleForDotProto dp ctxt of

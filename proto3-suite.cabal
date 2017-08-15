@@ -20,6 +20,7 @@ library
                        Proto3.Suite.DotProto.Rendering
                        Proto3.Suite.Tutorial
                        Proto3.Suite.Types
+  other-modules:       Proto3.Suite.DotProto.Internal
   build-depends:       base >=4.8 && <5.0,
                        bytestring >=0.10.6.0 && <0.11.0,
                        deepseq ==1.4.*,

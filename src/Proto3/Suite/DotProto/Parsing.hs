@@ -7,6 +7,7 @@
 
 module Proto3.Suite.DotProto.Parsing
   ( parseProto
+  , parseProtoFile
   ) where
 
 import Control.Applicative hiding (empty)
@@ -21,12 +22,16 @@ import Text.Parser.Char
 import Text.Parser.Combinators
 import Text.Parser.LookAhead
 import Text.Parser.Token
+import qualified Turtle
 
 ----------------------------------------
--- interface
+-- interfaces
 
 parseProto :: String -> Either ParseError DotProto
 parseProto = parse topLevel "" . stripComments
+
+parseProtoFile :: Turtle.MonadIO m => Turtle.FilePath -> m (Either ParseError DotProto)
+parseProtoFile = fmap parseProto . Turtle.liftIO . readFile . FP.encodeString
 
 ----------------------------------------
 -- convenience
