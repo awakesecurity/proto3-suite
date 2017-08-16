@@ -11,9 +11,7 @@ import qualified Control.Foldl             as FL
 import           Control.Lens              (over)
 import           Control.Lens.Cons         (_head)
 import           Data.Char                 (toUpper)
-import qualified Data.List                 as L
 import qualified Data.Text                 as T
-import qualified Filesystem.Path.CurrentOS as FP
 import           Filesystem.Path.CurrentOS ((</>))
 import qualified NeatInterpolation         as Neat
 import           Prelude                   hiding (FilePath)
@@ -74,37 +72,6 @@ toModulePath fp
     . Turtle.format F.fp
     . Turtle.dropExtension
     $ fp
-
--- | toHsModName converts the given module path into a fully
--- qualified Haskell module name.
---
--- >>> toHsModName (Path ["Common"])
--- "Common"
---
--- >>> toHsModName (Path ["Google", "Protobuf", "Timestamp"])
--- "Google.Protobuf.Timestamp"
---
--- >>> toHsModName (Path [])
--- ""
---
-toHsModName :: Path -> String
-toHsModName (Path comps) = L.intercalate "." comps
-
--- | toHsModPath converts the given module path into the
--- corresponding filesystem path for writing a .hs file.
---
--- >>> toHsModPath (Path ["Common"])
--- FilePath "Common.hs"
---
--- >>> toHsModPath (Path ["Google", "Protobuf", "Timestamp"])
--- FilePath "Google/Protobuf/Timestamp.hs"
---
--- >>> toHsModPath (Path [])
--- FilePath ""
---
-toHsModPath :: Path -> FilePath
-toHsModPath (Path [])    = FP.empty
-toHsModPath (Path comps) = (Turtle.<.> "hs") . FP.fromText . T.pack . L.intercalate "/" $ comps
 
 fatalBadModulePath :: MonadIO m => FilePath -> String -> m a
 fatalBadModulePath (Turtle.format F.fp -> fp) (T.pack -> rsn) =

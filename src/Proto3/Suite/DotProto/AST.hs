@@ -154,10 +154,9 @@ data DotProtoMeta = DotProtoMeta
     -- was parsed. The "module path" is derived from the `--includeDir`-relative
     -- .proto filename passed to 'parseProtoFile'. See
     -- 'Proto3.Suite.DotProto.Internal.toModulePath' for details on how module
-    -- path values are constructed. See the
-    -- 'Proto3.Suite.DotProto.Internal.toHaskellModuleName' and
-    -- 'Proto3.Suite.DotProto.Internal.toHaskellModulePath' functions to see how
-    -- it is used during code generation.
+    -- path values are constructed. See
+    -- 'Proto3.Suite.DotProto.Generate.modulePathModName' to see how it is used
+    -- during code generation.
   } deriving (Show, Eq)
 
 instance Arbitrary DotProtoMeta where

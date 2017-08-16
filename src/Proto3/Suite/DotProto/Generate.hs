@@ -59,12 +59,23 @@ data CompileError
   | InvalidMethodName DotProtoIdentifier
   | Unimplemented   String
   | InternalError   String
+  | InternalEmptyModulePath
     deriving (Show, Eq)
 
 -- | Result of a compilation. 'Left err' on error, where 'err' is a
 --   'String' describing the error. Otherwise, the result of the
 --   compilation.
 type CompileResult = Either CompileError
+
+-- | Compile the .proto file at the given path into a haskell module, returned
+-- as a string. First parameter is an ordered list of paths to be searched for
+-- any included .proto files.
+renderHsModuleForDotProtoFile :: [FilePath] -> FilePath -> IO (CompileResult String)
+renderHsModuleForDotProtoFile searchPaths dotProtoPath =
+  do res <- readDotProtoWithContext searchPaths dotProtoPath
+     case res of
+       Left err       -> pure (Left err)
+       Right (dp, tc) -> pure (renderHsModuleForDotProto dp tc)
 
 -- | Compile a 'DotProto' AST into a 'String' representing the Haskell
 --   source of a module implementing types and instances for the .proto
@@ -85,17 +96,23 @@ renderHsModuleForDotProto dp importCtxt =
 
 -- | Compile a Haskell module AST given a 'DotProto' package AST.
 hsModuleForDotProto :: DotProto -> TypeContext -> CompileResult HsModule
-hsModuleForDotProto dp@(DotProto { protoPackage = DotProtoPackageSpec pkgIdent
-                                 , protoDefinitions })
-                    importCtxt =
-    module_ <$> pkgIdentModName pkgIdent
-            <*> pure Nothing
-            <*> (mappend (defaultImports hasService) <$> ctxtImports importCtxt)
-            <*> (do typeContext <- dotProtoTypeContext dp
-                    mconcat <$> mapM (dotProtoDefinitionD pkgIdent (typeContext <> importCtxt)) protoDefinitions)
-  where hasService = not (null [ () | DotProtoService {} <- protoDefinitions ])
-hsModuleForDotProto _ _ =
-    Left NoPackageDeclaration
+hsModuleForDotProto (DotProto{ protoMeta = DotProtoMeta (Path []) }) _importCtxt
+  = Left InternalEmptyModulePath
+hsModuleForDotProto
+  dp@DotProto{ protoPackage     = DotProtoPackageSpec pkgIdent
+             , protoMeta        = DotProtoMeta modulePath
+             , protoDefinitions = defs
+             }
+  importCtxt
+  = module_
+    <$> modulePathModName modulePath
+    <*> pure Nothing
+    <*> do mappend (defaultImports hasService) <$> ctxtImports importCtxt
+    <*> do tc <- dotProtoTypeContext dp
+           mconcat <$> mapM (dotProtoDefinitionD pkgIdent (tc <> importCtxt)) defs
+  where hasService = not (null [ () | DotProtoService {} <- defs ])
+hsModuleForDotProto _ _
+  = Left NoPackageDeclaration
 
 -- | Parses the file at the given path and produces an AST along with a
 -- 'TypeContext' representing all types from imported @.proto@ files, using the
@@ -156,17 +173,6 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
     wrapError :: (err' -> err) -> Either err' a -> ExceptT err IO a
     wrapError f = either (throwError . f) pure
 
--- | Compile the .proto file at the given path into a haskell module, returned
--- as a string. First parameter is an ordered list of paths to be searched for
--- any included .proto files.
-renderHsModuleForDotProtoFile :: [FilePath] -> FilePath -> IO (CompileResult String)
-renderHsModuleForDotProtoFile searchPaths dotProtoPath =
-  do res <- readDotProtoWithContext searchPaths dotProtoPath
-     case res of
-       Left err       -> pure (Left err)
-       Right (dp, tc) -> pure (renderHsModuleForDotProto dp tc)
-
-
 -- * Type-tracking data structures
 
 -- | Whether a definition is an enumeration or a message
@@ -195,15 +201,17 @@ type TypeContext = M.Map DotProtoIdentifier DotProtoTypeInfo
 -- ** Generating type contexts from ASTs
 
 dotProtoTypeContext :: DotProto -> CompileResult TypeContext
-dotProtoTypeContext DotProto { protoDefinitions } =
-  mconcat <$> mapM definitionTypeContext protoDefinitions
+dotProtoTypeContext DotProto { protoDefinitions
+                             , protoMeta = DotProtoMeta modulePath
+                             }
+  = mconcat <$> mapM (definitionTypeContext modulePath) protoDefinitions
 
-definitionTypeContext :: DotProtoDefinition -> CompileResult TypeContext
-definitionTypeContext (DotProtoMessage msgIdent parts) =
+definitionTypeContext :: Path -> DotProtoDefinition -> CompileResult TypeContext
+definitionTypeContext modulePath (DotProtoMessage msgIdent parts) =
     do childTyContext <-
           mapM updateDotProtoTypeInfoParent =<<
           (mconcat <$> sequenceA
-               [ definitionTypeContext def
+               [ definitionTypeContext modulePath def
                | DotProtoMessageDefinition def <- parts ])
 
        qualifiedChildTyContext <- M.fromList <$>
@@ -213,16 +221,16 @@ definitionTypeContext (DotProtoMessage msgIdent parts) =
 
        pure (M.singleton msgIdent
                  (DotProtoTypeInfo DotProtoNoPackage Anonymous
-                      childTyContext DotProtoKindMessage Nothing) <>
+                      childTyContext DotProtoKindMessage (Just modulePath)) <>
                qualifiedChildTyContext)
   where updateDotProtoTypeInfoParent tyInfo =
             do dotProtoTypeInfoParent <-
                      concatDotProtoIdentifier msgIdent (dotProtoTypeInfoParent tyInfo)
                pure tyInfo { dotProtoTypeInfoParent }
-definitionTypeContext (DotProtoEnum enumIdent _) =
+definitionTypeContext modulePath (DotProtoEnum enumIdent _) =
   pure (M.singleton enumIdent
-            (DotProtoTypeInfo DotProtoNoPackage Anonymous mempty DotProtoKindEnum Nothing))
-definitionTypeContext _ = pure mempty
+            (DotProtoTypeInfo DotProtoNoPackage Anonymous mempty DotProtoKindEnum (Just modulePath)))
+definitionTypeContext _ _ = pure mempty
 
 concatDotProtoIdentifier :: DotProtoIdentifier -> DotProtoIdentifier
                          -> CompileResult DotProtoIdentifier
@@ -241,14 +249,13 @@ concatDotProtoIdentifier (Dots (Path a)) (Dots (Path b)) = pure . Dots . Path $ 
 --   to import all the required types.
 ctxtImports :: TypeContext -> CompileResult [HsImportDecl]
 ctxtImports tyCtxt =
-  do imports <- nub <$> sequence [ pkgIdentModName pkgIdent
-                                 | DotProtoTypeInfo {
-                                     dotProtoTypeInfoPackage =
-                                         DotProtoPackageSpec pkgIdent
-                                     } <- M.elems tyCtxt ]
-
+  do imports <- nub <$> sequence
+                  [ modulePathModName modulePath
+                  | DotProtoTypeInfo { dotProtoTypeInfoModulePath =
+                                         Just modulePath }
+                    <- M.elems tyCtxt
+                  ]
      pure [ importDecl_ modName True Nothing Nothing | modName <- imports ]
-
 
 -- * Functions to convert 'DotProtoType' into Haskell types
 
@@ -256,10 +263,8 @@ ctxtImports tyCtxt =
 --   given 'TypeContext'
 hsTypeFromDotProto :: TypeContext -> DotProtoType -> CompileResult HsType
 hsTypeFromDotProto ctxt (Prim (Named msgName))
-    | Just DotProtoKindMessage <-
-          dotProtoTypeInfoKind <$> M.lookup msgName ctxt =
-        HsTyApp (primType_ "Maybe") <$>
-            hsTypeFromDotProtoPrim ctxt (Named msgName)
+    | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup msgName ctxt =
+      HsTyApp (primType_ "Maybe") <$> hsTypeFromDotProtoPrim ctxt (Named msgName)
 hsTypeFromDotProto ctxt (Prim pType) =
     hsTypeFromDotProtoPrim ctxt pType
 hsTypeFromDotProto ctxt (Optional (Named nm)) =
@@ -300,20 +305,29 @@ hsTypeFromDotProtoPrim ctxt (Named msgName) =
       Just ty -> msgTypeFromDpTypeInfo ty msgName
       Nothing -> noSuchTypeError msgName
 
--- | Generate the Haskell type name for a 'DotProtoTypeInfo' for a
---   message / enumeration being compiled
+-- | Generate the Haskell type name for a 'DotProtoTypeInfo' for a message /
+--   enumeration being compiled. NB: We ignore the 'dotProtoTypeInfoPackage'
+--   field of the 'DotProtoTypeInfo' parameter, instead demanding that we have
+--   been provided with a valid module path in its 'dotProtoTypeInfoModulePath'
+--   field. The latter describes the name of the Haskell module being generated.
 msgTypeFromDpTypeInfo :: DotProtoTypeInfo -> DotProtoIdentifier
                       -> CompileResult HsType
-msgTypeFromDpTypeInfo DotProtoTypeInfo { dotProtoTypeInfoParent = parent
-                                       , dotProtoTypeInfoPackage = DotProtoNoPackage }
-                      ident =
-    type_ <$> (nestedTypeName parent =<< dpIdentUnqualName ident)
-msgTypeFromDpTypeInfo DotProtoTypeInfo { dotProtoTypeInfoParent = parent
-                                       , dotProtoTypeInfoPackage = DotProtoPackageSpec pkg }
-                      ident =
-    HsTyCon <$> (Qual <$> pkgIdentModName pkg <*>
-                     (HsIdent <$> (nestedTypeName parent =<<
-                                       dpIdentUnqualName ident)))
+msgTypeFromDpTypeInfo
+  DotProtoTypeInfo{ dotProtoTypeInfoModulePath = Nothing }
+  _ident
+  = Left InternalEmptyModulePath
+msgTypeFromDpTypeInfo
+  DotProtoTypeInfo{ dotProtoTypeInfoModulePath = Just (Path []) }
+  _ident
+  = Left InternalEmptyModulePath
+msgTypeFromDpTypeInfo
+  DotProtoTypeInfo { dotProtoTypeInfoParent     = p
+                   , dotProtoTypeInfoModulePath = Just modulePath
+                   }
+  ident
+  = HsTyCon <$> do Qual <$> modulePathModName modulePath
+                        <*> do HsIdent <$> do
+                                 nestedTypeName p =<< dpIdentUnqualName ident
 
 -- | Given a 'DotProtoIdentifier' for the parent type and the unqualified name of this type, generate the corresponding Haskell name
 nestedTypeName :: DotProtoIdentifier -> String -> CompileResult String
@@ -373,10 +387,14 @@ dpIdentQualName (Dots (Path names)) = pure (intercalate "." names)
 dpIdentQualName (Qualified _ _)     = internalError "dpIdentQualName: Qualified"
 dpIdentQualName Anonymous           = internalError "dpIdentQualName: Anonymous"
 
-pkgIdentModName :: DotProtoIdentifier -> CompileResult Module
-pkgIdentModName (Single s)          = Module <$> typeLikeName s
-pkgIdentModName (Dots (Path paths)) = Module <$> (intercalate "." <$> mapM typeLikeName paths)
-pkgIdentModName _            = internalError "pkgIdentModName: Malformed package name"
+modulePathModName :: Path -> CompileResult Module
+modulePathModName (Path [])    = Left InternalEmptyModulePath
+modulePathModName (Path comps) = Module <$> (intercalate "." <$> mapM typeLikeName comps)
+
+_pkgIdentModName :: DotProtoIdentifier -> CompileResult Module
+_pkgIdentModName (Single s)          = Module <$> typeLikeName s
+_pkgIdentModName (Dots (Path paths)) = Module <$> (intercalate "." <$> mapM typeLikeName paths)
+_pkgIdentModName _            = internalError "pkgIdentModName: Malformed package name"
 
 -- * Generate instances for a 'DotProto' package
 
