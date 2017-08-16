@@ -1,6 +1,7 @@
 -- | This module provides types and functions to generate .proto files.
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedLists            #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# OPTIONS_GHC -fno-warn-orphans       #-}
@@ -149,7 +150,7 @@ instance Pretty Streaming where
 
 instance Pretty DotProtoIdentifier where
   pPrint (Single name)                    = PP.text name
-  pPrint (Path names)                     = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> names
+  pPrint (Dots (Path names))              = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> names
   pPrint (Qualified qualifier identifier) = PP.parens (pPrint qualifier) <> PP.text "." <> pPrint identifier
   pPrint Anonymous                        = PP.empty
 
@@ -204,4 +205,5 @@ toProtoFileDef :: DotProto -> String
 toProtoFileDef = toProtoFile defRenderingOptions
 
 packageFromDefs :: String -> [DotProtoDefinition] -> DotProto
-packageFromDefs package defs = DotProto [] [] (DotProtoPackageSpec $ Single package) defs
+packageFromDefs package defs =
+  DotProto [] [] (DotProtoPackageSpec $ Single package) defs (DotProtoMeta $ Path [])

@@ -27,11 +27,20 @@ import qualified Turtle
 ----------------------------------------
 -- interfaces
 
-parseProto :: String -> Either ParseError DotProto
-parseProto = parse topLevel "" . stripComments
+-- | @parseProto mp inp@ attempts to parse @inp@ as a 'DotProto'. @mp@ is the
+-- module path to be injected into the AST as part of 'DotProtoMeta' metadata on
+-- a successful parse.
+parseProto :: Path -> String -> Either ParseError DotProto
+parseProto modulePath = parse (topLevel modulePath) "" . stripComments
 
-parseProtoFile :: Turtle.MonadIO m => Turtle.FilePath -> m (Either ParseError DotProto)
-parseProtoFile = fmap parseProto . Turtle.liftIO . readFile . FP.encodeString
+-- | @parseProtoFile mp fp@ reads and parses the .proto file found at @fp@. @mp@
+-- is used downstream during code generation when we need to generate names
+-- which are a function of the source .proto file's filename and its path
+-- relative to some @--includeDir@.
+parseProtoFile :: Turtle.MonadIO m
+               => Path -> Turtle.FilePath -> m (Either ParseError DotProto)
+parseProtoFile modulePath =
+  fmap (parseProto modulePath) . Turtle.liftIO . readFile . FP.encodeString
 
 ----------------------------------------
 -- convenience
@@ -104,7 +113,7 @@ identifier :: Parser DotProtoIdentifier
 identifier = do is <- identifierName `sepBy1` string "."
                 return $ case is of
                   [i] -> Single i
-                  _    -> Path is
+                  _   -> Dots (Path is)
 
 -- [note] message and enum types are defined by the proto3 spec to have an optional leading period (messageType and enumType in the spec)
 --        what this indicates is, as far as i can tell, not documented, and i haven't found this syntax used in practice
@@ -184,22 +193,23 @@ data DotProtoStatement
   | DPSEmpty
   deriving Show
 
-sortStatements :: [DotProtoStatement] -> DotProto
-sortStatements statements
+sortStatements :: Path -> [DotProtoStatement] -> DotProto
+sortStatements modulePath statements
   = DotProto { protoOptions     =       [ x | DPSOption     x <- statements]
              , protoImports     =       [ x | DPSImport     x <- statements]
              , protoPackage     = adapt [ x | DPSPackage    x <- statements]
              , protoDefinitions =       [ x | DPSDefinition x <- statements]
+             , protoMeta        = DotProtoMeta modulePath
              }
   where
     adapt (x:_) = x
     adapt _     = DotProtoNoPackage
 
-topLevel :: Parser DotProto
-topLevel = do whiteSpace
-              syntaxSpec
-              whiteSpace
-              sortStatements <$> topStatement `sepBy` whiteSpace
+topLevel :: Path -> Parser DotProto
+topLevel modulePath = do whiteSpace
+                         syntaxSpec
+                         whiteSpace
+                         sortStatements modulePath <$> topStatement `sepBy` whiteSpace
 
 --------------------------------------------------------------------------------
 -- top-level statements

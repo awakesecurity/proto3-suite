@@ -54,6 +54,7 @@ instance Canonicalize DotProto where
     , protoOptions     = canonicalize protoOptions
     , protoPackage     = canonicalize protoPackage
     , protoDefinitions = canonicalize protoDefinitions
+    , protoMeta        = protoMeta
     }
 
 instance Canonicalize [DotProtoImport] where canonicalize = canonicalSort
@@ -239,7 +240,7 @@ instance Canonicalize DotProtoValue where
 instance Canonicalize DotProtoIdentifier where
   canonicalize = \case
     Single part -> Single part
-    Path [part] -> Single part
-    Path parts -> Path parts
+    Dots (Path [part]) -> Single part
+    Dots path -> Dots path
     Qualified x y -> Qualified (canonicalize x) (canonicalize y)
     Anonymous -> Anonymous

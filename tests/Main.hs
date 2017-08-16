@@ -18,6 +18,7 @@ import           Proto3.Suite
 import           Proto3.Wire.Decode          (ParseError)
 import qualified Proto3.Wire.Decode          as Decode
 import           Proto3.Wire.Types           as P
+import qualified Test.DocTest
 import           Test.QuickCheck             (Arbitrary, Property, arbitrary,
                                               counterexample, oneof)
 import           Test.Tasty
@@ -25,35 +26,9 @@ import           Test.Tasty.HUnit            (Assertion, assertBool, testCase,
                                               (@=?), (@?=))
 import           Test.Tasty.QuickCheck       (testProperty, (===))
 
--- NB: GeneratedTestTypes.hs etc. should be manually generated via something
--- like:
---
---   [nix-shell]$ compile-proto-file --proto test-files/test.proto        > tests/GeneratedTestTypes.hs
---   [nix-shell]$ compile-proto-file --proto test-files/test_import.proto > tests/GeneratedImportedTestTypes.hs
---
--- And these commands would need to be run whenever test.proto or
--- test_import.proto change.
---
--- However, compile-proto-file hasn't been taken out of grpc-haskell and put
--- into this package where it belongs, and so doing the above doesn't work yet
--- while iterating on the code generation. Here's the quick and dirty way to
--- invoke CG in the meantime (a fix for this is intended soon):
---
--- Load this module into ghci from the root of the repository, then:
---
---   > Right (dp, tc) <- readDotProtoWithContext "/path/to/repo/root/test-files/test.proto"
---   > let Right src = renderHsModuleForDotProto dp tc
---   > writeFile "/path/to/repo/root/tests/GeneratedTestTypes.hs" src
---   > Right (dp, tc) <- readDotProtoWithContext "/path/to/repo/root/test-files/test_import.proto"
---   > let Right src = renderHsModuleForDotProto dp tc
---   > writeFile "/path/to/repo/root/tests/GeneratedImportedTestTypes.hs" src
---
--- TODO: Get compile-proto-file into the repository.
--- TODO: Automate generation of these modules as a part of the build process.
-
 import           ArbitraryGeneratedTestTypes ()
 import qualified GeneratedTestTypes          as GTT
-
+import qualified Test.DocTest
 import           TestCodeGen
 
 main :: IO ()
@@ -61,13 +36,22 @@ main = defaultMain tests
 
 tests :: TestTree
 tests = testGroup "Tests"
-  [ qcProperties
+  [ docTests
+  , qcProperties
   , encodeUnitTests
   , decodeUnitTests
   , parserUnitTests
   , dotProtoUnitTests
   , codeGenTests
   ]
+
+docTests :: TestTree
+docTests = testCase "doctests" $ do
+  putStrLn "Running all doctests..."
+  Test.DocTest.doctest
+    [ "-isrc"
+    , "src/Proto3/Suite/DotProto/Internal.hs"
+    ]
 
 --------------------------------------------------------------------------------
 -- QuickCheck properties
@@ -221,7 +205,7 @@ testParser fp p reference = do
 testDotProtoParse :: FilePath -> DotProto -> Assertion
 testDotProtoParse file ast = do
   contents <- readFile file
-  case parseProto contents of
+  case parseProto (Path []) contents of
     Left err     -> error $ show err
     Right result -> ast @=? result
 
@@ -229,8 +213,8 @@ testDotProtoPrint :: DotProto -> String -> Assertion
 testDotProtoPrint ast expected = expected @=? toProtoFileDef ast
 
 testDotProtoRoundtrip :: DotProto -> Assertion
-testDotProtoRoundtrip ast = let Right result = parseProto $ toProtoFileDef ast
-                            in ast @=? result
+testDotProtoRoundtrip ast =
+  Right ast @=? parseProto (Path []) (toProtoFileDef ast)
 
 dotProtoUnitTests :: TestTree
 dotProtoUnitTests = testGroup ".proto parsing tests"
@@ -242,7 +226,7 @@ dotProtoUnitTests = testGroup ".proto parsing tests"
   ]
 
 trivialDotProto :: DotProto
-trivialDotProto = DotProto [] [] DotProtoNoPackage []
+trivialDotProto = DotProto [] [] DotProtoNoPackage [] (DotProtoMeta (Path []))
 
 dotProtoParseTrivial :: TestTree
 dotProtoParseTrivial = testCase
@@ -266,6 +250,7 @@ dotProtoSimpleMessage = DotProto [] [] DotProtoNoPackage
           DotProtoField (fieldNumber 1) (Prim Int32) (Single "testfield") [] Nothing
       ]
   ]
+  (DotProtoMeta (Path []))
 
 dotProtoRoundtripSimpleMessage :: TestTree
 dotProtoRoundtripSimpleMessage = testCase
@@ -278,7 +263,7 @@ qcDotProtoRoundtrip = testProperty
   where
     roundtrip :: DotProto -> Property
     roundtrip ast = let generated = toProtoFileDef ast
-                    in case parseProto generated of
+                    in case parseProto (Path []) generated of
                       Left err     -> error $ formatParseError err generated
                       Right result -> counterexample (formatMismatch ast generated result ) (ast == result)
 
@@ -303,6 +288,7 @@ dotProtoFor :: (Named a, Message a) => Proxy a -> DotProto
 dotProtoFor proxy = DotProto [] [] DotProtoNoPackage
   [ DotProtoMessage (Single (nameOf proxy)) (DotProtoMessageField <$> dotProto proxy)
   ]
+  (DotProtoMeta (Path []))
 
 showDotProtoFor :: (Named a, Message a) => Proxy a -> IO ()
 showDotProtoFor = putStrLn . toProtoFileDef . dotProtoFor

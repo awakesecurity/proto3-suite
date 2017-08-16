@@ -14,10 +14,12 @@ module Proto3.Suite.DotProto.AST
     , DotProtoPackageSpec(..)
     , DotProtoOption(..)
     , DotProtoDefinition(..)
+    , DotProtoMeta(..)
     , DotProto(..)
     , DotProtoValue(..)
     , DotProtoPrimType(..)
     , Packing(..)
+    , Path(..)
     , DotProtoType(..)
     , DotProtoEnumValue
     , DotProtoEnumPart(..)
@@ -63,9 +65,11 @@ newtype PackageName = PackageName
 instance Show PackageName where
   show = show . getPackageName
 
+newtype Path = Path [String] deriving (Show, Eq, Ord)
+
 data DotProtoIdentifier
   = Single String
-  | Path   [String]
+  | Dots   Path
   | Qualified DotProtoIdentifier DotProtoIdentifier
   | Anonymous -- [recheck] is there a better way to represent unnamed things
   deriving (Show, Eq, Ord)
@@ -143,6 +147,22 @@ instance Arbitrary DotProtoDefinition where
         parts      <- smallListOf arbitrary
         return (DotProtoEnum identifier parts)
 
+-- | Tracks misc metadata about the AST
+data DotProtoMeta = DotProtoMeta
+  { metaModulePath :: Path
+    -- ^ The "module path" associated with the .proto file from which this AST
+    -- was parsed. The "module path" is derived from the `--includeDir`-relative
+    -- .proto filename passed to 'parseProtoFile'. See
+    -- 'Proto3.Suite.DotProto.Internal.toModulePath' for details on how module
+    -- path values are constructed. See the
+    -- 'Proto3.Suite.DotProto.Internal.toHaskellModuleName' and
+    -- 'Proto3.Suite.DotProto.Internal.toHaskellModulePath' functions to see how
+    -- it is used during code generation.
+  } deriving (Show, Eq)
+
+instance Arbitrary DotProtoMeta where
+  arbitrary = pure . DotProtoMeta . Path $ []
+
 -- | This data structure represents a .proto file
 --   The actual source order of protobuf statements isn't meaningful so statements are sorted by type during parsing
 --   A .proto file with more than one package declaration is considered invalid
@@ -151,6 +171,7 @@ data DotProto = DotProto
   , protoOptions     :: [DotProtoOption]
   , protoPackage     :: DotProtoPackageSpec
   , protoDefinitions :: [DotProtoDefinition]
+  , protoMeta        :: DotProtoMeta
   } deriving (Show, Eq)
 
 instance Arbitrary DotProto where
@@ -159,6 +180,7 @@ instance Arbitrary DotProto where
     protoOptions     <- smallListOf arbitrary
     protoPackage     <- arbitrary
     protoDefinitions <- smallListOf arbitrary
+    protoMeta        <- arbitrary
     return (DotProto {..})
 
 -- | Matches the definition of `constant` in the proto3 language spec
@@ -422,7 +444,7 @@ arbitraryPathIdentifier :: Gen DotProtoIdentifier
 arbitraryPathIdentifier = do
   name  <- arbitraryIdentifierName
   names <- smallListOf1 arbitraryIdentifierName
-  return (Path (name:names))
+  pure . Dots . Path $ name:names
 
 arbitraryNestedIdentifier :: Gen DotProtoIdentifier
 arbitraryNestedIdentifier = do

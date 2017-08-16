@@ -6,7 +6,7 @@ Running:
 $ bash generate-test-types.sh
 ```
 
-from inside this directly will result in `GeneratedTestTypes.hs` and
+from inside this directory will result in `GeneratedTestTypes.hs` and
 `GeneratedImportedTestTypes.hs` being regenerated from
 `../test-files/test.proto` and `../test-files/test_import.proto`, respectively.
 
