@@ -51,13 +51,15 @@ _stripComments []             = []
 -- `_stripComments` above: it handles /* block comments /* with nesting */ */,
 -- "// string lits with comments in them", etc., and thus is closer to the
 -- protobuf3 grammar. The right solution is still to replace this with a proper
--- lexer -- extra credit for injecting comments into the AST so that they can be
--- marshaled into the generated code, and for ensuring that line numbers
--- reported in errors are correct. Although this is handy to toss out in the
--- interests of getting some .protos through, it's probably not worth
--- maintaining, and has an ad-hoc smell. If we find ourselves mucking with this
--- much at all in the very near short term, let's just pay the freight and use
--- `Text.Parsec.Token` or somesuch.
+-- lexer, but since we might switch to using the `protoc`-based `FileDescriptor`
+-- parsing instead, we should hold off. If we do decide to stick with this
+-- parser, we should also inject comments into the AST so that they can be
+-- marshaled into the generated code, and ensure that line numbers reported in
+-- errors are still correct. Although this implementation is handy to toss out
+-- in the interests of getting some more .protos parsable, it's probably not
+-- worth maintaining, and has an ad-hoc smell. If we find ourselves mucking with
+-- this much at all in the very near short term, let's just pay the freight and
+-- use `Text.Parsec.Token` or somesuch.
 data StripCommentState
        --               | starts  | ends | error on?       |
   = BC -- block comment | "/*"    | "*/" | mismatch        |
