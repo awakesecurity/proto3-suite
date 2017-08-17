@@ -48,7 +48,7 @@ $ nix-shell release.nix -A proto3-suite.env
 The above steps will work only if your Haskell source compiles, because
 some of the tests require the current `compile-proto-file` executable.
 
-## `compile-proto-file` and `canonicalize-proto-file`
+## `compile-proto-file` and `canonicalize-proto-file` installation
 
 Run the following commmand from the root of this repository to install
 the `compile-proto-file` and `canonicalize-proto-file` executables:
@@ -62,3 +62,91 @@ To remove it from your nix user profile path, use:
 ```bash
 $ nix-env --uninstall proto3-suite
 ```
+
+## `compile-proto-file` usage
+
+```bash
+$ compile-proto-file --help
+Compiles a .proto file to a Haskell module
+
+Usage: compile-proto-file --out FILEPATH [--includeDir FILEPATH]...
+                          --proto FILEPATH
+
+Available options:
+  -h,--help                Show this help text
+  --out FILEPATH           Output directory path where generated Haskell modules
+                           will be written (directory is created if it does not
+                           exist; note that files in the output directory may be
+                           overwritten!)
+  --includeDir FILEPATH... Path to search for included .proto files (can be
+                           repeated, and paths will be searched in order; the
+                           current directory is used if this option is not
+                           provided)
+  --proto FILEPATH         Path to input .proto file
+```
+
+`compile-proto-file` bases the name (and hence, path) of the generated Haskell
+module on the filename of the input `.proto` file, _relative_ to the include
+path where it was found, snake-to-cameling as needed.
+
+As an example, let's assume this is our current directory structure before
+performing any code generation:
+
+```
+.
+├── my_protos
+│   └── my_package.proto
+└── other_protos
+    └── google
+        └── protobuf
+            ├── duration.proto
+            └── timestamp.proto
+```
+
+where `my_package.proto` is:
+
+```
+syntax = "proto3";
+package some_package_name;
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+message MyMessage {
+  Timestamp timestamp = 1;
+  Duration  duration  = 2;
+}
+```
+
+Then, after the following commands:
+
+```bash
+$ compile-proto-file --out gen --includeDir my_protos --includeDir other_protos --proto google/protobuf/duration.proto
+$ compile-proto-file --out gen --includeDir my_protos --includeDir other_protos --proto google/protobuf/timestamp.proto
+$ compile-proto-file --out gen --includeDir my_protos --includeDir other_protos --proto my_package.proto
+```
+
+the directory tree will look like this:
+
+```
+.
+├── gen
+│   ├── Google
+│   │   └── Protobuf
+│   │       ├── Duration.hs
+│   │       └── Timestamp.hs
+│   └── MyPackage.hs
+├── my_protos
+│   └── my_package.proto
+└── other_protos
+    └── google
+        └── protobuf
+            ├── duration.proto
+            └── timestamp.proto
+```
+
+Finally, note that delimiting `.`characters in the input `.proto` basename are
+treated as `/` characters, so the input filenames
+`google.protobuf.timestamp.proto` and `google/protobuf/timestamp.proto` would
+produce same generated Haskell module name and path.
+
+This is essentially the same module naming scheme as the `protoc` Python plugin
+uses when compiling `.proto` files.

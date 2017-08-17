@@ -23,5 +23,5 @@ deriving instance Show (Args Unwrapped)
 
 main :: IO ()
 main = do
-  Args{..} :: Args Unwrapped <- unwrapRecord "Compiles a .proto file to one or more Haskell modules"
+  Args{..} :: Args Unwrapped <- unwrapRecord "Compiles a .proto file to a Haskell module"
   compileDotProtoFileOrDie out includeDir proto
