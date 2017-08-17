@@ -14,9 +14,10 @@ module Proto3.Suite.DotProto.Generate
   , CompileError(..)
   , TypeContext
 
+  , compileDotProtoFile
+  , compileDotProtoFileOrDie
   , hsModuleForDotProto
   , renderHsModuleForDotProto
-  , renderHsModuleForDotProtoFile
   , readDotProtoWithContext
 
   -- * Exposed for unit-testing
@@ -32,8 +33,10 @@ import qualified Data.Map                  as M
 import           Data.Monoid
 import           Data.Ord                  (comparing)
 import qualified Data.Set                  as S
+import           Data.String               (fromString)
 import qualified Data.Text                 as T
 import           Debug.Trace               (trace)
+import qualified Filesystem.Path.CurrentOS as FP
 import           Filesystem.Path.CurrentOS ((</>))
 import           Language.Haskell.Pretty
 import           Language.Haskell.Syntax
@@ -43,6 +46,7 @@ import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.Internal
 import           Proto3.Wire.Types         (FieldNumber (..))
 import           Text.Parsec               (ParseError)
+import           System.IO                 (writeFile)
 import           Turtle                    (FilePath)
 import qualified Turtle
 import qualified Turtle.Format             as F
@@ -51,15 +55,15 @@ import           Turtle.Format             ((%))
 -- * Public interface
 
 data CompileError
-  = NoPackageDeclaration
-  | NoSuchType      DotProtoIdentifier
-  | CompileParseError ParseError
-  | CircularImport  FilePath
-  | InvalidTypeName String
-  | InvalidMethodName DotProtoIdentifier
-  | Unimplemented   String
-  | InternalError   String
+  = CircularImport          FilePath
+  | CompileParseError       ParseError
   | InternalEmptyModulePath
+  | InternalError           String
+  | InvalidMethodName       DotProtoIdentifier
+  | InvalidTypeName         String
+  | NoPackageDeclaration
+  | NoSuchType              DotProtoIdentifier
+  | Unimplemented           String
     deriving (Show, Eq)
 
 -- | Result of a compilation. 'Left err' on error, where 'err' is a
@@ -67,15 +71,36 @@ data CompileError
 --   compilation.
 type CompileResult = Either CompileError
 
--- | Compile the .proto file at the given path into a haskell module, returned
--- as a string. First parameter is an ordered list of paths to be searched for
--- any included .proto files.
-renderHsModuleForDotProtoFile :: [FilePath] -> FilePath -> IO (CompileResult String)
-renderHsModuleForDotProtoFile searchPaths dotProtoPath =
-  do res <- readDotProtoWithContext searchPaths dotProtoPath
-     case res of
-       Left err       -> pure (Left err)
-       Right (dp, tc) -> pure (renderHsModuleForDotProto dp tc)
+-- | @compileDotProtoFile paths out dotProtoPath@ compiles the .proto file at
+-- @dotProtoPath@ into a new Haskell module in @out/@, using the ordered @paths@
+-- list to determine which paths to be searched for the .proto file and its
+-- transitive includes. 'compileDotProtoFileOrDie' provides a wrapper around
+-- this function which terminates the program with an error message.
+compileDotProtoFile :: [FilePath] -> FilePath -> FilePath -> IO (CompileResult ())
+compileDotProtoFile paths out dotProtoPath = runExceptT $ do
+  (dp, tc) <- ExceptT $ readDotProtoWithContext paths dotProtoPath
+  let DotProtoMeta (Path mp) = protoMeta dp
+      mkHsModPath            = (out </>) . (FP.<.> "hs") . FP.concat . (fromString <$>)
+  when (null mp) $ throwError InternalEmptyModulePath
+  mp' <- mkHsModPath <$> mapM (ExceptT . pure . typeLikeName) mp
+  hs  <- ExceptT . pure $ renderHsModuleForDotProto dp tc
+  Turtle.mktree (FP.directory mp')
+  liftIO $ writeFile (FP.encodeString mp') hs
+
+-- | As 'compileDotProtoFile', except terminates the program with an error
+-- message when it occurs.
+compileDotProtoFileOrDie :: [FilePath] -> FilePath -> FilePath -> IO ()
+compileDotProtoFileOrDie paths out dotProtoPath =
+  compileDotProtoFile paths out dotProtoPath >>= \case
+    Left e -> do
+      let errText          = T.pack (show e) -- TODO: pretty print the error messages
+          dotProtoPathText = Turtle.format F.fp dotProtoPath
+      dieLines [Neat.text|
+        Error: failed to compile "${dotProtoPathText}":
+
+        ${errText}
+      |]
+    _ -> pure ()
 
 -- | Compile a 'DotProto' AST into a 'String' representing the Haskell
 --   source of a module implementing types and instances for the .proto
