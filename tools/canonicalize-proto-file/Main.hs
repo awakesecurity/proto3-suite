@@ -24,15 +24,15 @@ import           Proto3.Wire.Types                (FieldNumber (..))
 import           Turtle                           (FilePath)
 
 data Args w = Args
-  { proto      :: w ::: FilePath   <?> "Path to input .proto file"
-  , includeDir :: w ::: [FilePath] <?> "Path to search for included .proto files (can be repeated, and paths will be searched in order)"
+  { includeDir :: w ::: [FilePath] <?> "Path to search for included .proto files (can be repeated, and paths will be searched in order; the current directory is used if this option is not provided)"
+  , proto      :: w ::: FilePath   <?> "Path to input .proto file"
   } deriving Generic
 instance ParseRecord (Args Wrapped)
 deriving instance Show (Args Unwrapped)
 
 main :: IO ()
 main = do
-  Args{..} :: Args Unwrapped <- unwrapRecord "Dumps a canonical .proto file to stdout"
+  Args{..} :: Args Unwrapped <- unwrapRecord "Dumps a canonicalized .proto file to stdout"
   readDotProtoWithContext includeDir proto >>= \case
     Left err      -> fail (show err)
     Right (dp, _) -> putStr (toProtoFile defRenderingOptions (canonicalize dp))
