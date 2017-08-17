@@ -30,6 +30,7 @@ import           Language.Haskell.Syntax
 import           Language.Haskell.Pretty
 import           System.FilePath
 import           Text.Parsec (ParseError)
+import           Debug.Trace (trace)
 
 -- * Public interface
 
@@ -374,7 +375,11 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                   fullTy <- hsTypeFromDotProto ctxt' ty
                   pure [ ([HsIdent fullName], HsUnBangedTy fullTy ) ]
            messagePartFieldD (DotProtoMessageOneOf {}) =
-             unimplementedError "oneof"
+             -- unimplementedError "oneof"
+             trace
+               ("WARNING: ignoring oneof construct since support for it is unimplemented! "
+                <> "Continuing with CG, but note that it is _NOT FAITHFUL_ to the input .proto!)")
+               (pure [])
            messagePartFieldD _ = pure []
 
            nestedDecls :: DotProtoDefinition -> CompileResult [HsDecl]
@@ -528,11 +533,11 @@ isUnpacked opts =
         Just (DotProtoOption _ (BoolLit x)) -> not x
         _ -> False
 
-internalError, invalidTypeNameError, unimplementedError
+internalError, invalidTypeNameError, _unimplementedError
     :: String -> CompileResult a
 internalError = Left . InternalError
 invalidTypeNameError = Left . InvalidTypeName
-unimplementedError = Left . Unimplemented
+_unimplementedError = Left . Unimplemented
 
 invalidMethodNameError, noSuchTypeError :: DotProtoIdentifier -> CompileResult a
 noSuchTypeError = Left . NoSuchType
@@ -573,7 +578,7 @@ dotProtoEnumD parentIdent enumIdent enumParts =
 
          toEnumDPatterns =
              [ match_ (HsIdent "toEnum")
-                      [ HsPLit (HsInt (fromIntegral conIdx)) ]
+                      [ intP conIdx ]
                       (HsUnGuardedRhs (HsVar (unqual_ conName))) []
              | (conIdx, conName) <- enumCons ]
 
@@ -826,7 +831,10 @@ apOp :: HsQOp
 apOp  = HsQVarOp (UnQual (HsSymbol "<*>"))
 
 intE :: Integral a => a -> HsExp
-intE = HsLit . HsInt . fromIntegral
+intE x = (if x < 0 then HsParen else id) . HsLit . HsInt . fromIntegral $ x
+
+intP :: Integral a => a -> HsPat
+intP x = (if x < 0 then HsPParen else id) . HsPLit . HsInt . fromIntegral $ x
 
 -- ** Expressions for protobuf-wire types
 
@@ -909,8 +917,8 @@ defaultImports usesGrpc =
   , importDecl_ dataWordM                 True  (Just haskellNS)
                 (Just (False, [ importSym "Word16", importSym "Word32"
                               , importSym "Word64" ]))
-  , importDecl_ ghcGenericsM              False (Just haskellNS) Nothing
-  , importDecl_ ghcEnumM                  False (Just haskellNS) Nothing
+  , importDecl_ ghcGenericsM              True (Just haskellNS) Nothing
+  , importDecl_ ghcEnumM                  True (Just haskellNS) Nothing
   ] <>
   if usesGrpc
     then [ importDecl_ networkGrpcHighLevelGeneratedM   False (Just grpcNS) Nothing
