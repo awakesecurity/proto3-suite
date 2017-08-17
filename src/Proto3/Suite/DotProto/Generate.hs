@@ -71,13 +71,13 @@ data CompileError
 --   compilation.
 type CompileResult = Either CompileError
 
--- | @compileDotProtoFile paths out dotProtoPath@ compiles the .proto file at
--- @dotProtoPath@ into a new Haskell module in @out/@, using the ordered @paths@
--- list to determine which paths to be searched for the .proto file and its
--- transitive includes. 'compileDotProtoFileOrDie' provides a wrapper around
+-- | @compileDotProtoFile out includeDir dotProtoPath@ compiles the .proto file
+-- at @dotProtoPath@ into a new Haskell module in @out/@, using the ordered
+-- @paths@ list to determine which paths to be searched for the .proto file and
+-- its transitive includes. 'compileDotProtoFileOrDie' provides a wrapper around
 -- this function which terminates the program with an error message.
-compileDotProtoFile :: [FilePath] -> FilePath -> FilePath -> IO (CompileResult ())
-compileDotProtoFile paths out dotProtoPath = runExceptT $ do
+compileDotProtoFile :: FilePath -> [FilePath] -> FilePath -> IO (CompileResult ())
+compileDotProtoFile out paths dotProtoPath = runExceptT $ do
   (dp, tc) <- ExceptT $ readDotProtoWithContext paths dotProtoPath
   let DotProtoMeta (Path mp) = protoMeta dp
       mkHsModPath            = (out </>) . (FP.<.> "hs") . FP.concat . (fromString <$>)
@@ -88,10 +88,10 @@ compileDotProtoFile paths out dotProtoPath = runExceptT $ do
   liftIO $ writeFile (FP.encodeString mp') hs
 
 -- | As 'compileDotProtoFile', except terminates the program with an error
--- message when it occurs.
-compileDotProtoFileOrDie :: [FilePath] -> FilePath -> FilePath -> IO ()
-compileDotProtoFileOrDie paths out dotProtoPath =
-  compileDotProtoFile paths out dotProtoPath >>= \case
+-- message on failure.
+compileDotProtoFileOrDie :: FilePath -> [FilePath] -> FilePath -> IO ()
+compileDotProtoFileOrDie out paths dotProtoPath =
+  compileDotProtoFile out paths dotProtoPath >>= \case
     Left e -> do
       let errText          = T.pack (show e) -- TODO: pretty print the error messages
           dotProtoPathText = Turtle.format F.fp dotProtoPath

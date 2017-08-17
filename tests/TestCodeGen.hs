@@ -98,5 +98,5 @@ pyTmpDir = "test-files/py-tmp"
 
 compileTestDotProtos :: IO ()
 compileTestDotProtos = do
-  compileDotProtoFileOrDie ["test-files"] hsTmpDir "test_proto.proto"
-  compileDotProtoFileOrDie ["test-files"] hsTmpDir "test_proto_import.proto"
+  compileDotProtoFileOrDie hsTmpDir ["test-files"] "test_proto.proto"
+  compileDotProtoFileOrDie hsTmpDir ["test-files"] "test_proto_import.proto"
