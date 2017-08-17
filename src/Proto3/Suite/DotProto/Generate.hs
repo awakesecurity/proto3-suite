@@ -288,8 +288,10 @@ ctxtImports tyCtxt =
 --   given 'TypeContext'
 hsTypeFromDotProto :: TypeContext -> DotProtoType -> CompileResult HsType
 hsTypeFromDotProto ctxt (Prim (Named msgName))
-    | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup msgName ctxt =
-      HsTyApp (primType_ "Maybe") <$> hsTypeFromDotProtoPrim ctxt (Named msgName)
+    | Just DotProtoKindMessage <-
+          dotProtoTypeInfoKind <$> M.lookup msgName ctxt =
+        HsTyApp (primType_ "Maybe") <$>
+            hsTypeFromDotProtoPrim ctxt (Named msgName)
 hsTypeFromDotProto ctxt (Prim pType) =
     hsTypeFromDotProtoPrim ctxt pType
 hsTypeFromDotProto ctxt (Optional (Named nm)) =
@@ -369,11 +371,11 @@ camelCased :: String -> String
 camelCased s = do (prev, cur) <- zip (Nothing:map Just s) (map Just s ++ [Nothing])
                   case (prev, cur) of
                     (Just '_', Just x) | isAlpha x -> pure (toUpper x)
-                    (Just '_', Nothing)  -> pure '_'
+                    (Just '_', Nothing) -> pure '_'
                     (Just '_', Just '_') -> pure '_'
-                    (_, Just '_')        -> empty
-                    (_, Just x)          -> pure x
-                    (_, _)               -> empty
+                    (_, Just '_') -> empty
+                    (_, Just x) -> pure x
+                    (_, _) -> empty
 
 typeLikeName :: String -> CompileResult String
 typeLikeName ident@(firstChar:remainingChars)
@@ -415,7 +417,7 @@ modulePathModName (Path comps) = Module <$> (intercalate "." <$> mapM typeLikeNa
 _pkgIdentModName :: DotProtoIdentifier -> CompileResult Module
 _pkgIdentModName (Single s)          = Module <$> typeLikeName s
 _pkgIdentModName (Dots (Path paths)) = Module <$> (intercalate "." <$> mapM typeLikeName paths)
-_pkgIdentModName _            = internalError "pkgIdentModName: Malformed package name"
+_pkgIdentModName _                   = internalError "pkgIdentModName: Malformed package name"
 
 -- * Generate instances for a 'DotProto' package
 
