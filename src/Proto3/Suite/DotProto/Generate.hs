@@ -183,7 +183,7 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
              do importTypeContext <- wrapError id (dotProtoTypeContext import_)
                 let importTypeContext' = flip fmap importTypeContext $ \tyInfo ->
                       tyInfo { dotProtoTypeInfoPackage    = DotProtoPackageSpec importPkg
-                             , dotProtoTypeInfoModulePath = Just . metaModulePath . protoMeta $ import_
+                             , dotProtoTypeInfoModulePath = metaModulePath . protoMeta $ import_
                              }
                     qualifiedTypeContext = M.fromList <$>
                         mapM (\(nm, tyInfo) -> (,tyInfo) <$> concatDotProtoIdentifier importPkg nm)
@@ -216,8 +216,8 @@ data DotProtoTypeInfo = DotProtoTypeInfo
     --   scope of this type
   , dotProtoTypeInfoKind       :: DotProtoKind
     -- ^ Whether this type is an enumeration or message
-  , dotProtoTypeInfoModulePath :: Maybe Path
-    -- ^ The module path used when importing this module, if any
+  , dotProtoTypeInfoModulePath :: Path
+    -- ^ The include-relative module path used when importing this module
   } deriving Show
 
 -- | A mapping from .proto type identifiers to their type information
@@ -246,7 +246,7 @@ definitionTypeContext modulePath (DotProtoMessage msgIdent parts) =
 
        pure (M.singleton msgIdent
                  (DotProtoTypeInfo DotProtoNoPackage Anonymous
-                      childTyContext DotProtoKindMessage (Just modulePath)) <>
+                      childTyContext DotProtoKindMessage modulePath) <>
                qualifiedChildTyContext)
   where updateDotProtoTypeInfoParent tyInfo =
             do dotProtoTypeInfoParent <-
@@ -254,7 +254,7 @@ definitionTypeContext modulePath (DotProtoMessage msgIdent parts) =
                pure tyInfo { dotProtoTypeInfoParent }
 definitionTypeContext modulePath (DotProtoEnum enumIdent _) =
   pure (M.singleton enumIdent
-            (DotProtoTypeInfo DotProtoNoPackage Anonymous mempty DotProtoKindEnum (Just modulePath)))
+            (DotProtoTypeInfo DotProtoNoPackage Anonymous mempty DotProtoKindEnum modulePath))
 definitionTypeContext _ _ = pure mempty
 
 concatDotProtoIdentifier :: DotProtoIdentifier -> DotProtoIdentifier
@@ -275,11 +275,11 @@ concatDotProtoIdentifier (Dots (Path a)) (Dots (Path b)) = pure . Dots . Path $ 
 ctxtImports :: TypeContext -> CompileResult [HsImportDecl]
 ctxtImports tyCtxt =
   do imports <- nub <$> sequence
-                  [ modulePathModName modulePath
-                  | DotProtoTypeInfo { dotProtoTypeInfoModulePath =
-                                         Just modulePath }
-                    <- M.elems tyCtxt
-                  ]
+                          [ modulePathModName modulePath
+                          | DotProtoTypeInfo
+                            { dotProtoTypeInfoModulePath = modulePath
+                            } <- M.elems tyCtxt
+                          ]
      pure [ importDecl_ modName True Nothing Nothing | modName <- imports ]
 
 -- * Functions to convert 'DotProtoType' into Haskell types
@@ -338,16 +338,12 @@ hsTypeFromDotProtoPrim ctxt (Named msgName) =
 msgTypeFromDpTypeInfo :: DotProtoTypeInfo -> DotProtoIdentifier
                       -> CompileResult HsType
 msgTypeFromDpTypeInfo
-  DotProtoTypeInfo{ dotProtoTypeInfoModulePath = Nothing }
-  _ident
-  = Left InternalEmptyModulePath
-msgTypeFromDpTypeInfo
-  DotProtoTypeInfo{ dotProtoTypeInfoModulePath = Just (Path []) }
+  DotProtoTypeInfo{ dotProtoTypeInfoModulePath = Path [] }
   _ident
   = Left InternalEmptyModulePath
 msgTypeFromDpTypeInfo
   DotProtoTypeInfo { dotProtoTypeInfoParent     = p
-                   , dotProtoTypeInfoModulePath = Just modulePath
+                   , dotProtoTypeInfoModulePath = modulePath
                    }
   ident
   = HsTyCon <$> do Qual <$> modulePathModName modulePath
