@@ -11,6 +11,7 @@ import qualified Control.Foldl             as FL
 import           Control.Lens              (over)
 import           Control.Lens.Cons         (_head)
 import           Data.Char                 (toUpper)
+import           Data.Maybe                (fromMaybe)
 import qualified Data.Text                 as T
 import qualified Filesystem.Path.CurrentOS as FP
 import           Filesystem.Path.CurrentOS ((</>))
@@ -37,7 +38,8 @@ dieLines (Turtle.textToLines -> msg) = do
 --
 -- Note that, with the exception of the '.proto' portion of the input filepath,
 -- this function interprets '.' in the filename components as if they were
--- additional slashes. So e.g. "google/protobuf/timestamp.proto" and
+-- additional slashes (assuming that the '.' is not the first character, which
+-- is merely ignored). So e.g. "google/protobuf/timestamp.proto" and
 -- "google.protobuf.timestamp.proto" map to the same module path.
 --
 -- >>> toModulePath "/absolute/path/fails.proto"
@@ -48,6 +50,18 @@ dieLines (Turtle.textToLines -> msg) = do
 --
 -- >>> toModulePath "relative/path/to/file_without_proto_suffix_fails.txt"
 -- Left "expected .proto suffix"
+--
+-- >>> toModulePath "../foo.proto"
+-- Left "expected include-relative path, but the path started with ../"
+--
+-- >>> toModulePath "foo..proto"
+-- Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
+--
+-- >>> toModulePath "foo/bar/baz..proto"
+-- Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
+--
+-- >>> toModulePath "foo.bar../baz.proto"
+-- Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
 --
 -- >>> toModulePath "google/protobuf/timestamp.proto"
 -- Right (Path ["Google","Protobuf","Timestamp"])
@@ -61,22 +75,37 @@ dieLines (Turtle.textToLines -> msg) = do
 -- >>> toModulePath "foo/bar/././baz/../boggle.proto"
 -- Right (Path ["Foo","Bar","Boggle"])
 --
+-- >>> toModulePath "./foo.proto"
+-- Right (Path ["Foo"])
+--
+-- NB: We ignore preceding single '.' characters
+-- >>> toModulePath ".foo.proto"
+-- Right (Path ["Foo"])
 toModulePath :: FilePath -> Either String Path
-toModulePath fp
+toModulePath fp0@(fromMaybe fp0 . FP.stripPrefix "./" -> fp)
   | Turtle.absolute fp
     = Left "expected include-relative path"
   | Turtle.extension fp /= Just "proto"
     = Left "expected .proto suffix"
   | otherwise
-    = Right
-    . Path
-    . fmap (T.unpack . over _head toUpper)
-    . concatMap (T.splitOn ".")
-    . T.splitOn "/"
-    . Turtle.format F.fp
-    . Turtle.dropExtension
-    . FP.collapse
-    $ fp
+    = case FP.stripPrefix "../" fp of
+        Just{}  -> Left "expected include-relative path, but the path started with ../"
+        Nothing
+          | T.isInfixOf ".." (Turtle.format F.fp . FP.collapse $ fp)
+            -> Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
+          | otherwise
+            -> Right
+             . Path
+             . dropWhile null -- Remove a potential preceding empty component which
+                              -- arose from a preceding '.' in the input path, which we
+                              -- want to ignore. E.g. ".foo.proto" => ["","Foo"].
+             . fmap (T.unpack . over _head toUpper)
+             . concatMap (T.splitOn ".")
+             . T.splitOn "/"
+             . Turtle.format F.fp
+             . FP.collapse
+             . Turtle.dropExtension
+             $ fp
 
 fatalBadModulePath :: MonadIO m => FilePath -> String -> m a
 fatalBadModulePath (Turtle.format F.fp -> fp) (T.pack -> rsn) =
