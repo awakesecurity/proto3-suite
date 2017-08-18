@@ -143,7 +143,7 @@ the directory tree will look like this:
             └── timestamp.proto
 ```
 
-Finally, note that delimiting `.`characters in the input `.proto` basename are
+Finally, note that delimiting `.` characters in the input `.proto` basename are
 treated as `/` characters, so the input filenames
 `google.protobuf.timestamp.proto` and `google/protobuf/timestamp.proto` would
 produce the same generated Haskell module name and path.
