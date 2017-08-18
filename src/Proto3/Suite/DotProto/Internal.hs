@@ -12,6 +12,7 @@ import           Control.Lens              (over)
 import           Control.Lens.Cons         (_head)
 import           Data.Char                 (toUpper)
 import qualified Data.Text                 as T
+import qualified Filesystem.Path.CurrentOS as FP
 import           Filesystem.Path.CurrentOS ((</>))
 import qualified NeatInterpolation         as Neat
 import           Prelude                   hiding (FilePath)
@@ -57,6 +58,9 @@ dieLines (Turtle.textToLines -> msg) = do
 -- >>> toModulePath "foo/FiLeName_underscore.and.then.some.dots.proto"
 -- Right (Path ["Foo","FiLeName_underscore","And","Then","Some","Dots"])
 --
+-- >>> toModulePath "foo/bar/././baz/../boggle.proto"
+-- Right (Path ["Foo","Bar","Boggle"])
+--
 toModulePath :: FilePath -> Either String Path
 toModulePath fp
   | Turtle.absolute fp
@@ -71,6 +75,7 @@ toModulePath fp
     . T.splitOn "/"
     . Turtle.format F.fp
     . Turtle.dropExtension
+    . FP.collapse
     $ fp
 
 fatalBadModulePath :: MonadIO m => FilePath -> String -> m a
