@@ -135,7 +135,8 @@ findProto searchPaths protoFP
       Left e -> pure (BadModulePath e)
       Right mp -> do
         mfp <- flip Turtle.fold FL.head $ do
-          fp <- (</> protoFP) <$> Turtle.select searchPaths
+          sp <- Turtle.select searchPaths
+          let fp = sp </> protoFP
           True <- Turtle.testfile fp
           pure fp
         case mfp of
