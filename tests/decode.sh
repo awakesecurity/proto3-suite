@@ -7,7 +7,7 @@ ghc                                         \
     -odir $hsTmpDir                         \
     -hidir $hsTmpDir                        \
     -o $hsTmpDir/simpleDecodeDotProto       \
-    $hsTmpDir/GeneratedTestTypes.hs         \
-    $hsTmpDir/GeneratedImportedTestTypes.hs \
+    $hsTmpDir/TestProto.hs                  \
+    $hsTmpDir/TestProtoImport.hs            \
     tests/SimpleDecodeDotProto.hs           \
     >/dev/null

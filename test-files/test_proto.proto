@@ -1,6 +1,6 @@
 syntax = "proto3";
-package GeneratedTestTypes;
-import "test-files/test_import.proto";
+package TestProto;
+import "test_proto_import.proto";
 
 message Trivial {
   int32 trivialField = 1;
@@ -123,7 +123,7 @@ message WithQualifiedName {
 }
 
 message UsingImported {
-  GeneratedImportedTestTypes.WithNesting importedNesting = 100;
+  TestProtoImport.WithNesting importedNesting = 100;
   WithNesting localNesting = 200;
 }
 

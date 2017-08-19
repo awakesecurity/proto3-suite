@@ -1,26 +1,27 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
+{-# LANGUAGE TypeOperators       #-}
 
-import           Data.Monoid                          ((<>))
-import           Filesystem.Path.CurrentOS            (encodeString)
 import           Options.Generic
+import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate
-import           Prelude                              hiding (FilePath)
-import           Turtle                               (FilePath)
+import           Turtle                         (FilePath)
 
-data Args = Args
-  { proto :: FilePath <?> "Path to input .proto file"
-  } deriving (Generic, Show)
-instance ParseRecord Args
+data Args w = Args
+  { out        :: w ::: FilePath   <?> "Output directory path where generated Haskell modules will be written (directory is created if it does not exist; note that files in the output directory may be overwritten!)"
+  , includeDir :: w ::: [FilePath] <?> "Path to search for included .proto files (can be repeated, and paths will be searched in order; the current directory is used if this option is not provided)"
+  , proto      :: w ::: FilePath   <?> "Path to input .proto file"
+  } deriving Generic
+instance ParseRecord (Args Wrapped)
+deriving instance Show (Args Unwrapped)
 
 main :: IO ()
 main = do
-  protoPath <- encodeString . unHelpful . proto <$> getRecord "Dumps a compiled .proto file to stdout"
-  readDotProtoWithContext protoPath >>= \case
-    Left err        -> fail (show err)
-    Right (dp, ctx) -> case renderHsModuleForDotProto dp ctx of
-      Left err  -> fail ("Error compiling " <> protoPath <> ": " <> show err)
-      Right src -> putStrLn src
+  Args{..} :: Args Unwrapped <- unwrapRecord "Compiles a .proto file to a Haskell module"
+  compileDotProtoFileOrDie out includeDir proto

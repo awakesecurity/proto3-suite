@@ -3,8 +3,8 @@
 
 module Main where
 
-import           GeneratedTestTypes
-import qualified GeneratedImportedTestTypes
+import           TestProto
+import qualified TestProtoImport
 import           Proto3.Suite
 import qualified Data.ByteString.Lazy as BL
 
@@ -113,17 +113,22 @@ testCase14 =
 
 testCase15 :: IO ()
 testCase15 =
-  outputMessage (GeneratedImportedTestTypes.WithNesting { GeneratedImportedTestTypes.withNestingNestedMessage1 =
-                                            Just (GeneratedImportedTestTypes.WithNesting_Nested { GeneratedImportedTestTypes.withNesting_NestedNestedField1 = 1
-                                                                                , GeneratedImportedTestTypes.withNesting_NestedNestedField2 = 2 })
-                                        , GeneratedImportedTestTypes.withNestingNestedMessage2 = Nothing })
+  outputMessage
+    TestProtoImport.WithNesting
+      { TestProtoImport.withNestingNestedMessage1 =
+          Just TestProtoImport.WithNesting_Nested
+            { TestProtoImport.withNesting_NestedNestedField1 = 1
+            , TestProtoImport.withNesting_NestedNestedField2 = 2
+            }
+      , TestProtoImport.withNestingNestedMessage2 = Nothing
+      }
 
 testCase16 :: IO ()
 testCase16 =
   outputMessage (UsingImported { usingImportedImportedNesting =
-                                   Just (GeneratedImportedTestTypes.WithNesting
-                                          (Just (GeneratedImportedTestTypes.WithNesting_Nested 1 2))
-                                          (Just (GeneratedImportedTestTypes.WithNesting_Nested 3 4)))
+                                   Just (TestProtoImport.WithNesting
+                                          (Just (TestProtoImport.WithNesting_Nested 1 2))
+                                          (Just (TestProtoImport.WithNesting_Nested 3 4)))
                                , usingImportedLocalNesting =
                                    Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] []))) })
 

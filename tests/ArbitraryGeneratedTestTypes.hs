@@ -3,11 +3,11 @@
 module ArbitraryGeneratedTestTypes where
 
 import qualified Data.ByteString    as BS
-import qualified Data.Text          as T
+import qualified Data.Text.Lazy     as T
 import qualified Data.Vector        as V
 import           Test.QuickCheck    (Arbitrary, arbitrary, listOf)
 
-import           GeneratedTestTypes
+import           TestProto
 
 instance Arbitrary a => Arbitrary (V.Vector a) where
   arbitrary = V.fromList <$> listOf arbitrary

@@ -1,8 +1,9 @@
 #!/usr/bin/python
 import sys
 import os
-from test_files.test_pb2 import *  # Import protoc generated serializers
-import test_files.test_import_pb2 as test_import
+# Import protoc generated {de,}serializers (generated from test_proto{,_import}.proto)
+from test_proto_pb2 import *
+import test_proto_import_pb2 as test_proto_import
 
 def write_proto(msg):
     out = msg.SerializeToString()
@@ -157,11 +158,11 @@ write_proto(WithQualifiedName(qname1 = ShadowedMessage(name="int value", value=4
                               qname2 = MessageShadower.ShadowedMessage(name="string value", value="hello world")))
 
 # Test case 15: Imported message resolution
-write_proto(test_import.WithNesting(nestedMessage1 = test_import.WithNesting.Nested(nestedField1 = 1, nestedField2 = 2)))
+write_proto(test_proto_import.WithNesting(nestedMessage1 = test_proto_import.WithNesting.Nested(nestedField1 = 1, nestedField2 = 2)))
 
 # Test case 16: Proper resolution of shadowed message names
-write_proto(UsingImported(importedNesting = test_import.WithNesting(nestedMessage1 = test_import.WithNesting.Nested(nestedField1 = 1, nestedField2 = 2),
-                                                                    nestedMessage2 = test_import.WithNesting.Nested(nestedField1 = 3, nestedField2 = 4)),
+write_proto(UsingImported(importedNesting = test_proto_import.WithNesting(nestedMessage1 = test_proto_import.WithNesting.Nested(nestedField1 = 1, nestedField2 = 2),
+                                                                          nestedMessage2 = test_proto_import.WithNesting.Nested(nestedField1 = 3, nestedField2 = 4)),
                           localNesting = WithNesting(nestedMessage = WithNesting.Nested(nestedField1 = "field", nestedField2 = 0xBEEF, nestedPacked = [], nestedUnpacked = []))))
 
 # Send the special 'done' message

@@ -43,12 +43,12 @@ simpleEncodeDotProto =
     do mktree hsTmpDir
        mktree pyTmpDir
 
-       compileTestDotProto
+       compileTestDotProtos
 
        (@?= ExitSuccess) =<< proc "tests/encode.sh" [hsTmpDir] empty
-       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test.proto"]) empty
-       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test_import.proto"]) empty
-       touch (pyTmpDir </> "test_files" </> "__init__.py")
+       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto.proto"]) empty
+       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_import.proto"]) empty
+       touch (pyTmpDir </> "__init__.py")
 
        m <- need "PYTHONPATH"
        pythonPath <- case m of
@@ -71,12 +71,12 @@ simpleDecodeDotProto =
     do mktree hsTmpDir
        mktree pyTmpDir
 
-       compileTestDotProto
+       compileTestDotProtos
 
        (@?= ExitSuccess) =<< proc "tests/decode.sh" [hsTmpDir] empty
-       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test.proto"]) empty
-       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " test-files/test_import.proto"]) empty
-       touch (pyTmpDir </> "test_files" </> "__init__.py")
+       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto.proto"]) empty
+       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_import.proto"]) empty
+       touch (pyTmpDir </> "__init__.py")
 
        m <- need "PYTHONPATH"
        pythonPath <- case m of
@@ -96,18 +96,7 @@ hsTmpDir, pyTmpDir :: IsString a => a
 hsTmpDir = "test-files/hs-tmp"
 pyTmpDir = "test-files/py-tmp"
 
-compileTestDotProto :: IO ()
-compileTestDotProto = do
-  readDotProtoWithContext "test-files/test.proto" >>= \case
-    Left err -> fail (show err)
-    Right (dp, ctxt) ->
-      case renderHsModuleForDotProto dp ctxt of
-        Left err -> fail ("compileTestDotProto: Error compiling test.proto: " <> show err)
-        Right hsSrc -> writeFile (hsTmpDir <> "/GeneratedTestTypes.hs") hsSrc
-
-  readDotProtoWithContext "test-files/test_import.proto" >>= \case
-    Left err -> fail (show err)
-    Right (dp, ctxt) ->
-      case renderHsModuleForDotProto dp ctxt of
-        Left err -> fail ("compileTestDotProto: Error compiling test_import.proto: " <> show err)
-        Right hsSrc -> writeFile (hsTmpDir <> "/GeneratedImportedTestTypes.hs") hsSrc
+compileTestDotProtos :: IO ()
+compileTestDotProtos = do
+  compileDotProtoFileOrDie hsTmpDir ["test-files"] "test_proto.proto"
+  compileDotProtoFileOrDie hsTmpDir ["test-files"] "test_proto_import.proto"

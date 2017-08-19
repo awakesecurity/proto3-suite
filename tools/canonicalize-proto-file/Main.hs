@@ -6,6 +6,8 @@
 {-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE OverloadedStrings      #-}
 {-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE StandaloneDeriving     #-}
 {-# LANGUAGE TypeOperators          #-}
 
 module Main (main) where
@@ -13,7 +15,6 @@ module Main (main) where
 import           Data.List                        (sort, sortOn)
 import           Data.RangeSet.List               (fromRangeList, toRangeList)
 import           Data.Semigroup                   (Min(..), Option(..))
-import           Filesystem.Path.CurrentOS        (encodeString)
 import           Options.Generic
 import           Prelude                          hiding (FilePath)
 import           Proto3.Suite.DotProto.AST
@@ -22,16 +23,18 @@ import           Proto3.Suite.DotProto.Rendering
 import           Proto3.Wire.Types                (FieldNumber (..))
 import           Turtle                           (FilePath)
 
-data Args = Args
-  { proto :: FilePath <?> "Path to input .proto file"
-  } deriving (Generic, Show)
-instance ParseRecord Args
+data Args w = Args
+  { includeDir :: w ::: [FilePath] <?> "Path to search for included .proto files (can be repeated, and paths will be searched in order; the current directory is used if this option is not provided)"
+  , proto      :: w ::: FilePath   <?> "Path to input .proto file"
+  } deriving Generic
+instance ParseRecord (Args Wrapped)
+deriving instance Show (Args Unwrapped)
 
 main :: IO ()
 main = do
-  protoPath <- encodeString . unHelpful . proto <$> getRecord "Dumps a canonical .proto file to stdout"
-  readDotProtoWithContext protoPath >>= \case
-    Left err        -> fail (show err)
+  Args{..} :: Args Unwrapped <- unwrapRecord "Dumps a canonicalized .proto file to stdout"
+  readDotProtoWithContext includeDir proto >>= \case
+    Left err      -> fail (show err)
     Right (dp, _) -> putStr (toProtoFile defRenderingOptions (canonicalize dp))
 
 class Canonicalize a where
@@ -51,6 +54,7 @@ instance Canonicalize DotProto where
     , protoOptions     = canonicalize protoOptions
     , protoPackage     = canonicalize protoPackage
     , protoDefinitions = canonicalize protoDefinitions
+    , protoMeta        = protoMeta
     }
 
 instance Canonicalize [DotProtoImport] where canonicalize = canonicalSort
@@ -236,7 +240,7 @@ instance Canonicalize DotProtoValue where
 instance Canonicalize DotProtoIdentifier where
   canonicalize = \case
     Single part -> Single part
-    Path [part] -> Single part
-    Path parts -> Path parts
+    Dots (Path [part]) -> Single part
+    Dots path -> Dots path
     Qualified x y -> Qualified (canonicalize x) (canonicalize y)
     Anonymous -> Anonymous

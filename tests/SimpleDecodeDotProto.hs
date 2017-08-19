@@ -14,8 +14,8 @@ import qualified Data.ByteString.Char8 as BC
 import System.IO
 import System.Exit
 
-import GeneratedTestTypes
-import qualified GeneratedImportedTestTypes
+import TestProto
+import qualified TestProtoImport
 
 main :: IO ()
 main = do putStr "\n"
@@ -218,16 +218,16 @@ testCase14 = testCase "Qualified name resolution" $
        withQualifiedNameQname2 @?= Just (MessageShadower_ShadowedMessage "string value" "hello world")
 
 testCase15 = testCase "Imported message resolution" $
-    do GeneratedImportedTestTypes.WithNesting { .. } <- readProto
-       withNestingNestedMessage1 @?= Just (GeneratedImportedTestTypes.WithNesting_Nested 1 2)
+    do TestProtoImport.WithNesting { .. } <- readProto
+       withNestingNestedMessage1 @?= Just (TestProtoImport.WithNesting_Nested 1 2)
        withNestingNestedMessage2 @?= Nothing
 
 testCase16 = testCase "Proper resolution of shadowed message names" $
     do UsingImported { .. } <- readProto
        usingImportedImportedNesting @?=
-         Just (GeneratedImportedTestTypes.WithNesting
-                 (Just (GeneratedImportedTestTypes.WithNesting_Nested 1 2))
-                 (Just (GeneratedImportedTestTypes.WithNesting_Nested 3 4)))
+         Just (TestProtoImport.WithNesting
+                 (Just (TestProtoImport.WithNesting_Nested 1 2))
+                 (Just (TestProtoImport.WithNesting_Nested 3 4)))
        usingImportedLocalNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] [])))
 
 allTestsDone = testCase "Receive end of test suite sentinel message" $

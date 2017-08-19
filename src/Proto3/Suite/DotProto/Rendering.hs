@@ -1,6 +1,7 @@
 -- | This module provides types and functions to generate .proto files.
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedLists            #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# OPTIONS_GHC -fno-warn-orphans       #-}
@@ -17,6 +18,8 @@ module Proto3.Suite.DotProto.Rendering
   ) where
 
 import           Data.Char
+import qualified Data.Text                       as T
+import           Filesystem.Path.CurrentOS       (toText)
 import           Proto3.Suite.DotProto.AST
 import           Proto3.Wire.Types               (FieldNumber (..))
 import           Text.PrettyPrint                (($$), (<+>), (<>))
@@ -64,7 +67,12 @@ instance Pretty DotProtoPackageSpec where
   pPrint (DotProtoNoPackage)     = PP.empty
 
 instance Pretty DotProtoImport where
-  pPrint (DotProtoImport q i) = PP.text "import" <+> pPrint q <+> pPrint i <> PP.text ";"
+  pPrint (DotProtoImport q i) =
+    PP.text "import" <+> pPrint q <+> PP.text fp <> PP.text ";"
+    where
+      fp = case T.unpack . either id id . toText $ i of
+             [] -> show ("" :: String)
+             x  -> x
 
 instance Pretty DotProtoImportQualifier where
   pPrint DotProtoImportDefault = PP.empty
@@ -142,7 +150,7 @@ instance Pretty Streaming where
 
 instance Pretty DotProtoIdentifier where
   pPrint (Single name)                    = PP.text name
-  pPrint (Path names)                     = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> names
+  pPrint (Dots (Path names))              = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> names
   pPrint (Qualified qualifier identifier) = PP.parens (pPrint qualifier) <> PP.text "." <> pPrint identifier
   pPrint Anonymous                        = PP.empty
 
@@ -197,4 +205,5 @@ toProtoFileDef :: DotProto -> String
 toProtoFileDef = toProtoFile defRenderingOptions
 
 packageFromDefs :: String -> [DotProtoDefinition] -> DotProto
-packageFromDefs package defs = DotProto [] [] (DotProtoPackageSpec $ Single package) defs
+packageFromDefs package defs =
+  DotProto [] [] (DotProtoPackageSpec $ Single package) defs (DotProtoMeta $ Path [])

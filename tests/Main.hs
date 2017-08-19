@@ -18,6 +18,7 @@ import           Proto3.Suite
 import           Proto3.Wire.Decode          (ParseError)
 import qualified Proto3.Wire.Decode          as Decode
 import           Proto3.Wire.Types           as P
+import qualified Test.DocTest
 import           Test.QuickCheck             (Arbitrary, Property, arbitrary,
                                               counterexample, oneof)
 import           Test.Tasty
@@ -25,35 +26,9 @@ import           Test.Tasty.HUnit            (Assertion, assertBool, testCase,
                                               (@=?), (@?=))
 import           Test.Tasty.QuickCheck       (testProperty, (===))
 
--- NB: GeneratedTestTypes.hs etc. should be manually generated via something
--- like:
---
---   [nix-shell]$ compile-proto-file --proto test-files/test.proto        > tests/GeneratedTestTypes.hs
---   [nix-shell]$ compile-proto-file --proto test-files/test_import.proto > tests/GeneratedImportedTestTypes.hs
---
--- And these commands would need to be run whenever test.proto or
--- test_import.proto change.
---
--- However, compile-proto-file hasn't been taken out of grpc-haskell and put
--- into this package where it belongs, and so doing the above doesn't work yet
--- while iterating on the code generation. Here's the quick and dirty way to
--- invoke CG in the meantime (a fix for this is intended soon):
---
--- Load this module into ghci from the root of the repository, then:
---
---   > Right (dp, tc) <- readDotProtoWithContext "/path/to/repo/root/test-files/test.proto"
---   > let Right src = renderHsModuleForDotProto dp tc
---   > writeFile "/path/to/repo/root/tests/GeneratedTestTypes.hs" src
---   > Right (dp, tc) <- readDotProtoWithContext "/path/to/repo/root/test-files/test_import.proto"
---   > let Right src = renderHsModuleForDotProto dp tc
---   > writeFile "/path/to/repo/root/tests/GeneratedImportedTestTypes.hs" src
---
--- TODO: Get compile-proto-file into the repository.
--- TODO: Automate generation of these modules as a part of the build process.
-
 import           ArbitraryGeneratedTestTypes ()
-import qualified GeneratedTestTypes          as GTT
-
+import qualified TestProto                   as TP
+import qualified Test.DocTest
 import           TestCodeGen
 
 main :: IO ()
@@ -61,13 +36,22 @@ main = defaultMain tests
 
 tests :: TestTree
 tests = testGroup "Tests"
-  [ qcProperties
+  [ docTests
+  , qcProperties
   , encodeUnitTests
   , decodeUnitTests
   , parserUnitTests
   , dotProtoUnitTests
   , codeGenTests
   ]
+
+docTests :: TestTree
+docTests = testCase "doctests" $ do
+  putStrLn "Running all doctests..."
+  Test.DocTest.doctest
+    [ "-isrc"
+    , "src/Proto3/Suite/DotProto/Internal.hs"
+    ]
 
 --------------------------------------------------------------------------------
 -- QuickCheck properties
@@ -82,16 +66,16 @@ qcProperties = testGroup "QuickCheck properties"
 -- | Verifies that @decode . encode = id@ for various message types
 qcPropDecEncId :: TestTree
 qcPropDecEncId = testGroup "Property: (decode . encode = id) for various message types"
-  [ testProperty "Trivial"             (prop :: MsgProp GTT.Trivial)
-  , testProperty "MultipleFields"      (prop :: MsgProp GTT.MultipleFields)
-  , testProperty "WithEnum"            (prop :: MsgProp GTT.WithEnum)
-  , testProperty "WithNesting"         (prop :: MsgProp GTT.WithNesting)
-  , testProperty "WithRepetition"      (prop :: MsgProp GTT.WithRepetition)
-  , testProperty "WithFixed"           (prop :: MsgProp GTT.WithFixed)
-  , testProperty "WithBytes"           (prop :: MsgProp GTT.WithBytes)
-  , testProperty "AllPackedTypes"      (prop :: MsgProp GTT.AllPackedTypes)
-  , testProperty "SignedInts"          (prop :: MsgProp GTT.SignedInts)
-  , testProperty "WithNestingRepeated" (prop :: MsgProp GTT.WithNestingRepeated)
+  [ testProperty "Trivial"             (prop :: MsgProp TP.Trivial)
+  , testProperty "MultipleFields"      (prop :: MsgProp TP.MultipleFields)
+  , testProperty "WithEnum"            (prop :: MsgProp TP.WithEnum)
+  , testProperty "WithNesting"         (prop :: MsgProp TP.WithNesting)
+  , testProperty "WithRepetition"      (prop :: MsgProp TP.WithRepetition)
+  , testProperty "WithFixed"           (prop :: MsgProp TP.WithFixed)
+  , testProperty "WithBytes"           (prop :: MsgProp TP.WithBytes)
+  , testProperty "AllPackedTypes"      (prop :: MsgProp TP.AllPackedTypes)
+  , testProperty "SignedInts"          (prop :: MsgProp TP.SignedInts)
+  , testProperty "WithNestingRepeated" (prop :: MsgProp TP.WithNestingRepeated)
   , deeplyNest prop 1000
   ]
   where
@@ -101,9 +85,9 @@ qcPropDecEncId = testGroup "Property: (decode . encode = id) for various message
         dec = either (error . ("error parsing: " <>) . show) id . fromByteString
         enc = BL.toStrict . toLazyByteString
 
-    deeplyNest :: MsgProp GTT.Wrapped -> Int -> TestTree
+    deeplyNest :: MsgProp TP.Wrapped -> Int -> TestTree
     deeplyNest pf 0 = testProperty "Deeply nested" pf
-    deeplyNest pf n = deeplyNest (pf . GTT.Wrapped . Just) (n-1)
+    deeplyNest pf n = deeplyNest (pf . TP.Wrapped . Just) (n-1)
 
 
 --------------------------------------------------------------------------------
@@ -119,18 +103,18 @@ encodeUnitTests = testGroup "Encoder unit tests"
 -- rather than having them in the repository.
 encoderMatchesGoldens :: TestTree
 encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
-  [ check "trivial.bin"               $ GTT.Trivial 123
-  , check "trivial_negative.bin"      $ GTT.Trivial (-1)
-  , check "multiple_fields.bin"       $ GTT.MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
-  , check "signedints.bin"            $ GTT.SignedInts (-42) (-84)
-  , check "with_nesting.bin"          $ GTT.WithNesting $ Just $ GTT.WithNesting_Nested "123abc" 123456 [] []
-  , check "with_enum0.bin"            $ GTT.WithEnum $ Enumerated $ Right $ GTT.WithEnum_TestEnumENUM1
-  , check "with_enum1.bin"            $ GTT.WithEnum $ Enumerated $ Right $ GTT.WithEnum_TestEnumENUM2
-  , check "with_repetition.bin"       $ GTT.WithRepetition [1..5]
-  , check "with_bytes.bin"            $ GTT.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
-  , check "with_nesting_repeated.bin" $ GTT.WithNestingRepeated
-                                          [ GTT.WithNestingRepeated_Nested "123abc" 123456 [1,2,3,4] [5,6,7,8]
-                                          , GTT.WithNestingRepeated_Nested "abc123" 654321 [0,9,8,7] [6,5,4,3]
+  [ check "trivial.bin"               $ TP.Trivial 123
+  , check "trivial_negative.bin"      $ TP.Trivial (-1)
+  , check "multiple_fields.bin"       $ TP.MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
+  , check "signedints.bin"            $ TP.SignedInts (-42) (-84)
+  , check "with_nesting.bin"          $ TP.WithNesting $ Just $ TP.WithNesting_Nested "123abc" 123456 [] []
+  , check "with_enum0.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM1
+  , check "with_enum1.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM2
+  , check "with_repetition.bin"       $ TP.WithRepetition [1..5]
+  , check "with_bytes.bin"            $ TP.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
+  , check "with_nesting_repeated.bin" $ TP.WithNestingRepeated
+                                          [ TP.WithNestingRepeated_Nested "123abc" 123456 [1,2,3,4] [5,6,7,8]
+                                          , TP.WithNestingRepeated_Nested "abc123" 654321 [0,9,8,7] [6,5,4,3]
                                           ]
   ]
   where
@@ -174,17 +158,17 @@ parserUnitTests = testGroup "Parser unit tests"
 
 parseFromGoldens :: TestTree
 parseFromGoldens = testGroup "Parse golden encodings"
-  [ check "trivial.bin"               $ GTT.Trivial 123
-  , check "multiple_fields.bin"       $ GTT.MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
-  , check "signedints.bin"            $ GTT.SignedInts (-42) (-84)
-  , check "with_nesting.bin"          $ GTT.WithNesting $ Just $ GTT.WithNesting_Nested "123abc" 123456 [] []
-  , check "with_enum0.bin"            $ GTT.WithEnum $ Enumerated $ Right $ GTT.WithEnum_TestEnumENUM1
-  , check "with_enum1.bin"            $ GTT.WithEnum $ Enumerated $ Right $ GTT.WithEnum_TestEnumENUM2
-  , check "with_repetition.bin"       $ GTT.WithRepetition [1..5]
-  , check "with_fixed.bin"            $ GTT.WithFixed (Fixed 16) (Fixed (-123)) (Fixed 4096) (Fixed (-4096))
-  , check "with_bytes.bin"            $ GTT.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
-  , check "with_packing.bin"          $ GTT.WithPacking [1,2,3] [1,2,3]
-  , check "all_packed_types.bin"      $ GTT.AllPackedTypes
+  [ check "trivial.bin"               $ TP.Trivial 123
+  , check "multiple_fields.bin"       $ TP.MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
+  , check "signedints.bin"            $ TP.SignedInts (-42) (-84)
+  , check "with_nesting.bin"          $ TP.WithNesting $ Just $ TP.WithNesting_Nested "123abc" 123456 [] []
+  , check "with_enum0.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM1
+  , check "with_enum1.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM2
+  , check "with_repetition.bin"       $ TP.WithRepetition [1..5]
+  , check "with_fixed.bin"            $ TP.WithFixed (Fixed 16) (Fixed (-123)) (Fixed 4096) (Fixed (-4096))
+  , check "with_bytes.bin"            $ TP.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
+  , check "with_packing.bin"          $ TP.WithPacking [1,2,3] [1,2,3]
+  , check "all_packed_types.bin"      $ TP.AllPackedTypes
                                           [1,2,3]
                                           [1,2,3]
                                           [-1,-2,-3]
@@ -195,17 +179,17 @@ parseFromGoldens = testGroup "Parse golden encodings"
                                           [1.0,-1.0]
                                           (fromList $ map Fixed [1,2,3])
                                           (fromList $ map Fixed [1,2,3])
-  , check "with_nesting_repeated.bin" $ GTT.WithNestingRepeated
-                                          [ GTT.WithNestingRepeated_Nested "123abc" 123456 [1,2,3,4] [5,6,7,8]
-                                          , GTT.WithNestingRepeated_Nested "abc123" 654321 [0,9,8,7] [6,5,4,3]
+  , check "with_nesting_repeated.bin" $ TP.WithNestingRepeated
+                                          [ TP.WithNestingRepeated_Nested "123abc" 123456 [1,2,3,4] [5,6,7,8]
+                                          , TP.WithNestingRepeated_Nested "abc123" 654321 [0,9,8,7] [6,5,4,3]
                                           ]
   , -- Checks parsing repeated embedded messages when one is expected (i.e.,
     -- this tests correct merging; this value was encoded as a
     -- WithNestingRepeated).
-    check "with_nesting_repeated.bin" $ GTT.WithNesting $ Just $ GTT.WithNesting_Nested "abc123" 654321 [1,2,3,4,0,9,8,7] [5,6,7,8,6,5,4,3]
+    check "with_nesting_repeated.bin" $ TP.WithNesting $ Just $ TP.WithNesting_Nested "abc123" 654321 [1,2,3,4,0,9,8,7] [5,6,7,8,6,5,4,3]
   , -- Checks that embedded message merging works correctly when fields have
     -- default values; this value was encoded as a WithNestingRepeatedInts
-    check "with_nesting_ints.bin"     $ GTT.WithNestingInts $ Just $ GTT.NestedInts 2 2
+    check "with_nesting_ints.bin"     $ TP.WithNestingInts $ Just $ TP.NestedInts 2 2
   ]
   where
     check fp = testCase fp . testParser (testFilesPfx <> fp) fromByteString
@@ -221,7 +205,7 @@ testParser fp p reference = do
 testDotProtoParse :: FilePath -> DotProto -> Assertion
 testDotProtoParse file ast = do
   contents <- readFile file
-  case parseProto contents of
+  case parseProto (Path []) contents of
     Left err     -> error $ show err
     Right result -> ast @=? result
 
@@ -229,8 +213,8 @@ testDotProtoPrint :: DotProto -> String -> Assertion
 testDotProtoPrint ast expected = expected @=? toProtoFileDef ast
 
 testDotProtoRoundtrip :: DotProto -> Assertion
-testDotProtoRoundtrip ast = let Right result = parseProto $ toProtoFileDef ast
-                            in ast @=? result
+testDotProtoRoundtrip ast =
+  Right ast @=? parseProto (Path []) (toProtoFileDef ast)
 
 dotProtoUnitTests :: TestTree
 dotProtoUnitTests = testGroup ".proto parsing tests"
@@ -242,7 +226,7 @@ dotProtoUnitTests = testGroup ".proto parsing tests"
   ]
 
 trivialDotProto :: DotProto
-trivialDotProto = DotProto [] [] DotProtoNoPackage []
+trivialDotProto = DotProto [] [] DotProtoNoPackage [] (DotProtoMeta (Path []))
 
 dotProtoParseTrivial :: TestTree
 dotProtoParseTrivial = testCase
@@ -266,6 +250,7 @@ dotProtoSimpleMessage = DotProto [] [] DotProtoNoPackage
           DotProtoField (fieldNumber 1) (Prim Int32) (Single "testfield") [] Nothing
       ]
   ]
+  (DotProtoMeta (Path []))
 
 dotProtoRoundtripSimpleMessage :: TestTree
 dotProtoRoundtripSimpleMessage = testCase
@@ -278,7 +263,7 @@ qcDotProtoRoundtrip = testProperty
   where
     roundtrip :: DotProto -> Property
     roundtrip ast = let generated = toProtoFileDef ast
-                    in case parseProto generated of
+                    in case parseProto (Path []) generated of
                       Left err     -> error $ formatParseError err generated
                       Right result -> counterexample (formatMismatch ast generated result ) (ast == result)
 
@@ -303,6 +288,7 @@ dotProtoFor :: (Named a, Message a) => Proxy a -> DotProto
 dotProtoFor proxy = DotProto [] [] DotProtoNoPackage
   [ DotProtoMessage (Single (nameOf proxy)) (DotProtoMessageField <$> dotProto proxy)
   ]
+  (DotProtoMeta (Path []))
 
 showDotProtoFor :: (Named a, Message a) => Proxy a -> IO ()
 showDotProtoFor = putStrLn . toProtoFileDef . dotProtoFor
