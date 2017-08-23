@@ -952,7 +952,8 @@ defaultMessageDeriving = map haskellName [ "Show"
                                          , "Eq",   "Ord"
                                          , "Generic" ]
 
-defaultEnumDeriving = map haskellName [ "Show", "Bounded"
+defaultEnumDeriving = map haskellName [ "Show"
+                                      , "Bounded", "Enum"
                                       , "Eq",   "Ord"
                                       , "Generic" ]
 
