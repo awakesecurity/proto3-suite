@@ -19,6 +19,10 @@ let
       in
         { haskellPackages = pkgs.haskellPackages.override {
             overrides = haskellPackagesNew: haskellPackagesOld: rec {
+
+              aeson =
+                pkgs.haskell.lib.dontCheck (haskellPackagesNew.callPackage ./nix/aeson.nix { });
+
               neat-interpolation =
                 haskellPackagesNew.callPackage ./nix/neat-interpolation.nix { };
 
@@ -27,9 +31,6 @@ let
 
               optparse-generic =
                 haskellPackagesNew.callPackage ./nix/optparse-generic.nix { } ;
-
-              proto3-wire =
-                haskellPackagesNew.callPackage ./nix/proto3-wire.nix { };
 
               proto3-suite-no-tests =
                 pkgs.haskell.lib.dontCheck
@@ -55,6 +56,12 @@ let
                       ];
                     }
                   );
+
+              proto3-wire =
+                haskellPackagesNew.callPackage ./nix/proto3-wire.nix { };
+
+              scientific =
+                pkgs.haskell.lib.dontCheck haskellPackagesOld.scientific;
 
               turtle =
                 haskellPackagesNew.callPackage ./nix/turtle.nix { } ;

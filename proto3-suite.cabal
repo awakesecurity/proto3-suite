@@ -14,14 +14,22 @@ library
   exposed-modules:     Proto3.Suite
                        Proto3.Suite.Class
                        Proto3.Suite.DotProto
+                       Proto3.Suite.DotProto.JSONPB
                        Proto3.Suite.DotProto.Generate
+                       Proto3.Suite.DotProto.Generate.JSONScratch
+                       Proto3.Suite.DotProto.Generate.JSONPBProto
                        Proto3.Suite.DotProto.AST
                        Proto3.Suite.DotProto.Parsing
                        Proto3.Suite.DotProto.Rendering
                        Proto3.Suite.Tutorial
                        Proto3.Suite.Types
   other-modules:       Proto3.Suite.DotProto.Internal
-  build-depends:       base >=4.8 && <5.0,
+                       Proto3.Suite.DotProto.JSONPB.Class
+                       Proto3.Suite.DotProto.JSONPB.Instances
+  build-depends:       aeson >= 1.1.1.0 && < 1.2,
+                       attoparsec >= 0.13.0.1,
+                       base >=4.8 && <5.0,
+                       base64-bytestring >= 1.0.0.1 && < 1.1,
                        bytestring >=0.10.6.0 && <0.11.0,
                        deepseq ==1.4.*,
                        cereal >= 0.5.1 && <0.6,
@@ -56,20 +64,24 @@ test-suite tests
   hs-source-dirs:      tests
   default-language:    Haskell2010
   build-depends:       base >=4.8 && <5.0,
+                       QuickCheck >=2.8 && <3.0,
+                       aeson >= 1.1.1.0 && < 1.2,
+                       attoparsec >= 0.13.0.1,
+                       base >=4.8 && <5.0,
+                       base64-bytestring >= 1.0.0.1 && < 1.1,
+                       bytestring >=0.10.6.0 && <0.11.0,
+                       cereal >= 0.5.1 && <0.6,
                        doctest,
+                       pretty-show >= 1.6.12 && < 1.7,
+                       proto3-suite,
+                       proto3-wire == 1.0.*,
+                       semigroups ==0.18.*,
                        tasty >= 0.11 && <0.12,
                        tasty-hunit >= 0.9 && <0.10,
                        tasty-quickcheck >= 0.8.4 && <0.9,
-                       bytestring >=0.10.6.0 && <0.11.0,
                        text >= 0.2 && <1.3,
-                       proto3-wire == 1.0.*,
-                       proto3-suite,
-                       QuickCheck >=2.8 && <3.0,
-                       cereal >= 0.5.1 && <0.6,
-                       semigroups ==0.18.*,
                        transformers >=0.4 && <0.6,
                        turtle,
-                       pretty-show >= 1.6.12 && < 1.7,
                        vector >=0.11 && < 0.13
 
 executable compile-proto-file

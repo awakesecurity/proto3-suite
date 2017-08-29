@@ -1,0 +1,47 @@
+syntax = "proto3";
+package Proto3.Suite.DotProto.Generate.JSONPBProto;
+
+message SignedInts {
+  sint32 s32 = 0;
+  sint64 s64 = 1;
+}
+
+message Scalar32 {
+  int32     i32 = 1;
+  uint32    u32 = 2;
+  sint32    s32 = 3;
+  fixed32   f32 = 4;
+  sfixed32 sf32 = 5;
+}
+
+message Scalar64 {
+  int64     i64 = 1;
+  uint64    u64 = 2;
+  sint64    s64 = 3;
+  fixed64   f64 = 4;
+  sfixed64 sf64 = 5;
+}
+
+message ScalarFP {
+  float  f = 1;
+  double d = 2;
+}
+
+message Stringly {
+  string str = 1;
+  bytes  bs  = 2;
+}
+
+message Repeat {
+  repeated int32 i32s = 1;
+  repeated int64 i64s = 2;
+}
+
+message Nested {
+  message Inner {
+    int64 i64 = 1;
+  }
+  Inner nestedInner = 1;
+}
+
+// TODO: Continue doing tests atop test.proto once the Signedness issue is addressed.
