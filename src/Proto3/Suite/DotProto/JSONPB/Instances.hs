@@ -49,6 +49,12 @@ instance KeyValuePB A.Series where
     | otherwise   = E.pair k (toEncodingPB v)
 
 --------------------------------------------------------------------------------
+-- Boolean scalar type
+
+instance ToJSONPB Bool
+instance FromJSONPB Bool
+
+--------------------------------------------------------------------------------
 -- Integer scalar types
 --
 --   * 32 bit integer values render to JSON decimal numbers; either numbers or
@@ -68,6 +74,8 @@ instance KeyValuePB A.Series where
 -- Int32) and their ilk so we can make progress (see PLACEHOLDER INSTANCES down
 -- below) -- but we should nuke these as soon as we fix CG! I think something
 -- similiar might be happening for PackedVec/NestedVec/Nested/etc as well.
+--
+-- TODO ^ resolve this since signedness CG has been fixed
 
 -- int32 / "sint32"
 instance ToJSONPB Int32
