@@ -12,16 +12,9 @@
 module TestJSONPBManualCG where
 
 import           Proto3.Suite.DotProto.JSONPB
-
--- Import the generated code from JSON.proto. This can be regenerated via:
---   $ compile-proto-file --out src --includeDir src/Proto3/Suite/DotProto/Generate --proto proto3.suite.dot_proto.generate.JSONPBProto.proto
--- from the top of the repository root.
-
-import           Proto3.Suite.DotProto.Generate.JSONPBProto
-
+import           JSONPBTestTypes -- generated code
 -- import           Proto3.Suite.DotProto.AST
 -- import           Proto3.Suite.DotProto.Generate
-
 import           Text.Show.Pretty
 
 -- $setup

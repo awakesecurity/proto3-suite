@@ -1,5 +1,5 @@
 syntax = "proto3";
-package Proto3.Suite.DotProto.Generate.JSONPBProto;
+package JSONPBTestTypes;
 
 message SignedInts {
   sint32 s32 = 0;
