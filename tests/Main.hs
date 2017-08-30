@@ -36,6 +36,7 @@ import           Test.Tasty.HUnit            (Assertion, assertBool, testCase,
 import           Test.Tasty.QuickCheck       (testProperty, (===))
 import           TestCodeGen
 import qualified TestProto                   as TP
+import qualified TestJSONPBManualCG
 
 main :: IO ()
 main = defaultMain tests

@@ -33,8 +33,6 @@ import           Text.Show.Pretty
 -- prop> decodesAs "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}" (Scalar32 32 33 (-34) 35 36)
 --
 
--- TODO: Use RecordWildCards to name the fields instead of an explicit pattern match
-
 instance ToJSONPB Scalar32 where
   toJSONPB (Scalar32 i32 u32 s32 f32 sf32) = object . mconcat $
     [ "i32"  .= i32
@@ -212,16 +210,22 @@ instance FromJSONPB Nested_Inner where
 --------------------------------------------------------------------------------
 -- Incremental support for all of the types from test_proto.proto:
 
+-- NB: We differ slightly in style from the above hand-generated instances and
+-- and (generally) provide fewer doctests, since this is slightly closer to the
+-- CG target we intended to provide.
+
 -- | Trivial
 -- prop> roundTrip (Trivial x)
 
+fieldDefs_Trivial :: (KeyValuePB a, Monoid a) => Trivial -> a
+fieldDefs_Trivial (Trivial fld0) = mconcat
+  [ "trivialField" .= fld0
+  ]
+
 instance ToJSONPB Trivial where
-  toJSONPB Trivial{..} = object . mconcat $
-    [ "trivialField" .= trivialTrivialField
-    ]
-  toEncodingPB Trivial{..} = pairs . mconcat $
-    [ "trivialField" .= trivialTrivialField
-    ]
+  toJSONPB     = object . fieldDefs_Trivial
+  toEncodingPB = pairs  . fieldDefs_Trivial
+
 instance FromJSONPB Trivial where
   parseJSONPB = withObject "Trivial" $ \obj ->
     pure Trivial
@@ -229,23 +233,21 @@ instance FromJSONPB Trivial where
 
 -- | MultipleFields
 -- prop> roundTrip (MultipleFields d f i32 i64 (TL.pack s) b)
+
+fieldDefs_MultipleFields :: (KeyValuePB a, Monoid a) => MultipleFields -> a
+fieldDefs_MultipleFields (MultipleFields f0 f1 f2 f3 f4 f5) = mconcat
+  [ "multiFieldDouble" .= f0
+  , "multiFieldFloat"  .= f1
+  , "multiFieldInt32"  .= f2
+  , "multiFieldInt64"  .= f3
+  , "multiFieldString" .= f4
+  , "multiFieldBool"   .= f5
+  ]
+
 instance ToJSONPB MultipleFields where
-  toJSONPB MultipleFields{..} = object . mconcat $
-    [ "multiFieldDouble" .= multipleFieldsMultiFieldDouble
-    , "multiFieldFloat"  .= multipleFieldsMultiFieldFloat
-    , "multiFieldInt32"  .= multipleFieldsMultiFieldInt32
-    , "multiFieldInt64"  .= multipleFieldsMultiFieldInt64
-    , "multiFieldString" .= multipleFieldsMultiFieldString
-    , "multiFieldBool"   .= multipleFieldsMultiFieldBool
-    ]
-  toEncodingPB MultipleFields{..} = pairs . mconcat $
-    [ "multiFieldDouble" .= multipleFieldsMultiFieldDouble
-    , "multiFieldFloat"  .= multipleFieldsMultiFieldFloat
-    , "multiFieldInt32"  .= multipleFieldsMultiFieldInt32
-    , "multiFieldInt64"  .= multipleFieldsMultiFieldInt64
-    , "multiFieldString" .= multipleFieldsMultiFieldString
-    , "multiFieldBool"   .= multipleFieldsMultiFieldBool
-    ]
+  toJSONPB     = object . fieldDefs_MultipleFields
+  toEncodingPB = pairs  . fieldDefs_MultipleFields
+
 instance FromJSONPB MultipleFields where
   parseJSONPB = withObject "MultipleFields" $ \obj ->
     pure MultipleFields
@@ -266,15 +268,17 @@ instance FromJSONPB MultipleFields where
 --
 -- prop> decodesAs "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}" (SignedInts 2147483647 9223372036854775807)
 --
+
+fieldDefs_SignedInts :: (KeyValuePB a, Monoid a) => SignedInts -> a
+fieldDefs_SignedInts (SignedInts f0 f1) = mconcat
+  [ "signed32" .= f0
+  , "signed64" .= f1
+  ]
+
 instance ToJSONPB SignedInts where
-  toJSONPB SignedInts{..} = object . mconcat $
-    [ "signed32" .= signedIntsSigned32
-    , "signed64" .= signedIntsSigned64
-    ]
-  toEncodingPB SignedInts{..} = pairs . mconcat $
-    [ "signed32" .= signedIntsSigned32
-    , "signed64" .= signedIntsSigned64
-    ]
+  toJSONPB     = object . fieldDefs_SignedInts
+  toEncodingPB = pairs  . fieldDefs_SignedInts
+
 instance FromJSONPB SignedInts where
   parseJSONPB = withObject "SignedInts" $ \obj ->
     pure SignedInts
