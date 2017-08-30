@@ -16,12 +16,6 @@ import           JSONPBTestTypes
 import           Proto3.Suite.DotProto.JSONPB
 import           Text.Show.Pretty
 
--- $setup
--- >>> import qualified Data.Text.Lazy as TL
--- >>> import qualified Data.Vector    as V
--- >>> :set -XOverloadedStrings
--- >>> :set -XOverloadedLists
-
 --------------------------------------------------------------------------------
 -- Begin hand-generated instances for JSON PB renderings; these instances will
 -- be generated once their design is finalized, and live in the same module as
@@ -303,3 +297,10 @@ decodesAs bs x = eitherDecode bs == Right x
 
 __unused_nowarn :: a
 __unused_nowarn = undefined (ppShow :: String -> String)
+
+-- Doctest preamble
+-- $setup
+-- >>> import qualified Data.Text.Lazy as TL
+-- >>> import qualified Data.Vector    as V
+-- >>> :set -XOverloadedStrings
+-- >>> :set -XOverloadedLists
