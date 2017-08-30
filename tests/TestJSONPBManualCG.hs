@@ -14,6 +14,7 @@ module TestJSONPBManualCG where
 import qualified Data.ByteString.Lazy         as LBS
 import           JSONPBTestTypes
 import           Proto3.Suite.DotProto.JSONPB
+import           Proto3.Suite.Types           (Signed (..))
 import           Text.Show.Pretty
 
 --------------------------------------------------------------------------------
@@ -39,14 +40,19 @@ instance ToJSONPB Scalar32 where
     , "u32"  .= u32
     , "s32"  .= s32
     , "f32"  .= f32
-    , "sf32" .= sf32
+    -- NB: For sfixed32, we need to insert the Signed wrapper ourselves, since
+    -- the field type in the record is Fixed Int32, not Signed (Fixed Int32),
+    -- and the Signed ctor is un/wrapped via decodeMessage/encodeMessage
+    -- instances.
+    , "sf32" .= Signed sf32
     ]
   toEncodingPB (Scalar32 i32 u32 s32 f32 sf32) = pairs . mconcat $
     [ "i32"  .= i32
     , "u32"  .= u32
     , "s32"  .= s32
     , "f32"  .= f32
-    , "sf32" .= sf32
+      -- See comment above pertaining to sfixed32
+    , "sf32" .= Signed sf32
     ]
 instance FromJSONPB Scalar32 where
   parseJSONPB = withObject "Scalar32" $ \obj ->
@@ -55,7 +61,8 @@ instance FromJSONPB Scalar32 where
     <*> obj .: "u32"
     <*> obj .: "s32"
     <*> obj .: "f32"
-    <*> obj .: "sf32"
+    -- See comment above pertaining to sfixed32, except we are unwrapping
+    <*> fmap signed (obj .: "sf32")
 
 -- | Scalar64
 -- prop> roundTrip (Scalar64 64 65 (-66) 67 68)
@@ -72,14 +79,19 @@ instance ToJSONPB Scalar64 where
     , "u64"  .= u64
     , "s64"  .= s64
     , "f64"  .= f64
-    , "sf64" .= sf64
+    -- NB: For sfixed64, we need to insert the Signed wrapper ourselves, since
+    -- the field type in the record is Fixed Int64, not Signed (Fixed Int64),
+    -- and the Signed ctor is un/wrapped via decodeMessage/encodeMessage
+    -- instances.
+    , "sf64" .= Signed sf64
     ]
   toEncodingPB (Scalar64 i64 u64 s64 f64 sf64) = pairs . mconcat $
     [ "i64"  .= i64
     , "u64"  .= u64
     , "s64"  .= s64
     , "f64"  .= f64
-    , "sf64" .= sf64
+      -- See comment above pertaining to sfixed64
+    , "sf64" .= Signed sf64
     ]
 instance FromJSONPB Scalar64 where
   parseJSONPB = withObject "Scalar64" $ \obj ->
@@ -88,7 +100,8 @@ instance FromJSONPB Scalar64 where
     <*> obj .: "u64"
     <*> obj .: "s64"
     <*> obj .: "f64"
-    <*> obj .: "sf64"
+      -- See comment above pertaining to sfixed64, except we are unwrapping
+    <*> fmap signed (obj .: "sf64")
 
 -- | ScalarFP
 -- prop> roundTrip (ScalarFP x y)

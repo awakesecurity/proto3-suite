@@ -30,7 +30,7 @@ import           Proto3.Suite.Class                 (HasDefault (def, isDefault)
 import           Proto3.Suite.DotProto.JSONPB.Class (FromJSONPB (..),
                                                      KeyValuePB (..),
                                                      ToJSONPB (..))
-import           Proto3.Suite.Types                 (Fixed (..))
+import           Proto3.Suite.Types                 (Fixed (..), Signed(..))
 
 -- | This instance allows us to use @key .= val@ with the correct jsonpb
 -- semantics (default values are omitted via 'mempty) in 'toJSONPB'
@@ -64,20 +64,18 @@ instance FromJSONPB Bool
 --     or strings are accepted.
 --
 
--- NB: FIXME: I don't think sint32/sint64 should overlap with int32/int64
--- (possibly bug in CG); no Signed wrapper is generated? Likewise for
--- sfixed32/sfixed64: CG might be buggy here as well. NB: There are no
--- HasDefault instances for e.g. (Fixed Int32) which is another indication that
--- this is a bug, because there IS a HasDefault instance for (Signed (Fixed
--- Int32)) which I think is what should be generated here (representatively). As
--- a stopgap we'll go ahead and define some placeholder instances for (Fixed
--- Int32) and their ilk so we can make progress (see PLACEHOLDER INSTANCES down
--- below) -- but we should nuke these as soon as we fix CG! I think something
--- similiar might be happening for PackedVec/NestedVec/Nested/etc as well.
+-- FIXME: There are no HasDefault instances for e.g. (Fixed Int32) which is
+-- another indication that this is a bug, because there IS a HasDefault instance
+-- for (Signed (Fixed Int32)) which I think is what should be generated here
+-- (representatively). As a stopgap we'll go ahead and define some placeholder
+-- instances for (Fixed Int32) and their ilk so we can make progress (see
+-- PLACEHOLDER INSTANCES down below) -- but we should nuke these as soon as we
+-- fix CG! I think something similiar might be happening for
+-- PackedVec/NestedVec/Nested/etc as well.
 --
 -- TODO ^ resolve this since signedness CG has been fixed
 
--- int32 / "sint32"
+-- int32 / sint32
 instance ToJSONPB Int32
 instance FromJSONPB Int32 where
   parseJSONPB = parseNumOrDecimalString "int32 / sint32"
@@ -87,7 +85,7 @@ instance ToJSONPB Word32
 instance FromJSONPB Word32 where
   parseJSONPB = parseNumOrDecimalString "uint32"
 
--- int64 / "sint64"
+-- int64 / sint64
 instance ToJSONPB Int64 where
   toJSONPB = showDecimalString
 instance FromJSONPB Int64 where
@@ -99,16 +97,17 @@ instance ToJSONPB Word64 where
 instance FromJSONPB Word64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
--- fixed32, fixed64, "sfixed32", "sfixed64"
+-- fixed32, fixed64
 instance ToJSONPB a => ToJSONPB (Fixed a) where
   toJSONPB = toJSONPB . fixed
 instance FromJSONPB a => FromJSONPB (Fixed a) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
---------------------------------------------------------------------------------
--- PLACEHOLDER INSTANCES
-instance HasDefault (Fixed Int32)
-instance HasDefault (Fixed Int64)
+-- sfixed32, sfixed64
+instance ToJSONPB a => ToJSONPB (Signed a) where
+  toJSONPB = toJSONPB . signed
+instance FromJSONPB a => FromJSONPB (Signed a) where
+  parseJSONPB = fmap Signed . parseJSONPB
 
 --------------------------------------------------------------------------------
 -- Floating point scalar types
