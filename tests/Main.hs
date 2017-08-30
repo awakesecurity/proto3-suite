@@ -59,8 +59,9 @@ docTests = testCase "doctests" $ do
   putStrLn "Running all doctests..."
   Test.DocTest.doctest
     [ "-isrc"
+    , "-itests"
     , "src/Proto3/Suite/DotProto/Internal.hs"
-    , "src/Proto3/Suite/DotProto/Generate/JSONScratch.hs"
+    , "tests/TestJSONPBManualCG.hs"
     ]
 
 --------------------------------------------------------------------------------

@@ -1,28 +1,15 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE RecordWildCards      #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
--- | This module provides functions to generate Haskell code for doing JSON
--- serdes for protobuf messages, as per the proto3 canonical JSON encoding
--- described at https://developers.google.com/protocol-buffers/docs/proto3#json.
+-- | This module tests hand-generated JSONPB instances for types from
+-- @TestJSONPBTypes.proto@, as per the proto3 canonical JSON encoding described
+-- at https://developers.google.com/protocol-buffers/docs/proto3#json. It is a
+-- temporary module containing code that we'll eventually generate via the
+-- proto3-suite code generator, once the design is complete.
 
-{-
-
-.d8888.  .o88b. d8888b.  .d8b.  d888888b  .o88b. db   db       .o88b.  .d88b.  d8888b. d88888b
-88'  YP d8P  Y8 88  `8D d8' `8b `~~88~~' d8P  Y8 88   88      d8P  Y8 .8P  Y8. 88  `8D 88'
-`8bo.   8P      88oobY' 88ooo88    88    8P      88ooo88      8P      88    88 88   88 88ooooo
-  `Y8b. 8b      88`8b   88~~~88    88    8b      88~~~88      8b      88    88 88   88 88~~~~~
-db   8D Y8b  d8 88 `88. 88   88    88    Y8b  d8 88   88      Y8b  d8 `8b  d8' 88  .8D 88.
-`8888Y'  `Y88P' 88   YD YP   YP    YP     `Y88P' YP   YP       `Y88P'  `Y88P'  Y8888D' Y88888P
-
-Currently this module just contains a bunch of experimental code -- mostly
-prototyping for the kind of code that we'll want to end up generating.
-
--}
-
-module Proto3.Suite.DotProto.Generate.JSONScratch where
+module TestJSONPBManualCG where
 
 import           Proto3.Suite.DotProto.JSONPB
 
