@@ -30,7 +30,7 @@ import           Proto3.Suite.Class                 (HasDefault (def, isDefault)
 import           Proto3.Suite.DotProto.JSONPB.Class (FromJSONPB (..),
                                                      KeyValuePB (..),
                                                      ToJSONPB (..))
-import           Proto3.Suite.Types                 (Fixed (..), Signed(..))
+import           Proto3.Suite.Types                 (Fixed (..), PackedVec(..), Signed(..))
 
 -- | This instance allows us to use @key .= val@ with the correct jsonpb
 -- semantics (default values are omitted via 'mempty) in 'toJSONPB'
@@ -157,13 +157,10 @@ instance FromJSONPB a => FromJSONPB (V.Vector a) where
   parseJSONPB A.Null       = pure []
   parseJSONPB v            = A.typeMismatch "repeated" v
 
--- As with the PLACEHOLDER INSTANCES for fixed/signed types, we have a similar
--- situation here; we're not getting NestedVec-wrapped values in CG (or
--- whatever) as I might expect would be the case...so we probably need to treat
--- this as as stopgap as well.
-instance HasDefault (V.Vector a) where
-  def       = V.empty
-  isDefault = V.null
+instance ToJSONPB a => ToJSONPB (PackedVec a) where
+  toJSONPB = toJSONPB . packedvec
+instance FromJSONPB a => FromJSONPB (PackedVec a) where
+  parseJSONPB = fmap PackedVec . parseJSONPB
 
 --------------------------------------------------------------------------------
 -- Instances for nested messages

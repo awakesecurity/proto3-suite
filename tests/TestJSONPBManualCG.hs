@@ -14,7 +14,7 @@ module TestJSONPBManualCG where
 import qualified Data.ByteString.Lazy         as LBS
 import           JSONPBTestTypes
 import           Proto3.Suite.DotProto.JSONPB
-import           Proto3.Suite.Types           (Signed (..))
+import           Proto3.Suite.Types           (PackedVec (..), Signed (..))
 import           Text.Show.Pretty
 
 --------------------------------------------------------------------------------
@@ -43,7 +43,8 @@ instance ToJSONPB Scalar32 where
     -- NB: For sfixed32, we need to insert the Signed wrapper ourselves, since
     -- the field type in the record is Fixed Int32, not Signed (Fixed Int32),
     -- and the Signed ctor is un/wrapped via decodeMessage/encodeMessage
-    -- instances.
+    -- instances. During CG we need to apply this whenever the field type is
+    -- (Prim SFixed32).
     , "sf32" .= Signed sf32
     ]
   toEncodingPB (Scalar32 i32 u32 s32 f32 sf32) = pairs . mconcat $
@@ -82,7 +83,8 @@ instance ToJSONPB Scalar64 where
     -- NB: For sfixed64, we need to insert the Signed wrapper ourselves, since
     -- the field type in the record is Fixed Int64, not Signed (Fixed Int64),
     -- and the Signed ctor is un/wrapped via decodeMessage/encodeMessage
-    -- instances.
+    -- instances. During CG we need to apply this whenever the field type is
+    -- (Prim SFixed64).
     , "sf64" .= Signed sf64
     ]
   toEncodingPB (Scalar64 i64 u64 s64 f64 sf64) = pairs . mconcat $
@@ -170,18 +172,22 @@ instance FromJSONPB Stringly where
 
 instance ToJSONPB Repeat where
   toJSONPB (Repeat i32s i64s) = object . mconcat $
-    [ "i32s" .= i32s
-    , "i64s" .= i64s
+    -- As with the Signed un/wrapping for sfixed32/sfixed64, we need to un/wrap
+    -- with PackedVec or UnpackedVec as needed (former by default or when
+    -- [packed=false], latter when [packed=true]). In this case they are both
+    -- packed.
+    [ "i32s" .= PackedVec i32s
+    , "i64s" .= PackedVec i64s
     ]
   toEncodingPB (Repeat i32s i64s) = pairs . mconcat $
-    [ "i32s" .= i32s
-    , "i64s" .= i64s
+    [ "i32s" .= PackedVec i32s
+    , "i64s" .= PackedVec i64s
     ]
 instance FromJSONPB Repeat where
   parseJSONPB = withObject "Repeat" $ \obj ->
     pure Repeat
-    <*> obj .: "i32s"
-    <*> obj .: "i64s"
+    <*> fmap packedvec (obj .: "i32s")
+    <*> fmap packedvec (obj .: "i64s")
 
 -- | Nested
 -- prop> roundTrip (Nested Nothing)
