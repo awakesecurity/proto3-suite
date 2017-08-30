@@ -21,43 +21,6 @@ import qualified Data.Word as Hs (Word16, Word32, Word64)
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
  
-data SignedInts = SignedInts{signedIntsS32 :: Hs.Int32,
-                             signedIntsS64 :: Hs.Int64}
-                deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
- 
-instance HsProtobuf.Named SignedInts where
-        nameOf _ = (Hs.fromString "SignedInts")
- 
-instance HsProtobuf.Message SignedInts where
-        encodeMessage _
-          SignedInts{signedIntsS32 = signedIntsS32,
-                     signedIntsS64 = signedIntsS64}
-          = (Hs.mconcat
-               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 0)
-                   (HsProtobuf.Signed signedIntsS32)),
-                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
-                   (HsProtobuf.Signed signedIntsS64))])
-        decodeMessage _
-          = (Hs.pure SignedInts) <*>
-              ((Hs.pure HsProtobuf.signed) <*>
-                 (HsProtobuf.at HsProtobuf.decodeMessageField
-                    (HsProtobuf.FieldNumber 0)))
-              <*>
-              ((Hs.pure HsProtobuf.signed) <*>
-                 (HsProtobuf.at HsProtobuf.decodeMessageField
-                    (HsProtobuf.FieldNumber 1)))
-        dotProto _
-          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 0)
-                (HsProtobuf.Prim HsProtobuf.SInt32)
-                (HsProtobuf.Single "s32")
-                []
-                Hs.Nothing),
-             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
-                (HsProtobuf.Prim HsProtobuf.SInt64)
-                (HsProtobuf.Single "s64")
-                []
-                Hs.Nothing)]
- 
 data Scalar32 = Scalar32{scalar32I32 :: Hs.Int32,
                          scalar32U32 :: Hs.Word32, scalar32S32 :: Hs.Int32,
                          scalar32F32 :: HsProtobuf.Fixed Hs.Word32,
@@ -367,5 +330,127 @@ instance HsProtobuf.Message Trivial where
           = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
                 (HsProtobuf.Prim HsProtobuf.Int32)
                 (HsProtobuf.Single "trivialField")
+                []
+                Hs.Nothing)]
+ 
+data MultipleFields = MultipleFields{multipleFieldsMultiFieldDouble
+                                     :: Hs.Double,
+                                     multipleFieldsMultiFieldFloat :: Hs.Float,
+                                     multipleFieldsMultiFieldInt32 :: Hs.Int32,
+                                     multipleFieldsMultiFieldInt64 :: Hs.Int64,
+                                     multipleFieldsMultiFieldString :: Hs.Text,
+                                     multipleFieldsMultiFieldBool :: Hs.Bool}
+                    deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named MultipleFields where
+        nameOf _ = (Hs.fromString "MultipleFields")
+ 
+instance HsProtobuf.Message MultipleFields where
+        encodeMessage _
+          MultipleFields{multipleFieldsMultiFieldDouble =
+                           multipleFieldsMultiFieldDouble,
+                         multipleFieldsMultiFieldFloat = multipleFieldsMultiFieldFloat,
+                         multipleFieldsMultiFieldInt32 = multipleFieldsMultiFieldInt32,
+                         multipleFieldsMultiFieldInt64 = multipleFieldsMultiFieldInt64,
+                         multipleFieldsMultiFieldString = multipleFieldsMultiFieldString,
+                         multipleFieldsMultiFieldBool = multipleFieldsMultiFieldBool}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   multipleFieldsMultiFieldDouble),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                   multipleFieldsMultiFieldFloat),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 3)
+                   multipleFieldsMultiFieldInt32),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 4)
+                   multipleFieldsMultiFieldInt64),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 5)
+                   multipleFieldsMultiFieldString),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 6)
+                   multipleFieldsMultiFieldBool)])
+        decodeMessage _
+          = (Hs.pure MultipleFields) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 2))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 3))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 4))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 5))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 6))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.Double)
+                (HsProtobuf.Single "multiFieldDouble")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
+                (HsProtobuf.Prim HsProtobuf.Float)
+                (HsProtobuf.Single "multiFieldFloat")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 3)
+                (HsProtobuf.Prim HsProtobuf.Int32)
+                (HsProtobuf.Single "multiFieldInt32")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 4)
+                (HsProtobuf.Prim HsProtobuf.Int64)
+                (HsProtobuf.Single "multiFieldInt64")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 5)
+                (HsProtobuf.Prim HsProtobuf.String)
+                (HsProtobuf.Single "multiFieldString")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 6)
+                (HsProtobuf.Prim HsProtobuf.Bool)
+                (HsProtobuf.Single "multiFieldBool")
+                []
+                Hs.Nothing)]
+ 
+data SignedInts = SignedInts{signedIntsSigned32 :: Hs.Int32,
+                             signedIntsSigned64 :: Hs.Int64}
+                deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named SignedInts where
+        nameOf _ = (Hs.fromString "SignedInts")
+ 
+instance HsProtobuf.Message SignedInts where
+        encodeMessage _
+          SignedInts{signedIntsSigned32 = signedIntsSigned32,
+                     signedIntsSigned64 = signedIntsSigned64}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   (HsProtobuf.Signed signedIntsSigned32)),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                   (HsProtobuf.Signed signedIntsSigned64))])
+        decodeMessage _
+          = (Hs.pure SignedInts) <*>
+              ((Hs.pure HsProtobuf.signed) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 1)))
+              <*>
+              ((Hs.pure HsProtobuf.signed) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 2)))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.SInt32)
+                (HsProtobuf.Single "signed32")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
+                (HsProtobuf.Prim HsProtobuf.SInt64)
+                (HsProtobuf.Single "signed64")
                 []
                 Hs.Nothing)]

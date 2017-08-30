@@ -1,11 +1,6 @@
 syntax = "proto3";
 package JSONPBTestTypes;
 
-message SignedInts {
-  sint32 s32 = 0;
-  sint64 s64 = 1;
-}
-
 message Scalar32 {
   int32     i32 = 1;
   uint32    u32 = 2;
@@ -50,4 +45,18 @@ message Nested {
 
 message Trivial {
   int32 trivialField = 1;
+}
+
+message MultipleFields {
+  double multiFieldDouble = 1;
+  float multiFieldFloat = 2;
+  int32 multiFieldInt32 = 3;
+  int64 multiFieldInt64 = 4;
+  string multiFieldString = 5;
+  bool multiFieldBool = 6;
+}
+
+message SignedInts {
+  sint32 signed32 = 1;
+  sint64 signed64 = 2;
 }

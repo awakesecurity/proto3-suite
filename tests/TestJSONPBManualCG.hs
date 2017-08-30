@@ -17,6 +17,8 @@ import           Proto3.Suite.DotProto.JSONPB
 import           Text.Show.Pretty
 
 -- $setup
+-- >>> import qualified Data.Text.Lazy as TL
+-- >>> import qualified Data.Vector    as V
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XOverloadedLists
 
@@ -28,30 +30,6 @@ import           Text.Show.Pretty
 --
 -- We also put some placeholder doctests here for prelim regression checking
 -- until we get some property-based tests in place.
-
--- | SignedInts
--- prop> roundTrip (SignedInts minBound minBound)
--- prop> roundTrip (SignedInts maxBound maxBound)
---
--- prop> encodesAs (SignedInts minBound minBound) "{\"s32\":-2147483648,\"s64\":\"-9223372036854775808\"}"
--- prop> encodesAs (SignedInts maxBound maxBound) "{\"s32\":2147483647,\"s64\":\"9223372036854775807\"}"
---
--- prop> decodesAs "{\"s32\":2147483647,\"s64\":\"9223372036854775807\"}" (SignedInts 2147483647 9223372036854775807)
---
-instance ToJSONPB SignedInts where
-  toJSONPB SignedInts{..} = object . mconcat $
-    [ "s32" .= signedIntsS32
-    , "s64" .= signedIntsS64
-    ]
-  toEncodingPB SignedInts{..} = pairs . mconcat $
-    [ "s32" .= signedIntsS32
-    , "s64" .= signedIntsS64
-    ]
-instance FromJSONPB SignedInts where
-  parseJSONPB = withObject "SignedInts" $ \obj ->
-    pure SignedInts
-    <*> obj .: "s32"
-    <*> obj .: "s64"
 
 -- | Scalar32
 -- prop> roundTrip (Scalar32 32 33 (-34) 35 36)
@@ -121,9 +99,9 @@ instance FromJSONPB Scalar64 where
     <*> obj .: "sf64"
 
 -- | ScalarFP
--- prop> roundTrip (ScalarFP 98.6 255.16)
+-- prop> roundTrip (ScalarFP x y)
 --
--- prop> encodesAs (ScalarFP 98.6 255.16)                      "{\"f\":98.6,\"d\":255.16}"
+-- prop> encodesAs (ScalarFP 98.6 255.16) "{\"f\":98.6,\"d\":255.16}"
 --
 -- prop> decodesAs "{\"f\":98.6,\"d\":255.16}"                 (ScalarFP 98.6 255.16)
 -- prop> decodesAs "{\"f\":\"23.6\",\"d\":\"-99.001\"}"        (ScalarFP 23.6 (-99.001))
@@ -174,11 +152,9 @@ instance FromJSONPB Stringly where
     <*> obj .: "bs"
 
 -- | Repeat
--- prop> roundTrip (Repeat [4,5] [6,7])
--- prop> roundTrip (Repeat [] [6,7])
--- prop> roundTrip (Repeat [4,5] [])
+-- prop> roundTrip (Repeat (V.fromList xs) (V.fromList ys))
 --
--- prop> encodesAs (Repeat [4,5] [6,7])                       "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
+-- prop> encodesAs (Repeat [4,5] [6,7]) "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
 --
 -- prop> decodesAs "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}" (Repeat [4,5] [6,7])
 -- prop> decodesAs "{\"i32s\":[4,5]}"                        (Repeat [4,5] [])
@@ -204,7 +180,7 @@ instance FromJSONPB Repeat where
 
 -- | Nested
 -- prop> roundTrip (Nested Nothing)
--- prop> roundTrip (Nested (Just (Nested_Inner 42)))
+-- prop> roundTrip (Nested (Just (Nested_Inner x)))
 --
 -- prop> encodesAs (Nested Nothing)                  "{}"
 -- prop> encodesAs (Nested (Just (Nested_Inner 42))) "{\"nestedInner\":{\"i64\":\"42\"}}"
@@ -256,6 +232,60 @@ instance FromJSONPB Trivial where
   parseJSONPB = withObject "Trivial" $ \obj ->
     pure Trivial
     <*> obj .: "trivialField"
+
+-- | MultipleFields
+-- prop> roundTrip (MultipleFields d f i32 i64 (TL.pack s) b)
+instance ToJSONPB MultipleFields where
+  toJSONPB MultipleFields{..} = object . mconcat $
+    [ "multiFieldDouble" .= multipleFieldsMultiFieldDouble
+    , "multiFieldFloat"  .= multipleFieldsMultiFieldFloat
+    , "multiFieldInt32"  .= multipleFieldsMultiFieldInt32
+    , "multiFieldInt64"  .= multipleFieldsMultiFieldInt64
+    , "multiFieldString" .= multipleFieldsMultiFieldString
+    , "multiFieldBool"   .= multipleFieldsMultiFieldBool
+    ]
+  toEncodingPB MultipleFields{..} = pairs . mconcat $
+    [ "multiFieldDouble" .= multipleFieldsMultiFieldDouble
+    , "multiFieldFloat"  .= multipleFieldsMultiFieldFloat
+    , "multiFieldInt32"  .= multipleFieldsMultiFieldInt32
+    , "multiFieldInt64"  .= multipleFieldsMultiFieldInt64
+    , "multiFieldString" .= multipleFieldsMultiFieldString
+    , "multiFieldBool"   .= multipleFieldsMultiFieldBool
+    ]
+instance FromJSONPB MultipleFields where
+  parseJSONPB = withObject "MultipleFields" $ \obj ->
+    pure MultipleFields
+    <*> obj .: "multiFieldDouble"
+    <*> obj .: "multiFieldFloat"
+    <*> obj .: "multiFieldInt32"
+    <*> obj .: "multiFieldInt64"
+    <*> obj .: "multiFieldString"
+    <*> obj .: "multiFieldBool"
+
+-- | SignedInts
+-- prop> roundTrip (SignedInts x y)
+-- prop> roundTrip (SignedInts minBound minBound)
+-- prop> roundTrip (SignedInts maxBound maxBound)
+--
+-- prop> encodesAs (SignedInts minBound minBound) "{\"signed32\":-2147483648,\"signed64\":\"-9223372036854775808\"}"
+-- prop> encodesAs (SignedInts maxBound maxBound) "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}"
+--
+-- prop> decodesAs "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}" (SignedInts 2147483647 9223372036854775807)
+--
+instance ToJSONPB SignedInts where
+  toJSONPB SignedInts{..} = object . mconcat $
+    [ "signed32" .= signedIntsSigned32
+    , "signed64" .= signedIntsSigned64
+    ]
+  toEncodingPB SignedInts{..} = pairs . mconcat $
+    [ "signed32" .= signedIntsSigned32
+    , "signed64" .= signedIntsSigned64
+    ]
+instance FromJSONPB SignedInts where
+  parseJSONPB = withObject "SignedInts" $ \obj ->
+    pure SignedInts
+    <*> obj .: "signed32"
+    <*> obj .: "signed64"
 
 -- End hand-generated instances for JSON PB renderings
 --------------------------------------------------------------------------------
