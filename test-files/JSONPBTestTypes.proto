@@ -44,4 +44,10 @@ message Nested {
   Inner nestedInner = 1;
 }
 
-// TODO: Continue doing tests atop test.proto once the Signedness issue is addressed.
+////////////////////////////////////////////////////////////////////////////////
+// Temporary/gradual support from test_proto.proto types here; after they are
+// all supported, TODO: remove this file and use test_proto.proto directly.
+
+message Trivial {
+  int32 trivialField = 1;
+}

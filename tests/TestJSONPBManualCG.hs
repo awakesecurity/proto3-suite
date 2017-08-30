@@ -1,6 +1,6 @@
-{-# LANGUAGE LambdaCase           #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | This module tests hand-generated JSONPB instances for types from
@@ -11,10 +11,9 @@
 
 module TestJSONPBManualCG where
 
+import qualified Data.ByteString.Lazy         as LBS
+import           JSONPBTestTypes
 import           Proto3.Suite.DotProto.JSONPB
-import           JSONPBTestTypes -- generated code
--- import           Proto3.Suite.DotProto.AST
--- import           Proto3.Suite.DotProto.Generate
 import           Text.Show.Pretty
 
 -- $setup
@@ -24,28 +23,21 @@ import           Text.Show.Pretty
 --------------------------------------------------------------------------------
 -- Begin hand-generated instances for JSON PB renderings; these instances will
 -- be generated once their design is finalized, and live in the same module as
--- the other typedefs and instances (e.g.,
--- Proto3.Suite.DotProto.Generate.JSONPBProto in this case).
+-- the other typedefs and instances (e.g., inside JSONPBProtoTypes, in this
+-- case).
 --
 -- We also put some placeholder doctests here for prelim regression checking
 -- until we get some property-based tests in place.
 
 -- | SignedInts
+-- prop> roundTrip (SignedInts minBound minBound)
+-- prop> roundTrip (SignedInts maxBound maxBound)
 --
--- >>> roundTrip (SignedInts minBound minBound)
--- Right True
--- >>> roundTrip (SignedInts maxBound maxBound)
--- Right True
+-- prop> encodesAs (SignedInts minBound minBound) "{\"s32\":-2147483648,\"s64\":\"-9223372036854775808\"}"
+-- prop> encodesAs (SignedInts maxBound maxBound) "{\"s32\":2147483647,\"s64\":\"9223372036854775807\"}"
 --
--- >>> encode (SignedInts minBound minBound)
--- "{\"s32\":-2147483648,\"s64\":\"-9223372036854775808\"}"
+-- prop> decodesAs "{\"s32\":2147483647,\"s64\":\"9223372036854775807\"}" (SignedInts 2147483647 9223372036854775807)
 --
--- >>> encode (SignedInts maxBound maxBound)
--- "{\"s32\":2147483647,\"s64\":\"9223372036854775807\"}"
---
--- >>> Right (SignedInts 2147483647 9223372036854775807) == eitherDecode "{\"s32\":2147483647,\"s64\":\"9223372036854775807\"}"
--- True
-
 instance ToJSONPB SignedInts where
   toJSONPB SignedInts{..} = object . mconcat $
     [ "s32" .= signedIntsS32
@@ -62,15 +54,12 @@ instance FromJSONPB SignedInts where
     <*> obj .: "s64"
 
 -- | Scalar32
+-- prop> roundTrip (Scalar32 32 33 (-34) 35 36)
 --
--- >>> roundTrip (Scalar32 32 33 (-34) 35 36)
--- Right True
+-- prop> encodesAs (Scalar32 32 33 (-34) 35 36) "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}"
 --
--- >>> encode (Scalar32 32 33 (-34) 35 36)
--- "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}"
+-- prop> decodesAs "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}" (Scalar32 32 33 (-34) 35 36)
 --
--- >>> Right (Scalar32 32 33 (-34) 35 36) == eitherDecode "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}"
--- True
 
 -- TODO: Use RecordWildCards to name the fields instead of an explicit pattern match
 
@@ -99,18 +88,13 @@ instance FromJSONPB Scalar32 where
     <*> obj .: "sf32"
 
 -- | Scalar64
+-- prop> roundTrip (Scalar64 64 65 (-66) 67 68)
 --
--- >>> roundTrip (Scalar64 64 65 (-66) 67 68)
--- Right True
+-- prop> encodesAs (Scalar64 64 65 (-66) 67 68) "{\"i64\":\"64\",\"u64\":\"65\",\"s64\":\"-66\",\"f64\":\"67\",\"sf64\":\"68\"}"
 --
--- >>> encode (Scalar64 64 65 (-66) 67 68)
--- "{\"i64\":\"64\",\"u64\":\"65\",\"s64\":\"-66\",\"f64\":\"67\",\"sf64\":\"68\"}"
+-- prop> decodesAs "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}" (Scalar64 64 65 (-66) 67 68)
+-- prop> decodesAs "{\"u64\":\"65\",\"s64\":\"66\",\"f64\":\"67\",\"sf64\":\"68\"}" (Scalar64 0 65 66 67 68)
 --
--- >>> Right (Scalar64 64 65 (-66) 67 68) == eitherDecode "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}"
--- True
---
--- >>> Right (Scalar64 0 65 66 67 68) == eitherDecode "{\"u64\":\"65\",\"s64\":\"66\",\"f64\":\"67\",\"sf64\":\"68\"}"
--- True
 
 instance ToJSONPB Scalar64 where
   toJSONPB (Scalar64 i64 u64 s64 f64 sf64) = object . mconcat $
@@ -137,30 +121,19 @@ instance FromJSONPB Scalar64 where
     <*> obj .: "sf64"
 
 -- | ScalarFP
+-- prop> roundTrip (ScalarFP 98.6 255.16)
 --
--- >>> roundTrip (ScalarFP 98.6 255.16)
--- Right True
+-- prop> encodesAs (ScalarFP 98.6 255.16)                      "{\"f\":98.6,\"d\":255.16}"
 --
--- >>> encode (ScalarFP 98.6 255.16)
--- "{\"f\":98.6,\"d\":255.16}"
---
--- >>> Right (ScalarFP 98.6 255.16) == eitherDecode "{\"f\":98.6,\"d\":255.16}"
--- True
---
--- >>> Right (ScalarFP 23.6 (-99.001)) == eitherDecode "{\"f\":\"23.6\",\"d\":\"-99.001\"}"
--- True
---
--- >>> Right (ScalarFP 1000000.0 (-1000.0)) == eitherDecode "{\"f\":\"1e6\",\"d\":\"-0.1e4\"}"
--- True
---
--- >>> Right (ScalarFP (1/0) (1/0)) == eitherDecode "{\"f\":\"Infinity\",\"d\":\"Infinity\"}"
--- True
---
--- >>> Right (ScalarFP (negate 1/0) (negate 1/0)) == eitherDecode "{\"f\":\"-Infinity\",\"d\":\"-Infinity\"}"
--- True
+-- prop> decodesAs "{\"f\":98.6,\"d\":255.16}"                 (ScalarFP 98.6 255.16)
+-- prop> decodesAs "{\"f\":\"23.6\",\"d\":\"-99.001\"}"        (ScalarFP 23.6 (-99.001))
+-- prop> decodesAs "{\"f\":\"1e6\",\"d\":\"-0.1e4\"}"          (ScalarFP 1000000.0 (-1000.0))
+-- prop> decodesAs "{\"f\":\"Infinity\",\"d\":\"Infinity\"}"   (ScalarFP (1/0) (1/0))
+-- prop> decodesAs "{\"f\":\"-Infinity\",\"d\":\"-Infinity\"}" (ScalarFP (negate 1/0) (negate 1/0))
 --
 -- >>> eitherDecode "{\"f\":\"NaN\",\"d\":\"NaN\"}" :: Either String ScalarFP
 -- Right (ScalarFP {scalarFPF = NaN, scalarFPD = NaN})
+--
 
 instance ToJSONPB ScalarFP where
   toJSONPB (ScalarFP f d) = object . mconcat $
@@ -178,15 +151,11 @@ instance FromJSONPB ScalarFP where
     <*> obj .: "d"
 
 -- | Stringly
+-- prop> roundTrip (Stringly "foo" "abc123!?$*&()'-=@~")
 --
--- >>> roundTrip (Stringly "foo" "abc123!?$*&()'-=@~")
--- Right True
+-- prop> encodesAs (Stringly "foo" "abc123!?$*&()'-=@~") "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
 --
--- >>> encode (Stringly "foo" "abc123!?$*&()'-=@~")
--- "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
---
--- >>> Right (Stringly "foo" "abc123!?$*&()'-=@~") == eitherDecode "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
--- True
+-- prop> decodesAs "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}" (Stringly "foo" "abc123!?$*&()'-=@~")
 --
 
 instance ToJSONPB Stringly where
@@ -205,33 +174,18 @@ instance FromJSONPB Stringly where
     <*> obj .: "bs"
 
 -- | Repeat
+-- prop> roundTrip (Repeat [4,5] [6,7])
+-- prop> roundTrip (Repeat [] [6,7])
+-- prop> roundTrip (Repeat [4,5] [])
 --
--- >>> roundTrip (Repeat [4,5] [6,7])
--- Right True
+-- prop> encodesAs (Repeat [4,5] [6,7])                       "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
 --
--- >>> roundTrip (Repeat [] [6,7])
--- Right True
+-- prop> decodesAs "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}" (Repeat [4,5] [6,7])
+-- prop> decodesAs "{\"i32s\":[4,5]}"                        (Repeat [4,5] [])
+-- prop> decodesAs "{\"i32s\":[4,5],\"i64s\":null}"          (Repeat [4,5] [])
+-- prop> decodesAs "{\"i32s\":[4,5],\"i64s\":[]}"            (Repeat [4,5] [])
+-- prop> decodesAs "{}"                                      (Repeat [] [])
 --
--- >>> roundTrip (Repeat [4,5] [])
--- Right True
---
--- >>> encode (Repeat [4,5] [6,7])
--- "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
---
--- >>> Right (Repeat [4,5] [6,7]) == eitherDecode "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
--- True
---
--- >>> Right (Repeat [4,5] []) == eitherDecode "{\"i32s\":[4,5]}"
--- True
---
--- >>> Right (Repeat [4,5] []) == eitherDecode "{\"i32s\":[4,5],\"i64s\":null}"
--- True
---
--- >>> Right (Repeat [4,5] []) == eitherDecode "{\"i32s\":[4,5],\"i64s\":[]}"
--- True
---
--- >>> Right (Repeat [] []) == eitherDecode "{}"
--- True
 
 instance ToJSONPB Repeat where
   toJSONPB (Repeat i32s i64s) = object . mconcat $
@@ -249,24 +203,14 @@ instance FromJSONPB Repeat where
     <*> obj .: "i64s"
 
 -- | Nested
+-- prop> roundTrip (Nested Nothing)
+-- prop> roundTrip (Nested (Just (Nested_Inner 42)))
 --
--- >>> roundTrip (Nested Nothing)
--- Right True
+-- prop> encodesAs (Nested Nothing)                  "{}"
+-- prop> encodesAs (Nested (Just (Nested_Inner 42))) "{\"nestedInner\":{\"i64\":\"42\"}}"
 --
--- >>> roundTrip (Nested (Just (Nested_Inner 42)))
--- Right True
---
--- >>> encode (Nested Nothing)
--- "{}"
---
--- >>> encode (Nested (Just (Nested_Inner 42)))
--- "{\"nestedInner\":{\"i64\":\"42\"}}"
---
--- >>> Right (Nested Nothing) == eitherDecode "{}"
--- True
---
--- >>> Right (Nested (Just (Nested_Inner 42))) == eitherDecode "{\"nestedInner\":{\"i64\":\"42\"}}"
--- True
+-- prop> decodesAs "{}"                                 (Nested Nothing)
+-- prop> decodesAs "{\"nestedInner\":{\"i64\":\"42\"}}" (Nested (Just (Nested_Inner 42)))
 --
 
 instance ToJSONPB Nested where
@@ -295,15 +239,37 @@ instance FromJSONPB Nested_Inner where
     pure Nested_Inner
     <*> obj .: "i64"
 
+--------------------------------------------------------------------------------
+-- Incremental support for all of the types from test_proto.proto:
+
+-- | Trivial
+-- prop> roundTrip (Trivial x)
+
+instance ToJSONPB Trivial where
+  toJSONPB Trivial{..} = object . mconcat $
+    [ "trivialField" .= trivialTrivialField
+    ]
+  toEncodingPB Trivial{..} = pairs . mconcat $
+    [ "trivialField" .= trivialTrivialField
+    ]
+instance FromJSONPB Trivial where
+  parseJSONPB = withObject "Trivial" $ \obj ->
+    pure Trivial
+    <*> obj .: "trivialField"
+
 -- End hand-generated instances for JSON PB renderings
 --------------------------------------------------------------------------------
 
-roundTrip :: (ToJSONPB a, FromJSONPB a, Eq a) => a -> Either String Bool
-roundTrip x = either Left (Right . (x==)) . eitherDecode . encode $ x
+-- Helper quickcheck props
 
-jsonProtoPath, testProtoPath :: String
-jsonProtoPath = "/w/proto3-suite/src/Proto3/Suite/DotProto/Generate/JSON.proto"
-testProtoPath = "/w/proto3-suite/test-files/test.proto"
+roundTrip :: (ToJSONPB a, FromJSONPB a, Eq a) => a -> Bool
+roundTrip x = eitherDecode (encode x) == Right x
+
+encodesAs :: (ToJSONPB a) => a -> LBS.ByteString -> Bool
+encodesAs x bs = encode x == bs
+
+decodesAs :: (Eq a, FromJSONPB a) => LBS.ByteString -> a -> Bool
+decodesAs bs x = eitherDecode bs == Right x
 
 __unused_nowarn :: a
 __unused_nowarn = undefined (ppShow :: String -> String)

@@ -347,3 +347,25 @@ instance HsProtobuf.Message Nested_Inner where
                 (HsProtobuf.Single "i64")
                 []
                 Hs.Nothing)]
+ 
+data Trivial = Trivial{trivialTrivialField :: Hs.Int32}
+             deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named Trivial where
+        nameOf _ = (Hs.fromString "Trivial")
+ 
+instance HsProtobuf.Message Trivial where
+        encodeMessage _ Trivial{trivialTrivialField = trivialTrivialField}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   trivialTrivialField)])
+        decodeMessage _
+          = (Hs.pure Trivial) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.Int32)
+                (HsProtobuf.Single "trivialField")
+                []
+                Hs.Nothing)]
