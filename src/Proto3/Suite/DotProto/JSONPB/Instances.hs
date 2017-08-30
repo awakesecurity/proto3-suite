@@ -30,7 +30,7 @@ import           Proto3.Suite.Class                 (HasDefault (def, isDefault)
 import           Proto3.Suite.DotProto.JSONPB.Class (FromJSONPB (..),
                                                      KeyValuePB (..),
                                                      ToJSONPB (..))
-import           Proto3.Suite.Types                 (Fixed (..), PackedVec(..), Signed(..))
+import           Proto3.Suite.Types                 (Fixed (..), Nested(..), PackedVec(..), Signed(..))
 
 -- | This instance allows us to use @key .= val@ with the correct jsonpb
 -- semantics (default values are omitted via 'mempty) in 'toJSONPB'
@@ -103,6 +103,7 @@ instance ToJSONPB a => ToJSONPB (Fixed a) where
 instance FromJSONPB a => FromJSONPB (Fixed a) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
+-- FORMERLY PLACEHOLDER INSTANCE HasDefault (Fixed Int32), HasDefault (FixedInt64)
 -- sfixed32, sfixed64
 instance ToJSONPB a => ToJSONPB (Signed a) where
   toJSONPB = toJSONPB . signed
@@ -157,6 +158,7 @@ instance FromJSONPB a => FromJSONPB (V.Vector a) where
   parseJSONPB A.Null       = pure []
   parseJSONPB v            = A.typeMismatch "repeated" v
 
+-- Formerly PLACEHOLDER INSTANCE: HasDefault (Vector a)
 instance ToJSONPB a => ToJSONPB (PackedVec a) where
   toJSONPB = toJSONPB . packedvec
 instance FromJSONPB a => FromJSONPB (PackedVec a) where
@@ -176,9 +178,15 @@ instance FromJSONPB a => FromJSONPB (Maybe a) where
 -- expect would be the case; so we probably need to treat this as as stopgap as
 -- well. Basically I'm not sure why this is a Maybe instead of Nested.
 
-instance HasDefault (Maybe a) where
-  def       = Nothing
-  isDefault = isNothing
+-- instance HasDefault (Maybe a) where
+--   def       = Nothing
+--   isDefault = isNothing
+
+-- Formerly PLACEHOLDER INSTANCE: HasDefault (Maybe a) ...
+instance ToJSONPB a => ToJSONPB (Nested a) where
+  toJSONPB = toJSONPB . nested
+instance FromJSONPB a => FromJSONPB (Nested a) where
+  parseJSONPB = fmap Nested . parseJSONPB
 
 --------------------------------------------------------------------------------
 -- Helpers
