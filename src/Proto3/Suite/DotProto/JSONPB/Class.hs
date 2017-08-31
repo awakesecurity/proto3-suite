@@ -46,23 +46,28 @@
 module Proto3.Suite.DotProto.JSONPB.Class where
 
 import qualified Data.Aeson                       as A (Encoding, FromJSON (..),
+                                                        FromJSONKey (..),
+                                                        FromJSONKeyFunction (..),
                                                         ToJSON (..), Value (..),
-                                                        json, (.!=))
+                                                        eitherDecode, json,
+                                                        (.!=))
 import qualified Data.Aeson.Encoding              as E (encodingToLazyByteString,
-                                                        pair, pairs)
+                                                        pair, pairs, string)
 import qualified Data.Aeson.Internal              as A (formatError, iparse)
 import qualified Data.Aeson.Parser                as A (eitherDecodeWith)
 import qualified Data.Aeson.Types                 as A (Object, Options (..),
                                                         Parser, Series,
                                                         defaultOptions,
-                                                        explicitParseFieldMaybe)
+                                                        explicitParseFieldMaybe,
+                                                        typeMismatch)
 import qualified Data.Attoparsec.ByteString       as Atto (skipWhile)
 import qualified Data.Attoparsec.ByteString.Char8 as Atto (Parser, endOfInput)
 import qualified Data.ByteString.Lazy             as LBS
 import           Data.Char                        (toLower)
 import qualified Data.Proxy                       as DP
 import           Data.Text                        (Text)
-
+import qualified Data.Text.Lazy                   as TL
+import qualified Data.Text.Lazy.Encoding          as TL
 import           Proto3.Suite.Class               (HasDefault (def, isDefault),
                                                    Named (nameOf))
 
@@ -139,6 +144,9 @@ defaultOptions = Options
 
 -- * Helper types and functions
 
+encodeShow :: Show a => a -> A.Encoding
+encodeShow = E.string . show
+
 -- | An internal (field name, value) type (using 'E.pair' as the underlying
 -- tuple) which carries additional useful state.
 --
@@ -151,7 +159,7 @@ data FieldPB = FieldPB
     -- ^ Whether or not this field is "default-valued"; i.e., whether the value
     -- component of the key-value pair is the protobuf default value for its
     -- type
-  , fieldTuple :: Options -> A.Series
+  , fieldTuple           :: Options -> A.Series
     -- ^ Produce the JSONPB-encoded key-value tuple
   }
 
@@ -164,6 +172,25 @@ fieldsPB opts@Options{..} fields = E.pairs (mconcat (fmap emit fields))
         = mempty
       | otherwise
         = fieldTuple opts
+
+-- | Parse a JSONPB floating point value; first parameter provides context for
+-- type mismatches
+parseFP :: (A.FromJSON a, A.FromJSONKey a) => String -> A.Value -> A.Parser a
+parseFP tyDesc v = case v of
+  A.Number{} -> A.parseJSON v
+  A.String t -> case A.fromJSONKey of
+                  A.FromJSONKeyTextParser p
+                    -> p t
+                  _ -> fail "internal: parseKeyPB: unexpected FromJSONKey summand"
+  _          -> A.typeMismatch tyDesc v
+
+-- | Liberally parse an integer value (e.g. 42 or "42"); first parameter
+-- provides context for type mismatches
+parseNumOrDecimalString :: (A.FromJSON a) => String -> A.Value -> A.Parser a
+parseNumOrDecimalString tyDesc v = case v of
+  A.Number{} -> A.parseJSON v
+  A.String t -> either fail pure . A.eitherDecode . TL.encodeUtf8 . TL.fromStrict $ t
+  _          -> A.typeMismatch tyDesc v
 
 -- TODO: sanity check field prefix modification; these functions are no longer
 -- being called so we likely dropped this piece somewhere along the way.

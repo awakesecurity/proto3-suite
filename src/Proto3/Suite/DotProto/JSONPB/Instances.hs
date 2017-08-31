@@ -8,25 +8,18 @@
 
 module Proto3.Suite.DotProto.JSONPB.Instances where
 
-import qualified Data.Aeson                         as A (Encoding,
-                                                          FromJSON (..),
-                                                          FromJSONKey (..),
-                                                          FromJSONKeyFunction (..),
-                                                          ToJSON (..),
-                                                          Value (..),
-                                                          eitherDecode)
+import qualified Data.Aeson                         as A (ToJSON (..),
+                                                          Value (..))
 import qualified Data.Aeson.Encoding                as E
-import qualified Data.Aeson.Types                   as A (Parser, typeMismatch)
+import qualified Data.Aeson.Types                   as A (typeMismatch)
 import qualified Data.ByteString                    as BS
 import qualified Data.ByteString.Base64             as B64
 import qualified Data.Text.Encoding                 as T
 import qualified Data.Text.Lazy                     as TL
-import qualified Data.Text.Lazy.Encoding            as TL
 import qualified Data.Vector                        as V
 import           GHC.Int                            (Int32, Int64)
 import           GHC.Word                           (Word32, Word64)
-import           Proto3.Suite.DotProto.JSONPB.Class (FromJSONPB (..),
-                                                     ToJSONPB (..))
+import           Proto3.Suite.DotProto.JSONPB.Class
 import           Proto3.Suite.Types                 (Fixed (..))
 
 -- * Instances for scalar types
@@ -59,13 +52,13 @@ instance FromJSONPB Word32 where
 
 -- int64 / sint64
 instance ToJSONPB Int64 where
-  toEncodingPB _ = showDecimalString
+  toEncodingPB _ = encodeShow
 instance FromJSONPB Int64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
 -- unit64
 instance ToJSONPB Word64 where
-  toEncodingPB _ = showDecimalString
+  toEncodingPB _ = encodeShow
 instance FromJSONPB Word64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
@@ -152,26 +145,3 @@ instance ToJSONPB a => ToJSONPB (Maybe a) where
 instance FromJSONPB a => FromJSONPB (Maybe a) where
   parseJSONPB A.Null = pure Nothing
   parseJSONPB v      = fmap Just (parseJSONPB v)
-
--- * Helper functions
-
---------------------------------------------------------------------------------
--- Helpers
-
-parseFP :: (A.FromJSON a, A.FromJSONKey a) => String -> A.Value -> A.Parser a
-parseFP tyDesc v = case v of
-  A.Number{} -> A.parseJSON v
-  A.String t -> case A.fromJSONKey of
-                  A.FromJSONKeyTextParser p
-                    -> p t
-                  _ -> fail "internal: parseKeyPB: unexpected FromJSONKey summand"
-  _          -> A.typeMismatch tyDesc v
-
-parseNumOrDecimalString :: (A.FromJSON a) => String -> A.Value -> A.Parser a
-parseNumOrDecimalString tyDesc v = case v of
-  A.Number{} -> A.parseJSON v
-  A.String t -> either fail pure . A.eitherDecode . TL.encodeUtf8 . TL.fromStrict $ t
-  _          -> A.typeMismatch tyDesc v
-
-showDecimalString :: Show a => a -> A.Encoding
-showDecimalString = E.string . show
