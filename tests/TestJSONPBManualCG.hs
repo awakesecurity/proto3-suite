@@ -34,7 +34,7 @@ import           Text.Show.Pretty
 --
 
 instance ToJSONPB Scalar32 where
-  toEncodingPB (Scalar32 i32 u32 s32 f32 sf32) = fieldsPB False
+  toEncodingPB opts (Scalar32 i32 u32 s32 f32 sf32) = fieldsPB opts
       [ "i32"  .= i32
       , "u32"  .= u32
       , "s32"  .= s32
@@ -61,7 +61,7 @@ instance FromJSONPB Scalar32 where
 --
 
 instance ToJSONPB Scalar64 where
-  toEncodingPB (Scalar64 i64 u64 s64 f64 sf64) = fieldsPB False
+  toEncodingPB opts (Scalar64 i64 u64 s64 f64 sf64) = fieldsPB opts
     [ "i64"  .= i64
     , "u64"  .= u64
     , "s64"  .= s64
@@ -93,7 +93,7 @@ instance FromJSONPB Scalar64 where
 --
 
 instance ToJSONPB ScalarFP where
-  toEncodingPB (ScalarFP f d) = fieldsPB False
+  toEncodingPB opts (ScalarFP f d) = fieldsPB opts
     [ "f" .= f
     , "d" .= d
     ]
@@ -112,7 +112,7 @@ instance FromJSONPB ScalarFP where
 --
 
 instance ToJSONPB Stringly where
-  toEncodingPB (Stringly str bs) = fieldsPB False
+  toEncodingPB opts (Stringly str bs) = fieldsPB opts
     [ "str" .= str
     , "bs"  .= bs
     ]
@@ -135,7 +135,7 @@ instance FromJSONPB Stringly where
 --
 
 instance ToJSONPB Repeat where
-  toEncodingPB (Repeat i32s i64s) = fieldsPB False
+  toEncodingPB opts (Repeat i32s i64s) = fieldsPB opts
     [ "i32s" .= i32s
     , "i64s" .= i64s
     ]
@@ -157,7 +157,7 @@ instance FromJSONPB Repeat where
 --
 
 instance ToJSONPB Nested where
-  toEncodingPB (Nested minner) = fieldsPB False
+  toEncodingPB opts (Nested minner) = fieldsPB opts
     [ "nestedInner" .= minner
     ]
 instance FromJSONPB Nested where
@@ -168,7 +168,7 @@ instance FromJSONPB Nested where
 -- Nested_Inner
 
 instance ToJSONPB Nested_Inner where
-  toEncodingPB (Nested_Inner i64) = fieldsPB False
+  toEncodingPB opts (Nested_Inner i64) = fieldsPB opts
     [ "i64" .= i64
     ]
 instance FromJSONPB Nested_Inner where
@@ -187,7 +187,7 @@ instance FromJSONPB Nested_Inner where
 -- prop> roundTrip (Trivial x)
 
 instance ToJSONPB Trivial where
-  toEncodingPB (Trivial f0) = fieldsPB False
+  toEncodingPB opts (Trivial f0) = fieldsPB opts
     [ "trivialField" .= f0
     ]
 
@@ -200,7 +200,7 @@ instance FromJSONPB Trivial where
 -- prop> roundTrip (MultipleFields d f i32 i64 (TL.pack s) b)
 
 instance ToJSONPB MultipleFields where
-  toEncodingPB (MultipleFields f0 f1 f2 f3 f4 f5) = fieldsPB False
+  toEncodingPB opts(MultipleFields f0 f1 f2 f3 f4 f5) = fieldsPB opts
     [ "multiFieldDouble" .= f0
     , "multiFieldFloat"  .= f1
     , "multiFieldInt32"  .= f2
@@ -231,7 +231,7 @@ instance FromJSONPB MultipleFields where
 --
 
 instance ToJSONPB SignedInts where
-  toEncodingPB (SignedInts f0 f1) = fieldsPB False
+  toEncodingPB opts (SignedInts f0 f1) = fieldsPB opts
     [ "signed32" .= f0
     , "signed64" .= f1
     ]
@@ -248,10 +248,10 @@ instance FromJSONPB SignedInts where
 -- Helper quickcheck props
 
 roundTrip :: (ToJSONPB a, FromJSONPB a, Eq a) => a -> Bool
-roundTrip x = eitherDecode (encode x) == Right x
+roundTrip x = eitherDecode (encode defaultOptions x) == Right x
 
 encodesAs :: (ToJSONPB a) => a -> LBS.ByteString -> Bool
-encodesAs x bs = encode x == bs
+encodesAs x bs = encode defaultOptions x == bs
 
 decodesAs :: (Eq a, FromJSONPB a) => LBS.ByteString -> a -> Bool
 decodesAs bs x = eitherDecode bs == Right x

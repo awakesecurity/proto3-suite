@@ -59,37 +59,37 @@ instance FromJSONPB Word32 where
 
 -- int64 / sint64
 instance ToJSONPB Int64 where
-  toEncodingPB = showDecimalString
+  toEncodingPB _ = showDecimalString
 instance FromJSONPB Int64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
 -- unit64
 instance ToJSONPB Word64 where
-  toEncodingPB = showDecimalString
+  toEncodingPB _ = showDecimalString
 instance FromJSONPB Word64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
 -- fixed32
 instance ToJSONPB (Fixed Word32) where
-  toEncodingPB = toEncodingPB . fixed
+  toEncodingPB opts = toEncodingPB opts . fixed
 instance FromJSONPB (Fixed Word32) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
 -- fixed64
 instance ToJSONPB (Fixed Word64) where
-  toEncodingPB = toEncodingPB . fixed
+  toEncodingPB opts = toEncodingPB opts . fixed
 instance FromJSONPB (Fixed Word64) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
 -- sfixed32
 instance ToJSONPB (Fixed Int32) where
-  toEncodingPB = toEncodingPB . fixed
+  toEncodingPB opts = toEncodingPB opts . fixed
 instance FromJSONPB (Fixed Int32) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
 -- sfixed64
 instance ToJSONPB (Fixed Int64) where
-  toEncodingPB = toEncodingPB . fixed
+  toEncodingPB opts = toEncodingPB opts . fixed
 instance FromJSONPB (Fixed Int64) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
@@ -119,7 +119,7 @@ instance FromJSONPB TL.Text
 
 -- bytes
 instance ToJSONPB BS.ByteString where
-  toEncodingPB bs = case T.decodeUtf8' (B64.encode bs) of
+  toEncodingPB _ bs = case T.decodeUtf8' (B64.encode bs) of
     Left e  -> error ("internal: failed to encode B64-encoded bytestring: " ++ show e)
                -- T.decodeUtf8' should never fail because we B64-encode the
                -- incoming bytestring.
@@ -138,7 +138,7 @@ instance FromJSONPB BS.ByteString where
 -- value is accepted as the empty list, @[]@.
 
 instance ToJSONPB a => ToJSONPB (V.Vector a) where
-  toEncodingPB = E.list toEncodingPB . V.toList
+  toEncodingPB opts = E.list (toEncodingPB opts) . V.toList
 instance FromJSONPB a => FromJSONPB (V.Vector a) where
   parseJSONPB (A.Array vs) = mapM parseJSONPB vs
   parseJSONPB A.Null       = pure []
@@ -148,7 +148,7 @@ instance FromJSONPB a => FromJSONPB (V.Vector a) where
 -- Instances for nested messages
 
 instance ToJSONPB a => ToJSONPB (Maybe a) where
-  toEncodingPB = maybe E.null_ toEncodingPB
+  toEncodingPB opts = maybe E.null_ (toEncodingPB opts)
 instance FromJSONPB a => FromJSONPB (Maybe a) where
   parseJSONPB A.Null = pure Nothing
   parseJSONPB v      = fmap Just (parseJSONPB v)

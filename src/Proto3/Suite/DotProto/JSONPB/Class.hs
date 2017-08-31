@@ -1,15 +1,47 @@
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE RecordWildCards   #-}
 
--- | Aeson-like helper functions and typeclasses for converting to and from
--- values of types with a protobuf representation and an IR (we reuse the
--- 'A.Value' type) which represents the "jsonpb" canonical JSON encoding
--- described at https://developers.google.com/protocol-buffers/docs/proto3#json.
+-- | Support for the "JSONPB" canonical JSON encoding described at
+-- https://developers.google.com/protocol-buffers/docs/proto3#json.
+--
+-- This modules provides 'Data.Aeson'-like helper functions and typeclasses for
+-- converting to and from values of types which have a JSONPB representation and
+-- equivalent underlying 'Data.Aeson' representations.
 --
 -- This module also presents a (very minimal) surface syntax for Aeson-like
 -- operations; the idea is that we can write 'ToJSONPB' and 'FromJSONPB'
 -- instances in a very similar manner to 'A.ToJSON' and 'A.FromJSON' instances,
--- except that jsonpb codec implementations are produced instead of vanilla JSON
--- codecs.
+-- except that doing so specifies JSONPB codecs instead of vanilla JSON codecs.
+--
+-- Example use:
+--
+-- @
+-- message Scalar32 {
+--   int32     i32 = 1;
+--   uint32    u32 = 2;
+--   sint32    s32 = 3;
+--   fixed32   f32 = 4;
+--   sfixed32 sf32 = 5;
+-- }
+--
+-- instance ToJSONPB Scalar32 where
+--   toEncodingPB opts (Scalar32 i32 u32 s32 f32 sf32) = fieldsPB opts
+--       [ "i32"  .= i32
+--       , "u32"  .= u32
+--       , "s32"  .= s32
+--       , "f32"  .= f32
+--       , "sf32" .= sf32
+--       ]
+--
+-- instance FromJSONPB Scalar32 where
+--   parseJSONPB = withObject "Scalar32" $ \obj ->
+--     pure Scalar32
+--     <*> obj .: "i32"
+--     <*> obj .: "u32"
+--     <*> obj .: "s32"
+--     <*> obj .: "f32"
+--     <*> obj .: "sf32"
+-- @
 
 module Proto3.Suite.DotProto.JSONPB.Class where
 
@@ -36,18 +68,18 @@ import           Proto3.Suite.Class               (HasDefault (def, isDefault),
 
 -- * Typeclass definitions
 
--- | 'A.ToJSON' variant for jsonpb direct encoding via 'A.Encoding'
+-- | 'A.ToJSON' variant for JSONPB direct encoding via 'A.Encoding'
 class ToJSONPB a where
-  -- | 'A.toEncoding' variant for jsonpb encoder implementations. Equivalent to
-  -- 'A.toEncoding' if an implementation is not provided.
-  toEncodingPB :: a -> A.Encoding
-  default toEncodingPB :: (A.ToJSON a) => a -> A.Encoding
-  toEncodingPB = A.toEncoding
+  -- | 'A.toEncoding' variant for JSONPB encoders. Equivalent to 'A.toEncoding'
+  -- if an implementation is not provided.
+  toEncodingPB :: Options -> a -> A.Encoding
+  default toEncodingPB :: (A.ToJSON a) => Options -> a -> A.Encoding
+  toEncodingPB _ = A.toEncoding
 
--- | 'A.FromJSON' variant for jsonpb decoding from the aeson 'A.Value' IR
+-- | 'A.FromJSON' variant for JSONPB decoding from the 'A.Value' IR
 class FromJSONPB a where
-  -- | 'A.parseJSON' variant for jsonpb decoder implementations. Equivalent to
-  -- 'A.parseJSON' if an implementation is not provided.
+  -- | 'A.parseJSON' variant for JSONPB decoders. Equivalent to 'A.parseJSON' if
+  -- an implementation is not provided.
   parseJSONPB :: A.Value -> A.Parser a
 
   default parseJSONPB :: (A.FromJSON a) => A.Value -> A.Parser a
@@ -57,8 +89,8 @@ class FromJSONPB a where
 
 -- | 'Data.Aeson.encode' variant for serializing a JSONPB value as a lazy
 -- 'LBS.ByteString'.
-encode :: ToJSONPB a => a -> LBS.ByteString
-encode = E.encodingToLazyByteString . toEncodingPB
+encode :: ToJSONPB a => Options -> a -> LBS.ByteString
+encode opts = E.encodingToLazyByteString . toEncodingPB opts
 {-# INLINE encode #-}
 
 -- | 'Data.Aeson..eitherDecode' variant for deserializing a JSONPB value from a
@@ -82,42 +114,56 @@ eitherDecode = eitherFormatError . A.eitherDecodeWith jsonEOF (A.iparse parseJSO
 
 -- * Operator definitions
 
--- | Construct key-value pair, e.g.:
---
--- @
--- instance ToJSONPB MyType where
---   toEncodingPB (MyType fld0 fld1) = fieldsPB False
---     [ "fld0" .= fld0
---     , "fld1" .= fld1
---     ]
--- @
+-- | Construct a (field name, JSONPB-encoded value) tuple
 (.=) :: (HasDefault v, ToJSONPB v) => Text -> v -> FieldPB
-k .= v = FieldPB (isDefault v) (E.pair k (toEncodingPB v))
+k .= v = FieldPB (isDefault v) (\opts -> E.pair k (toEncodingPB opts v))
 
--- | 'Data.Aeson..:' variant for jsonpb decoding; if the given key is missing
--- from the object, or if it is present but its value is null, we produce the
--- default protobuf value for the field type.
+-- | 'Data.Aeson..:' variant for JSONPB; if the given key is missing from the
+-- object, or if it is present but its value is null, we produce the default
+-- protobuf value for the field type
 (.:) :: (FromJSONPB a, HasDefault a) => A.Object -> Text -> A.Parser a
 obj .: key = obj .:? key A..!= def
   where
     (.:?) = A.explicitParseFieldMaybe parseJSONPB
 
+-- * JSONPB rendering and parsing options
+
+data Options = Options
+  { optEmitDefaultValuedFields :: Bool
+  }
+
+defaultOptions :: Options
+defaultOptions = Options
+  { optEmitDefaultValuedFields = False
+  }
+
 -- * Helper types and functions
 
--- | A key-value pair which also designates whether or not the value component
--- is a protobuf default value or not. Produced by '(.=)' and consumed by
--- 'fieldsPB'.
-data FieldPB = FieldPB Bool A.Series
+-- | An internal (field name, value) type (using 'E.pair' as the underlying
+-- tuple) which carries additional useful state.
+--
+-- Values of this type are produced by '.='
+--
+-- Values of this type are consumed by 'fieldsPB'
+--
+data FieldPB = FieldPB
+  { fieldIsDefaultValued :: Bool
+    -- ^ Whether or not this field is "default-valued"; i.e., whether the value
+    -- component of the key-value pair is the protobuf default value for its
+    -- type
+  , fieldTuple :: Options -> A.Series
+    -- ^ Produce the JSONPB-encoded key-value tuple
+  }
 
--- | @fieldsPB emitDefaults flds@ encodes the given key-value pair fields.  If
--- @emitDefaults@ is @True@, all values will be emitted, otherwise fields with a
--- default protobuf value are omitted from the encoding.
-fieldsPB :: Bool -> [FieldPB] -> A.Encoding
-fieldsPB emitDefaults flds = E.pairs (mconcat (fmap emit flds))
+-- | @fieldsPB opts flds@ encodes the given JSONPB-encoded fields
+fieldsPB :: Options -> [FieldPB] -> A.Encoding
+fieldsPB opts@Options{..} fields = E.pairs (mconcat (fmap emit fields))
   where
-    emit (FieldPB isDflt kvp)
-      | not emitDefaults && isDflt = mempty
-      | otherwise                  = kvp
+    emit FieldPB{..}
+      | not optEmitDefaultValuedFields && fieldIsDefaultValued
+        = mempty
+      | otherwise
+        = fieldTuple opts
 
 -- TODO: sanity check field prefix modification; these functions are no longer
 -- being called so we likely dropped this piece somewhere along the way.

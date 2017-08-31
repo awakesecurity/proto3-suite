@@ -5,13 +5,17 @@ module Proto3.Suite.DotProto.JSONPB
     -- * Operators
   , (.:)
   , (.=)
-    -- * Aeson re-exports
-  , A.withObject
-    -- * jsonpb codec entry points
+    -- * Options for controlling codec behavior (e.g., emitting default-valued
+    --   fields in JSON payloads)
+  , Options(..)
+  , defaultOptions
+    -- * JSONPB codec entry points
   , eitherDecode
   , encode
     -- * Helper functions
   , fieldsPB
+    -- * Aeson re-exports
+  , A.withObject
   )
 where
 
