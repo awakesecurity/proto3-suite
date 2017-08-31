@@ -197,6 +197,30 @@ instance HasDefault (Nested a) where
   def = Nested Nothing
   isDefault = isNothing . nested
 
+-- | Used in fields of generated records to represent an unwrapped
+-- 'PackedVec'/'UnpackedVec'
+instance HasDefault (Vector a) where
+  def       = mempty
+  isDefault = null
+
+-- | Used in generated records to represent an unwrapped 'Nested'
+instance HasDefault (Maybe a) where
+  def       = Nothing
+  isDefault = isNothing
+
+-- TODO: Determine if we have a reason for rendering fixed32 as Fixed Word32 and
+-- sfixed32 as Fixed Int32 in generated datatypes; for other field types, we
+-- omit the newtype wrappers in the type signature but un/wrap them as needed in
+-- the encode/decodeMessage implementations. These Fixed wrappers can probably
+-- be removed and the type interface would be more consistent with other types,
+-- but until that occurs, the following two instances are needed.
+
+-- | Used in generated records to represent @sfixed32@
+instance HasDefault (Fixed Int32)
+
+-- | Used in generated records to represent @sfixed64@
+instance HasDefault (Fixed Int64)
+
 -- | This class captures those types whose names need to appear in .proto files.
 --
 -- It has a default implementation for any data type which is an instance of the

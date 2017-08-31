@@ -1,5 +1,6 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedLists   #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE OverloadedLists     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -18,6 +19,7 @@ import qualified Data.Aeson.Types                   as A (Parser, Pair, Series, 
 import qualified Data.ByteString                    as BS
 import qualified Data.ByteString.Base64             as B64
 import           Data.Maybe                         (isNothing)
+import           Data.Proxy
 import qualified Data.Text.Lazy                     as TL
 import qualified Data.Text.Lazy.Encoding            as TL
 import qualified Data.Text                          as T
@@ -26,7 +28,7 @@ import qualified Data.Vector                        as V
 import           GHC.Int                            (Int32, Int64)
 import           GHC.Word                           (Word32, Word64)
 
-import           Proto3.Suite.Class                 (HasDefault (def, isDefault))
+import           Proto3.Suite.Class                 (HasDefault(..))
 import           Proto3.Suite.DotProto.JSONPB.Class (FromJSONPB (..),
                                                      KeyValuePB (..),
                                                      ToJSONPB (..))
@@ -64,17 +66,6 @@ instance FromJSONPB Bool
 --     or strings are accepted.
 --
 
--- FIXME: There are no HasDefault instances for e.g. (Fixed Int32) which is
--- another indication that this is a bug, because there IS a HasDefault instance
--- for (Signed (Fixed Int32)) which I think is what should be generated here
--- (representatively). As a stopgap we'll go ahead and define some placeholder
--- instances for (Fixed Int32) and their ilk so we can make progress (see
--- PLACEHOLDER INSTANCES down below) -- but we should nuke these as soon as we
--- fix CG! I think something similiar might be happening for
--- PackedVec/NestedVec/Nested/etc as well.
---
--- TODO ^ resolve this since signedness CG has been fixed
-
 -- int32 / sint32
 instance ToJSONPB Int32
 instance FromJSONPB Int32 where
@@ -91,24 +82,35 @@ instance ToJSONPB Int64 where
 instance FromJSONPB Int64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
+-- unit64
 instance ToJSONPB Word64 where
   toJSONPB = showDecimalString
-
 instance FromJSONPB Word64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
--- fixed32, fixed64
-instance ToJSONPB a => ToJSONPB (Fixed a) where
+-- fixed32
+instance ToJSONPB (Fixed Word32) where
   toJSONPB = toJSONPB . fixed
-instance FromJSONPB a => FromJSONPB (Fixed a) where
+instance FromJSONPB (Fixed Word32) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
--- FORMERLY PLACEHOLDER INSTANCE HasDefault (Fixed Int32), HasDefault (FixedInt64)
--- sfixed32, sfixed64
-instance ToJSONPB a => ToJSONPB (Signed a) where
-  toJSONPB = toJSONPB . signed
-instance FromJSONPB a => FromJSONPB (Signed a) where
-  parseJSONPB = fmap Signed . parseJSONPB
+-- fixed64
+instance ToJSONPB (Fixed Word64) where
+  toJSONPB = toJSONPB . fixed
+instance FromJSONPB (Fixed Word64) where
+  parseJSONPB = fmap Fixed . parseJSONPB
+
+-- sfixed32
+instance ToJSONPB (Fixed Int32) where
+  toJSONPB = toJSONPB . fixed
+instance FromJSONPB (Fixed Int32) where
+  parseJSONPB = fmap Fixed . parseJSONPB
+
+-- sfixed64
+instance ToJSONPB (Fixed Int64) where
+  toJSONPB = toJSONPB . fixed
+instance FromJSONPB (Fixed Int64) where
+  parseJSONPB = fmap Fixed . parseJSONPB
 
 --------------------------------------------------------------------------------
 -- Floating point scalar types
@@ -158,12 +160,6 @@ instance FromJSONPB a => FromJSONPB (V.Vector a) where
   parseJSONPB A.Null       = pure []
   parseJSONPB v            = A.typeMismatch "repeated" v
 
--- Formerly PLACEHOLDER INSTANCE: HasDefault (Vector a)
-instance ToJSONPB a => ToJSONPB (PackedVec a) where
-  toJSONPB = toJSONPB . packedvec
-instance FromJSONPB a => FromJSONPB (PackedVec a) where
-  parseJSONPB = fmap PackedVec . parseJSONPB
-
 --------------------------------------------------------------------------------
 -- Instances for nested messages
 
@@ -172,21 +168,6 @@ instance ToJSONPB a => ToJSONPB (Maybe a) where
 instance FromJSONPB a => FromJSONPB (Maybe a) where
   parseJSONPB A.Null = pure Nothing
   parseJSONPB v      = fmap Just (parseJSONPB v)
-
--- As with the PLACEHOLDER INSTANCES for fixed/signed types, we have a similar
--- situation here; we're not getting Nested-wrapped values in CG as I might
--- expect would be the case; so we probably need to treat this as as stopgap as
--- well. Basically I'm not sure why this is a Maybe instead of Nested.
-
--- instance HasDefault (Maybe a) where
---   def       = Nothing
---   isDefault = isNothing
-
--- Formerly PLACEHOLDER INSTANCE: HasDefault (Maybe a) ...
-instance ToJSONPB a => ToJSONPB (Nested a) where
-  toJSONPB = toJSONPB . nested
-instance FromJSONPB a => FromJSONPB (Nested a) where
-  parseJSONPB = fmap Nested . parseJSONPB
 
 --------------------------------------------------------------------------------
 -- Helpers

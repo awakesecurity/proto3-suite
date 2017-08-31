@@ -40,20 +40,14 @@ instance ToJSONPB Scalar32 where
     , "u32"  .= u32
     , "s32"  .= s32
     , "f32"  .= f32
-    -- NB: For sfixed32, we need to insert the Signed wrapper ourselves, since
-    -- the field type in the record is Fixed Int32, not Signed (Fixed Int32),
-    -- and the Signed ctor is un/wrapped via decodeMessage/encodeMessage
-    -- instances. During CG we need to apply this whenever the field type is
-    -- (Prim SFixed32).
-    , "sf32" .= HsProtobuf.Signed sf32
+    , "sf32" .= sf32
     ]
   toEncodingPB (Scalar32 i32 u32 s32 f32 sf32) = pairs . mconcat $
     [ "i32"  .= i32
     , "u32"  .= u32
     , "s32"  .= s32
     , "f32"  .= f32
-      -- See comment above pertaining to sfixed32
-    , "sf32" .= HsProtobuf.Signed sf32
+    , "sf32" .= sf32
     ]
 instance FromJSONPB Scalar32 where
   parseJSONPB = withObject "Scalar32" $ \obj ->
@@ -62,8 +56,7 @@ instance FromJSONPB Scalar32 where
     <*> obj .: "u32"
     <*> obj .: "s32"
     <*> obj .: "f32"
-    -- See comment above pertaining to sfixed32, except we are unwrapping
-    <*> fmap HsProtobuf.signed (obj .: "sf32")
+    <*> obj .: "sf32"
 
 -- | Scalar64
 -- prop> roundTrip (Scalar64 64 65 (-66) 67 68)
@@ -80,20 +73,14 @@ instance ToJSONPB Scalar64 where
     , "u64"  .= u64
     , "s64"  .= s64
     , "f64"  .= f64
-    -- NB: For sfixed64, we need to insert the Signed wrapper ourselves, since
-    -- the field type in the record is Fixed Int64, not Signed (Fixed Int64),
-    -- and the Signed ctor is un/wrapped via decodeMessage/encodeMessage
-    -- instances. During CG we need to apply this whenever the field type is
-    -- (Prim SFixed64).
-    , "sf64" .= HsProtobuf.Signed sf64
+    , "sf64" .= sf64
     ]
   toEncodingPB (Scalar64 i64 u64 s64 f64 sf64) = pairs . mconcat $
     [ "i64"  .= i64
     , "u64"  .= u64
     , "s64"  .= s64
     , "f64"  .= f64
-      -- See comment above pertaining to sfixed64
-    , "sf64" .= HsProtobuf.Signed sf64
+    , "sf64" .= sf64
     ]
 instance FromJSONPB Scalar64 where
   parseJSONPB = withObject "Scalar64" $ \obj ->
@@ -102,8 +89,7 @@ instance FromJSONPB Scalar64 where
     <*> obj .: "u64"
     <*> obj .: "s64"
     <*> obj .: "f64"
-      -- See comment above pertaining to sfixed64, except we are unwrapping
-    <*> fmap HsProtobuf.signed (obj .: "sf64")
+    <*> obj .: "sf64"
 
 -- | ScalarFP
 -- prop> roundTrip (ScalarFP x y)
@@ -172,22 +158,18 @@ instance FromJSONPB Stringly where
 
 instance ToJSONPB Repeat where
   toJSONPB (Repeat i32s i64s) = object . mconcat $
-    -- As with the Signed un/wrapping for sfixed32/sfixed64, we need to un/wrap
-    -- with PackedVec or UnpackedVec as needed (former by default or when
-    -- [packed=false], latter when [packed=true]). In this case they are both
-    -- packed. Emit when field type is Repeated elemTy.
-    [ "i32s" .= HsProtobuf.PackedVec i32s
-    , "i64s" .= HsProtobuf.PackedVec i64s
+    [ "i32s" .= i32s
+    , "i64s" .= i64s
     ]
   toEncodingPB (Repeat i32s i64s) = pairs . mconcat $
-    [ "i32s" .= HsProtobuf.PackedVec i32s
-    , "i64s" .= HsProtobuf.PackedVec i64s
+    [ "i32s" .= i32s
+    , "i64s" .= i64s
     ]
 instance FromJSONPB Repeat where
   parseJSONPB = withObject "Repeat" $ \obj ->
     pure Repeat
-    <*> fmap HsProtobuf.packedvec (obj .: "i32s")
-    <*> fmap HsProtobuf.packedvec (obj .: "i64s")
+    <*> obj .: "i32s"
+    <*> obj .: "i64s"
 
 -- | Nested
 -- prop> roundTrip (Nested Nothing)
@@ -202,18 +184,15 @@ instance FromJSONPB Repeat where
 
 instance ToJSONPB Nested where
   toJSONPB (Nested minner) = object . mconcat $
-    -- As with PackedVec and Signed above, we need to un/wrap via Nested for the
-    -- Maybe types which correspond to nested messages, i.e. when the field type
-    -- is (Prim (Named ...)).
-    [ "nestedInner" .= HsProtobuf.Nested minner
+    [ "nestedInner" .= minner
     ]
   toEncodingPB (Nested minner) = pairs . mconcat $
-    [ "nestedInner" .= HsProtobuf.Nested minner
+    [ "nestedInner" .= minner
     ]
 instance FromJSONPB Nested where
   parseJSONPB = withObject "Nested" $ \obj ->
     pure Nested
-    <*> fmap HsProtobuf.nested (obj .: "nestedInner")
+    <*> obj .: "nestedInner"
 
 -- Nested_Inner
 
