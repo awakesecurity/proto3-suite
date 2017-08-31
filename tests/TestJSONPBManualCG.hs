@@ -26,9 +26,12 @@ import           Text.Show.Pretty
 -- until we get some property-based tests in place.
 
 -- | Scalar32
--- prop> roundTrip (Scalar32 32 33 (-34) 35 36)
+-- prop> roundTrip omitDefaults (Scalar32 32 33 (-34) 35 36)
+-- prop> roundTrip emitDefaults (Scalar32 32 33 (-34) 35 36)
 --
--- prop> encodesAs (Scalar32 32 33 (-34) 35 36) "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}"
+-- prop> encodesAs omitDefaults (Scalar32 32 33 (-34) 35 36) "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}"
+-- prop> encodesAs emitDefaults (Scalar32 0   1    0   3  4) "{\"i32\":0,\"u32\":1,\"s32\":0,\"f32\":3,\"sf32\":4}"
+-- prop> encodesAs omitDefaults (Scalar32 0   1    0   3  4) "{\"u32\":1,\"f32\":3,\"sf32\":4}"
 --
 -- prop> decodesAs "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}" (Scalar32 32 33 (-34) 35 36)
 --
@@ -52,9 +55,9 @@ instance FromJSONPB Scalar32 where
     <*> obj .: "sf32"
 
 -- | Scalar64
--- prop> roundTrip (Scalar64 64 65 (-66) 67 68)
+-- prop> roundTrip omitDefaults (Scalar64 64 65 (-66) 67 68)
 --
--- prop> encodesAs (Scalar64 64 65 (-66) 67 68) "{\"i64\":\"64\",\"u64\":\"65\",\"s64\":\"-66\",\"f64\":\"67\",\"sf64\":\"68\"}"
+-- prop> encodesAs omitDefaults (Scalar64 64 65 (-66) 67 68) "{\"i64\":\"64\",\"u64\":\"65\",\"s64\":\"-66\",\"f64\":\"67\",\"sf64\":\"68\"}"
 --
 -- prop> decodesAs "{\"i64\":64,\"u64\":65,\"s64\":-66,\"f64\":67,\"sf64\":68}" (Scalar64 64 65 (-66) 67 68)
 -- prop> decodesAs "{\"u64\":\"65\",\"s64\":\"66\",\"f64\":\"67\",\"sf64\":\"68\"}" (Scalar64 0 65 66 67 68)
@@ -78,9 +81,9 @@ instance FromJSONPB Scalar64 where
     <*> obj .: "sf64"
 
 -- | ScalarFP
--- prop> roundTrip (ScalarFP x y)
+-- prop> roundTrip omitDefaults (ScalarFP x y)
 --
--- prop> encodesAs (ScalarFP 98.6 255.16) "{\"f\":98.6,\"d\":255.16}"
+-- prop> encodesAs omitDefaults (ScalarFP 98.6 255.16) "{\"f\":98.6,\"d\":255.16}"
 --
 -- prop> decodesAs "{\"f\":98.6,\"d\":255.16}"                 (ScalarFP 98.6 255.16)
 -- prop> decodesAs "{\"f\":\"23.6\",\"d\":\"-99.001\"}"        (ScalarFP 23.6 (-99.001))
@@ -104,9 +107,9 @@ instance FromJSONPB ScalarFP where
     <*> obj .: "d"
 
 -- | Stringly
--- prop> roundTrip (Stringly "foo" "abc123!?$*&()'-=@~")
+-- prop> roundTrip omitDefaults (Stringly "foo" "abc123!?$*&()'-=@~")
 --
--- prop> encodesAs (Stringly "foo" "abc123!?$*&()'-=@~") "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
+-- prop> encodesAs omitDefaults (Stringly "foo" "abc123!?$*&()'-=@~") "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}"
 --
 -- prop> decodesAs "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}" (Stringly "foo" "abc123!?$*&()'-=@~")
 --
@@ -123,9 +126,9 @@ instance FromJSONPB Stringly where
     <*> obj .: "bs"
 
 -- | Repeat
--- prop> roundTrip (Repeat (V.fromList xs) (V.fromList ys))
+-- prop> roundTrip omitDefaults (Repeat (V.fromList xs) (V.fromList ys))
 --
--- prop> encodesAs (Repeat [4,5] [6,7]) "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
+-- prop> encodesAs omitDefaults (Repeat [4,5] [6,7]) "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
 --
 -- prop> decodesAs "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}" (Repeat [4,5] [6,7])
 -- prop> decodesAs "{\"i32s\":[4,5]}"                        (Repeat [4,5] [])
@@ -146,11 +149,11 @@ instance FromJSONPB Repeat where
     <*> obj .: "i64s"
 
 -- | Nested
--- prop> roundTrip (Nested Nothing)
--- prop> roundTrip (Nested (Just (Nested_Inner x)))
+-- prop> roundTrip omitDefaults (Nested Nothing)
+-- prop> roundTrip omitDefaults (Nested (Just (Nested_Inner x)))
 --
--- prop> encodesAs (Nested Nothing)                  "{}"
--- prop> encodesAs (Nested (Just (Nested_Inner 42))) "{\"nestedInner\":{\"i64\":\"42\"}}"
+-- prop> encodesAs omitDefaults (Nested Nothing)                  "{}"
+-- prop> encodesAs omitDefaults (Nested (Just (Nested_Inner 42))) "{\"nestedInner\":{\"i64\":\"42\"}}"
 --
 -- prop> decodesAs "{}"                                 (Nested Nothing)
 -- prop> decodesAs "{\"nestedInner\":{\"i64\":\"42\"}}" (Nested (Just (Nested_Inner 42)))
@@ -184,7 +187,7 @@ instance FromJSONPB Nested_Inner where
 -- CG target we intended to provide.
 
 -- | Trivial
--- prop> roundTrip (Trivial x)
+-- prop> roundTrip omitDefaults (Trivial x)
 
 instance ToJSONPB Trivial where
   toEncodingPB opts (Trivial f0) = fieldsPB opts
@@ -197,7 +200,9 @@ instance FromJSONPB Trivial where
     <*> obj .: "trivialField"
 
 -- | MultipleFields
--- prop> roundTrip (MultipleFields d f i32 i64 (TL.pack s) b)
+-- prop> roundTrip omitDefaults (MultipleFields d f i32 i64 (TL.pack s) b)
+-- prop> encodesAs omitDefaults (MultipleFields 0 0 0 0 "" False) "{}"
+-- prop> encodesAs emitDefaults (MultipleFields 0 2.0 0 0 "" True) "{\"multiFieldDouble\":0.0,\"multiFieldFloat\":2.0,\"multiFieldInt32\":0,\"multiFieldInt64\":\"0\",\"multiFieldString\":\"\",\"multiFieldBool\":true}"
 
 instance ToJSONPB MultipleFields where
   toEncodingPB opts(MultipleFields f0 f1 f2 f3 f4 f5) = fieldsPB opts
@@ -220,12 +225,12 @@ instance FromJSONPB MultipleFields where
     <*> obj .: "multiFieldBool"
 
 -- | SignedInts
--- prop> roundTrip (SignedInts x y)
--- prop> roundTrip (SignedInts minBound minBound)
--- prop> roundTrip (SignedInts maxBound maxBound)
+-- prop> roundTrip omitDefaults (SignedInts x y)
+-- prop> roundTrip omitDefaults (SignedInts minBound minBound)
+-- prop> roundTrip omitDefaults (SignedInts maxBound maxBound)
 --
--- prop> encodesAs (SignedInts minBound minBound) "{\"signed32\":-2147483648,\"signed64\":\"-9223372036854775808\"}"
--- prop> encodesAs (SignedInts maxBound maxBound) "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}"
+-- prop> encodesAs omitDefaults (SignedInts minBound minBound) "{\"signed32\":-2147483648,\"signed64\":\"-9223372036854775808\"}"
+-- prop> encodesAs omitDefaults (SignedInts maxBound maxBound) "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}"
 --
 -- prop> decodesAs "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}" (SignedInts 2147483647 9223372036854775807)
 --
@@ -247,13 +252,16 @@ instance FromJSONPB SignedInts where
 
 -- Helper quickcheck props
 
-roundTrip :: (ToJSONPB a, FromJSONPB a, Eq a) => a -> Bool
-roundTrip x = eitherDecode (encode defaultOptions x) == Right x
+roundTrip :: (ToJSONPB a, FromJSONPB a, Eq a)
+          => Options -> a -> Bool
+roundTrip opts x = eitherDecode (encode opts x) == Right x
 
-encodesAs :: (ToJSONPB a) => a -> LBS.ByteString -> Bool
-encodesAs x bs = encode defaultOptions x == bs
+encodesAs :: (ToJSONPB a)
+          => Options -> a -> LBS.ByteString -> Bool
+encodesAs opts x bs = encode opts x == bs
 
-decodesAs :: (Eq a, FromJSONPB a) => LBS.ByteString -> a -> Bool
+decodesAs :: (Eq a, FromJSONPB a)
+          => LBS.ByteString -> a -> Bool
 decodesAs bs x = eitherDecode bs == Right x
 
 __unused_nowarn :: a
@@ -265,3 +273,5 @@ __unused_nowarn = undefined (ppShow :: String -> String)
 -- >>> import qualified Data.Vector    as V
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XOverloadedLists
+-- >>> let omitDefaults = defaultOptions
+-- >>> let emitDefaults = defaultOptions{ optEmitDefaultValuedFields = True }
