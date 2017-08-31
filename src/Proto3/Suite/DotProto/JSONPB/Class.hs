@@ -17,11 +17,12 @@ import qualified Data.Aeson                       as A (Encoding, FromJSON (..),
                                                         ToJSON (..), Value (..),
                                                         json, (.!=))
 import qualified Data.Aeson.Encoding              as E (encodingToLazyByteString,
-                                                        value)
+                                                        pair, pairs)
 import qualified Data.Aeson.Internal              as A (formatError, iparse)
 import qualified Data.Aeson.Parser                as A (eitherDecodeWith)
 import qualified Data.Aeson.Types                 as A (Object, Options (..),
-                                                        Parser, defaultOptions,
+                                                        Parser, Series,
+                                                        defaultOptions,
                                                         explicitParseFieldMaybe)
 import qualified Data.Attoparsec.ByteString       as Atto (skipWhile)
 import qualified Data.Attoparsec.ByteString.Char8 as Atto (Parser, endOfInput)
@@ -30,21 +31,18 @@ import           Data.Char                        (toLower)
 import qualified Data.Proxy                       as DP
 import           Data.Text                        (Text)
 
-import           Proto3.Suite.Class               (HasDefault (def),
+import           Proto3.Suite.Class               (HasDefault (def, isDefault),
                                                    Named (nameOf))
 
--- | 'A.ToJSON' variant for jsonpb encoding to the aeson 'A.Value' IR
+-- * Typeclass definitions
+
+-- | 'A.ToJSON' variant for jsonpb direct encoding via 'A.Encoding'
 class ToJSONPB a where
-  -- | 'A.toJSON' variant for jsonpb encoder implementations. Equivalent to
-  -- 'A.toJSON' if an implementation is not provided.
-  toJSONPB :: a -> A.Value
-
-  default toJSONPB :: (A.ToJSON a) => a -> A.Value
-  toJSONPB = A.toJSON
-
-  -- | 'A.toEncoding' variant for jsonpb encoder implementations.
+  -- | 'A.toEncoding' variant for jsonpb encoder implementations. Equivalent to
+  -- 'A.toEncoding' if an implementation is not provided.
   toEncodingPB :: a -> A.Encoding
-  toEncodingPB = E.value . toJSONPB
+  default toEncodingPB :: (A.ToJSON a) => a -> A.Encoding
+  toEncodingPB = A.toEncoding
 
 -- | 'A.FromJSON' variant for jsonpb decoding from the aeson 'A.Value' IR
 class FromJSONPB a where
@@ -55,28 +53,16 @@ class FromJSONPB a where
   default parseJSONPB :: (A.FromJSON a) => A.Value -> A.Parser a
   parseJSONPB = A.parseJSON
 
--- | 'A.KeyValue' variant for types in the 'ToJSONPB' typeclass
-class KeyValuePB kv where
-  (.=) :: (HasDefault v, ToJSONPB v) => Text -> v -> kv
-  infixr 8 .=
+-- * JSONPB codec entry points
 
--- | 'A..:' variant for jsonpb decoding; if the given key is missing from the
--- object, we use the default value for the field type.
-(.:) :: (FromJSONPB a, HasDefault a) => A.Object -> Text -> A.Parser a
-obj .: key = obj .:? key A..!= def
-  where
-    (.:?) = A.explicitParseFieldMaybe parseJSONPB
-
--- | 'A.encode' variant for serializing a JSONPB value as a lazy
+-- | 'Data.Aeson.encode' variant for serializing a JSONPB value as a lazy
 -- 'LBS.ByteString'.
---
--- This is implemented in terms of the 'ToJSONPB' class's 'toEncodingPB' method.
 encode :: ToJSONPB a => a -> LBS.ByteString
 encode = E.encodingToLazyByteString . toEncodingPB
 {-# INLINE encode #-}
 
--- | 'A.eitherDecode' variant for deserializing a JSONPB value from a lazy
--- 'LBS.ByteString'.
+-- | 'Data.Aeson..eitherDecode' variant for deserializing a JSONPB value from a
+-- lazy 'LBS.ByteString'.
 eitherDecode :: FromJSONPB a => LBS.ByteString -> Either String a
 eitherDecode = eitherFormatError . A.eitherDecodeWith jsonEOF (A.iparse parseJSONPB)
   where
@@ -93,6 +79,45 @@ eitherDecode = eitherFormatError . A.eitherDecodeWith jsonEOF (A.iparse parseJSO
         skipSpace = Atto.skipWhile $ \w -> w == 0x20 || w == 0x0a || w == 0x0d || w == 0x09
         {-# INLINE skipSpace #-}
 {-# INLINE eitherDecode #-}
+
+-- * Operator definitions
+
+-- | Construct key-value pair, e.g.:
+--
+-- @
+-- instance ToJSONPB MyType where
+--   toEncodingPB (MyType fld0 fld1) = fieldsPB False
+--     [ "fld0" .= fld0
+--     , "fld1" .= fld1
+--     ]
+-- @
+(.=) :: (HasDefault v, ToJSONPB v) => Text -> v -> FieldPB
+k .= v = FieldPB (isDefault v) (E.pair k (toEncodingPB v))
+
+-- | 'Data.Aeson..:' variant for jsonpb decoding; if the given key is missing
+-- from the object, or if it is present but its value is null, we produce the
+-- default protobuf value for the field type.
+(.:) :: (FromJSONPB a, HasDefault a) => A.Object -> Text -> A.Parser a
+obj .: key = obj .:? key A..!= def
+  where
+    (.:?) = A.explicitParseFieldMaybe parseJSONPB
+
+-- * Helper types and functions
+
+-- | A key-value pair which also designates whether or not the value component
+-- is a protobuf default value or not. Produced by '(.=)' and consumed by
+-- 'fieldsPB'.
+data FieldPB = FieldPB Bool A.Series
+
+-- | @fieldsPB emitDefaults flds@ encodes the given key-value pair fields.  If
+-- @emitDefaults@ is @True@, all values will be emitted, otherwise fields with a
+-- default protobuf value are omitted from the encoding.
+fieldsPB :: Bool -> [FieldPB] -> A.Encoding
+fieldsPB emitDefaults flds = E.pairs (mconcat (fmap emit flds))
+  where
+    emit (FieldPB isDflt kvp)
+      | not emitDefaults && isDflt = mempty
+      | otherwise                  = kvp
 
 -- TODO: sanity check field prefix modification; these functions are no longer
 -- being called so we likely dropped this piece somewhere along the way.

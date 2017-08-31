@@ -14,7 +14,6 @@ module TestJSONPBManualCG where
 import qualified Data.ByteString.Lazy         as LBS
 import           JSONPBTestTypes
 import           Proto3.Suite.DotProto.JSONPB
-import qualified Proto3.Suite.Types           as HsProtobuf
 import           Text.Show.Pretty
 
 --------------------------------------------------------------------------------
@@ -35,20 +34,14 @@ import           Text.Show.Pretty
 --
 
 instance ToJSONPB Scalar32 where
-  toJSONPB (Scalar32 i32 u32 s32 f32 sf32) = object . mconcat $
-    [ "i32"  .= i32
-    , "u32"  .= u32
-    , "s32"  .= s32
-    , "f32"  .= f32
-    , "sf32" .= sf32
-    ]
-  toEncodingPB (Scalar32 i32 u32 s32 f32 sf32) = pairs . mconcat $
-    [ "i32"  .= i32
-    , "u32"  .= u32
-    , "s32"  .= s32
-    , "f32"  .= f32
-    , "sf32" .= sf32
-    ]
+  toEncodingPB (Scalar32 i32 u32 s32 f32 sf32) = fieldsPB False
+      [ "i32"  .= i32
+      , "u32"  .= u32
+      , "s32"  .= s32
+      , "f32"  .= f32
+      , "sf32" .= sf32
+      ]
+
 instance FromJSONPB Scalar32 where
   parseJSONPB = withObject "Scalar32" $ \obj ->
     pure Scalar32
@@ -68,14 +61,7 @@ instance FromJSONPB Scalar32 where
 --
 
 instance ToJSONPB Scalar64 where
-  toJSONPB (Scalar64 i64 u64 s64 f64 sf64) = object . mconcat $
-    [ "i64"  .= i64
-    , "u64"  .= u64
-    , "s64"  .= s64
-    , "f64"  .= f64
-    , "sf64" .= sf64
-    ]
-  toEncodingPB (Scalar64 i64 u64 s64 f64 sf64) = pairs . mconcat $
+  toEncodingPB (Scalar64 i64 u64 s64 f64 sf64) = fieldsPB False
     [ "i64"  .= i64
     , "u64"  .= u64
     , "s64"  .= s64
@@ -107,11 +93,7 @@ instance FromJSONPB Scalar64 where
 --
 
 instance ToJSONPB ScalarFP where
-  toJSONPB (ScalarFP f d) = object . mconcat $
-    [ "f" .= f
-    , "d" .= d
-    ]
-  toEncodingPB (ScalarFP f d) = pairs . mconcat $
+  toEncodingPB (ScalarFP f d) = fieldsPB False
     [ "f" .= f
     , "d" .= d
     ]
@@ -130,11 +112,7 @@ instance FromJSONPB ScalarFP where
 --
 
 instance ToJSONPB Stringly where
-  toJSONPB (Stringly str bs) = object . mconcat $
-    [ "str" .= str
-    , "bs"  .= bs
-    ]
-  toEncodingPB (Stringly str bs) = pairs . mconcat $
+  toEncodingPB (Stringly str bs) = fieldsPB False
     [ "str" .= str
     , "bs"  .= bs
     ]
@@ -157,11 +135,7 @@ instance FromJSONPB Stringly where
 --
 
 instance ToJSONPB Repeat where
-  toJSONPB (Repeat i32s i64s) = object . mconcat $
-    [ "i32s" .= i32s
-    , "i64s" .= i64s
-    ]
-  toEncodingPB (Repeat i32s i64s) = pairs . mconcat $
+  toEncodingPB (Repeat i32s i64s) = fieldsPB False
     [ "i32s" .= i32s
     , "i64s" .= i64s
     ]
@@ -183,10 +157,7 @@ instance FromJSONPB Repeat where
 --
 
 instance ToJSONPB Nested where
-  toJSONPB (Nested minner) = object . mconcat $
-    [ "nestedInner" .= minner
-    ]
-  toEncodingPB (Nested minner) = pairs . mconcat $
+  toEncodingPB (Nested minner) = fieldsPB False
     [ "nestedInner" .= minner
     ]
 instance FromJSONPB Nested where
@@ -197,10 +168,7 @@ instance FromJSONPB Nested where
 -- Nested_Inner
 
 instance ToJSONPB Nested_Inner where
-  toJSONPB (Nested_Inner i64) = object . mconcat $
-    [ "i64" .= i64
-    ]
-  toEncodingPB (Nested_Inner i64) = pairs . mconcat $
+  toEncodingPB (Nested_Inner i64) = fieldsPB False
     [ "i64" .= i64
     ]
 instance FromJSONPB Nested_Inner where
@@ -218,14 +186,10 @@ instance FromJSONPB Nested_Inner where
 -- | Trivial
 -- prop> roundTrip (Trivial x)
 
-fieldDefs_Trivial :: (KeyValuePB a, Monoid a) => Trivial -> a
-fieldDefs_Trivial (Trivial fld0) = mconcat
-  [ "trivialField" .= fld0
-  ]
-
 instance ToJSONPB Trivial where
-  toJSONPB     = object . fieldDefs_Trivial
-  toEncodingPB = pairs  . fieldDefs_Trivial
+  toEncodingPB (Trivial f0) = fieldsPB False
+    [ "trivialField" .= f0
+    ]
 
 instance FromJSONPB Trivial where
   parseJSONPB = withObject "Trivial" $ \obj ->
@@ -235,19 +199,15 @@ instance FromJSONPB Trivial where
 -- | MultipleFields
 -- prop> roundTrip (MultipleFields d f i32 i64 (TL.pack s) b)
 
-fieldDefs_MultipleFields :: (KeyValuePB a, Monoid a) => MultipleFields -> a
-fieldDefs_MultipleFields (MultipleFields f0 f1 f2 f3 f4 f5) = mconcat
-  [ "multiFieldDouble" .= f0
-  , "multiFieldFloat"  .= f1
-  , "multiFieldInt32"  .= f2
-  , "multiFieldInt64"  .= f3
-  , "multiFieldString" .= f4
-  , "multiFieldBool"   .= f5
-  ]
-
 instance ToJSONPB MultipleFields where
-  toJSONPB     = object . fieldDefs_MultipleFields
-  toEncodingPB = pairs  . fieldDefs_MultipleFields
+  toEncodingPB (MultipleFields f0 f1 f2 f3 f4 f5) = fieldsPB False
+    [ "multiFieldDouble" .= f0
+    , "multiFieldFloat"  .= f1
+    , "multiFieldInt32"  .= f2
+    , "multiFieldInt64"  .= f3
+    , "multiFieldString" .= f4
+    , "multiFieldBool"   .= f5
+    ]
 
 instance FromJSONPB MultipleFields where
   parseJSONPB = withObject "MultipleFields" $ \obj ->
@@ -270,15 +230,11 @@ instance FromJSONPB MultipleFields where
 -- prop> decodesAs "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}" (SignedInts 2147483647 9223372036854775807)
 --
 
-fieldDefs_SignedInts :: (KeyValuePB a, Monoid a) => SignedInts -> a
-fieldDefs_SignedInts (SignedInts f0 f1) = mconcat
-  [ "signed32" .= f0
-  , "signed64" .= f1
-  ]
-
 instance ToJSONPB SignedInts where
-  toJSONPB     = object . fieldDefs_SignedInts
-  toEncodingPB = pairs  . fieldDefs_SignedInts
+  toEncodingPB (SignedInts f0 f1) = fieldsPB False
+    [ "signed32" .= f0
+    , "signed64" .= f1
+    ]
 
 instance FromJSONPB SignedInts where
   parseJSONPB = withObject "SignedInts" $ \obj ->

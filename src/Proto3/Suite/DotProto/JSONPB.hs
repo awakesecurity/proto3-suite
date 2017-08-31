@@ -4,14 +4,14 @@ module Proto3.Suite.DotProto.JSONPB
   , ToJSONPB(..)
     -- * Operators
   , (.:)
-  , KeyValuePB((.=))
+  , (.=)
     -- * Aeson re-exports
-  , A.object
-  , A.pairs
   , A.withObject
     -- * jsonpb codec entry points
   , eitherDecode
   , encode
+    -- * Helper functions
+  , fieldsPB
   )
 where
 

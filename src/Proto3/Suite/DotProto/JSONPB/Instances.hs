@@ -8,47 +8,28 @@
 
 module Proto3.Suite.DotProto.JSONPB.Instances where
 
-import qualified Data.Aeson                         as A (FromJSON (..),
+import qualified Data.Aeson                         as A (Encoding,
+                                                          FromJSON (..),
                                                           FromJSONKey (..),
                                                           FromJSONKeyFunction (..),
                                                           ToJSON (..),
                                                           Value (..),
                                                           eitherDecode)
-import qualified Data.Aeson.Encoding                as E (pair)
-import qualified Data.Aeson.Types                   as A (Parser, Pair, Series, typeMismatch)
+import qualified Data.Aeson.Encoding                as E
+import qualified Data.Aeson.Types                   as A (Parser, typeMismatch)
 import qualified Data.ByteString                    as BS
 import qualified Data.ByteString.Base64             as B64
-import           Data.Maybe                         (isNothing)
-import           Data.Proxy
+import qualified Data.Text.Encoding                 as T
 import qualified Data.Text.Lazy                     as TL
 import qualified Data.Text.Lazy.Encoding            as TL
-import qualified Data.Text                          as T
-import qualified Data.Text.Encoding                 as T
 import qualified Data.Vector                        as V
 import           GHC.Int                            (Int32, Int64)
 import           GHC.Word                           (Word32, Word64)
-
-import           Proto3.Suite.Class                 (HasDefault(..))
 import           Proto3.Suite.DotProto.JSONPB.Class (FromJSONPB (..),
-                                                     KeyValuePB (..),
                                                      ToJSONPB (..))
-import           Proto3.Suite.Types                 (Fixed (..), Nested(..), PackedVec(..), Signed(..))
+import           Proto3.Suite.Types                 (Fixed (..))
 
--- | This instance allows us to use @key .= val@ with the correct jsonpb
--- semantics (default values are omitted via 'mempty) in 'toJSONPB'
--- implementations.
-instance KeyValuePB [A.Pair] where
-  k .= v
-    | isDefault v = mempty
-    | otherwise   = [(k, toJSONPB v)]
-
--- | This instance allows us to use @key .= val@ with the correct jsonpb
--- semantics (default values are omitted via 'mempty') in 'toEncodingPB'
--- implementations.
-instance KeyValuePB A.Series where
-  k .= v
-    | isDefault v = mempty
-    | otherwise   = E.pair k (toEncodingPB v)
+-- * Instances for scalar types
 
 --------------------------------------------------------------------------------
 -- Boolean scalar type
@@ -78,37 +59,37 @@ instance FromJSONPB Word32 where
 
 -- int64 / sint64
 instance ToJSONPB Int64 where
-  toJSONPB = showDecimalString
+  toEncodingPB = showDecimalString
 instance FromJSONPB Int64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
 -- unit64
 instance ToJSONPB Word64 where
-  toJSONPB = showDecimalString
+  toEncodingPB = showDecimalString
 instance FromJSONPB Word64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
 -- fixed32
 instance ToJSONPB (Fixed Word32) where
-  toJSONPB = toJSONPB . fixed
+  toEncodingPB = toEncodingPB . fixed
 instance FromJSONPB (Fixed Word32) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
 -- fixed64
 instance ToJSONPB (Fixed Word64) where
-  toJSONPB = toJSONPB . fixed
+  toEncodingPB = toEncodingPB . fixed
 instance FromJSONPB (Fixed Word64) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
 -- sfixed32
 instance ToJSONPB (Fixed Int32) where
-  toJSONPB = toJSONPB . fixed
+  toEncodingPB = toEncodingPB . fixed
 instance FromJSONPB (Fixed Int32) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
 -- sfixed64
 instance ToJSONPB (Fixed Int64) where
-  toJSONPB = toJSONPB . fixed
+  toEncodingPB = toEncodingPB . fixed
 instance FromJSONPB (Fixed Int64) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
@@ -138,14 +119,17 @@ instance FromJSONPB TL.Text
 
 -- bytes
 instance ToJSONPB BS.ByteString where
-  toJSONPB bs = case T.decodeUtf8' (B64.encode bs) of
+  toEncodingPB bs = case T.decodeUtf8' (B64.encode bs) of
     Left e  -> error ("internal: failed to encode B64-encoded bytestring: " ++ show e)
                -- T.decodeUtf8' should never fail because we B64-encode the
                -- incoming bytestring.
-    Right t -> A.toJSON t
+    Right t -> E.value (A.toJSON t)
+
 instance FromJSONPB BS.ByteString where
   parseJSONPB (A.String b64enc) = pure . B64.decodeLenient . T.encodeUtf8 $ b64enc
   parseJSONPB v                 = A.typeMismatch "bytes" v
+
+-- * Instances for composite types
 
 --------------------------------------------------------------------------------
 -- Instances for repeated messages
@@ -154,7 +138,7 @@ instance FromJSONPB BS.ByteString where
 -- value is accepted as the empty list, @[]@.
 
 instance ToJSONPB a => ToJSONPB (V.Vector a) where
-  toJSONPB = A.Array . fmap toJSONPB
+  toEncodingPB = E.list toEncodingPB . V.toList
 instance FromJSONPB a => FromJSONPB (V.Vector a) where
   parseJSONPB (A.Array vs) = mapM parseJSONPB vs
   parseJSONPB A.Null       = pure []
@@ -164,10 +148,12 @@ instance FromJSONPB a => FromJSONPB (V.Vector a) where
 -- Instances for nested messages
 
 instance ToJSONPB a => ToJSONPB (Maybe a) where
-  toJSONPB = maybe A.Null toJSONPB
+  toEncodingPB = maybe E.null_ toEncodingPB
 instance FromJSONPB a => FromJSONPB (Maybe a) where
   parseJSONPB A.Null = pure Nothing
   parseJSONPB v      = fmap Just (parseJSONPB v)
+
+-- * Helper functions
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -187,5 +173,5 @@ parseNumOrDecimalString tyDesc v = case v of
   A.String t -> either fail pure . A.eitherDecode . TL.encodeUtf8 . TL.fromStrict $ t
   _          -> A.typeMismatch tyDesc v
 
-showDecimalString :: Show a => a -> A.Value
-showDecimalString = A.String . T.pack . show
+showDecimalString :: Show a => a -> A.Encoding
+showDecimalString = E.string . show
