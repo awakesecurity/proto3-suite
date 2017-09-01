@@ -753,3 +753,39 @@ instance HsProtobuf.Message WithNestingRepeatedInts where
                 (HsProtobuf.Single "nestedInts")
                 []
                 Hs.Nothing)]
+ 
+data WithBytes = WithBytes{withBytesBytes1 :: Hs.ByteString,
+                           withBytesBytes2 :: Hs.Vector Hs.ByteString}
+               deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named WithBytes where
+        nameOf _ = (Hs.fromString "WithBytes")
+ 
+instance HsProtobuf.Message WithBytes where
+        encodeMessage _
+          WithBytes{withBytesBytes1 = withBytesBytes1,
+                    withBytesBytes2 = withBytesBytes2}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   withBytesBytes1),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                   (HsProtobuf.UnpackedVec withBytesBytes2))])
+        decodeMessage _
+          = (Hs.pure WithBytes) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+              <*>
+              ((Hs.pure HsProtobuf.unpackedvec) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 2)))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.Bytes)
+                (HsProtobuf.Single "bytes1")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
+                (HsProtobuf.Repeated HsProtobuf.Bytes)
+                (HsProtobuf.Single "bytes2")
+                []
+                Hs.Nothing)]

@@ -385,6 +385,22 @@ instance FromJSONPB WithNestingRepeatedInts where
     pure WithNestingRepeatedInts
     <*> obj .: "nestedInts"
 
+-- | WithBytes
+-- prop> roundTrip omitDefaults (WithBytes bs0 (V.replicate n0 bs1 <> V.replicate n1 bs2))
+
+instance ToJSONPB WithBytes where
+  toEncodingPB opts (WithBytes f0 f1) = fieldsPB opts
+    [ "bytes1" .= f0
+    , "bytes2" .= f1
+    ]
+
+instance FromJSONPB WithBytes where
+  parseJSONPB = withObject "WithBytes" $ \obj ->
+    pure WithBytes
+    <*> obj .: "bytes1"
+    <*> obj .: "bytes2"
+
+
 -- End hand-generated instances for JSON PB renderings
 --------------------------------------------------------------------------------
 
@@ -407,6 +423,7 @@ __unused_nowarn = undefined (ppShow :: String -> String)
 
 -- Doctest preamble
 -- $setup
+-- >>> import Data.Monoid ((<>))
 -- >>> import qualified Data.Text.Lazy as TL
 -- >>> import qualified Data.Vector    as V
 -- >>> import Proto3.Suite.DotProto.JSONPB (defaultOptions)

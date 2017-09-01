@@ -98,3 +98,8 @@ message NestedInts {
 message WithNestingRepeatedInts {
   repeated NestedInts nestedInts = 1;
 }
+
+message WithBytes {
+  bytes bytes1 = 1;
+  repeated bytes bytes2 = 2;
+}
