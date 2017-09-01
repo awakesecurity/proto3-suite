@@ -89,3 +89,12 @@ message WithNestingRepeated {
   }
   repeated Nested nestedMessages = 1;
 }
+
+message NestedInts {
+    int32 nestedInt1 = 1;
+    int32 nestedInt2 = 2;
+  }
+
+message WithNestingRepeatedInts {
+  repeated NestedInts nestedInts = 1;
+}

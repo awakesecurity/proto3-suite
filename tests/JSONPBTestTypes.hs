@@ -691,3 +691,65 @@ instance HsProtobuf.Message WithNestingRepeated_Nested where
                 [(HsProtobuf.DotProtoOption (HsProtobuf.Single "packed")
                     (HsProtobuf.BoolLit Hs.False))]
                 Hs.Nothing)]
+ 
+data NestedInts = NestedInts{nestedIntsNestedInt1 :: Hs.Int32,
+                             nestedIntsNestedInt2 :: Hs.Int32}
+                deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named NestedInts where
+        nameOf _ = (Hs.fromString "NestedInts")
+ 
+instance HsProtobuf.Message NestedInts where
+        encodeMessage _
+          NestedInts{nestedIntsNestedInt1 = nestedIntsNestedInt1,
+                     nestedIntsNestedInt2 = nestedIntsNestedInt2}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   nestedIntsNestedInt1),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                   nestedIntsNestedInt2)])
+        decodeMessage _
+          = (Hs.pure NestedInts) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 2))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.Int32)
+                (HsProtobuf.Single "nestedInt1")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
+                (HsProtobuf.Prim HsProtobuf.Int32)
+                (HsProtobuf.Single "nestedInt2")
+                []
+                Hs.Nothing)]
+ 
+data WithNestingRepeatedInts = WithNestingRepeatedInts{withNestingRepeatedIntsNestedInts
+                                                       :: Hs.Vector JSONPBTestTypes.NestedInts}
+                             deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named WithNestingRepeatedInts where
+        nameOf _ = (Hs.fromString "WithNestingRepeatedInts")
+ 
+instance HsProtobuf.Message WithNestingRepeatedInts where
+        encodeMessage _
+          WithNestingRepeatedInts{withNestingRepeatedIntsNestedInts =
+                                    withNestingRepeatedIntsNestedInts}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   (HsProtobuf.NestedVec withNestingRepeatedIntsNestedInts))])
+        decodeMessage _
+          = (Hs.pure WithNestingRepeatedInts) <*>
+              ((Hs.pure HsProtobuf.nestedvec) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 1)))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Repeated
+                   (HsProtobuf.Named (HsProtobuf.Single "NestedInts")))
+                (HsProtobuf.Single "nestedInts")
+                []
+                Hs.Nothing)]

@@ -140,7 +140,7 @@ instance FromJSONPB Stringly where
     <*> obj .: "bs"
 
 -- | Repeat
--- prop> roundTrip omitDefaults (Repeat (V.fromList xs) (V.fromList ys))
+-- prop> roundTrip omitDefaults (Repeat xs ys)
 --
 -- prop> encodesAs omitDefaults (Repeat [4,5] [6,7]) "{\"i32s\":[4,5],\"i64s\":[\"6\",\"7\"]}"
 --
@@ -356,6 +356,34 @@ instance FromJSONPB WithNestingRepeated_Nested where
     <*> obj .: "nestedField2"
     <*> obj .: "nestedPacked"
     <*> obj .: "nestedUnpacked"
+
+-- | NestedInts
+
+instance ToJSONPB NestedInts where
+  toEncodingPB opts (NestedInts f0 f1) = fieldsPB opts
+    [ "nestedInt1" .= f0
+    , "nestedInt2" .= f1
+    ]
+
+instance FromJSONPB NestedInts where
+  parseJSONPB = withObject "NestedInts" $ \obj ->
+    pure NestedInts
+    <*> obj .: "nestedInt1"
+    <*> obj .: "nestedInt2"
+
+-- | WithNestingRepeatedInts
+-- prop> roundTrip omitDefaults (WithNestingRepeatedInts [NestedInts xs0 ys0, NestedInts xs1 ys1])
+-- prop> roundTrip emitDefaults (WithNestingRepeatedInts [])
+
+instance ToJSONPB WithNestingRepeatedInts where
+  toEncodingPB opts (WithNestingRepeatedInts f0) = fieldsPB opts
+    [ "nestedInts" .= f0
+    ]
+
+instance FromJSONPB WithNestingRepeatedInts where
+  parseJSONPB = withObject "WithNestingRepeatedInts" $ \obj ->
+    pure WithNestingRepeatedInts
+    <*> obj .: "nestedInts"
 
 -- End hand-generated instances for JSON PB renderings
 --------------------------------------------------------------------------------
