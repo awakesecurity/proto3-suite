@@ -454,3 +454,49 @@ instance HsProtobuf.Message SignedInts where
                 (HsProtobuf.Single "signed64")
                 []
                 Hs.Nothing)]
+ 
+data WithEnum = WithEnum{withEnumEnumField ::
+                         HsProtobuf.Enumerated JSONPBTestTypes.WithEnum_TestEnum}
+              deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named WithEnum where
+        nameOf _ = (Hs.fromString "WithEnum")
+ 
+instance HsProtobuf.Message WithEnum where
+        encodeMessage _ WithEnum{withEnumEnumField = withEnumEnumField}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   withEnumEnumField)])
+        decodeMessage _
+          = (Hs.pure WithEnum) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim (HsProtobuf.Named (HsProtobuf.Single "TestEnum")))
+                (HsProtobuf.Single "enumField")
+                []
+                Hs.Nothing)]
+ 
+data WithEnum_TestEnum = WithEnum_TestEnumENUM1
+                       | WithEnum_TestEnumENUM2
+                       | WithEnum_TestEnumENUM3
+                       deriving (Hs.Show, Hs.Bounded, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named WithEnum_TestEnum where
+        nameOf _ = (Hs.fromString "WithEnum_TestEnum")
+ 
+instance Hs.Enum WithEnum_TestEnum where
+        toEnum 0 = WithEnum_TestEnumENUM1
+        toEnum 1 = WithEnum_TestEnumENUM2
+        toEnum 2 = WithEnum_TestEnumENUM3
+        toEnum i = (Hs.toEnumError "WithEnum_TestEnum" i (0 :: Hs.Int, 2))
+        fromEnum (WithEnum_TestEnumENUM1) = 0
+        fromEnum (WithEnum_TestEnumENUM2) = 1
+        fromEnum (WithEnum_TestEnumENUM3) = 2
+        succ (WithEnum_TestEnumENUM1) = WithEnum_TestEnumENUM2
+        succ (WithEnum_TestEnumENUM2) = WithEnum_TestEnumENUM3
+        succ _ = Hs.succError "WithEnum_TestEnum"
+        pred (WithEnum_TestEnumENUM2) = WithEnum_TestEnumENUM1
+        pred (WithEnum_TestEnumENUM3) = WithEnum_TestEnumENUM2
+        pred _ = Hs.predError "WithEnum_TestEnum"

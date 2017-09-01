@@ -60,3 +60,12 @@ message SignedInts {
   sint32 signed32 = 1;
   sint64 signed64 = 2;
 }
+
+message WithEnum {
+  enum TestEnum {
+    ENUM1 = 0;
+    ENUM2 = 1;
+    ENUM3 = 2;
+  }
+  TestEnum enumField = 1;
+}
