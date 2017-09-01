@@ -326,6 +326,37 @@ instance FromJSONPB WithNesting_Nested where
     <*> obj .: "nestedPacked"
     <*> obj .: "nestedUnpacked"
 
+-- | WithNestingRepeated
+-- prop> roundTrip omitDefaults (WithNestingRepeated [WithNestingRepeated_Nested (TL.pack s0) n0 packed0 unpacked0, WithNestingRepeated_Nested (TL.pack s1) n packed1 unpacked1])
+-- prop> roundTrip emitDefaults (WithNestingRepeated [WithNestingRepeated_Nested (TL.pack s0) n0 packed0 unpacked0, WithNestingRepeated_Nested (TL.pack s1) n packed1 unpacked1])
+
+instance ToJSONPB WithNestingRepeated where
+  toEncodingPB opts (WithNestingRepeated f0) = fieldsPB opts
+    [ "nestedMessages" .= f0
+    ]
+
+instance FromJSONPB WithNestingRepeated where
+  parseJSONPB = withObject "WithNestingRepeated" $ \obj ->
+    pure WithNestingRepeated
+    <*> obj .: "nestedMessages"
+
+-- WithNestingRepeated_Nested
+instance ToJSONPB WithNestingRepeated_Nested where
+  toEncodingPB opts (WithNestingRepeated_Nested f0 f1 f2 f3) = fieldsPB opts
+    [ "nestedField1"   .= f0
+    , "nestedField2"   .= f1
+    , "nestedPacked"   .= f2
+    , "nestedUnpacked" .= f3
+    ]
+
+instance FromJSONPB WithNestingRepeated_Nested where
+  parseJSONPB = withObject "WithNestingRepeated_Nested" $ \obj ->
+    pure WithNestingRepeated_Nested
+    <*> obj .: "nestedField1"
+    <*> obj .: "nestedField2"
+    <*> obj .: "nestedPacked"
+    <*> obj .: "nestedUnpacked"
+
 -- End hand-generated instances for JSON PB renderings
 --------------------------------------------------------------------------------
 
