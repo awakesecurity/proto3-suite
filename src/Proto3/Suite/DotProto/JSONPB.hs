@@ -14,6 +14,7 @@ module Proto3.Suite.DotProto.JSONPB
   , encode
     -- * Helper functions
   , fieldsPB
+  , namedEncoding
     -- * Aeson re-exports
   , A.withObject
   )

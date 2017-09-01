@@ -11,10 +11,23 @@
 
 module TestJSONPBManualCG where
 
+import qualified Data.Aeson                   as A (Value (..))
+import qualified Data.Aeson.Types             as A (typeMismatch)
 import qualified Data.ByteString.Lazy         as LBS
+import           Data.Proxy
 import           JSONPBTestTypes
-import           Proto3.Suite.DotProto.JSONPB
+import           Proto3.Suite.Class           (HasDefault (..))
+import           Proto3.Suite.DotProto.JSONPB (FromJSONPB (..), Options (..),
+                                               ToJSONPB (..), eitherDecode,
+                                               encode, fieldsPB, namedEncoding,
+                                               withObject, (.:), (.=))
 import           Text.Show.Pretty
+
+
+-- tmp/repl
+import qualified Data.Aeson.Encoding          as E
+import           Proto3.Suite.Types           (Enumerated (..))
+import           Test.DocTest
 
 --------------------------------------------------------------------------------
 -- Begin hand-generated instances for JSON PB renderings; these instances will
@@ -247,6 +260,38 @@ instance FromJSONPB SignedInts where
     <*> obj .: "signed32"
     <*> obj .: "signed64"
 
+-- | WithEnum
+-- prop> roundTrip omitDefaults (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))
+-- prop> roundTrip omitDefaults (WithEnum (Enumerated (Right WithEnum_TestEnumENUM2)))
+--
+-- prop> encodesAs omitDefaults (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1))) "{}"
+-- prop> encodesAs emitDefaults (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1))) "{\"enumField\":\"ENUM1\"}"
+-- prop> encodesAs omitDefaults (WithEnum (Enumerated (Right WithEnum_TestEnumENUM3))) "{\"enumField\":\"ENUM3\"}"
+--
+-- prop> decodesAs "{\"enumField\":\"ENUM3\"}" (WithEnum (Enumerated (Right WithEnum_TestEnumENUM3)))
+-- prop> decodesAs "{\"enumField\":null}"      (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))
+-- prop> decodesAs "{}"                        (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))
+
+instance ToJSONPB WithEnum where
+  toEncodingPB opts (WithEnum f0) = fieldsPB opts
+    [ "enumField" .= f0
+    ]
+
+instance FromJSONPB WithEnum where
+  parseJSONPB = withObject "withEnum" $ \obj ->
+    pure WithEnum
+    <*> obj .: "enumField"
+
+-- WithEnum_TestEnum
+instance ToJSONPB WithEnum_TestEnum where
+  toEncodingPB _ = namedEncoding
+
+instance FromJSONPB WithEnum_TestEnum where
+  parseJSONPB (A.String "ENUM1") = pure WithEnum_TestEnumENUM1
+  parseJSONPB (A.String "ENUM2") = pure WithEnum_TestEnumENUM2
+  parseJSONPB (A.String "ENUM3") = pure WithEnum_TestEnumENUM3
+  parseJSONPB v                  = A.typeMismatch "WithEnum_TestEnum" v
+
 -- End hand-generated instances for JSON PB renderings
 --------------------------------------------------------------------------------
 
@@ -271,6 +316,7 @@ __unused_nowarn = undefined (ppShow :: String -> String)
 -- $setup
 -- >>> import qualified Data.Text.Lazy as TL
 -- >>> import qualified Data.Vector    as V
+-- >>> import Proto3.Suite.DotProto.JSONPB (defaultOptions)
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XOverloadedLists
 -- >>> let omitDefaults = defaultOptions

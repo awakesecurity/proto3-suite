@@ -19,8 +19,9 @@ import qualified Data.Text.Lazy                     as TL
 import qualified Data.Vector                        as V
 import           GHC.Int                            (Int32, Int64)
 import           GHC.Word                           (Word32, Word64)
+import           Proto3.Suite.Class                 (HasDefault(..), Named(..))
 import           Proto3.Suite.DotProto.JSONPB.Class
-import           Proto3.Suite.Types                 (Fixed (..))
+import           Proto3.Suite.Types                 (Enumerated(..), Fixed (..))
 
 -- * Instances for scalar types
 
@@ -52,13 +53,13 @@ instance FromJSONPB Word32 where
 
 -- int64 / sint64
 instance ToJSONPB Int64 where
-  toEncodingPB _ = encodeShow
+  toEncodingPB _ = E.string . show
 instance FromJSONPB Int64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
 -- unit64
 instance ToJSONPB Word64 where
-  toEncodingPB _ = encodeShow
+  toEncodingPB _ = E.string . show
 instance FromJSONPB Word64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
@@ -121,6 +122,40 @@ instance ToJSONPB BS.ByteString where
 instance FromJSONPB BS.ByteString where
   parseJSONPB (A.String b64enc) = pure . B64.decodeLenient . T.encodeUtf8 $ b64enc
   parseJSONPB v                 = A.typeMismatch "bytes" v
+
+--------------------------------------------------------------------------------
+-- Enumerated types
+
+instance (Named a, Show a, ToJSONPB a) => ToJSONPB (Enumerated a) where
+  toEncodingPB opts (Enumerated e) = case e of
+    Right x -> toEncodingPB opts x
+    Left  0 ->
+      {- TODO: Raise a compilation error when the first enum value in an
+               enumeration is not zero.
+
+         The proto3 spec states that the default value is the first defined enum
+         value, which must be 0. Since we currently don't raise a compilation
+         error for this like we should, we have to handle this case.
+
+         For now, die horribly to mimic what should be a compilation error.
+      -}
+      error "toEncodingPB Enumerated: The first enum value must be zero in proto3"
+    Left{}  ->
+      {- From the JSONPB spec:
+
+           If a value is missing in the JSON-encoded data or if its value is
+           null, it will be interpreted as the appropriate default value when
+           parsed into a protocol buffer.
+
+         Thus, interpreting a wire value out of enum range as "missing", we
+         yield the null encoding here to mean the default value.
+       -}
+      E.null_
+
+instance (Bounded a, Enum a, FromJSONPB a) => FromJSONPB (Enumerated a) where
+  parseJSONPB A.Null = pure def -- So CG does not have to handle this case in
+                                -- every generated instance
+  parseJSONPB v      = Enumerated . Right <$> parseJSONPB v
 
 -- * Instances for composite types
 

@@ -1,5 +1,6 @@
-{-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE DefaultSignatures   #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Support for the "JSONPB" canonical JSON encoding described at
 -- https://developers.google.com/protocol-buffers/docs/proto3#json.
@@ -51,20 +52,17 @@ import qualified Data.Aeson                       as A (Encoding, FromJSON (..),
                                                         ToJSON (..), Value (..),
                                                         eitherDecode, json,
                                                         (.!=))
-import qualified Data.Aeson.Encoding              as E (encodingToLazyByteString,
-                                                        pair, pairs, string)
+import qualified Data.Aeson.Encoding              as E
 import qualified Data.Aeson.Internal              as A (formatError, iparse)
 import qualified Data.Aeson.Parser                as A (eitherDecodeWith)
-import qualified Data.Aeson.Types                 as A (Object, Options (..),
+import qualified Data.Aeson.Types                 as A (Object,
                                                         Parser, Series,
-                                                        defaultOptions,
                                                         explicitParseFieldMaybe,
                                                         typeMismatch)
 import qualified Data.Attoparsec.ByteString       as Atto (skipWhile)
 import qualified Data.Attoparsec.ByteString.Char8 as Atto (Parser, endOfInput)
 import qualified Data.ByteString.Lazy             as LBS
-import           Data.Char                        (toLower)
-import qualified Data.Proxy                       as DP
+import           Data.Proxy
 import           Data.Text                        (Text)
 import qualified Data.Text.Lazy                   as TL
 import qualified Data.Text.Lazy.Encoding          as TL
@@ -144,10 +142,10 @@ defaultOptions = Options
 
 -- * Helper types and functions
 
-encodeShow :: Show a => a -> A.Encoding
-encodeShow = E.string . show
+dropNamedPfx :: Named a => Proxy a -> String -> String
+dropNamedPfx p = drop (length (nameOf p :: String))
 
--- | An internal (field name, value) type (using 'E.pair' as the underlying
+-- | An internal ~(field name, value) tuple (using 'E.pair' as the underlying
 -- tuple) which carries additional useful state.
 --
 -- Values of this type are produced by '.='
@@ -173,6 +171,9 @@ fieldsPB opts@Options{..} fields = E.pairs (mconcat (fmap emit fields))
       | otherwise
         = fieldTuple opts
 
+namedEncoding :: forall e. (Named e, Show e) => e -> A.Encoding
+namedEncoding = E.string . dropNamedPfx (Proxy :: Proxy e) . show
+
 -- | Parse a JSONPB floating point value; first parameter provides context for
 -- type mismatches
 parseFP :: (A.FromJSON a, A.FromJSONKey a) => String -> A.Value -> A.Parser a
@@ -184,21 +185,10 @@ parseFP tyDesc v = case v of
                   _ -> fail "internal: parseKeyPB: unexpected FromJSONKey summand"
   _          -> A.typeMismatch tyDesc v
 
--- | Liberally parse an integer value (e.g. 42 or "42"); first parameter
+-- | Liberally parse an integer value (e.g. 42 or "42" as 42); first parameter
 -- provides context for type mismatches
 parseNumOrDecimalString :: (A.FromJSON a) => String -> A.Value -> A.Parser a
 parseNumOrDecimalString tyDesc v = case v of
   A.Number{} -> A.parseJSON v
   A.String t -> either fail pure . A.eitherDecode . TL.encodeUtf8 . TL.fromStrict $ t
   _          -> A.typeMismatch tyDesc v
-
--- TODO: sanity check field prefix modification; these functions are no longer
--- being called so we likely dropped this piece somewhere along the way.
-
-dropFldPfx :: Named a => DP.Proxy a -> String -> String
-dropFldPfx p s = case dropNamed s of [] -> []; (c:cs) -> toLower c : cs
-  where
-    dropNamed = drop (length (nameOf p :: String))
-
-pbOpts :: (Named a) => DP.Proxy a -> A.Options
-pbOpts p = A.defaultOptions{ A.fieldLabelModifier = dropFldPfx p }
