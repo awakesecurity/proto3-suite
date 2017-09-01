@@ -23,6 +23,7 @@ import           Proto3.Suite.DotProto.JSONPB (FromJSONPB (..), Options (..),
                                                withObject, (.:), (.=))
 import           Text.Show.Pretty
 
+import           ArbitraryGeneratedTestTypes () -- for Arbitary Vector
 
 -- tmp/repl
 import qualified Data.Aeson.Encoding          as E
@@ -278,7 +279,7 @@ instance ToJSONPB WithEnum where
     ]
 
 instance FromJSONPB WithEnum where
-  parseJSONPB = withObject "withEnum" $ \obj ->
+  parseJSONPB = withObject "WithEnum" $ \obj ->
     pure WithEnum
     <*> obj .: "enumField"
 
@@ -291,6 +292,39 @@ instance FromJSONPB WithEnum_TestEnum where
   parseJSONPB (A.String "ENUM2") = pure WithEnum_TestEnumENUM2
   parseJSONPB (A.String "ENUM3") = pure WithEnum_TestEnumENUM3
   parseJSONPB v                  = A.typeMismatch "WithEnum_TestEnum" v
+
+-- | WithNesting
+-- prop> roundTrip emitDefaults (WithNesting $ Just $ WithNesting_Nested (TL.pack s) n packed unpacked)
+--
+-- prop> encodesAs omitDefaults (WithNesting $ Just $ WithNesting_Nested "" 0 [1,2] [66,99]) "{\"nestedMessage\":{\"nestedPacked\":[1,2],\"nestedUnpacked\":[66,99]}}"
+--
+-- prop> decodesAs "{\"nestedMessage\":{}}" (WithNesting $ Just $ WithNesting_Nested "" 0 [] [])
+instance ToJSONPB WithNesting where
+  toEncodingPB opts (WithNesting f0) = fieldsPB opts
+    [ "nestedMessage" .= f0
+    ]
+
+instance FromJSONPB WithNesting where
+  parseJSONPB = withObject "WithNesting" $ \obj ->
+    pure WithNesting
+    <*> obj .: "nestedMessage"
+
+-- WithNesting_Nested
+instance ToJSONPB WithNesting_Nested where
+  toEncodingPB opts (WithNesting_Nested f0 f1 f2 f3) = fieldsPB opts
+    [ "nestedField1"   .= f0
+    , "nestedField2"   .= f1
+    , "nestedPacked"   .= f2
+    , "nestedUnpacked" .= f3
+    ]
+
+instance FromJSONPB WithNesting_Nested where
+  parseJSONPB = withObject "WithNesting_Nested" $ \obj ->
+    pure WithNesting_Nested
+    <*> obj .: "nestedField1"
+    <*> obj .: "nestedField2"
+    <*> obj .: "nestedPacked"
+    <*> obj .: "nestedUnpacked"
 
 -- End hand-generated instances for JSON PB renderings
 --------------------------------------------------------------------------------
