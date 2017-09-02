@@ -20,6 +20,7 @@ import qualified Data.Int as Hs (Int16, Int32, Int64)
 import qualified Data.Word as Hs (Word16, Word32, Word64)
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
+import qualified JSONPBTestTypesImport
  
 data Scalar32 = Scalar32{scalar32I32 :: Hs.Int32,
                          scalar32U32 :: Hs.Word32, scalar32S32 :: Hs.Int32,
@@ -787,5 +788,136 @@ instance HsProtobuf.Message WithBytes where
              (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
                 (HsProtobuf.Repeated HsProtobuf.Bytes)
                 (HsProtobuf.Single "bytes2")
+                []
+                Hs.Nothing)]
+ 
+data OutOfOrderFields = OutOfOrderFields{outOfOrderFieldsField1 ::
+                                         Hs.Vector Hs.Word32,
+                                         outOfOrderFieldsField2 :: Hs.Text,
+                                         outOfOrderFieldsField3 :: Hs.Int64,
+                                         outOfOrderFieldsField4 :: Hs.Vector Hs.Text}
+                      deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named OutOfOrderFields where
+        nameOf _ = (Hs.fromString "OutOfOrderFields")
+ 
+instance HsProtobuf.Message OutOfOrderFields where
+        encodeMessage _
+          OutOfOrderFields{outOfOrderFieldsField1 = outOfOrderFieldsField1,
+                           outOfOrderFieldsField2 = outOfOrderFieldsField2,
+                           outOfOrderFieldsField3 = outOfOrderFieldsField3,
+                           outOfOrderFieldsField4 = outOfOrderFieldsField4}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2001)
+                   (HsProtobuf.PackedVec outOfOrderFieldsField1)),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 101)
+                   outOfOrderFieldsField2),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 30)
+                   outOfOrderFieldsField3),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1002)
+                   (HsProtobuf.UnpackedVec outOfOrderFieldsField4))])
+        decodeMessage _
+          = (Hs.pure OutOfOrderFields) <*>
+              ((Hs.pure HsProtobuf.packedvec) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 2001)))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 101))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 30))
+              <*>
+              ((Hs.pure HsProtobuf.unpackedvec) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 1002)))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2001)
+                (HsProtobuf.Repeated HsProtobuf.UInt32)
+                (HsProtobuf.Single "field1")
+                [(HsProtobuf.DotProtoOption (HsProtobuf.Single "packed")
+                    (HsProtobuf.BoolLit Hs.True))]
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 101)
+                (HsProtobuf.Prim HsProtobuf.String)
+                (HsProtobuf.Single "field2")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 30)
+                (HsProtobuf.Prim HsProtobuf.Int64)
+                (HsProtobuf.Single "field3")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1002)
+                (HsProtobuf.Repeated HsProtobuf.String)
+                (HsProtobuf.Single "field4")
+                []
+                Hs.Nothing)]
+ 
+data UsingImported = UsingImported{usingImportedImportedNesting ::
+                                   Hs.Maybe JSONPBTestTypesImport.WithNesting,
+                                   usingImportedLocalNesting ::
+                                   Hs.Maybe JSONPBTestTypes.WithNesting}
+                   deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named UsingImported where
+        nameOf _ = (Hs.fromString "UsingImported")
+ 
+instance HsProtobuf.Message UsingImported where
+        encodeMessage _
+          UsingImported{usingImportedImportedNesting =
+                          usingImportedImportedNesting,
+                        usingImportedLocalNesting = usingImportedLocalNesting}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 100)
+                   (HsProtobuf.Nested usingImportedImportedNesting)),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 200)
+                   (HsProtobuf.Nested usingImportedLocalNesting))])
+        decodeMessage _
+          = (Hs.pure UsingImported) <*>
+              ((Hs.pure HsProtobuf.nested) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 100)))
+              <*>
+              ((Hs.pure HsProtobuf.nested) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 200)))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 100)
+                (HsProtobuf.Prim
+                   (HsProtobuf.Named
+                      (HsProtobuf.Dots
+                         (HsProtobuf.Path ["JSONPBTestTypesImport", "WithNesting"]))))
+                (HsProtobuf.Single "importedNesting")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 200)
+                (HsProtobuf.Prim
+                   (HsProtobuf.Named (HsProtobuf.Single "WithNesting")))
+                (HsProtobuf.Single "localNesting")
+                []
+                Hs.Nothing)]
+ 
+data Wrapped = Wrapped{wrappedWrapped ::
+                       Hs.Maybe JSONPBTestTypes.Wrapped}
+             deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named Wrapped where
+        nameOf _ = (Hs.fromString "Wrapped")
+ 
+instance HsProtobuf.Message Wrapped where
+        encodeMessage _ Wrapped{wrappedWrapped = wrappedWrapped}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   (HsProtobuf.Nested wrappedWrapped))])
+        decodeMessage _
+          = (Hs.pure Wrapped) <*>
+              ((Hs.pure HsProtobuf.nested) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 1)))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim (HsProtobuf.Named (HsProtobuf.Single "Wrapped")))
+                (HsProtobuf.Single "wrapped")
                 []
                 Hs.Nothing)]

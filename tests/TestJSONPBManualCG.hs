@@ -25,6 +25,8 @@ import           Text.Show.Pretty
 
 import           ArbitraryGeneratedTestTypes () -- for Arbitary Vector
 
+import qualified JSONPBTestTypesImport
+
 -- tmp/repl
 import qualified Data.Aeson.Encoding          as E
 import           Proto3.Suite.Types           (Enumerated (..))
@@ -309,7 +311,6 @@ instance FromJSONPB WithNesting where
     pure WithNesting
     <*> obj .: "nestedMessage"
 
--- WithNesting_Nested
 instance ToJSONPB WithNesting_Nested where
   toEncodingPB opts (WithNesting_Nested f0 f1 f2 f3) = fieldsPB opts
     [ "nestedField1"   .= f0
@@ -340,7 +341,6 @@ instance FromJSONPB WithNestingRepeated where
     pure WithNestingRepeated
     <*> obj .: "nestedMessages"
 
--- WithNestingRepeated_Nested
 instance ToJSONPB WithNestingRepeated_Nested where
   toEncodingPB opts (WithNestingRepeated_Nested f0 f1 f2 f3) = fieldsPB opts
     [ "nestedField1"   .= f0
@@ -357,20 +357,6 @@ instance FromJSONPB WithNestingRepeated_Nested where
     <*> obj .: "nestedPacked"
     <*> obj .: "nestedUnpacked"
 
--- | NestedInts
-
-instance ToJSONPB NestedInts where
-  toEncodingPB opts (NestedInts f0 f1) = fieldsPB opts
-    [ "nestedInt1" .= f0
-    , "nestedInt2" .= f1
-    ]
-
-instance FromJSONPB NestedInts where
-  parseJSONPB = withObject "NestedInts" $ \obj ->
-    pure NestedInts
-    <*> obj .: "nestedInt1"
-    <*> obj .: "nestedInt2"
-
 -- | WithNestingRepeatedInts
 -- prop> roundTrip omitDefaults (WithNestingRepeatedInts [NestedInts xs0 ys0, NestedInts xs1 ys1])
 -- prop> roundTrip emitDefaults (WithNestingRepeatedInts [])
@@ -384,6 +370,18 @@ instance FromJSONPB WithNestingRepeatedInts where
   parseJSONPB = withObject "WithNestingRepeatedInts" $ \obj ->
     pure WithNestingRepeatedInts
     <*> obj .: "nestedInts"
+
+instance ToJSONPB NestedInts where
+  toEncodingPB opts (NestedInts f0 f1) = fieldsPB opts
+    [ "nestedInt1" .= f0
+    , "nestedInt2" .= f1
+    ]
+
+instance FromJSONPB NestedInts where
+  parseJSONPB = withObject "NestedInts" $ \obj ->
+    pure NestedInts
+    <*> obj .: "nestedInt1"
+    <*> obj .: "nestedInt2"
 
 -- | WithBytes
 -- prop> roundTrip omitDefaults (WithBytes bs0 (V.replicate n0 bs1 <> V.replicate n1 bs2))
@@ -400,6 +398,80 @@ instance FromJSONPB WithBytes where
     <*> obj .: "bytes1"
     <*> obj .: "bytes2"
 
+-- | OutOfOrderFields
+-- prop> roundTrip omitDefaults (OutOfOrderFields xs (TL.pack s) n (TL.pack <$> ss))
+-- prop> roundTrip emitDefaults (OutOfOrderFields xs (TL.pack s) n (TL.pack <$> ss))
+
+instance ToJSONPB OutOfOrderFields where
+  toEncodingPB opts (OutOfOrderFields f0 f1 f2 f3) = fieldsPB opts
+    [ "field1" .= f0
+    , "field2" .= f1
+    , "field3" .= f2
+    , "field4" .= f3
+    ]
+
+instance FromJSONPB OutOfOrderFields where
+  parseJSONPB = withObject "OutOfOrderFields" $ \obj ->
+    pure OutOfOrderFields
+    <*> obj .: "field1"
+    <*> obj .: "field2"
+    <*> obj .: "field3"
+    <*> obj .: "field4"
+
+-- | UsingImport
+-- prop> roundTrip omitDefaults $ UsingImported (Just (JSONPBTestTypesImport.WithNesting (Just (JSONPBTestTypesImport.WithNesting_Nested x0 y0)) (Just (JSONPBTestTypesImport.WithNesting_Nested x1 y1)))) (Just (WithNesting (Just (WithNesting_Nested (TL.pack "") n xs ys))))
+-- prop> roundTrip emitDefaults $ UsingImported (Just (JSONPBTestTypesImport.WithNesting (Just (JSONPBTestTypesImport.WithNesting_Nested x0 y0)) (Just (JSONPBTestTypesImport.WithNesting_Nested x1 y1)))) (Just (WithNesting (Just (WithNesting_Nested (TL.pack "") n xs ys))))
+
+instance ToJSONPB UsingImported where
+  toEncodingPB opts (UsingImported f0 f1) = fieldsPB opts
+   [ "importedNesting" .= f0
+   , "localNesting"    .= f1
+   ]
+
+instance FromJSONPB UsingImported where
+  parseJSONPB = withObject "UsingImported" $ \obj ->
+    pure UsingImported
+    <*> obj .: "importedNesting"
+    <*> obj .: "localNesting"
+
+instance ToJSONPB JSONPBTestTypesImport.WithNesting where
+  toEncodingPB opts (JSONPBTestTypesImport.WithNesting f0 f1) = fieldsPB opts
+    [ "nestedMessage1" .= f0
+    , "nestedMessage2" .= f1
+    ]
+
+instance FromJSONPB JSONPBTestTypesImport.WithNesting where
+  parseJSONPB = withObject "JSONPBTestTypesImport.WithNesting" $ \obj ->
+    pure JSONPBTestTypesImport.WithNesting
+    <*> obj .: "nestedMessage1"
+    <*> obj .: "nestedMessage2"
+
+instance ToJSONPB JSONPBTestTypesImport.WithNesting_Nested where
+  toEncodingPB opts (JSONPBTestTypesImport.WithNesting_Nested f0 f1) = fieldsPB opts
+    [ "nestedField1" .= f0
+    , "nestedField2" .= f1
+    ]
+
+instance FromJSONPB JSONPBTestTypesImport.WithNesting_Nested where
+  parseJSONPB = withObject "JSONPBTestTypesImport.WithNesting_Nested" $ \obj ->
+    pure JSONPBTestTypesImport.WithNesting_Nested
+    <*> obj .: "nestedField1"
+    <*> obj .: "nestedField2"
+
+
+-- | Wrapped
+-- prop> roundTrip omitDefaults (Wrapped (Just (Wrapped (Just (Wrapped Nothing)))))
+-- prop> roundTrip emitDefaults (Wrapped (Just (Wrapped (Just (Wrapped (Just (Wrapped Nothing)))))))
+
+instance ToJSONPB Wrapped where
+  toEncodingPB opts (Wrapped f0) = fieldsPB opts
+   [ "wrapped" .= f0
+   ]
+
+instance FromJSONPB Wrapped where
+  parseJSONPB = withObject "Wrapped" $ \obj ->
+    pure Wrapped
+    <*> obj .: "wrapped"
 
 -- End hand-generated instances for JSON PB renderings
 --------------------------------------------------------------------------------
