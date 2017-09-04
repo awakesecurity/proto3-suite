@@ -6,22 +6,21 @@
 
 -- | Common instances for jsonpb codec implementations
 
-module Proto3.Suite.DotProto.JSONPB.Instances where
+module Proto3.Suite.JSONPB.Instances where
 
-import qualified Data.Aeson                         as A (ToJSON (..),
-                                                          Value (..))
-import qualified Data.Aeson.Encoding                as E
-import qualified Data.Aeson.Types                   as A (typeMismatch)
-import qualified Data.ByteString                    as BS
-import qualified Data.ByteString.Base64             as B64
-import qualified Data.Text.Encoding                 as T
-import qualified Data.Text.Lazy                     as TL
-import qualified Data.Vector                        as V
-import           GHC.Int                            (Int32, Int64)
-import           GHC.Word                           (Word32, Word64)
-import           Proto3.Suite.Class                 (HasDefault(..), Named(..))
-import           Proto3.Suite.DotProto.JSONPB.Class
-import           Proto3.Suite.Types                 (Enumerated(..), Fixed (..))
+import qualified Data.Aeson                as A (ToJSON (..), Value (..))
+import qualified Data.Aeson.Encoding       as E
+import qualified Data.Aeson.Types          as A (typeMismatch)
+import qualified Data.ByteString           as BS
+import qualified Data.ByteString.Base64    as B64
+import qualified Data.Text.Encoding        as T
+import qualified Data.Text.Lazy            as TL
+import qualified Data.Vector               as V
+import           GHC.Int                   (Int32, Int64)
+import           GHC.Word                  (Word32, Word64)
+import           Proto3.Suite.Class        (HasDefault (..), Named (..))
+import           Proto3.Suite.JSONPB.Class
+import           Proto3.Suite.Types        (Enumerated (..), Fixed (..))
 
 -- * Instances for scalar types
 

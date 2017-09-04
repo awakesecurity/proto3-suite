@@ -1,4 +1,4 @@
-module Proto3.Suite.DotProto.JSONPB
+module Proto3.Suite.JSONPB
   ( -- * Typeclasses
     FromJSONPB(..)
   , ToJSONPB(..)
@@ -20,6 +20,6 @@ module Proto3.Suite.DotProto.JSONPB
   )
 where
 
-import qualified Data.Aeson                             as A
-import           Proto3.Suite.DotProto.JSONPB.Class
-import           Proto3.Suite.DotProto.JSONPB.Instances ()
+import qualified Data.Aeson                    as A
+import           Proto3.Suite.JSONPB.Class
+import           Proto3.Suite.JSONPB.Instances ()

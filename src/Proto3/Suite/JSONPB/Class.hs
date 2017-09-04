@@ -44,7 +44,7 @@
 --     <*> obj .: "sf32"
 -- @
 
-module Proto3.Suite.DotProto.JSONPB.Class where
+module Proto3.Suite.JSONPB.Class where
 
 import qualified Data.Aeson                       as A (Encoding, FromJSON (..),
                                                         FromJSONKey (..),
@@ -55,8 +55,7 @@ import qualified Data.Aeson                       as A (Encoding, FromJSON (..),
 import qualified Data.Aeson.Encoding              as E
 import qualified Data.Aeson.Internal              as A (formatError, iparse)
 import qualified Data.Aeson.Parser                as A (eitherDecodeWith)
-import qualified Data.Aeson.Types                 as A (Object,
-                                                        Parser, Series,
+import qualified Data.Aeson.Types                 as A (Object, Parser, Series,
                                                         explicitParseFieldMaybe,
                                                         typeMismatch)
 import qualified Data.Attoparsec.ByteString       as Atto (skipWhile)

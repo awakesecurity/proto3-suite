@@ -14,16 +14,16 @@ library
   exposed-modules:     Proto3.Suite
                        Proto3.Suite.Class
                        Proto3.Suite.DotProto
-                       Proto3.Suite.DotProto.JSONPB
                        Proto3.Suite.DotProto.Generate
                        Proto3.Suite.DotProto.AST
                        Proto3.Suite.DotProto.Parsing
                        Proto3.Suite.DotProto.Rendering
+                       Proto3.Suite.JSONPB
                        Proto3.Suite.Tutorial
                        Proto3.Suite.Types
   other-modules:       Proto3.Suite.DotProto.Internal
-                       Proto3.Suite.DotProto.JSONPB.Class
-                       Proto3.Suite.DotProto.JSONPB.Instances
+                       Proto3.Suite.JSONPB.Class
+                       Proto3.Suite.JSONPB.Instances
   build-depends:       aeson >= 1.1.1.0 && < 1.2,
                        attoparsec >= 0.13.0.1,
                        base >=4.8 && <5.0,

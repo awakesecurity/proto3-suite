@@ -11,25 +11,25 @@
 
 module TestJSONPBManualCG where
 
-import qualified Data.Aeson                   as A (Value (..))
-import qualified Data.Aeson.Types             as A (typeMismatch)
-import qualified Data.ByteString.Lazy         as LBS
+import qualified Data.Aeson                  as A (Value (..))
+import qualified Data.Aeson.Types            as A (typeMismatch)
+import qualified Data.ByteString.Lazy        as LBS
 import           Data.Proxy
 import           JSONPBTestTypes
-import           Proto3.Suite.Class           (HasDefault (..))
-import           Proto3.Suite.DotProto.JSONPB (FromJSONPB (..), Options (..),
-                                               ToJSONPB (..), eitherDecode,
-                                               encode, fieldsPB, namedEncoding,
-                                               withObject, (.:), (.=))
+import           Proto3.Suite.Class          (HasDefault (..))
+import           Proto3.Suite.JSONPB         (FromJSONPB (..), Options (..),
+                                              ToJSONPB (..), eitherDecode,
+                                              encode, fieldsPB, namedEncoding,
+                                              withObject, (.:), (.=))
 import           Text.Show.Pretty
 
-import           ArbitraryGeneratedTestTypes () -- for Arbitary Vector
+import           ArbitraryGeneratedTestTypes ()
 
 import qualified JSONPBTestTypesImport
 
 -- tmp/repl
-import qualified Data.Aeson.Encoding          as E
-import           Proto3.Suite.Types           (Enumerated (..))
+import qualified Data.Aeson.Encoding         as E
+import           Proto3.Suite.Types          (Enumerated (..))
 import           Test.DocTest
 
 --------------------------------------------------------------------------------
@@ -498,7 +498,7 @@ __unused_nowarn = undefined (ppShow :: String -> String)
 -- >>> import Data.Monoid ((<>))
 -- >>> import qualified Data.Text.Lazy as TL
 -- >>> import qualified Data.Vector    as V
--- >>> import Proto3.Suite.DotProto.JSONPB (defaultOptions)
+-- >>> import Proto3.Suite.JSONPB (defaultOptions)
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XOverloadedLists
 -- >>> let omitDefaults = defaultOptions
