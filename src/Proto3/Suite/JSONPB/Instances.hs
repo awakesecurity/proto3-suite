@@ -132,6 +132,8 @@ instance (Named a, Show a, ToJSONPB a) => ToJSONPB (Enumerated a) where
       {- TODO: Raise a compilation error when the first enum value in an
                enumeration is not zero.
 
+               See https://github.com/awakesecurity/proto3-suite/issues/28
+
          The proto3 spec states that the default value is the first defined enum
          value, which must be 0. Since we currently don't raise a compilation
          error for this like we should, we have to handle this case.
