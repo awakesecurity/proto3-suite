@@ -11,26 +11,21 @@
 
 module TestJSONPBManualCG where
 
+import           ArbitraryGeneratedTestTypes ()
 import qualified Data.Aeson                  as A (Value (..))
+import qualified Data.Aeson.Encoding         as E
 import qualified Data.Aeson.Types            as A (typeMismatch)
 import qualified Data.ByteString.Lazy        as LBS
-import           Data.Proxy
 import           JSONPBTestTypes
+import qualified JSONPBTestTypesImport
 import           Proto3.Suite.Class          (HasDefault (..))
 import           Proto3.Suite.JSONPB         (FromJSONPB (..), Options (..),
                                               ToJSONPB (..), eitherDecode,
                                               encode, fieldsPB, namedEncoding,
                                               withObject, (.:), (.=))
-import           Text.Show.Pretty
-
-import           ArbitraryGeneratedTestTypes ()
-
-import qualified JSONPBTestTypesImport
-
--- tmp/repl
-import qualified Data.Aeson.Encoding         as E
 import           Proto3.Suite.Types          (Enumerated (..))
 import           Test.DocTest
+import           Text.Show.Pretty
 
 --------------------------------------------------------------------------------
 -- Begin hand-generated instances for JSON PB renderings; these instances will
@@ -52,23 +47,25 @@ import           Test.DocTest
 -- prop> decodesAs "{\"i32\":32,\"u32\":33,\"s32\":-34,\"f32\":35,\"sf32\":36}" (Scalar32 32 33 (-34) 35 36)
 --
 
-instance ToJSONPB Scalar32 where
-  toEncodingPB opts (Scalar32 i32 u32 s32 f32 sf32) = fieldsPB opts
-      [ "i32"  .= i32
-      , "u32"  .= u32
-      , "s32"  .= s32
-      , "f32"  .= f32
-      , "sf32" .= sf32
-      ]
+-- NB: Now generated, can remove:
 
-instance FromJSONPB Scalar32 where
-  parseJSONPB = withObject "Scalar32" $ \obj ->
-    pure Scalar32
-    <*> obj .: "i32"
-    <*> obj .: "u32"
-    <*> obj .: "s32"
-    <*> obj .: "f32"
-    <*> obj .: "sf32"
+-- instance ToJSONPB Scalar32 where
+--   toEncodingPB opts (Scalar32 i32 u32 s32 f32 sf32) = fieldsPB opts
+--       [ "i32"  .= i32
+--       , "u32"  .= u32
+--       , "s32"  .= s32
+--       , "f32"  .= f32
+--       , "sf32" .= sf32
+--       ]
+
+-- instance FromJSONPB Scalar32 where
+--   parseJSONPB = withObject "Scalar32" $ \obj ->
+--     pure Scalar32
+--     <*> obj .: "i32"
+--     <*> obj .: "u32"
+--     <*> obj .: "s32"
+--     <*> obj .: "f32"
+--     <*> obj .: "sf32"
 
 -- | Scalar64
 -- prop> roundTrip omitDefaults (Scalar64 64 65 (-66) 67 68)
@@ -79,22 +76,24 @@ instance FromJSONPB Scalar32 where
 -- prop> decodesAs "{\"u64\":\"65\",\"s64\":\"66\",\"f64\":\"67\",\"sf64\":\"68\"}" (Scalar64 0 65 66 67 68)
 --
 
-instance ToJSONPB Scalar64 where
-  toEncodingPB opts (Scalar64 i64 u64 s64 f64 sf64) = fieldsPB opts
-    [ "i64"  .= i64
-    , "u64"  .= u64
-    , "s64"  .= s64
-    , "f64"  .= f64
-    , "sf64" .= sf64
-    ]
-instance FromJSONPB Scalar64 where
-  parseJSONPB = withObject "Scalar64" $ \obj ->
-    pure Scalar64
-    <*> obj .: "i64"
-    <*> obj .: "u64"
-    <*> obj .: "s64"
-    <*> obj .: "f64"
-    <*> obj .: "sf64"
+-- NB: Now generated, can remove:
+
+-- instance ToJSONPB Scalar64 where
+--   toEncodingPB opts (Scalar64 i64 u64 s64 f64 sf64) = fieldsPB opts
+--     [ "i64"  .= i64
+--     , "u64"  .= u64
+--     , "s64"  .= s64
+--     , "f64"  .= f64
+--     , "sf64" .= sf64
+--     ]
+-- instance FromJSONPB Scalar64 where
+--   parseJSONPB = withObject "Scalar64" $ \obj ->
+--     pure Scalar64
+--     <*> obj .: "i64"
+--     <*> obj .: "u64"
+--     <*> obj .: "s64"
+--     <*> obj .: "f64"
+--     <*> obj .: "sf64"
 
 -- | ScalarFP
 -- prop> roundTrip omitDefaults (ScalarFP x y)
@@ -111,16 +110,18 @@ instance FromJSONPB Scalar64 where
 -- Right (ScalarFP {scalarFPF = NaN, scalarFPD = NaN})
 --
 
-instance ToJSONPB ScalarFP where
-  toEncodingPB opts (ScalarFP f d) = fieldsPB opts
-    [ "f" .= f
-    , "d" .= d
-    ]
-instance FromJSONPB ScalarFP where
-  parseJSONPB = withObject "ScalarFP" $ \obj ->
-    pure ScalarFP
-    <*> obj .: "f"
-    <*> obj .: "d"
+-- NB: Now generated, can remove:
+
+-- instance ToJSONPB ScalarFP where
+--   toEncodingPB opts (ScalarFP f d) = fieldsPB opts
+--     [ "f" .= f
+--     , "d" .= d
+--     ]
+-- instance FromJSONPB ScalarFP where
+--   parseJSONPB = withObject "ScalarFP" $ \obj ->
+--     pure ScalarFP
+--     <*> obj .: "f"
+--     <*> obj .: "d"
 
 -- | Stringly
 -- prop> roundTrip omitDefaults (Stringly "foo" "abc123!?$*&()'-=@~")
@@ -130,16 +131,18 @@ instance FromJSONPB ScalarFP where
 -- prop> decodesAs "{\"str\":\"foo\",\"bs\":\"YWJjMTIzIT8kKiYoKSctPUB+\"}" (Stringly "foo" "abc123!?$*&()'-=@~")
 --
 
-instance ToJSONPB Stringly where
-  toEncodingPB opts (Stringly str bs) = fieldsPB opts
-    [ "str" .= str
-    , "bs"  .= bs
-    ]
-instance FromJSONPB Stringly where
-  parseJSONPB = withObject "Stringly" $ \obj ->
-    pure Stringly
-    <*> obj .: "str"
-    <*> obj .: "bs"
+-- NB: Now generated, can remove:
+
+-- instance ToJSONPB Stringly where
+--   toEncodingPB opts (Stringly str bs) = fieldsPB opts
+--     [ "str" .= str
+--     , "bs"  .= bs
+--     ]
+-- instance FromJSONPB Stringly where
+--   parseJSONPB = withObject "Stringly" $ \obj ->
+--     pure Stringly
+--     <*> obj .: "str"
+--     <*> obj .: "bs"
 
 -- | Repeat
 -- prop> roundTrip omitDefaults (Repeat xs ys)
@@ -153,16 +156,18 @@ instance FromJSONPB Stringly where
 -- prop> decodesAs "{}"                                      (Repeat [] [])
 --
 
-instance ToJSONPB Repeat where
-  toEncodingPB opts (Repeat i32s i64s) = fieldsPB opts
-    [ "i32s" .= i32s
-    , "i64s" .= i64s
-    ]
-instance FromJSONPB Repeat where
-  parseJSONPB = withObject "Repeat" $ \obj ->
-    pure Repeat
-    <*> obj .: "i32s"
-    <*> obj .: "i64s"
+-- NB: Now generated, can remove:
+
+-- instance ToJSONPB Repeat where
+--   toEncodingPB opts (Repeat i32s i64s) = fieldsPB opts
+--     [ "i32s" .= i32s
+--     , "i64s" .= i64s
+--     ]
+-- instance FromJSONPB Repeat where
+--   parseJSONPB = withObject "Repeat" $ \obj ->
+--     pure Repeat
+--     <*> obj .: "i32s"
+--     <*> obj .: "i64s"
 
 -- | Nested
 -- prop> roundTrip omitDefaults (Nested Nothing)
@@ -175,25 +180,29 @@ instance FromJSONPB Repeat where
 -- prop> decodesAs "{\"nestedInner\":{\"i64\":\"42\"}}" (Nested (Just (Nested_Inner 42)))
 --
 
-instance ToJSONPB Nested where
-  toEncodingPB opts (Nested minner) = fieldsPB opts
-    [ "nestedInner" .= minner
-    ]
-instance FromJSONPB Nested where
-  parseJSONPB = withObject "Nested" $ \obj ->
-    pure Nested
-    <*> obj .: "nestedInner"
+-- NB: Now generated, can remove:
+
+-- instance ToJSONPB Nested where
+--   toEncodingPB opts (Nested minner) = fieldsPB opts
+--     [ "nestedInner" .= minner
+--     ]
+-- instance FromJSONPB Nested where
+--   parseJSONPB = withObject "Nested" $ \obj ->
+--     pure Nested
+--     <*> obj .: "nestedInner"
 
 -- Nested_Inner
 
-instance ToJSONPB Nested_Inner where
-  toEncodingPB opts (Nested_Inner i64) = fieldsPB opts
-    [ "i64" .= i64
-    ]
-instance FromJSONPB Nested_Inner where
-  parseJSONPB = withObject "Nested_Inner" $ \obj ->
-    pure Nested_Inner
-    <*> obj .: "i64"
+-- NB: Now generated, can remove:
+
+-- instance ToJSONPB Nested_Inner where
+--   toEncodingPB opts (Nested_Inner i64) = fieldsPB opts
+--     [ "i64" .= i64
+--     ]
+-- instance FromJSONPB Nested_Inner where
+--   parseJSONPB = withObject "Nested_Inner" $ \obj ->
+--     pure Nested_Inner
+--     <*> obj .: "i64"
 
 --------------------------------------------------------------------------------
 -- Incremental support for all of the types from test_proto.proto:
@@ -205,40 +214,44 @@ instance FromJSONPB Nested_Inner where
 -- | Trivial
 -- prop> roundTrip omitDefaults (Trivial x)
 
-instance ToJSONPB Trivial where
-  toEncodingPB opts (Trivial f0) = fieldsPB opts
-    [ "trivialField" .= f0
-    ]
+-- NB: Now generated, can remove:
 
-instance FromJSONPB Trivial where
-  parseJSONPB = withObject "Trivial" $ \obj ->
-    pure Trivial
-    <*> obj .: "trivialField"
+-- instance ToJSONPB Trivial where
+--   toEncodingPB opts (Trivial f0) = fieldsPB opts
+--     [ "trivialField" .= f0
+--     ]
+
+-- instance FromJSONPB Trivial where
+--   parseJSONPB = withObject "Trivial" $ \obj ->
+--     pure Trivial
+--     <*> obj .: "trivialField"
 
 -- | MultipleFields
 -- prop> roundTrip omitDefaults (MultipleFields d f i32 i64 (TL.pack s) b)
 -- prop> encodesAs omitDefaults (MultipleFields 0 0 0 0 "" False) "{}"
 -- prop> encodesAs emitDefaults (MultipleFields 0 2.0 0 0 "" True) "{\"multiFieldDouble\":0.0,\"multiFieldFloat\":2.0,\"multiFieldInt32\":0,\"multiFieldInt64\":\"0\",\"multiFieldString\":\"\",\"multiFieldBool\":true}"
 
-instance ToJSONPB MultipleFields where
-  toEncodingPB opts(MultipleFields f0 f1 f2 f3 f4 f5) = fieldsPB opts
-    [ "multiFieldDouble" .= f0
-    , "multiFieldFloat"  .= f1
-    , "multiFieldInt32"  .= f2
-    , "multiFieldInt64"  .= f3
-    , "multiFieldString" .= f4
-    , "multiFieldBool"   .= f5
-    ]
+-- NB: Now generated, can remove:
 
-instance FromJSONPB MultipleFields where
-  parseJSONPB = withObject "MultipleFields" $ \obj ->
-    pure MultipleFields
-    <*> obj .: "multiFieldDouble"
-    <*> obj .: "multiFieldFloat"
-    <*> obj .: "multiFieldInt32"
-    <*> obj .: "multiFieldInt64"
-    <*> obj .: "multiFieldString"
-    <*> obj .: "multiFieldBool"
+-- instance ToJSONPB MultipleFields where
+--   toEncodingPB opts(MultipleFields f0 f1 f2 f3 f4 f5) = fieldsPB opts
+--     [ "multiFieldDouble" .= f0
+--     , "multiFieldFloat"  .= f1
+--     , "multiFieldInt32"  .= f2
+--     , "multiFieldInt64"  .= f3
+--     , "multiFieldString" .= f4
+--     , "multiFieldBool"   .= f5
+--     ]
+
+-- instance FromJSONPB MultipleFields where
+--   parseJSONPB = withObject "MultipleFields" $ \obj ->
+--     pure MultipleFields
+--     <*> obj .: "multiFieldDouble"
+--     <*> obj .: "multiFieldFloat"
+--     <*> obj .: "multiFieldInt32"
+--     <*> obj .: "multiFieldInt64"
+--     <*> obj .: "multiFieldString"
+--     <*> obj .: "multiFieldBool"
 
 -- | SignedInts
 -- prop> roundTrip omitDefaults (SignedInts x y)
@@ -251,17 +264,19 @@ instance FromJSONPB MultipleFields where
 -- prop> decodesAs "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}" (SignedInts 2147483647 9223372036854775807)
 --
 
-instance ToJSONPB SignedInts where
-  toEncodingPB opts (SignedInts f0 f1) = fieldsPB opts
-    [ "signed32" .= f0
-    , "signed64" .= f1
-    ]
+-- NB: Now generated, can remove:
 
-instance FromJSONPB SignedInts where
-  parseJSONPB = withObject "SignedInts" $ \obj ->
-    pure SignedInts
-    <*> obj .: "signed32"
-    <*> obj .: "signed64"
+-- instance ToJSONPB SignedInts where
+--   toEncodingPB opts (SignedInts f0 f1) = fieldsPB opts
+--     [ "signed32" .= f0
+--     , "signed64" .= f1
+--     ]
+
+-- instance FromJSONPB SignedInts where
+--   parseJSONPB = withObject "SignedInts" $ \obj ->
+--     pure SignedInts
+--     <*> obj .: "signed32"
+--     <*> obj .: "signed64"
 
 -- | WithEnum
 -- prop> roundTrip omitDefaults (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))
@@ -275,25 +290,29 @@ instance FromJSONPB SignedInts where
 -- prop> decodesAs "{\"enumField\":null}"      (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))
 -- prop> decodesAs "{}"                        (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))
 
-instance ToJSONPB WithEnum where
-  toEncodingPB opts (WithEnum f0) = fieldsPB opts
-    [ "enumField" .= f0
-    ]
+-- NB: Now generated, can remove:
 
-instance FromJSONPB WithEnum where
-  parseJSONPB = withObject "WithEnum" $ \obj ->
-    pure WithEnum
-    <*> obj .: "enumField"
+-- instance ToJSONPB WithEnum where
+--   toEncodingPB opts (WithEnum f0) = fieldsPB opts
+--     [ "enumField" .= f0
+--     ]
+
+-- instance FromJSONPB WithEnum where
+--   parseJSONPB = withObject "WithEnum" $ \obj ->
+--     pure WithEnum
+--     <*> obj .: "enumField"
 
 -- WithEnum_TestEnum
-instance ToJSONPB WithEnum_TestEnum where
-  toEncodingPB _ = namedEncoding
+-- NB: Now generated, can remove:
 
-instance FromJSONPB WithEnum_TestEnum where
-  parseJSONPB (A.String "ENUM1") = pure WithEnum_TestEnumENUM1
-  parseJSONPB (A.String "ENUM2") = pure WithEnum_TestEnumENUM2
-  parseJSONPB (A.String "ENUM3") = pure WithEnum_TestEnumENUM3
-  parseJSONPB v                  = A.typeMismatch "WithEnum_TestEnum" v
+-- instance ToJSONPB WithEnum_TestEnum where
+--   toEncodingPB _ = namedEncoding
+
+-- instance FromJSONPB WithEnum_TestEnum where
+--   parseJSONPB (A.String "ENUM1") = pure WithEnum_TestEnumENUM1
+--   parseJSONPB (A.String "ENUM2") = pure WithEnum_TestEnumENUM2
+--   parseJSONPB (A.String "ENUM3") = pure WithEnum_TestEnumENUM3
+--   parseJSONPB v                  = A.typeMismatch "WithEnum_TestEnum" v
 
 -- | WithNesting
 -- prop> roundTrip emitDefaults (WithNesting $ Just $ WithNesting_Nested (TL.pack s) n packed unpacked)
@@ -301,177 +320,195 @@ instance FromJSONPB WithEnum_TestEnum where
 -- prop> encodesAs omitDefaults (WithNesting $ Just $ WithNesting_Nested "" 0 [1,2] [66,99]) "{\"nestedMessage\":{\"nestedPacked\":[1,2],\"nestedUnpacked\":[66,99]}}"
 --
 -- prop> decodesAs "{\"nestedMessage\":{}}" (WithNesting $ Just $ WithNesting_Nested "" 0 [] [])
-instance ToJSONPB WithNesting where
-  toEncodingPB opts (WithNesting f0) = fieldsPB opts
-    [ "nestedMessage" .= f0
-    ]
 
-instance FromJSONPB WithNesting where
-  parseJSONPB = withObject "WithNesting" $ \obj ->
-    pure WithNesting
-    <*> obj .: "nestedMessage"
+-- NB: Now generated, can remove:
 
-instance ToJSONPB WithNesting_Nested where
-  toEncodingPB opts (WithNesting_Nested f0 f1 f2 f3) = fieldsPB opts
-    [ "nestedField1"   .= f0
-    , "nestedField2"   .= f1
-    , "nestedPacked"   .= f2
-    , "nestedUnpacked" .= f3
-    ]
+-- instance ToJSONPB WithNesting where
+--   toEncodingPB opts (WithNesting f0) = fieldsPB opts
+--     [ "nestedMessage" .= f0
+--     ]
 
-instance FromJSONPB WithNesting_Nested where
-  parseJSONPB = withObject "WithNesting_Nested" $ \obj ->
-    pure WithNesting_Nested
-    <*> obj .: "nestedField1"
-    <*> obj .: "nestedField2"
-    <*> obj .: "nestedPacked"
-    <*> obj .: "nestedUnpacked"
+-- instance FromJSONPB WithNesting where
+--   parseJSONPB = withObject "WithNesting" $ \obj ->
+--     pure WithNesting
+--     <*> obj .: "nestedMessage"
+
+-- NB: Now generated, can remove:
+
+-- instance ToJSONPB WithNesting_Nested where
+--   toEncodingPB opts (WithNesting_Nested f0 f1 f2 f3) = fieldsPB opts
+--     [ "nestedField1"   .= f0
+--     , "nestedField2"   .= f1
+--     , "nestedPacked"   .= f2
+--     , "nestedUnpacked" .= f3
+--     ]
+
+-- instance FromJSONPB WithNesting_Nested where
+--   parseJSONPB = withObject "WithNesting_Nested" $ \obj ->
+--     pure WithNesting_Nested
+--     <*> obj .: "nestedField1"
+--     <*> obj .: "nestedField2"
+--     <*> obj .: "nestedPacked"
+--     <*> obj .: "nestedUnpacked"
 
 -- | WithNestingRepeated
 -- prop> roundTrip omitDefaults (WithNestingRepeated [WithNestingRepeated_Nested (TL.pack s0) n0 packed0 unpacked0, WithNestingRepeated_Nested (TL.pack s1) n packed1 unpacked1])
 -- prop> roundTrip emitDefaults (WithNestingRepeated [WithNestingRepeated_Nested (TL.pack s0) n0 packed0 unpacked0, WithNestingRepeated_Nested (TL.pack s1) n packed1 unpacked1])
 
-instance ToJSONPB WithNestingRepeated where
-  toEncodingPB opts (WithNestingRepeated f0) = fieldsPB opts
-    [ "nestedMessages" .= f0
-    ]
+-- NB: Now generated, can remove:
 
-instance FromJSONPB WithNestingRepeated where
-  parseJSONPB = withObject "WithNestingRepeated" $ \obj ->
-    pure WithNestingRepeated
-    <*> obj .: "nestedMessages"
+-- instance ToJSONPB WithNestingRepeated where
+--   toEncodingPB opts (WithNestingRepeated f0) = fieldsPB opts
+--     [ "nestedMessages" .= f0
+--     ]
 
-instance ToJSONPB WithNestingRepeated_Nested where
-  toEncodingPB opts (WithNestingRepeated_Nested f0 f1 f2 f3) = fieldsPB opts
-    [ "nestedField1"   .= f0
-    , "nestedField2"   .= f1
-    , "nestedPacked"   .= f2
-    , "nestedUnpacked" .= f3
-    ]
+-- instance FromJSONPB WithNestingRepeated where
+--   parseJSONPB = withObject "WithNestingRepeated" $ \obj ->
+--     pure WithNestingRepeated
+--     <*> obj .: "nestedMessages"
 
-instance FromJSONPB WithNestingRepeated_Nested where
-  parseJSONPB = withObject "WithNestingRepeated_Nested" $ \obj ->
-    pure WithNestingRepeated_Nested
-    <*> obj .: "nestedField1"
-    <*> obj .: "nestedField2"
-    <*> obj .: "nestedPacked"
-    <*> obj .: "nestedUnpacked"
+-- NB: Now generated, can remove:
+
+-- instance ToJSONPB WithNestingRepeated_Nested where
+--   toEncodingPB opts (WithNestingRepeated_Nested f0 f1 f2 f3) = fieldsPB opts
+--     [ "nestedField1"   .= f0
+--     , "nestedField2"   .= f1
+--     , "nestedPacked"   .= f2
+--     , "nestedUnpacked" .= f3
+--     ]
+
+-- instance FromJSONPB WithNestingRepeated_Nested where
+--   parseJSONPB = withObject "WithNestingRepeated_Nested" $ \obj ->
+--     pure WithNestingRepeated_Nested
+--     <*> obj .: "nestedField1"
+--     <*> obj .: "nestedField2"
+--     <*> obj .: "nestedPacked"
+--     <*> obj .: "nestedUnpacked"
 
 -- | WithNestingRepeatedInts
 -- prop> roundTrip omitDefaults (WithNestingRepeatedInts [NestedInts xs0 ys0, NestedInts xs1 ys1])
 -- prop> roundTrip emitDefaults (WithNestingRepeatedInts [])
 
-instance ToJSONPB WithNestingRepeatedInts where
-  toEncodingPB opts (WithNestingRepeatedInts f0) = fieldsPB opts
-    [ "nestedInts" .= f0
-    ]
+-- NB: Now generated, can remove:
 
-instance FromJSONPB WithNestingRepeatedInts where
-  parseJSONPB = withObject "WithNestingRepeatedInts" $ \obj ->
-    pure WithNestingRepeatedInts
-    <*> obj .: "nestedInts"
+-- instance ToJSONPB WithNestingRepeatedInts where
+--   toEncodingPB opts (WithNestingRepeatedInts f0) = fieldsPB opts
+--     [ "nestedInts" .= f0
+--     ]
 
-instance ToJSONPB NestedInts where
-  toEncodingPB opts (NestedInts f0 f1) = fieldsPB opts
-    [ "nestedInt1" .= f0
-    , "nestedInt2" .= f1
-    ]
+-- instance FromJSONPB WithNestingRepeatedInts where
+--   parseJSONPB = withObject "WithNestingRepeatedInts" $ \obj ->
+--     pure WithNestingRepeatedInts
+--     <*> obj .: "nestedInts"
 
-instance FromJSONPB NestedInts where
-  parseJSONPB = withObject "NestedInts" $ \obj ->
-    pure NestedInts
-    <*> obj .: "nestedInt1"
-    <*> obj .: "nestedInt2"
+-- instance ToJSONPB NestedInts where
+--   toEncodingPB opts (NestedInts f0 f1) = fieldsPB opts
+--     [ "nestedInt1" .= f0
+--     , "nestedInt2" .= f1
+--     ]
+
+-- instance FromJSONPB NestedInts where
+--   parseJSONPB = withObject "NestedInts" $ \obj ->
+--     pure NestedInts
+--     <*> obj .: "nestedInt1"
+--     <*> obj .: "nestedInt2"
 
 -- | WithBytes
 -- prop> roundTrip omitDefaults (WithBytes bs0 (V.replicate n0 bs1 <> V.replicate n1 bs2))
 
-instance ToJSONPB WithBytes where
-  toEncodingPB opts (WithBytes f0 f1) = fieldsPB opts
-    [ "bytes1" .= f0
-    , "bytes2" .= f1
-    ]
+-- NB: Now generated, can remove:
 
-instance FromJSONPB WithBytes where
-  parseJSONPB = withObject "WithBytes" $ \obj ->
-    pure WithBytes
-    <*> obj .: "bytes1"
-    <*> obj .: "bytes2"
+-- instance ToJSONPB WithBytes where
+--   toEncodingPB opts (WithBytes f0 f1) = fieldsPB opts
+--     [ "bytes1" .= f0
+--     , "bytes2" .= f1
+--     ]
+
+-- instance FromJSONPB WithBytes where
+--   parseJSONPB = withObject "WithBytes" $ \obj ->
+--     pure WithBytes
+--     <*> obj .: "bytes1"
+--     <*> obj .: "bytes2"
 
 -- | OutOfOrderFields
 -- prop> roundTrip omitDefaults (OutOfOrderFields xs (TL.pack s) n (TL.pack <$> ss))
 -- prop> roundTrip emitDefaults (OutOfOrderFields xs (TL.pack s) n (TL.pack <$> ss))
 
-instance ToJSONPB OutOfOrderFields where
-  toEncodingPB opts (OutOfOrderFields f0 f1 f2 f3) = fieldsPB opts
-    [ "field1" .= f0
-    , "field2" .= f1
-    , "field3" .= f2
-    , "field4" .= f3
-    ]
+-- NB: Now generated, can remove:
 
-instance FromJSONPB OutOfOrderFields where
-  parseJSONPB = withObject "OutOfOrderFields" $ \obj ->
-    pure OutOfOrderFields
-    <*> obj .: "field1"
-    <*> obj .: "field2"
-    <*> obj .: "field3"
-    <*> obj .: "field4"
+-- instance ToJSONPB OutOfOrderFields where
+--   toEncodingPB opts (OutOfOrderFields f0 f1 f2 f3) = fieldsPB opts
+--     [ "field1" .= f0
+--     , "field2" .= f1
+--     , "field3" .= f2
+--     , "field4" .= f3
+--     ]
 
--- | UsingImport
+-- instance FromJSONPB OutOfOrderFields where
+--   parseJSONPB = withObject "OutOfOrderFields" $ \obj ->
+--     pure OutOfOrderFields
+--     <*> obj .: "field1"
+--     <*> obj .: "field2"
+--     <*> obj .: "field3"
+--     <*> obj .: "field4"
+
+-- | UsingImported
 -- prop> roundTrip omitDefaults $ UsingImported (Just (JSONPBTestTypesImport.WithNesting (Just (JSONPBTestTypesImport.WithNesting_Nested x0 y0)) (Just (JSONPBTestTypesImport.WithNesting_Nested x1 y1)))) (Just (WithNesting (Just (WithNesting_Nested (TL.pack "") n xs ys))))
 -- prop> roundTrip emitDefaults $ UsingImported (Just (JSONPBTestTypesImport.WithNesting (Just (JSONPBTestTypesImport.WithNesting_Nested x0 y0)) (Just (JSONPBTestTypesImport.WithNesting_Nested x1 y1)))) (Just (WithNesting (Just (WithNesting_Nested (TL.pack "") n xs ys))))
 
-instance ToJSONPB UsingImported where
-  toEncodingPB opts (UsingImported f0 f1) = fieldsPB opts
-   [ "importedNesting" .= f0
-   , "localNesting"    .= f1
-   ]
+-- NB: Now generated, can remove:
 
-instance FromJSONPB UsingImported where
-  parseJSONPB = withObject "UsingImported" $ \obj ->
-    pure UsingImported
-    <*> obj .: "importedNesting"
-    <*> obj .: "localNesting"
+-- instance ToJSONPB UsingImported where
+--   toEncodingPB opts (UsingImported f0 f1) = fieldsPB opts
+--    [ "importedNesting" .= f0
+--    , "localNesting"    .= f1
+--    ]
 
-instance ToJSONPB JSONPBTestTypesImport.WithNesting where
-  toEncodingPB opts (JSONPBTestTypesImport.WithNesting f0 f1) = fieldsPB opts
-    [ "nestedMessage1" .= f0
-    , "nestedMessage2" .= f1
-    ]
+-- instance FromJSONPB UsingImported where
+--   parseJSONPB = withObject "UsingImported" $ \obj ->
+--     pure UsingImported
+--     <*> obj .: "importedNesting"
+--     <*> obj .: "localNesting"
 
-instance FromJSONPB JSONPBTestTypesImport.WithNesting where
-  parseJSONPB = withObject "JSONPBTestTypesImport.WithNesting" $ \obj ->
-    pure JSONPBTestTypesImport.WithNesting
-    <*> obj .: "nestedMessage1"
-    <*> obj .: "nestedMessage2"
+-- instance ToJSONPB JSONPBTestTypesImport.WithNesting where
+--   toEncodingPB opts (JSONPBTestTypesImport.WithNesting f0 f1) = fieldsPB opts
+--     [ "nestedMessage1" .= f0
+--     , "nestedMessage2" .= f1
+--     ]
 
-instance ToJSONPB JSONPBTestTypesImport.WithNesting_Nested where
-  toEncodingPB opts (JSONPBTestTypesImport.WithNesting_Nested f0 f1) = fieldsPB opts
-    [ "nestedField1" .= f0
-    , "nestedField2" .= f1
-    ]
+-- instance FromJSONPB JSONPBTestTypesImport.WithNesting where
+--   parseJSONPB = withObject "JSONPBTestTypesImport.WithNesting" $ \obj ->
+--     pure JSONPBTestTypesImport.WithNesting
+--     <*> obj .: "nestedMessage1"
+--     <*> obj .: "nestedMessage2"
 
-instance FromJSONPB JSONPBTestTypesImport.WithNesting_Nested where
-  parseJSONPB = withObject "JSONPBTestTypesImport.WithNesting_Nested" $ \obj ->
-    pure JSONPBTestTypesImport.WithNesting_Nested
-    <*> obj .: "nestedField1"
-    <*> obj .: "nestedField2"
+-- instance ToJSONPB JSONPBTestTypesImport.WithNesting_Nested where
+--   toEncodingPB opts (JSONPBTestTypesImport.WithNesting_Nested f0 f1) = fieldsPB opts
+--     [ "nestedField1" .= f0
+--     , "nestedField2" .= f1
+--     ]
 
+-- instance FromJSONPB JSONPBTestTypesImport.WithNesting_Nested where
+--   parseJSONPB = withObject "JSONPBTestTypesImport.WithNesting_Nested" $ \obj ->
+--     pure JSONPBTestTypesImport.WithNesting_Nested
+--     <*> obj .: "nestedField1"
+--     <*> obj .: "nestedField2"
 
 -- | Wrapped
 -- prop> roundTrip omitDefaults (Wrapped (Just (Wrapped (Just (Wrapped Nothing)))))
 -- prop> roundTrip emitDefaults (Wrapped (Just (Wrapped (Just (Wrapped (Just (Wrapped Nothing)))))))
 
-instance ToJSONPB Wrapped where
-  toEncodingPB opts (Wrapped f0) = fieldsPB opts
-   [ "wrapped" .= f0
-   ]
+-- NB: Now generated, can remove:
 
-instance FromJSONPB Wrapped where
-  parseJSONPB = withObject "Wrapped" $ \obj ->
-    pure Wrapped
-    <*> obj .: "wrapped"
+-- instance ToJSONPB Wrapped where
+--   toEncodingPB opts (Wrapped f0) = fieldsPB opts
+--    [ "wrapped" .= f0
+--    ]
+
+-- instance FromJSONPB Wrapped where
+--   parseJSONPB = withObject "Wrapped" $ \obj ->
+--     pure Wrapped
+--     <*> obj .: "wrapped"
 
 -- End hand-generated instances for JSON PB renderings
 --------------------------------------------------------------------------------

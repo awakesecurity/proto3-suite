@@ -16,10 +16,13 @@ module Proto3.Suite.JSONPB
   , fieldsPB
   , namedEncoding
     -- * Aeson re-exports
+  , A.Value(..)
+  , A.typeMismatch
   , A.withObject
   )
 where
 
 import qualified Data.Aeson                    as A
+import qualified Data.Aeson.Types              as A
 import           Proto3.Suite.JSONPB.Class
 import           Proto3.Suite.JSONPB.Instances ()

@@ -1,13 +1,12 @@
 -- | This module provides functions to generate Haskell declarations for proto buf messages
 
 {-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MultiWayIf        #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 module Proto3.Suite.DotProto.Generate
   ( CompileResult
@@ -28,29 +27,30 @@ module Proto3.Suite.DotProto.Generate
 import           Control.Applicative
 import           Control.Monad.Except
 import           Data.Char
-import           Data.List                 (find, intercalate, nub, sortBy)
-import qualified Data.Map                  as M
+import           Data.List                      (find, intercalate, nub, sortBy,
+                                                 stripPrefix)
+import qualified Data.Map                       as M
 import           Data.Monoid
-import           Data.Ord                  (comparing)
-import qualified Data.Set                  as S
-import           Data.String               (fromString)
-import qualified Data.Text                 as T
-import           Debug.Trace               (trace)
-import qualified Filesystem.Path.CurrentOS as FP
-import           Filesystem.Path.CurrentOS ((</>))
+import           Data.Ord                       (comparing)
+import qualified Data.Set                       as S
+import           Data.String                    (fromString)
+import qualified Data.Text                      as T
+import           Debug.Trace                    (trace)
+import           Filesystem.Path.CurrentOS      ((</>))
+import qualified Filesystem.Path.CurrentOS      as FP
 import           Language.Haskell.Pretty
 import           Language.Haskell.Syntax
-import qualified NeatInterpolation         as Neat
-import           Prelude                   hiding (FilePath)
+import qualified NeatInterpolation              as Neat
+import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.Internal
-import           Proto3.Wire.Types         (FieldNumber (..))
-import           Text.Parsec               (ParseError)
-import           System.IO                 (writeFile)
-import           Turtle                    (FilePath)
+import           Proto3.Wire.Types              (FieldNumber (..))
+import           System.IO                      (writeFile)
+import           Text.Parsec                    (ParseError)
+import           Turtle                         (FilePath)
 import qualified Turtle
-import qualified Turtle.Format             as F
-import           Turtle.Format             ((%))
+import           Turtle.Format                  ((%))
+import qualified Turtle.Format                  as F
 
 -- * Public interface
 
@@ -135,6 +135,7 @@ hsModuleForDotProto
     <*> do mappend (defaultImports hasService) <$> ctxtImports importCtxt
     <*> do tc <- dotProtoTypeContext dp
            mconcat <$> mapM (dotProtoDefinitionD pkgIdent (tc <> importCtxt)) defs
+
   where hasService = not (null [ () | DotProtoService {} <- defs ])
 hsModuleForDotProto _ _
   = Left NoPackageDeclaration
@@ -362,8 +363,9 @@ nestedTypeName (Dots (Path parents)) nm =
     (<> ("_" <> nm)) <$> (intercalate "_" <$> mapM typeLikeName parents)
 nestedTypeName (Qualified {})  _  = internalError "nestedTypeName: Qualified"
 
-haskellName, grpcName, protobufName :: String -> HsQName
+haskellName, jsonpbName, grpcName, protobufName :: String -> HsQName
 haskellName  name = Qual (Module "Hs") (HsIdent name)
+jsonpbName   name = Qual (Module "HsJSONPB") (HsIdent name)
 grpcName     name = Qual (Module "HsGRPC") (HsIdent name)
 protobufName name = Qual (Module "HsProtobuf") (HsIdent name)
 
@@ -444,8 +446,8 @@ namedInstD messageName =
 
 -- ** Generate types and instances for .proto messages
 
--- | Generate data types, 'Message', 'Named', 'Enum', and 'Bounded'
---   instances as appropriate for the given 'DotProtoMessagePart's
+-- | Generate data types, 'Bounded', 'Enum', 'FromJSONPB', 'Named', 'Message',
+--   'ToJSONPB' instances as appropriate for the given 'DotProtoMessagePart's
 dotProtoMessageD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifier
                  -> [DotProtoMessagePart] -> CompileResult [HsDecl]
 dotProtoMessageD ctxt parentIdent messageIdent message =
@@ -485,9 +487,15 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
 
        messageInst <- messageInstD ctxt' parentIdent messageIdent message
 
-       pure ([ dataDecl_ messageName [ conDecl ] defaultMessageDeriving
-             , namedInstD messageName, messageInst ] <> nestedDecls_)
+       toJSONPBInst   <- toJSONPBMessageInstD   ctxt' parentIdent messageIdent message
+       fromJSONPBInst <- fromJSONPBMessageInstD ctxt' parentIdent messageIdent message
 
+       pure $ [ dataDecl_ messageName [ conDecl ] defaultMessageDeriving
+              , namedInstD messageName
+              , messageInst
+              , toJSONPBInst
+              , fromJSONPBInst
+              ] <> nestedDecls_
 
 messageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifier
              -> [DotProtoMessagePart] -> CompileResult HsDecl
@@ -545,6 +553,67 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                       [ encodeMessageDecl
                       , decodeMessageDecl
                       , dotProtoDecl ]))
+
+toJSONPBMessageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifier
+                     -> [DotProtoMessagePart] -> CompileResult HsDecl
+toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
+  do
+  msgName <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+  kvps    <- sequence
+               [ (,"f" ++ show n) <$> dpIdentUnqualName fldIdent
+               | DotProtoMessageField
+                   (DotProtoField (FieldNumber n) _ fldIdent _ _)
+                   <- messageParts
+               ]
+  let toEncodingPBDecl =
+        match_ (HsIdent "toEncodingPB")
+               [ patVar "opts"
+               , HsPApp (unqual_ msgName) [ patVar varNm | (_, varNm) <- kvps ]
+               ]
+               (HsUnGuardedRhs toEncodingPBE) []
+        where
+          toEncodingPBE =
+            apply (HsVar (jsonpbName "fieldsPB"))
+                  [ HsVar (unqual_ "opts")
+                  , HsList [ HsInfixApp (HsLit (HsString fldNm))
+                                        toJSONPBOp
+                                        (HsVar (unqual_ varNm))
+                           | (fldNm, varNm) <- kvps
+                           ]
+                  ]
+  pure (instDecl_ (jsonpbName "ToJSONPB")
+                 [ type_ msgName ]
+                 [ HsFunBind [ toEncodingPBDecl ] ])
+
+fromJSONPBMessageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifier
+                       -> [DotProtoMessagePart] -> CompileResult HsDecl
+fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
+  do
+  msgName <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+  kvps    <- sequence
+               [ (,"f" ++ show n) <$> dpIdentUnqualName fldIdent
+               | DotProtoMessageField
+                   (DotProtoField (FieldNumber n) _ fldIdent _ _)
+                   <- messageParts
+               ]
+  let parseJSONPBDecl =
+        match_ (HsIdent "parseJSONPB") [] (HsUnGuardedRhs parseJSONPBE) []
+        where
+          parseJSONPBE =
+            apply (HsVar (jsonpbName "withObject"))
+                  [ HsLit (HsString msgName)
+                  , HsParen (HsLambda l [patVar "obj"] fieldAps)
+                  ]
+            where
+              fieldAps = foldl
+                (\f -> HsInfixApp f apOp)
+                (apply pureE [ HsVar (unqual_ msgName) ])
+                [ HsInfixApp (HsVar (unqual_ "obj")) parseJSONPBOp (HsLit (HsString fldNm))
+                | ( fldNm, _) <- kvps
+                ]
+  pure (instDecl_ (jsonpbName "FromJSONPB")
+                 [ type_ msgName ]
+                 [ HsFunBind [ parseJSONPBDecl ] ])
 
 -- *** Helpers to wrap/unwrap types for protobuf (de-)serialization
 
@@ -685,12 +754,45 @@ dotProtoEnumD parentIdent enumIdent enumParts =
          predFailure     = match_ (HsIdent "pred") [ HsPWildCard ]
                                   (HsUnGuardedRhs (HsApp predErrorE enumNameE)) []
 
+         parseJSONPBDecls :: [HsMatch]
+         parseJSONPBDecls =
+           [ let pat nm =
+                   HsPApp (jsonpbName "String")
+                     [ HsPLit (HsString (case stripPrefix enumName nm of
+                                           Just s  -> s
+                                           Nothing -> nm))
+                     ]
+             in
+             match_ (HsIdent "parseJSONPB") [pat conName]
+                    (HsUnGuardedRhs
+                       (HsApp pureE (HsVar (unqual_ conName))))
+                    []
+           | (_, conName) <- enumCons
+           ]
+           <> [ match_ (HsIdent "parseJSONPB") [patVar "v"]
+                       (HsUnGuardedRhs
+                          (apply (HsVar (jsonpbName "typeMismatch"))
+                                 [ HsLit (HsString enumName)
+                                 , HsVar (unqual_ "v")
+                                 ]))
+                       []
+              ]
+
+         toEncodingPBDecl =
+           match_ (HsIdent "toEncodingPB") [ HsPWildCard ]
+             (HsUnGuardedRhs (HsVar (jsonpbName "namedEncoding"))) []
+
      pure [ dataDecl_ enumName [ conDecl_ (HsIdent con) []
                                | (_, con) <- enumCons] defaultEnumDeriving
           , namedInstD enumName
           , instDecl_ (haskellName "Enum") [ type_ enumName ]
                       [ HsFunBind toEnumD, HsFunBind fromEnumD
-                      , HsFunBind succD, HsFunBind predD ] ]
+                      , HsFunBind succD, HsFunBind predD ]
+          , instDecl_ (jsonpbName "ToJSONPB") [ type_ enumName ]
+                      [ HsFunBind [toEncodingPBDecl] ]
+          , instDecl_ (jsonpbName "FromJSONPB") [ type_ enumName ]
+                      [ HsFunBind parseJSONPBDecls ]
+          ]
 
 -- ** Generate code for dot proto services
 
@@ -917,6 +1019,12 @@ grpcClientT      = HsTyCon (grpcName "Client")
 apOp :: HsQOp
 apOp  = HsQVarOp (UnQual (HsSymbol "<*>"))
 
+toJSONPBOp :: HsQOp
+toJSONPBOp = HsQVarOp (UnQual (HsSymbol ".="))
+
+parseJSONPBOp :: HsQOp
+parseJSONPBOp = HsQVarOp (UnQual (HsSymbol ".:"))
+
 intE :: Integral a => a -> HsExp
 intE x = (if x < 0 then HsParen else id) . HsLit . HsInt . fromIntegral $ x
 
@@ -987,6 +1095,10 @@ defaultImports usesGrpc =
   , importDecl_ dataProtobufWireDotProtoM True  (Just protobufNS) Nothing
   , importDecl_ dataProtobufWireTypesM    True  (Just protobufNS) Nothing
   , importDecl_ dataProtobufWireClassM    True  (Just protobufNS) Nothing
+  , importDecl_ proto3SuiteJSONPBM        True  (Just jsonpbNS) Nothing
+  , importDecl_ proto3SuiteJSONPBM        False  Nothing
+                (Just (False, [ HsIAbs (HsSymbol ".=")
+                              , HsIAbs (HsSymbol ".:") ]))
   , importDecl_ proto3WireM               True  (Just protobufNS) Nothing
   , importDecl_ controlApplicativeM       False Nothing
                 (Just (False, [ HsIAbs (HsSymbol "<*>")
@@ -1020,6 +1132,7 @@ defaultImports usesGrpc =
         dataProtobufWireDotProtoM = Module "Proto3.Suite.DotProto"
         dataProtobufWireClassM    = Module "Proto3.Suite.Class"
         dataProtobufWireTypesM    = Module "Proto3.Suite.Types"
+        proto3SuiteJSONPBM        = Module "Proto3.Suite.JSONPB"
         proto3WireM               = Module "Proto3.Wire"
         controlApplicativeM       = Module "Control.Applicative"
         dataTextM                 = Module "Data.Text.Lazy"
@@ -1038,6 +1151,7 @@ defaultImports usesGrpc =
 
         haskellNS                 = Module "Hs"
         grpcNS                    = Module "HsGRPC"
+        jsonpbNS                  = Module "HsJSONPB"
         protobufNS                = Module "HsProtobuf"
 
         importSym = HsIAbs . HsIdent

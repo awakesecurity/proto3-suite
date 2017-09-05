@@ -10,6 +10,8 @@ import qualified Prelude as Hs
 import qualified Proto3.Suite.DotProto as HsProtobuf
 import qualified Proto3.Suite.Types as HsProtobuf
 import qualified Proto3.Suite.Class as HsProtobuf
+import qualified Proto3.Suite.JSONPB as HsJSONPB
+import Proto3.Suite.JSONPB ((.=), (.:))
 import qualified Proto3.Wire as HsProtobuf
 import Control.Applicative ((<*>), (<|>))
 import qualified Data.Text.Lazy as Hs (Text)
@@ -60,6 +62,18 @@ instance HsProtobuf.Message WithNesting where
                 []
                 Hs.Nothing)]
  
+instance HsJSONPB.ToJSONPB WithNesting where
+        toEncodingPB opts (WithNesting f1 f100)
+          = (HsJSONPB.fieldsPB opts
+               ["nestedMessage1" .= f1, "nestedMessage2" .= f100])
+ 
+instance HsJSONPB.FromJSONPB WithNesting where
+        parseJSONPB
+          = (HsJSONPB.withObject "WithNesting"
+               (\ obj ->
+                  (Hs.pure WithNesting) <*> obj .: "nestedMessage1" <*>
+                    obj .: "nestedMessage2"))
+ 
 data WithNesting_Nested = WithNesting_Nested{withNesting_NestedNestedField1
                                              :: Hs.Int32,
                                              withNesting_NestedNestedField2 :: Hs.Int32}
@@ -96,3 +110,15 @@ instance HsProtobuf.Message WithNesting_Nested where
                 (HsProtobuf.Single "nestedField2")
                 []
                 Hs.Nothing)]
+ 
+instance HsJSONPB.ToJSONPB WithNesting_Nested where
+        toEncodingPB opts (WithNesting_Nested f1 f2)
+          = (HsJSONPB.fieldsPB opts
+               ["nestedField1" .= f1, "nestedField2" .= f2])
+ 
+instance HsJSONPB.FromJSONPB WithNesting_Nested where
+        parseJSONPB
+          = (HsJSONPB.withObject "WithNesting_Nested"
+               (\ obj ->
+                  (Hs.pure WithNesting_Nested) <*> obj .: "nestedField1" <*>
+                    obj .: "nestedField2"))
