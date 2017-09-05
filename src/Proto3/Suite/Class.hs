@@ -208,12 +208,14 @@ instance HasDefault (Maybe a) where
   def       = Nothing
   isDefault = isNothing
 
--- TODO: Determine if we have a reason for rendering fixed32 as Fixed Word32 and
--- sfixed32 as Fixed Int32 in generated datatypes; for other field types, we
--- omit the newtype wrappers in the type signature but un/wrap them as needed in
--- the encode/decodeMessage implementations. These Fixed wrappers can probably
--- be removed and the type interface would be more consistent with other types,
--- but until that occurs, the following two instances are needed.
+-- TODO: Determine if we have a reason for rendering fixed32/sfixed as Fixed
+-- Word32/Int32 in generated datatypes; for other field types, we omit the
+-- newtype wrappers in the type signature but un/wrap them as needed in the
+-- encode/decodeMessage implementations. These Fixed wrappers can probably be
+-- removed and the type interface would be more consistent with other types, but
+-- until that occurs, the following two instances are needed.
+--
+-- Tracked by https://jira.mv.awakenetworks.net/browse/MONAPP-7986
 
 -- | Used in generated records to represent @sfixed32@
 instance HasDefault (Fixed Int32)
