@@ -9,5 +9,6 @@ ghc                                         \
     -o $hsTmpDir/simpleEncodeDotProto       \
     $hsTmpDir/TestProto.hs                  \
     $hsTmpDir/TestProtoImport.hs            \
+    $hsTmpDir/TestProtoOneof.hs             \
     tests/SimpleEncodeDotProto.hs           \
     >/dev/null
