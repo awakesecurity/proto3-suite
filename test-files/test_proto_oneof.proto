@@ -1,0 +1,11 @@
+syntax = "proto3";
+package TestProtoOneof;
+
+message Something {
+  sint64 value = 1;
+  sint32 another = 2;
+  oneof name_or_id {
+    string name = 4;
+    int32 someid = 9;
+  }
+}
