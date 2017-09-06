@@ -249,13 +249,13 @@ assert case16.localNesting.nestedMessage.nestedPacked == []
 assert case16.localNesting.nestedMessage.nestedUnpacked == []
 
 # Test case 17: Oneof
-case17a = read_proto(ImportedOneOf)
+case17a = read_proto(ImportedOneof)
 assert case17a.value == 42
 assert case17a.another == 4242
 assert case17a.HasField('name')
 assert case17a.name == "hello world"
 
-case17b = read_proto(ImportedOneOf)
+case17b = read_proto(ImportedOneof)
 assert case17b.value == 1
 assert case17b.another == 2
 assert case17b.HasField('someid')
