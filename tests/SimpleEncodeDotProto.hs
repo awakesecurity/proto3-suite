@@ -5,6 +5,7 @@ module Main where
 
 import           TestProto
 import qualified TestProtoImport
+import qualified TestProtoOneof
 import           Proto3.Suite
 import qualified Data.ByteString.Lazy as BL
 
@@ -132,6 +133,17 @@ testCase16 =
                                , usingImportedLocalNesting =
                                    Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] []))) })
 
+testCase17 :: IO ()
+testCase17 = do
+  outputMessage (TestProtoOneof.Something { TestProtoOneof.somethingValue = 42
+                                          , TestProtoOneof.somethingAnother = 4242
+                                          , TestProtoOneof.somethingNameOrId = TestProtoOneof.SomethingNameOrIdName "hello world"
+                                          })
+  outputMessage (TestProtoOneof.Something { TestProtoOneof.somethingValue = 1
+                                          , TestProtoOneof.somethingAnother = 2
+                                          , TestProtoOneof.somethingNameOrId = TestProtoOneof.SomethingNameOrIdSomeid 3
+                                          })
+
 main :: IO ()
 main = do testCase1
           testCase2
@@ -152,5 +164,6 @@ main = do testCase1
           -- Tests using imported messages
           testCase15
           testCase16
+          testCase17
 
           outputMessage (MultipleFields 0 0 0 0 "All tests complete" False)

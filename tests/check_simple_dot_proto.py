@@ -3,6 +3,7 @@ import sys
 # Import protoc generated {de,}serializers (generated from test_proto{,_import}.proto)
 from test_proto_pb2 import *
 from test_proto_import_pb2 import WithNesting as ImportedWithNesting
+from test_proto_oneof_pb2 import Something as ImportedOneof
 
 def read_proto(cls):
     length = int(raw_input())
@@ -246,6 +247,19 @@ assert case16.localNesting.nestedMessage.nestedField1 == "field"
 assert case16.localNesting.nestedMessage.nestedField2 == 0xBEEF
 assert case16.localNesting.nestedMessage.nestedPacked == []
 assert case16.localNesting.nestedMessage.nestedUnpacked == []
+
+# Test case 17: Oneof
+case17a = read_proto(ImportedOneOf)
+assert case17a.value == 42
+assert case17a.another == 4242
+assert case17a.HasField('name')
+assert case17a.name == "hello world"
+
+case17b = read_proto(ImportedOneOf)
+assert case17b.value == 1
+assert case17b.another == 2
+assert case17b.HasField('someid')
+assert case17b.someid == 3
 
 # Wait for the special 'done' messsage
 done_msg = read_proto(MultipleFields)

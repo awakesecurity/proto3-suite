@@ -4,6 +4,7 @@ import os
 # Import protoc generated {de,}serializers (generated from test_proto{,_import}.proto)
 from test_proto_pb2 import *
 import test_proto_import_pb2 as test_proto_import
+import test_proto_oneof_pb2 as test_proto_oneof
 
 def write_proto(msg):
     out = msg.SerializeToString()
@@ -164,6 +165,10 @@ write_proto(test_proto_import.WithNesting(nestedMessage1 = test_proto_import.Wit
 write_proto(UsingImported(importedNesting = test_proto_import.WithNesting(nestedMessage1 = test_proto_import.WithNesting.Nested(nestedField1 = 1, nestedField2 = 2),
                                                                           nestedMessage2 = test_proto_import.WithNesting.Nested(nestedField1 = 3, nestedField2 = 4)),
                           localNesting = WithNesting(nestedMessage = WithNesting.Nested(nestedField1 = "field", nestedField2 = 0xBEEF, nestedPacked = [], nestedUnpacked = []))))
+
+# Test case 17: Oneof
+write_proto(test_proto_oneof.Something(value=42, another=4242, name="hello world"))
+write_proto(test_proto_oneof.Something(value=1, another=2, someid=3))
 
 # Send the special 'done' message
 write_proto(MultipleFields(multiFieldString = "All tests complete"))

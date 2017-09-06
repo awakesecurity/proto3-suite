@@ -47,6 +47,7 @@ simpleEncodeDotProto =
 
        (@?= ExitSuccess) =<< proc "tests/encode.sh" [hsTmpDir] empty
        (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto.proto"]) empty
+       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_oneof.proto"]) empty
        (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_import.proto"]) empty
        touch (pyTmpDir </> "__init__.py")
 
@@ -75,6 +76,7 @@ simpleDecodeDotProto =
 
        (@?= ExitSuccess) =<< proc "tests/decode.sh" [hsTmpDir] empty
        (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto.proto"]) empty
+       (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_oneof.proto"]) empty
        (@?= ExitSuccess) =<< shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_import.proto"]) empty
        touch (pyTmpDir </> "__init__.py")
 
@@ -99,4 +101,5 @@ pyTmpDir = "test-files/py-tmp"
 compileTestDotProtos :: IO ()
 compileTestDotProtos = do
   compileDotProtoFileOrDie hsTmpDir ["test-files"] "test_proto.proto"
+  compileDotProtoFileOrDie hsTmpDir ["test-files"] "test_proto_oneof.proto"
   compileDotProtoFileOrDie hsTmpDir ["test-files"] "test_proto_import.proto"

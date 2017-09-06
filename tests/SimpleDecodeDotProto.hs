@@ -16,6 +16,7 @@ import System.Exit
 
 import TestProto
 import qualified TestProtoImport
+import qualified TestProtoOneof
 
 main :: IO ()
 main = do putStr "\n"
@@ -23,13 +24,14 @@ main = do putStr "\n"
 
 tests, testCase1, testCase2, testCase3, testCase4, testCase5,
     testCase6, testCase8, testCase9, testCase10, testCase11,
-    testCase12, testCase13, testCase14, testCase15 :: TestTree
+    testCase12, testCase13, testCase14, testCase15, testCase16,
+    testCase17 :: TestTree
 tests = testGroup "Decode protobuf messages from Python"
           [  testCase1,  testCase2, testCaseSignedInts
           ,  testCase3,  testCase4,  testCase5,  testCase6
           ,  testCase7,  testCase8,  testCase9, testCase10
           , testCase11, testCase12, testCase13, testCase14
-          , testCase15, testCase16
+          , testCase15, testCase16, testCase17
           , allTestsDone -- this should always run last
           ]
 
@@ -229,6 +231,17 @@ testCase16 = testCase "Proper resolution of shadowed message names" $
                  (Just (TestProtoImport.WithNesting_Nested 1 2))
                  (Just (TestProtoImport.WithNesting_Nested 3 4)))
        usingImportedLocalNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] [])))
+
+testCase17 = testCase "Oneof" $
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue @?= 42
+       somethingAnother @?= 4242
+       somethingNameOrId @?= TestProtoOneof.SomethingNameOrIdName "hello world"
+
+       TestProtoOneof.Something { .. } <- readProto
+       somethingValue @?= 1
+       somethingAnother @?= 2
+       somethingNameOrId @?= TestProtoOneof.SomethingNameOrIdSomeid 3
 
 allTestsDone = testCase "Receive end of test suite sentinel message" $
    do MultipleFields{..} <- readProto
