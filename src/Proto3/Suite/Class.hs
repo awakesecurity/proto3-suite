@@ -215,7 +215,7 @@ instance HasDefault (Maybe a) where
 -- removed and the type interface would be more consistent with other types, but
 -- until that occurs, the following two instances are needed.
 --
--- Tracked by https://jira.mv.awakenetworks.net/browse/MONAPP-7986
+-- Tracked by https://github.com/awakesecurity/proto3-suite/issues/30.
 
 -- | Used in generated records to represent @sfixed32@
 instance HasDefault (Fixed Int32)
