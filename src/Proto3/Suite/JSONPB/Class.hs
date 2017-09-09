@@ -133,7 +133,9 @@ obj .: key = obj .:? key A..!= def
 data Options = Options
   { optEmitDefaultValuedFields :: Bool
   }
+  deriving Show
 
+-- | Default options for JSONPB encoding. By default, all options are @False@.
 defaultOptions :: Options
 defaultOptions = Options
   { optEmitDefaultValuedFields = False
