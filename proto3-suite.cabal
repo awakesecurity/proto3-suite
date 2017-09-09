@@ -23,7 +23,6 @@ library
                        Proto3.Suite.Types
   other-modules:       Proto3.Suite.DotProto.Internal
                        Proto3.Suite.JSONPB.Class
-                       Proto3.Suite.JSONPB.Instances
   build-depends:       aeson >= 1.1.1.0 && < 1.2,
                        attoparsec >= 0.13.0.1,
                        base >=4.8 && <5.0,
