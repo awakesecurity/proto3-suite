@@ -158,15 +158,15 @@ defaultOptions = Options
 
 -- * Helper types and functions
 
-dropNamedPfx :: Named a => Proxy a -> String -> String
-dropNamedPfx p = drop (length (nameOf p :: String))
+dropNamedPrefix :: Named a => Proxy a -> String -> String
+dropNamedPrefix p = drop (length (nameOf p :: String))
 
 -- | 'E.pairs'-wrapped mconcat to simplify instances
 fieldsPB :: [Options -> A.Series] -> Options -> A.Encoding
 fieldsPB fns = E.pairs . mconcat fns
 
 namedEncoding :: forall e. (Named e, Show e) => e -> A.Encoding
-namedEncoding = E.string . dropNamedPfx (Proxy @e) . show
+namedEncoding = E.string . dropNamedPrefix (Proxy @e) . show
 
 -- | Parse a JSONPB floating point value; first parameter provides context for
 -- type mismatches
