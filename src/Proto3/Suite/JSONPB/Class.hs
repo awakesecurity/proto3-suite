@@ -95,7 +95,7 @@ encode :: ToJSONPB a => Options -> a -> LBS.ByteString
 encode opts = E.encodingToLazyByteString . toEncodingPB opts
 {-# INLINE encode #-}
 
--- | 'Data.Aeson..eitherDecode' variant for deserializing a JSONPB value from a
+-- | 'Data.Aeson.eitherDecode' variant for deserializing a JSONPB value from a
 -- lazy 'LBS.ByteString'.
 eitherDecode :: FromJSONPB a => LBS.ByteString -> Either String a
 eitherDecode = eitherFormatError . A.eitherDecodeWith jsonEOF (A.iparse parseJSONPB)
