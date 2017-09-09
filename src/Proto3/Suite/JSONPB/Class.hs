@@ -1,6 +1,7 @@
 {-# LANGUAGE DefaultSignatures   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 
 -- | Support for the "JSONPB" canonical JSON encoding described at
 -- https://developers.google.com/protocol-buffers/docs/proto3#json.
@@ -175,7 +176,7 @@ fieldsPB opts@Options{..} fields = E.pairs (mconcat (fmap emit fields))
         = fieldTuple opts
 
 namedEncoding :: forall e. (Named e, Show e) => e -> A.Encoding
-namedEncoding = E.string . dropNamedPfx (Proxy :: Proxy e) . show
+namedEncoding = E.string . dropNamedPfx (Proxy @e) . show
 
 -- | Parse a JSONPB floating point value; first parameter provides context for
 -- type mismatches
