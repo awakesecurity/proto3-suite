@@ -1,7 +1,7 @@
 {-# LANGUAGE DefaultSignatures   #-}
 {-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE OverloadedLists     #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
@@ -29,7 +29,7 @@
 -- }
 --
 -- instance ToJSONPB Scalar32 where
---   toEncodingPB opts (Scalar32 i32 u32 s32 f32 sf32) = fieldsPB opts
+--   toEncodingPB (Scalar32 i32 u32 s32 f32 sf32) = fieldsPB
 --       [ "i32"  .= i32
 --       , "u32"  .= u32
 --       , "s32"  .= s32
@@ -84,9 +84,9 @@ import           Proto3.Suite.Types               (Enumerated (..), Fixed (..))
 class ToJSONPB a where
   -- | 'A.toEncoding' variant for JSONPB encoders. Equivalent to 'A.toEncoding'
   -- if an implementation is not provided.
-  toEncodingPB :: Options -> a -> A.Encoding
-  default toEncodingPB :: (A.ToJSON a) => Options -> a -> A.Encoding
-  toEncodingPB _ = A.toEncoding
+  toEncodingPB :: a -> Options -> A.Encoding
+  default toEncodingPB :: (A.ToJSON a) => a -> Options -> A.Encoding
+  toEncodingPB a _ = A.toEncoding a
 
 -- | 'A.FromJSON' variant for JSONPB decoding from the 'A.Value' IR
 class FromJSONPB a where
@@ -102,7 +102,7 @@ class FromJSONPB a where
 -- | 'Data.Aeson.encode' variant for serializing a JSONPB value as a lazy
 -- 'LBS.ByteString'.
 encode :: ToJSONPB a => Options -> a -> LBS.ByteString
-encode opts = E.encodingToLazyByteString . toEncodingPB opts
+encode opts x = E.encodingToLazyByteString (toEncodingPB x opts)
 {-# INLINE encode #-}
 
 -- | 'Data.Aeson.eitherDecode' variant for deserializing a JSONPB value from a
@@ -127,8 +127,14 @@ eitherDecode = eitherFormatError . A.eitherDecodeWith jsonEOF (A.iparse parseJSO
 -- * Operator definitions
 
 -- | Construct a (field name, JSONPB-encoded value) tuple
-(.=) :: (HasDefault v, ToJSONPB v) => Text -> v -> FieldPB
-k .= v = FieldPB (isDefault v) (\opts -> E.pair k (toEncodingPB opts v))
+(.=) :: (HasDefault v, ToJSONPB v) => Text -> v -> Options -> A.Series
+k .= v = f
+  where
+    f opts@Options{..}
+      | not optEmitDefaultValuedFields && isDefault v
+        = mempty
+      | otherwise
+        = E.pair k (toEncodingPB v opts)
 
 -- | 'Data.Aeson..:' variant for JSONPB; if the given key is missing from the
 -- object, or if it is present but its value is null, we produce the default
@@ -142,8 +148,7 @@ obj .: key = obj .:? key A..!= def
 
 data Options = Options
   { optEmitDefaultValuedFields :: Bool
-  }
-  deriving Show
+  } deriving Show
 
 -- | Default options for JSONPB encoding. By default, all options are @False@.
 defaultOptions :: Options
@@ -156,33 +161,9 @@ defaultOptions = Options
 dropNamedPfx :: Named a => Proxy a -> String -> String
 dropNamedPfx p = drop (length (nameOf p :: String))
 
--- | An internal ~(field name, value) tuple (using 'E.pair' as the underlying
--- tuple) which carries additional useful state. This type is analagous to
--- 'A.Pair'.
---
--- Values of this type are produced by '.='
---
--- Values of this type are consumed by 'fieldsPB'
---
-data FieldPB = FieldPB
-  { fieldIsDefaultValued :: Bool
-    -- ^ Whether or not this field is "default-valued"; i.e., whether the value
-    -- component of the key-value pair is the protobuf default value for its
-    -- type
-  , fieldTuple           :: Options -> A.Series
-    -- ^ Produce the JSONPB-encoded key-value tuple
-  }
-
--- | A variant of 'A.pairs' which encodes 'FieldPB' (JSONPB-encoded) values
--- instead of 'A.Pair' values
-fieldsPB :: Options -> [FieldPB] -> A.Encoding
-fieldsPB opts@Options{..} fields = E.pairs (mconcat (fmap emit fields))
-  where
-    emit FieldPB{..}
-      | not optEmitDefaultValuedFields && fieldIsDefaultValued
-        = mempty
-      | otherwise
-        = fieldTuple opts
+-- | 'E.pairs'-wrapped mconcat to simplify instances
+fieldsPB :: [Options -> A.Series] -> Options -> A.Encoding
+fieldsPB fns = E.pairs . mconcat fns
 
 namedEncoding :: forall e. (Named e, Show e) => e -> A.Encoding
 namedEncoding = E.string . dropNamedPfx (Proxy @e) . show
@@ -238,37 +219,37 @@ instance FromJSONPB Word32 where
 
 -- int64 / sint64
 instance ToJSONPB Int64 where
-  toEncodingPB _ = E.string . show
+  toEncodingPB x _ = E.string (show x)
 instance FromJSONPB Int64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
 -- unit64
 instance ToJSONPB Word64 where
-  toEncodingPB _ = E.string . show
+  toEncodingPB x _ = E.string (show x)
 instance FromJSONPB Word64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
 -- fixed32
 instance ToJSONPB (Fixed Word32) where
-  toEncodingPB opts = toEncodingPB opts . fixed
+  toEncodingPB x opts = toEncodingPB (fixed x) opts
 instance FromJSONPB (Fixed Word32) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
 -- fixed64
 instance ToJSONPB (Fixed Word64) where
-  toEncodingPB opts = toEncodingPB opts . fixed
+  toEncodingPB x opts = toEncodingPB (fixed x) opts
 instance FromJSONPB (Fixed Word64) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
 -- sfixed32
 instance ToJSONPB (Fixed Int32) where
-  toEncodingPB opts = toEncodingPB opts . fixed
+  toEncodingPB x opts = toEncodingPB (fixed x) opts
 instance FromJSONPB (Fixed Int32) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
 -- sfixed64
 instance ToJSONPB (Fixed Int64) where
-  toEncodingPB opts = toEncodingPB opts . fixed
+  toEncodingPB x opts = toEncodingPB (fixed x) opts
 instance FromJSONPB (Fixed Int64) where
   parseJSONPB = fmap Fixed . parseJSONPB
 
@@ -298,7 +279,7 @@ instance FromJSONPB TL.Text
 
 -- bytes
 instance ToJSONPB BS.ByteString where
-  toEncodingPB _ bs = case T.decodeUtf8' (B64.encode bs) of
+  toEncodingPB bs _ = case T.decodeUtf8' (B64.encode bs) of
     Left e  -> error ("internal: failed to encode B64-encoded bytestring: " ++ show e)
                -- T.decodeUtf8' should never fail because we B64-encode the
                -- incoming bytestring.
@@ -312,8 +293,8 @@ instance FromJSONPB BS.ByteString where
 -- Enumerated types
 
 instance (Named a, Show a, ToJSONPB a) => ToJSONPB (Enumerated a) where
-  toEncodingPB opts (Enumerated e) = case e of
-    Right x -> toEncodingPB opts x
+  toEncodingPB (Enumerated e) opts = case e of
+    Right x -> toEncodingPB x opts
     Left  0 ->
       {- TODO: Raise a compilation error when the first enum value in an
                enumeration is not zero.
@@ -353,7 +334,7 @@ instance (Bounded a, Enum a, FromJSONPB a) => FromJSONPB (Enumerated a) where
 -- value is accepted as the empty list, @[]@.
 
 instance ToJSONPB a => ToJSONPB (V.Vector a) where
-  toEncodingPB opts = E.list (toEncodingPB opts) . V.toList
+  toEncodingPB v opts = E.list (\x -> toEncodingPB x opts) (V.toList v)
 instance FromJSONPB a => FromJSONPB (V.Vector a) where
   parseJSONPB (A.Array vs) = mapM parseJSONPB vs
   parseJSONPB A.Null       = pure []
@@ -363,7 +344,7 @@ instance FromJSONPB a => FromJSONPB (V.Vector a) where
 -- Instances for nested messages
 
 instance ToJSONPB a => ToJSONPB (Maybe a) where
-  toEncodingPB opts = maybe E.null_ (toEncodingPB opts)
+  toEncodingPB mx opts = maybe E.null_ (\x -> toEncodingPB x opts) mx
 instance FromJSONPB a => FromJSONPB (Maybe a) where
   parseJSONPB A.Null = pure Nothing
   parseJSONPB v      = fmap Just (parseJSONPB v)

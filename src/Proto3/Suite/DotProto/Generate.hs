@@ -568,15 +568,14 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
                ]
   let toEncodingPBDecl =
         match_ (HsIdent "toEncodingPB")
-               [ patVar "opts"
-               , HsPApp (unqual_ msgName) [ patVar varNm | (_, varNm) <- kvps ]
+               [ HsPApp (unqual_ msgName)
+                        [ patVar varNm | (_, varNm) <- kvps ]
                ]
                (HsUnGuardedRhs toEncodingPBE) []
         where
           toEncodingPBE =
             apply (HsVar (jsonpbName "fieldsPB"))
-                  [ HsVar (unqual_ "opts")
-                  , HsList [ HsInfixApp (HsLit (HsString fldNm))
+                  [ HsList [ HsInfixApp (HsLit (HsString fldNm))
                                         toJSONPBOp
                                         (HsVar (unqual_ varNm))
                            | (fldNm, varNm) <- kvps
@@ -780,8 +779,11 @@ dotProtoEnumD parentIdent enumIdent enumParts =
               ]
 
          toEncodingPBDecl =
-           match_ (HsIdent "toEncodingPB") [ HsPWildCard ]
-             (HsUnGuardedRhs (HsVar (jsonpbName "namedEncoding"))) []
+           match_ (HsIdent "toEncodingPB") [ patVar "x", HsPWildCard ]
+             (HsUnGuardedRhs
+                (HsApp (HsVar (jsonpbName "namedEncoding"))
+                       (HsVar (unqual_ "x"))))
+             []
 
      pure [ dataDecl_ enumName [ conDecl_ (HsIdent con) []
                                | (_, con) <- enumCons] defaultEnumDeriving
