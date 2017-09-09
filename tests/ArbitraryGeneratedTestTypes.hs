@@ -5,9 +5,11 @@ module ArbitraryGeneratedTestTypes where
 import qualified Data.ByteString    as BS
 import qualified Data.Text.Lazy     as T
 import qualified Data.Vector        as V
-import           Test.QuickCheck    (Arbitrary, arbitrary, listOf)
+import           Test.QuickCheck    (Arbitrary, arbitrary,
+                                     arbitraryBoundedEnum, listOf)
 
 import           TestProto
+import qualified TestProtoImport
 
 instance Arbitrary a => Arbitrary (V.Vector a) where
   arbitrary = V.fromList <$> listOf arbitrary
@@ -24,6 +26,9 @@ instance Arbitrary MultipleFields where
     <*> arbitrary
     <*> fmap T.pack arbitrary
     <*> arbitrary
+
+instance Arbitrary WithEnum_TestEnum where
+  arbitrary = arbitraryBoundedEnum
 
 instance Arbitrary WithEnum where
   arbitrary = WithEnum <$> arbitrary
@@ -69,6 +74,38 @@ instance Arbitrary WithNestingRepeated_Nested where
     <$> fmap T.pack arbitrary
     <*> arbitrary
     <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary WithNestingRepeatedInts where
+  arbitrary = WithNestingRepeatedInts <$> arbitrary
+
+instance Arbitrary NestedInts where
+  arbitrary = NestedInts <$> arbitrary <*> arbitrary
+
+instance Arbitrary OutOfOrderFields where
+  arbitrary =
+    OutOfOrderFields
+    <$> arbitrary
+    <*> fmap T.pack arbitrary
+    <*> arbitrary
+    <*> fmap (fmap T.pack) arbitrary
+
+instance Arbitrary UsingImported where
+  arbitrary =
+    UsingImported
+    <$> arbitrary
+    <*> arbitrary
+
+instance Arbitrary TestProtoImport.WithNesting where
+  arbitrary =
+    TestProtoImport.WithNesting
+    <$> arbitrary
+    <*> arbitrary
+
+instance Arbitrary TestProtoImport.WithNesting_Nested where
+  arbitrary =
+    TestProtoImport.WithNesting_Nested
+    <$> arbitrary
     <*> arbitrary
 
 instance Arbitrary Wrapped where

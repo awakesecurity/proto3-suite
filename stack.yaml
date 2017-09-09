@@ -7,8 +7,9 @@ packages:
     commit: 8178cc717eb1c438272a7f451862590a8b2d41ff
   extra-dep: true
 
-extra-deps: [ neat-interpolation-0.3.2.1
-            , optparse-applicative-0.14.0.0
+extra-deps: [ aeson-1.1.1.0
+            , neat-interpolation-0.3.2.1
+            , optparse-applicative-0.13.2.0
             , optparse-generic-1.2.1
             , turtle-1.3.6
             ]

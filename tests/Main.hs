@@ -6,13 +6,22 @@
 
 module Main where
 
+import           ArbitraryGeneratedTestTypes ()
+import           Control.Applicative
+import           Control.Exception
 import qualified Data.ByteString             as B
+import qualified Data.ByteString.Builder     as BB
 import qualified Data.ByteString.Char8       as BC
 import qualified Data.ByteString.Lazy        as BL
 import           Data.Either                 (isRight)
+import           Data.Int
+import           Data.Maybe                  (fromJust)
 import           Data.Monoid
 import           Data.Proxy
+import           Data.Serialize.Get          (runGet)
 import           Data.String
+import qualified Data.Text.Lazy              as TL
+import           Data.Word                   (Word64)
 import           GHC.Exts                    (fromList)
 import           Proto3.Suite
 import           Proto3.Wire.Decode          (ParseError)
@@ -25,11 +34,8 @@ import           Test.Tasty
 import           Test.Tasty.HUnit            (Assertion, assertBool, testCase,
                                               (@=?), (@?=))
 import           Test.Tasty.QuickCheck       (testProperty, (===))
-
-import           ArbitraryGeneratedTestTypes ()
-import qualified TestProto                   as TP
-import qualified Test.DocTest
 import           TestCodeGen
+import qualified TestProto                   as TP
 
 main :: IO ()
 main = defaultMain tests
@@ -45,12 +51,17 @@ tests = testGroup "Tests"
   , codeGenTests
   ]
 
+--------------------------------------------------------------------------------
+-- Doctests
+
 docTests :: TestTree
 docTests = testCase "doctests" $ do
   putStrLn "Running all doctests..."
   Test.DocTest.doctest
     [ "-isrc"
+    , "-itests"
     , "src/Proto3/Suite/DotProto/Internal.hs"
+    , "tests/TestCodeGen.hs"
     ]
 
 --------------------------------------------------------------------------------
