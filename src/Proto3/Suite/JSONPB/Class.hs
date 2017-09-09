@@ -147,7 +147,8 @@ dropNamedPfx :: Named a => Proxy a -> String -> String
 dropNamedPfx p = drop (length (nameOf p :: String))
 
 -- | An internal ~(field name, value) tuple (using 'E.pair' as the underlying
--- tuple) which carries additional useful state.
+-- tuple) which carries additional useful state. This type is analagous to
+-- 'A.Pair'.
 --
 -- Values of this type are produced by '.='
 --
@@ -162,7 +163,8 @@ data FieldPB = FieldPB
     -- ^ Produce the JSONPB-encoded key-value tuple
   }
 
--- | @fieldsPB opts flds@ encodes the given JSONPB-encoded fields
+-- | A variant of 'A.pairs' which encodes 'FieldPB' (JSONPB-encoded) values
+-- instead of 'A.Pair' values
 fieldsPB :: Options -> [FieldPB] -> A.Encoding
 fieldsPB opts@Options{..} fields = E.pairs (mconcat (fmap emit fields))
   where
