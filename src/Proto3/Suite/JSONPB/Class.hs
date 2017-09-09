@@ -66,6 +66,7 @@ import qualified Data.Attoparsec.ByteString.Char8 as Atto (Parser, endOfInput)
 import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Base64           as B64
 import qualified Data.ByteString.Lazy             as LBS
+import           Data.Coerce
 import           Data.Proxy
 import           Data.Text                        (Text)
 import qualified Data.Text.Encoding               as T
@@ -231,27 +232,27 @@ instance FromJSONPB Word64 where
 
 -- fixed32
 instance ToJSONPB (Fixed Word32) where
-  toEncodingPB x opts = toEncodingPB (fixed x) opts
+  toEncodingPB = coerce (toEncodingPB @Word32)
 instance FromJSONPB (Fixed Word32) where
-  parseJSONPB = fmap Fixed . parseJSONPB
+  parseJSONPB = coerce (parseJSONPB @Word32)
 
 -- fixed64
 instance ToJSONPB (Fixed Word64) where
-  toEncodingPB x opts = toEncodingPB (fixed x) opts
+  toEncodingPB = coerce (toEncodingPB @Word64)
 instance FromJSONPB (Fixed Word64) where
-  parseJSONPB = fmap Fixed . parseJSONPB
+  parseJSONPB = coerce (parseJSONPB @Word64)
 
 -- sfixed32
 instance ToJSONPB (Fixed Int32) where
-  toEncodingPB x opts = toEncodingPB (fixed x) opts
+  toEncodingPB = coerce (toEncodingPB @Int32)
 instance FromJSONPB (Fixed Int32) where
-  parseJSONPB = fmap Fixed . parseJSONPB
+  parseJSONPB = coerce (parseJSONPB @Int32)
 
 -- sfixed64
 instance ToJSONPB (Fixed Int64) where
-  toEncodingPB x opts = toEncodingPB (fixed x) opts
+  toEncodingPB = coerce (toEncodingPB @Int64)
 instance FromJSONPB (Fixed Int64) where
-  parseJSONPB = fmap Fixed . parseJSONPB
+  parseJSONPB = coerce (parseJSONPB @Int64)
 
 --------------------------------------------------------------------------------
 -- Floating point scalar types
