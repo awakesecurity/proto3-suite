@@ -8,6 +8,7 @@
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE StandaloneDeriving     #-}
+{-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE TypeOperators          #-}
 
 module Main (main) where
@@ -42,7 +43,7 @@ class Canonicalize a where
 
 class Ord r => CanonicalRank a r | a -> r where
   canonicalRank :: a -> r
-  default canonicalRank :: Ord a => a -> a
+  default canonicalRank :: (Ord a, a ~ r) => a -> r
   canonicalRank = id
 
 canonicalSort :: (CanonicalRank a r, Canonicalize a) => [a] -> [a]
