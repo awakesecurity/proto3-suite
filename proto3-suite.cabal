@@ -41,7 +41,7 @@ library
                        pretty ==1.1.*,
                        pretty-show >= 1.6.12 && < 1.7,
                        proto3-wire == 1.0.*,
-                       QuickCheck >=2.8 && <3.0,
+                       QuickCheck >=2.8 && <2.10,
                        semigroups ==0.18.*,
                        safe ==0.3.*,
                        system-filepath,
@@ -62,7 +62,7 @@ test-suite tests
   hs-source-dirs:      tests
   default-language:    Haskell2010
   build-depends:       base >=4.8 && <5.0,
-                       QuickCheck >=2.8 && <3.0,
+                       QuickCheck >=2.8 && <2.10,
                        aeson == 1.1.1.0,
                        attoparsec >= 0.13.0.1,
                        base >=4.8 && <5.0,
