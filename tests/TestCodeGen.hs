@@ -54,6 +54,7 @@ simpleEncodeDotProto =
        (@?= ExitSuccess) =<< Turtle.proc "tests/encode.sh" [hsTmpDir] empty
        (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto.proto"]) empty
        (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_import.proto"]) empty
+       (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_oneof.proto"]) empty
        Turtle.touch (pyTmpDir Turtle.</> "__init__.py")
 
        m <- Turtle.need "PYTHONPATH"
@@ -82,6 +83,7 @@ simpleDecodeDotProto =
        (@?= ExitSuccess) =<< Turtle.proc "tests/decode.sh" [hsTmpDir] empty
        (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto.proto"]) empty
        (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_import.proto"]) empty
+       (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_oneof.proto"]) empty
        Turtle.touch (pyTmpDir Turtle.</> "__init__.py")
 
        m <- Turtle.need "PYTHONPATH"
@@ -105,6 +107,7 @@ pyTmpDir = "test-files/py-tmp"
 compileTestDotProtos :: IO ()
 compileTestDotProtos = do
   compileDotProtoFileOrDie hsTmpDir ["test-files"] "test_proto.proto"
+  compileDotProtoFileOrDie hsTmpDir ["test-files"] "test_proto_oneof.proto"
   compileDotProtoFileOrDie hsTmpDir ["test-files"] "test_proto_import.proto"
 
 -- * Doctests for JSONPB
