@@ -6,9 +6,9 @@ mkDerivation {
   pname = "proto3-wire";
   version = "1.0.0";
   src = fetchgit {
-    url = "https://github.com/awakenetworks/proto3-wire.git";
-    sha256 = "1979pccp8c8wvl69r203mji51c8s59mccng6zrw3kf2s1wz5xxqg";
-    rev = "8178cc717eb1c438272a7f451862590a8b2d41ff";
+    url = "https://github.com/awakenetworks/proto3-wire";
+    sha256 = "1bdgs9m1kkv6758cvylg8c7p7hwiqd2q2jp119bbyx1a3nfz3sr4";
+    rev = "1e09c1f4cdc953cc6748891f669f0be96f14e5b8";
   };
   libraryHaskellDepends = [
     base bytestring cereal containers deepseq hashable QuickCheck safe
