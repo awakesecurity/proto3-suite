@@ -15,6 +15,8 @@ module Proto3.Suite.JSONPB
     -- * Helper functions
   , fieldsPB
   , namedEncoding
+  , pair
+  , parseField
     -- * Aeson re-exports
   , A.Value(..)
   , A.typeMismatch
