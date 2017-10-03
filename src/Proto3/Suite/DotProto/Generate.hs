@@ -6,6 +6,7 @@
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
 
 module Proto3.Suite.DotProto.Generate
@@ -526,15 +527,6 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
               <> nestedOneofs_
               <> nestedDecls_
 
-data FieldValue
-    = FieldOneOf
-        [(FieldNumber, String, String)]
-        -- field number, generated data constructor name, protobuf field name
-        String
-        -- 'typeLikeName' of the @_NOT_SET@ data constructor
-    | FieldNormal FieldNumber DotProtoType [DotProtoOption]
-    deriving Show
-
 messageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifier
              -> [DotProtoMessagePart] -> CompileResult HsDecl
 messageInstD ctxt parentIdent msgIdent messageParts =
@@ -555,7 +547,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                          [ alt_ (HsPApp (unqual_ conName) [patVar "x"])
                                 (HsUnGuardedAlt (apply encodeMessageFieldE [ fieldNumberE fieldNum, HsVar (unqual_ "x") ]))
                                 []
-                         | (fieldNum, conName, _) <- elems
+                         | OneofSubfield fieldNum conName _ <- elems
                          ]
                          <>
                          [ alt_ (HsPApp (unqual_ notSetName) [])
@@ -571,7 +563,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                         [ decodeMessageFieldE, fieldNumberE fieldNum ]
             FieldOneOf elems _notSetName ->
                 -- create a list of (fieldNumber, Cons <$> parser)
-                do let toListParser (fieldNumber, consName, _) = HsTuple
+                do let toListParser (OneofSubfield fieldNumber consName _) = HsTuple
                         [ fieldNumberE fieldNumber
                         , HsInfixApp (apply pureE [ HsVar (unqual_ consName) ])
                                      apOp
@@ -617,6 +609,7 @@ toJSONPBMessageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifier
                      -> [DotProtoMessagePart] -> CompileResult HsDecl
 toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
   do
+  -- TODO: rename to getNormalFields or somesuch, pass in from caller?
   kvps        <- sequence
                    [ (,"f" ++ show n) <$> dpIdentUnqualName fldIdent
                    | DotProtoMessageField
@@ -624,6 +617,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
                        <- messageParts
                    ]
   msgName     <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+  -- TODO: could probably pass this and kvps in from the parent
   oneofFields <- getOneofFields msgName messageParts
 
   -- E.g.
@@ -647,15 +641,18 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
   --     -> HsJSONPB.pair "someid" f9
   --   SomethingNameOrId_NOT_SET
   --     -> mempty
-  let oneofCase (names, notSetName, fldVarNm) =
+  let oneofCase (OneofField{notSetName,subfields}) =
         HsCase (HsVar (unqual_ fldVarNm)) (alts <> [notSet])
         where
           alts =
-            [ alt_ (HsPApp (unqual_ conName) [patVar patVarNm])
+            [ let patVarNm = oneofSubBinder sub
+              in
+              alt_ (HsPApp (unqual_ conName) [patVar patVarNm])
                    (HsUnGuardedAlt (pair pbFldName patVarNm))
                    []
-            | (patVarNm, conName, pbFldName) <- names
+            | sub@(OneofSubfield _ conName pbFldName) <- subfields
             ]
+          fldVarNm = oneofSubBinderDisjunct subfields
           notSet =
             alt_ (HsPApp (unqual_ notSetName) [])
                  (HsUnGuardedAlt memptyE)
@@ -672,7 +669,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
                [ HsPApp (unqual_ msgName) $
                    [ patVar varNm | (_, varNm) <- kvps ]
                    <>
-                   [ patVar varNm | (_, _, varNm) <- oneofFields ]
+                   [ patVar (oneofSubBinderDisjunct subs) | OneofField subs _ <- oneofFields ]
                ]
                (HsUnGuardedRhs toEncodingPBE) []
 
@@ -684,6 +681,7 @@ fromJSONPBMessageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifie
                        -> [DotProtoMessagePart] -> CompileResult HsDecl
 fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
   do
+  -- TODO: rename to getNormalFields or somesuch, pass in from caller?
   kvps        <- sequence
                    [ (,"f" ++ show n) <$> dpIdentUnqualName fldIdent
                    | DotProtoMessageField
@@ -691,43 +689,34 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
                        <- messageParts
                    ]
   msgName     <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+  -- TODO: could probably pass this and kvps in from the parent
   oneofFields <- getOneofFields msgName messageParts
 
-  let normal =
+  let normals =
         [ HsInfixApp (HsVar (unqual_ "obj")) parseJSONPBOp (HsLit (HsString fldNm))
         | ( fldNm, _) <- kvps
         ]
 
-  let oneof =
-        case oneofFields of
-          [] -> mempty
-          _  -> -- E.g.,
-                -- [ Hs.msum
-                --     [SomethingNameOrIdName <$> (HsJSONPB.parseField obj "name"),
-                --      SomethingNameOrIdSomeid <$> (HsJSONPB.parseField obj "someid"),
-                --      Hs.pure SomethingNameOrId_NOT_SET]
-                -- , ...
-                -- ]
-                [ HsApp msumE . HsList . concat $
-                  [ parseFields names <> parseNotSet notSetName
-                  | (names, notSetName, _) <- oneofFields
-                  ]
-                ]
+  -- E.g., for message Something{ oneof name_or_id { string name = _; int32 someid = _; } }:
+  -- [ Hs.msum
+  --     [SomethingNameOrIdName <$> (HsJSONPB.parseField obj "name"),
+  --      SomethingNameOrIdSomeid <$> (HsJSONPB.parseField obj "someid"),
+  --      Hs.pure SomethingNameOrId_NOT_SET]
+  -- , ...
+  let oneofs =
+        HsApp msumE . HsList . (subParsers <> notSetParser) <$> oneofFields
         where
-          parseNotSet notSetName = [ HsApp pureE (HsVar (unqual_ notSetName)) ]
-          parseFields names =
-            [ parseField conName pbFldName
-            | (_, conName, pbFldName) <- names
-            ]
+          notSetParser OneofField{notSetName} = [ HsApp pureE (HsVar (unqual_ notSetName)) ]
+          subParsers OneofField{subfields}    = subParser <$> subfields
             where
               -- E.g.
               -- SomethingNameOrIdName <$> (HsJSONPB.parseField obj "name")
-              parseField conName pbFldName =
-                HsInfixApp (HsVar (unqual_ conName))
+              subParser OneofSubfield{subfieldConsName, subfieldName} =
+                HsInfixApp (HsVar (unqual_ subfieldConsName))
                            fmapOp
                            (apply (HsVar (jsonpbName "parseField"))
                                   [ HsVar (unqual_ "obj")
-                                  , HsLit (HsString pbFldName)
+                                  , HsLit (HsString subfieldName)
                                   ])
 
   let parseJSONPBE =
@@ -738,7 +727,7 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
         where
           fieldAps = foldl (\f -> HsInfixApp f apOp)
                            (apply pureE [ HsVar (unqual_ msgName) ])
-                           (normal <> oneof)
+                           (normals <> oneofs)
 
   let parseJSONPBDecl =
           match_ (HsIdent "parseJSONPB") [] (HsUnGuardedRhs parseJSONPBE) []
@@ -747,50 +736,64 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
                  [ type_ msgName ]
                  [ HsFunBind [ parseJSONPBDecl ] ])
 
--- TODO: get rid of the stringly typing here
+-- ** Codegen bookkeeping helpers
+
+-- | Bookkeeping for fields
+data FieldValue
+  = FieldOneOf [OneofSubfield] String {- notSetName -}
+  | FieldNormal FieldNumber DotProtoType [DotProtoOption]
+  deriving Show
+
+-- | Bookkeeping for oneof fields
+data OneofField = OneofField
+  { subfields  :: [OneofSubfield]
+  , notSetName :: String
+  } deriving Show
+
+-- | Bookkeeping for oneof subfields
+data OneofSubfield = OneofSubfield
+  { subfieldNumber   :: FieldNumber
+  , subfieldConsName :: String
+  , subfieldName     :: String
+  } deriving Show
+
 getOneofFields :: String
                -> [DotProtoMessagePart]
-               -> CompileResult [([(String, String, String)], String, String)]
-                  -- ^ ( [(field number, cons name, protobuf field name)]
-                  --   , not-set constructor name
-                  --   , sum-type field name
-                  --   )
+               -> CompileResult [OneofField]
 getOneofFields msgName msgParts = do
-  fieldValues <- fmap (view _2) <$> getQualifiedFields msgName msgParts
-  pure
-    [ let fieldName = intercalate "_or_" (view _1 <$> names)
-          names     = (_1 %~ ("f"++) . show) <$> flds
-      in
-        (names, notSetName, fieldName)
-    | FieldOneOf flds notSetName <- fieldValues
-    ]
+  fieldValues <- fmap snd <$> getQualifiedFields msgName msgParts
+  pure [ OneofField subflds notSetName | FieldOneOf subflds notSetName <- fieldValues ]
 
 getQualifiedFields :: String
                    -> [DotProtoMessagePart]
                    -> CompileResult [(String, FieldValue)]
-getQualifiedFields msgName msgParts = do
-  (catMaybes <$>) . forM msgParts $ \part -> case part of
-      DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options _) ->
-          dpIdentUnqualName fieldIdent >>=
-            prefixedFieldName msgName >>=
-            pure . Just . (, FieldNormal fieldNum dpType options)
-      DotProtoMessageOneOf _ [] ->
-          Left (InternalError "getQualifiedFields: encountered oneof with no oneof fields")
-      DotProtoMessageOneOf fieldIdent elems ->
-          do fieldName  <- dpIdentUnqualName fieldIdent >>= prefixedFieldName msgName
-             consName   <- dpIdentUnqualName fieldIdent >>= prefixedConName msgName
-             fieldElems <- sequence
-                  [ do s <- dpIdentUnqualName subFieldName
-                       c <- prefixedConName consName s
-                       pure (fieldNum, c, s)
-                  | DotProtoField fieldNum _ subFieldName _ _ <- elems
-                  ]
-             notSetName <- oneofNotSetName fieldName
-             pure $ Just $ (fieldName, FieldOneOf fieldElems notSetName)
-      _ ->
-          pure Nothing
+getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
+  DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options _) -> do
+    qualName <- prefixedFieldName msgName =<< dpIdentUnqualName fieldIdent
+    pure $ Just $ (qualName, FieldNormal fieldNum dpType options)
+  DotProtoMessageOneOf _ [] ->
+    Left (InternalError "getQualifiedFields: encountered oneof with no oneof fields")
+  DotProtoMessageOneOf fieldIdent fields -> do
+    fieldName  <- dpIdentUnqualName fieldIdent >>= prefixedFieldName msgName
+    consName   <- dpIdentUnqualName fieldIdent >>= prefixedConName msgName
+    fieldElems <- sequence
+                    [ do s <- dpIdentUnqualName subFieldName
+                         c <- prefixedConName consName s
+                         pure (OneofSubfield fieldNum c s)
+                    | DotProtoField fieldNum _ subFieldName _ _ <- fields
+                    ]
+    notSetName <- oneofNotSetName fieldName
+    pure $ Just $ (fieldName, FieldOneOf fieldElems notSetName)
+  _ ->
+    pure Nothing
 
--- *** Helpers to wrap/unwrap types for protobuf (de-)serialization
+oneofSubBinder :: OneofSubfield -> String
+oneofSubBinder = ("f" ++) . show . subfieldNumber
+
+oneofSubBinderDisjunct :: [OneofSubfield] -> String
+oneofSubBinderDisjunct = intercalate "_or_" . fmap oneofSubBinder
+
+-- ** Helpers to wrap/unwrap types for protobuf (de-)serialization
 
 wrapE, unwrapE :: TypeContext -> DotProtoType -> [DotProtoOption]
                -> HsExp -> CompileResult HsExp
@@ -872,7 +875,6 @@ _unimplementedError = Left . Unimplemented
 invalidMethodNameError, noSuchTypeError :: DotProtoIdentifier -> CompileResult a
 noSuchTypeError = Left . NoSuchType
 invalidMethodNameError = Left . InvalidMethodName
-
 
 -- ** Generate types and instances for .proto enums
 
