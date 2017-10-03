@@ -538,7 +538,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
             FieldNormal fieldNum dpType options ->
                 do fieldE <- wrapE ctxt dpType options (HsVar (unqual_ fieldName))
                    pure (apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ])
-            FieldOneOf elems notSetName ->
+            FieldOneOf OneofField{notSetName, subfields} ->
                 do -- Create all pattern match & expr for each constructor:
                    --    Constructor x -> encodeField fieldNumber x
                    --    ...
@@ -547,7 +547,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                          [ alt_ (HsPApp (unqual_ conName) [patVar "x"])
                                 (HsUnGuardedAlt (apply encodeMessageFieldE [ fieldNumberE fieldNum, HsVar (unqual_ "x") ]))
                                 []
-                         | OneofSubfield fieldNum conName _ <- elems
+                         | OneofSubfield fieldNum conName _ <- subfields
                          ]
                          <>
                          [ alt_ (HsPApp (unqual_ notSetName) [])
@@ -561,7 +561,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
             FieldNormal fieldNum dpType options ->
                 unwrapE ctxt dpType options $ apply atE
                         [ decodeMessageFieldE, fieldNumberE fieldNum ]
-            FieldOneOf elems _notSetName ->
+            FieldOneOf OneofField{subfields} ->
                 -- create a list of (fieldNumber, Cons <$> parser)
                 do let toListParser (OneofSubfield fieldNumber consName _) = HsTuple
                         [ fieldNumberE fieldNumber
@@ -569,7 +569,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                                      apOp
                                      decodeMessageFieldE ]
                    pure $ apply oneofE
-                          [ HsList $ map toListParser elems ]
+                          [ HsList (toListParser <$> subfields) ]
         | (_, fieldType) <- qualifiedFields ]
 
      dotProtoE <- HsList <$> sequence
@@ -682,6 +682,9 @@ fromJSONPBMessageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifie
 fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
   do
   -- TODO: rename to getNormalFields or somesuch, pass in from caller?
+
+
+
   kvps        <- sequence
                    [ (,"f" ++ show n) <$> dpIdentUnqualName fldIdent
                    | DotProtoMessageField
@@ -740,7 +743,7 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
 
 -- | Bookkeeping for fields
 data FieldValue
-  = FieldOneOf [OneofSubfield] String {- notSetName -}
+  = FieldOneOf OneofField
   | FieldNormal FieldNumber DotProtoType [DotProtoOption]
   deriving Show
 
@@ -762,7 +765,7 @@ getOneofFields :: String
                -> CompileResult [OneofField]
 getOneofFields msgName msgParts = do
   fieldValues <- fmap snd <$> getQualifiedFields msgName msgParts
-  pure [ OneofField subflds notSetName | FieldOneOf subflds notSetName <- fieldValues ]
+  pure [ fld | FieldOneOf fld <- fieldValues ]
 
 getQualifiedFields :: String
                    -> [DotProtoMessagePart]
@@ -783,7 +786,7 @@ getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
                     | DotProtoField fieldNum _ subFieldName _ _ <- fields
                     ]
     notSetName <- oneofNotSetName fieldName
-    pure $ Just $ (fieldName, FieldOneOf fieldElems notSetName)
+    pure $ Just $ (fieldName, FieldOneOf (OneofField fieldElems notSetName))
   _ ->
     pure Nothing
 
