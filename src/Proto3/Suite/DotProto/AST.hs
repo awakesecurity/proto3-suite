@@ -49,7 +49,7 @@ newtype MessageName = MessageName
 instance Show MessageName where
   show = show . getMessageName
 
--- | The name of a field in an enum
+-- | The name of some field
 newtype FieldName = FieldName
   { getFieldName :: String
   } deriving (Eq, Ord, IsString)
