@@ -25,7 +25,7 @@ module Proto3.Suite.DotProto.Generate
   ) where
 
 import           Control.Applicative
-import           Control.Lens                   ((%~), _1, view)
+import           Control.Lens                   ((%~), _1, _2, view)
 import           Control.Monad.Except
 import           Data.Char
 import           Data.List                      (find, intercalate, nub, sortBy,
@@ -617,27 +617,55 @@ toJSONPBMessageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifier
                      -> [DotProtoMessagePart] -> CompileResult HsDecl
 toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
   do
-  msgName <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
-  kvps    <- sequence
-               [ (,"f" ++ show n) <$> dpIdentUnqualName fldIdent
-               | DotProtoMessageField
-                   (DotProtoField (FieldNumber n) _ fldIdent _ _)
-                   <- messageParts
-               ]
+  kvps        <- sequence
+                   [ (,"f" ++ show n) <$> dpIdentUnqualName fldIdent
+                   | DotProtoMessageField
+                       (DotProtoField (FieldNumber n) _ fldIdent _ _)
+                       <- messageParts
+                   ]
+  msgName     <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+  oneofFields <- getOneofFields msgName messageParts
 
-  -- TODO: We should combine kvps and oneofFields. Rather, see if we can get (1)
-  -- get the kvps list to be formed from the output of qualifiedFields; (2) see
-  -- if we can do the work for kvps and and oneofFields in one pass.
+  -- E.g.
+  -- "another" .= f2
+  let dpair fldNm varNm =
+        HsInfixApp (HsLit (HsString fldNm)) toJSONPBOp (HsVar (unqual_ varNm))
 
-  qualifiedFields <- getQualifiedFields msgName messageParts
+  -- E.g.
+  -- HsJSONPB.pair "name" f4
+  let pair fldNm varNm =
+        apply (HsVar (jsonpbName "pair"))
+              [ HsLit (HsString fldNm)
+              , HsVar (unqual_ varNm)
+              ]
 
-  let oneofFields =
-        [ let fieldName = intercalate "_or_" (view _1 <$> names)
-              names     = (_1 %~ ("f"++) . show) <$> flds
-          in
-            (names, notSetName, fieldName)
-        | (_, FieldOneOf flds notSetName) <- qualifiedFields
-        ]
+  -- E.g.
+  -- case f4_or_f9 of
+  --   SomethingNameOrIdName f4
+  --     -> HsJSONPB.pair "name" f4
+  --   SomethingNameOrIdSomeid f9
+  --     -> HsJSONPB.pair "someid" f9
+  --   SomethingNameOrId_NOT_SET
+  --     -> mempty
+  let oneofCase (names, notSetName, fldVarNm) =
+        HsCase (HsVar (unqual_ fldVarNm)) (alts <> [notSet])
+        where
+          alts =
+            [ alt_ (HsPApp (unqual_ conName) [patVar patVarNm])
+                   (HsUnGuardedAlt (pair pbFldName patVarNm))
+                   []
+            | (patVarNm, conName, pbFldName) <- names
+            ]
+          notSet =
+            alt_ (HsPApp (unqual_ notSetName) [])
+                 (HsUnGuardedAlt memptyE)
+                 []
+
+  let toEncodingPBE = fieldsPB (normal <> oneof)
+        where
+          normal        = uncurry dpair <$> kvps
+          oneof         = oneofCase     <$> oneofFields
+          fieldsPB flds = apply (HsVar (jsonpbName "fieldsPB")) [ HsList flds ]
 
   let toEncodingPBDecl =
         match_ (HsIdent "toEncodingPB")
@@ -647,46 +675,6 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
                    [ patVar varNm | (_, _, varNm) <- oneofFields ]
                ]
                (HsUnGuardedRhs toEncodingPBE) []
-        where
-          toEncodingPBE = fieldsPB (normal <> oneof)
-            where
-              normal = uncurry dpair <$> kvps
-              oneof  = oneofCase <$> oneofFields
-
-          fieldsPB flds =
-            apply (HsVar (jsonpbName "fieldsPB")) [ HsList flds ]
-
-          -- E.g.
-          -- case f4_or_f9 of
-          --   SomethingNameOrIdName f4
-          --     -> HsJSONPB.pair "name" f4
-          --   SomethingNameOrIdSomeid f9
-          --     -> HsJSONPB.pair "someid" f9
-          --   SomethingNameOrId_NOT_SET
-          --     -> mempty
-          oneofCase (names, notSetName, fldVarNm) =
-            HsCase (HsVar (unqual_ fldVarNm))
-              $ [ alt_ (HsPApp (unqual_ conName) [patVar patVarNm])
-                       (HsUnGuardedAlt (pair pbFldName patVarNm))
-                       []
-                | (patVarNm, conName, pbFldName) <- names
-                ]
-                <>
-                [ alt_ (HsPApp (unqual_ notSetName) [])
-                       (HsUnGuardedAlt memptyE)
-                       []
-                ]
-
-          -- E.g. "another" .= f2
-          dpair fldNm varNm =
-            HsInfixApp (HsLit (HsString fldNm)) toJSONPBOp (HsVar (unqual_ varNm))
-
-          -- E.g. HsJSONPB.pair "name" f4
-          pair fldNm varNm =
-            apply (HsVar (jsonpbName "pair"))
-                  [ HsLit (HsString fldNm)
-                  , HsVar (unqual_ varNm)
-                  ]
 
   pure (instDecl_ (jsonpbName "ToJSONPB")
                  [ type_ msgName ]
@@ -696,67 +684,86 @@ fromJSONPBMessageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifie
                        -> [DotProtoMessagePart] -> CompileResult HsDecl
 fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts =
   do
-  msgName <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
-  -- TODO: combine with getQualifiedFields result as in toJSONPBMessageInstD
-  kvps    <- sequence
-               [ (,"f" ++ show n) <$> dpIdentUnqualName fldIdent
-               | DotProtoMessageField
-                   (DotProtoField (FieldNumber n) _ fldIdent _ _)
-                   <- messageParts
-               ]
+  kvps        <- sequence
+                   [ (,"f" ++ show n) <$> dpIdentUnqualName fldIdent
+                   | DotProtoMessageField
+                       (DotProtoField (FieldNumber n) _ fldIdent _ _)
+                       <- messageParts
+                   ]
+  msgName     <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+  oneofFields <- getOneofFields msgName messageParts
 
-  qualifiedFields <- getQualifiedFields msgName messageParts
-
-  -- TODO: lift out as is common; but do after qualifiedFields collapse if
-  -- possible (see similar TODO in toJSONPBMessageInstD)
-  let oneofFields =
-        [ let fieldName = intercalate "_or_" (view _1 <$> names)
-              names     = (_1 %~ ("f"++) . show) <$> flds
-          in
-            (names, notSetName, fieldName)
-        | (_, FieldOneOf flds notSetName) <- qualifiedFields
+  let normal =
+        [ HsInfixApp (HsVar (unqual_ "obj")) parseJSONPBOp (HsLit (HsString fldNm))
+        | ( fldNm, _) <- kvps
         ]
 
-  let parseJSONPBDecl =
-        match_ (HsIdent "parseJSONPB") [] (HsUnGuardedRhs parseJSONPBE) []
+  let oneof =
+        case oneofFields of
+          [] -> mempty
+          _  -> -- E.g.,
+                -- [ Hs.msum
+                --     [SomethingNameOrIdName <$> (HsJSONPB.parseField obj "name"),
+                --      SomethingNameOrIdSomeid <$> (HsJSONPB.parseField obj "someid"),
+                --      Hs.pure SomethingNameOrId_NOT_SET]
+                -- , ...
+                -- ]
+                [ HsApp msumE . HsList . concat $
+                  [ parseFields names <> parseNotSet notSetName
+                  | (names, notSetName, _) <- oneofFields
+                  ]
+                ]
         where
-          parseJSONPBE =
-            apply (HsVar (jsonpbName "withObject"))
-                  [ HsLit (HsString msgName)
-                  , HsParen (HsLambda l [patVar "obj"] fieldAps)
-                  ]
+          parseNotSet notSetName = [ HsApp pureE (HsVar (unqual_ notSetName)) ]
+          parseFields names =
+            [ parseField conName pbFldName
+            | (_, conName, pbFldName) <- names
+            ]
             where
-              -- TODO: cleanup/intermediate exprs
-              fieldAps = foldl
-                (\f -> HsInfixApp f apOp)
-                (apply pureE [ HsVar (unqual_ msgName) ])
-                $ [ HsInfixApp (HsVar (unqual_ "obj")) parseJSONPBOp (HsLit (HsString fldNm))
-                  | ( fldNm, _) <- kvps
-                  ]
-                  <>
-                  case oneofFields of
-                    [] -> mempty
-                    _  -> [ HsApp msumE . HsList . concat $
-                            [ [ HsInfixApp (HsVar (unqual_ conName))
-                                           fmapOp
-                                           (parseField pbFldName)
-                              | (_, conName, pbFldName) <- names
-                              ]
-                              <>
-                              [ HsApp pureE (HsVar (unqual_ notSetName)) ]
-                            | (names, notSetName, _) <- oneofFields
-                            ]
-                          ]
-              parseField nm =
-                apply (HsVar (jsonpbName "parseField"))
-                      [ HsVar (unqual_ "obj")
-                      , HsLit (HsString nm)
-                      ]
+              -- E.g.
+              -- SomethingNameOrIdName <$> (HsJSONPB.parseField obj "name")
+              parseField conName pbFldName =
+                HsInfixApp (HsVar (unqual_ conName))
+                           fmapOp
+                           (apply (HsVar (jsonpbName "parseField"))
+                                  [ HsVar (unqual_ "obj")
+                                  , HsLit (HsString pbFldName)
+                                  ])
 
+  let parseJSONPBE =
+        apply (HsVar (jsonpbName "withObject"))
+              [ HsLit (HsString msgName)
+              , HsParen (HsLambda l [patVar "obj"] fieldAps)
+              ]
+        where
+          fieldAps = foldl (\f -> HsInfixApp f apOp)
+                           (apply pureE [ HsVar (unqual_ msgName) ])
+                           (normal <> oneof)
+
+  let parseJSONPBDecl =
+          match_ (HsIdent "parseJSONPB") [] (HsUnGuardedRhs parseJSONPBE) []
 
   pure (instDecl_ (jsonpbName "FromJSONPB")
                  [ type_ msgName ]
                  [ HsFunBind [ parseJSONPBDecl ] ])
+
+-- TODO: get rid of the stringly typing here
+getOneofFields :: String
+               -> [DotProtoMessagePart]
+               -> CompileResult [([(String, String, String)], String, String)]
+                  -- ^ ( [(field number, cons name, protobuf field name)]
+                  --   , not-set constructor name
+                  --   , sum-type field name
+                  --   )
+getOneofFields msgName msgParts = do
+  fieldValues <- fmap (view _2) <$> getQualifiedFields msgName msgParts
+  pure
+    [ let fieldName = intercalate "_or_" (view _1 <$> names)
+          names     = (_1 %~ ("f"++) . show) <$> flds
+      in
+        (names, notSetName, fieldName)
+    | FieldOneOf flds notSetName <- fieldValues
+    ]
 
 getQualifiedFields :: String
                    -> [DotProtoMessagePart]
