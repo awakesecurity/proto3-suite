@@ -14,7 +14,8 @@ import qualified Proto3.Suite.Class as HsProtobuf
 import qualified Proto3.Suite.JSONPB as HsJSONPB
 import Proto3.Suite.JSONPB ((.=), (.:))
 import qualified Proto3.Wire as HsProtobuf
-import Control.Applicative ((<*>), (<|>))
+import Control.Applicative ((<*>), (<|>), (<$>))
+import qualified Control.Monad as Hs
 import qualified Data.Text.Lazy as Hs (Text)
 import qualified Data.ByteString as Hs
 import qualified Data.String as Hs (fromString)

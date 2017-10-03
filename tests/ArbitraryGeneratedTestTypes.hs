@@ -2,14 +2,15 @@
 
 module ArbitraryGeneratedTestTypes where
 
-import qualified Data.ByteString    as BS
-import qualified Data.Text.Lazy     as T
-import qualified Data.Vector        as V
-import           Test.QuickCheck    (Arbitrary, arbitrary,
-                                     arbitraryBoundedEnum, listOf)
-
+import qualified Data.ByteString  as BS
+import qualified Data.Text.Lazy   as T
+import qualified Data.Vector      as V
+import           Test.QuickCheck  (Arbitrary, arbitrary, arbitraryBoundedEnum,
+                                   listOf)
+import qualified Test.QuickCheck  as QC
 import           TestProto
 import qualified TestProtoImport
+import qualified TestProtoOneof
 
 instance Arbitrary a => Arbitrary (V.Vector a) where
   arbitrary = V.fromList <$> listOf arbitrary
@@ -110,3 +111,18 @@ instance Arbitrary TestProtoImport.WithNesting_Nested where
 
 instance Arbitrary Wrapped where
   arbitrary = Wrapped <$> arbitrary
+
+instance Arbitrary TestProtoOneof.Something where
+  arbitrary =
+    TestProtoOneof.Something
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary TestProtoOneof.SomethingNameOrId where
+  arbitrary =
+    QC.oneof
+      [ TestProtoOneof.SomethingNameOrIdName   <$> fmap T.pack arbitrary
+      , TestProtoOneof.SomethingNameOrIdSomeid <$> arbitrary
+      , pure TestProtoOneof.SomethingNameOrId_NOT_SET
+      ]
