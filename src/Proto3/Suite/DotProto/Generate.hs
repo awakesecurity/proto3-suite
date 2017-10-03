@@ -8,6 +8,7 @@
 {-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Proto3.Suite.DotProto.Generate
   ( CompileResult
@@ -38,7 +39,6 @@ import           Data.Ord                       (comparing)
 import qualified Data.Set                       as S
 import           Data.String                    (fromString)
 import qualified Data.Text                      as T
-import           Debug.Trace                    (trace)
 import           Filesystem.Path.CurrentOS      ((</>))
 import qualified Filesystem.Path.CurrentOS      as FP
 import           Language.Haskell.Pretty
@@ -535,10 +535,11 @@ messageInstD ctxt parentIdent msgIdent messageParts =
   do msgName <- nestedTypeName parentIdent =<<
                 dpIdentUnqualName msgIdent
      qualifiedFields <- getQualifiedFields msgName messageParts
-     encodeMessagePartEs <- forM qualifiedFields $ \(recordFieldName, field) ->
-        case field of
+     encodeMessagePartEs <- forM qualifiedFields $ \QualifiedField{recordFieldName, fieldInfo} ->
+        let recordFieldName' = HsVar (unqual_ (coerce recordFieldName)) in
+        case fieldInfo of
             FieldNormal _fieldName fieldNum dpType options ->
-                do fieldE <- wrapE ctxt dpType options (HsVar (unqual_ recordFieldName))
+                do fieldE <- wrapE ctxt dpType options recordFieldName'
                    pure (apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ])
             FieldOneOf OneofField{notSetName, subfields} ->
                 do -- Create all pattern match & expr for each constructor:
@@ -556,10 +557,10 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                                 (HsUnGuardedAlt memptyE)
                                 []
                          ]
-                   pure $ HsCase (HsVar (unqual_ recordFieldName)) alts
+                   pure $ HsCase recordFieldName' alts
 
      decodeMessagePartEs <- sequence
-        [ case fieldType of
+        [ case fieldInfo of
             FieldNormal _fieldName fieldNum dpType options ->
                 unwrapE ctxt dpType options $ apply atE
                         [ decodeMessageFieldE, fieldNumberE fieldNum ]
@@ -572,7 +573,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                                      decodeMessageFieldE ]
                    pure $ apply oneofE
                           [ HsList (toListParser <$> subfields) ]
-        | (_, fieldType) <- qualifiedFields ]
+        | QualifiedField _ fieldInfo <- qualifiedFields ]
 
      dotProtoE <- HsList <$> sequence
          [ dpTypeE dpType >>= \typeE ->
@@ -593,7 +594,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
 
          punnedFieldsP =
              [ HsPFieldPat (unqual_ fieldName) (HsPVar (HsIdent fieldName))
-             | (fieldName, _) <- qualifiedFields ]
+             | QualifiedField (coerce -> fieldName) _ <- qualifiedFields ]
 
          encodeMessageE = apply mconcatE [ HsList encodeMessagePartEs ]
          decodeMessageE = foldl (\f -> HsInfixApp f apOp)
@@ -607,25 +608,30 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                       , decodeMessageDecl
                       , dotProtoDecl ]))
 
-toJSONPBMessageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifier
-                     -> [DotProtoMessagePart] -> CompileResult HsDecl
+toJSONPBMessageInstD :: TypeContext
+                     -> DotProtoIdentifier
+                     -> DotProtoIdentifier
+                     -> [DotProtoMessagePart]
+                     -> CompileResult HsDecl
 toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   msgName    <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
   qualFields <- getQualifiedFields msgName messageParts
 
-  let normalFields = [ (nm, "f" ++ show num) | (_, FieldNormal nm num _ _) <- qualFields ]
-  let oneofFields  = [ fld | (_, FieldOneOf fld) <- qualFields ]
+  let normalFields =
+        [ (nm, "f" ++ show num) | QualifiedField _ (FieldNormal nm num _ _) <- qualFields ]
 
+  let oneofFields  =
+        [ fld | QualifiedField _ (FieldOneOf fld) <- qualFields ]
   -- E.g.
   -- "another" .= f2
-  let dpair fldNm varNm =
+  let dpairE fldNm varNm =
         HsInfixApp (HsLit (HsString (coerce fldNm))) toJSONPBOp (HsVar (unqual_ varNm))
 
   -- E.g.
   -- HsJSONPB.pair "name" f4
-  let pair fldNm varNm =
+  let pairE fldNm varNm =
         apply (HsVar (jsonpbName "pair"))
-              [ HsLit (HsString fldNm)
+              [ HsLit (HsString (coerce fldNm))
               , HsVar (unqual_ varNm)
               ]
 
@@ -637,28 +643,28 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   --     -> HsJSONPB.pair "someid" f9
   --   SomethingNameOrId_NOT_SET
   --     -> mempty
-  let oneofCase (OneofField{notSetName,subfields}) =
-        HsCase (HsVar (unqual_ fldVarNm)) (alts <> [notSet])
+  let oneofCaseE (OneofField{notSetName,subfields}) =
+        HsCase disjunctName (altEs <> [notSetE])
         where
-          alts =
+          altEs =
             [ let patVarNm = oneofSubBinder sub
               in
               alt_ (HsPApp (unqual_ conName) [patVar patVarNm])
-                   (HsUnGuardedAlt (pair (coerce pbFldName) patVarNm))
+                   (HsUnGuardedAlt (pairE pbFldName patVarNm))
                    []
             | sub@(OneofSubfield _ conName pbFldName) <- subfields
             ]
-          fldVarNm = oneofSubBinderDisjunct subfields
-          notSet =
+          disjunctName = HsVar (unqual_ (oneofSubBinderDisjunct subfields))
+          notSetE =
             alt_ (HsPApp (unqual_ notSetName) [])
                  (HsUnGuardedAlt memptyE)
                  []
 
-  let toEncodingPBE = fieldsPB (normalEncs <> oneofEncs)
+  let toEncodingPBE = fieldsPBE (normalEncEs <> oneofEncEs)
         where
-          normalEncs    = uncurry dpair <$> normalFields
-          oneofEncs     = oneofCase     <$> oneofFields
-          fieldsPB flds = apply (HsVar (jsonpbName "fieldsPB")) [ HsList flds ]
+          normalEncEs     = uncurry dpairE <$> normalFields
+          oneofEncEs      = oneofCaseE     <$> oneofFields
+          fieldsPBE encEs = apply (HsVar (jsonpbName "fieldsPB")) [ HsList encEs ]
 
   let toEncodingPBDecl =
         match_ (HsIdent "toEncodingPB")
@@ -670,22 +676,24 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
                (HsUnGuardedRhs toEncodingPBE) []
 
   pure (instDecl_ (jsonpbName "ToJSONPB")
-                 [ type_ msgName ]
-                 [ HsFunBind [ toEncodingPBDecl ] ])
+                  [ type_ msgName ]
+                  [ HsFunBind [ toEncodingPBDecl ] ])
 
-fromJSONPBMessageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifier
-                       -> [DotProtoMessagePart] -> CompileResult HsDecl
+fromJSONPBMessageInstD :: TypeContext
+                       -> DotProtoIdentifier
+                       -> DotProtoIdentifier
+                       -> [DotProtoMessagePart]
+                       -> CompileResult HsDecl
 fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   msgName    <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
   qualFields <- getQualifiedFields msgName messageParts
 
-  let normalFields = [ (nm, "f" ++ show num) | (_, FieldNormal nm num _ _) <- qualFields ]
-  let oneofFields  = [ fld | (_, FieldOneOf fld) <- qualFields ]
-
-  let normalParsers =
-        [ HsInfixApp (HsVar (unqual_ "obj")) parseJSONPBOp (HsLit (HsString (coerce fldNm)))
-        | (fldNm, _) <- normalFields
-        ]
+  let normalParserEs =
+        normalParserE <$> [ nm | QualifiedField _ (FieldNormal nm _ _ _) <- qualFields ]
+        where
+          normalParserE nm = HsInfixApp (HsVar (unqual_ "obj"))
+                                        parseJSONPBOp
+                                        (HsLit (HsString (coerce nm)))
 
   -- E.g., for message Something{ oneof name_or_id { string name = _; int32 someid = _; } }:
   -- [ Hs.msum
@@ -693,21 +701,22 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   --      SomethingNameOrIdSomeid <$> (HsJSONPB.parseField obj "someid"),
   --      Hs.pure SomethingNameOrId_NOT_SET]
   -- , ...
-  let oneofParsers =
-        HsApp msumE . HsList . (subParsers <> notSetParser) <$> oneofFields
+  let oneofParserEs = oneofParserE <$> [ fld | QualifiedField _ (FieldOneOf fld) <- qualFields ]
         where
-          notSetParser OneofField{notSetName} = [ HsApp pureE (HsVar (unqual_ notSetName)) ]
-          subParsers OneofField{subfields}    = subParser <$> subfields
-            where
-              -- E.g.
-              -- SomethingNameOrIdName <$> (HsJSONPB.parseField obj "name")
-              subParser OneofSubfield{subfieldConsName, subfieldName} =
-                HsInfixApp (HsVar (unqual_ subfieldConsName))
-                           fmapOp
-                           (apply (HsVar (jsonpbName "parseField"))
-                                  [ HsVar (unqual_ "obj")
-                                  , HsLit (HsString (coerce subfieldName))
-                                  ])
+          oneofParserE
+            = HsApp msumE . HsList . (subParserEs <> notSetParserE)
+
+          notSetParserE OneofField{notSetName}
+            = [ HsApp pureE (HsVar (unqual_ notSetName)) ]
+          subParserEs OneofField{subfields}
+            = subParserE <$> subfields
+          subParserE OneofSubfield{subfieldConsName, subfieldName}
+            = HsInfixApp (HsVar (unqual_ subfieldConsName))
+                         fmapOp
+                         (apply (HsVar (jsonpbName "parseField"))
+                                [ HsVar (unqual_ "obj")
+                                , HsLit (HsString (coerce subfieldName))
+                                ])
 
   let parseJSONPBE =
         apply (HsVar (jsonpbName "withObject"))
@@ -717,7 +726,7 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
         where
           fieldAps = foldl (\f -> HsInfixApp f apOp)
                            (apply pureE [ HsVar (unqual_ msgName) ])
-                           (normalParsers <> oneofParsers)
+                           (normalParserEs <> oneofParserEs)
 
   let parseJSONPBDecl =
           match_ (HsIdent "parseJSONPB") [] (HsUnGuardedRhs parseJSONPBE) []
@@ -728,8 +737,14 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
 -- ** Codegen bookkeeping helpers
 
+-- | Bookeeping for qualified fields
+data QualifiedField = QualifiedField
+  { recordFieldName :: FieldName
+  , fieldInfo       :: FieldInfo
+  } deriving Show
+
 -- | Bookkeeping for fields
-data FieldValue
+data FieldInfo
   = FieldOneOf OneofField
   | FieldNormal FieldName FieldNumber DotProtoType [DotProtoOption]
   deriving Show
@@ -749,12 +764,13 @@ data OneofSubfield = OneofSubfield
 
 getQualifiedFields :: String
                    -> [DotProtoMessagePart]
-                   -> CompileResult [(String, FieldValue)]
+                   -> CompileResult [QualifiedField]
 getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
   DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options _) -> do
     fieldName <- dpIdentUnqualName fieldIdent
     qualName  <- prefixedFieldName msgName fieldName
-    pure $ Just $ (qualName, FieldNormal (coerce fieldName) fieldNum dpType options)
+    pure $ Just $
+      QualifiedField (coerce qualName) (FieldNormal (coerce fieldName) fieldNum dpType options)
   DotProtoMessageOneOf _ [] ->
     Left (InternalError "getQualifiedFields: encountered oneof with no oneof fields")
   DotProtoMessageOneOf fieldIdent fields -> do
@@ -767,7 +783,8 @@ getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
                     | DotProtoField fieldNum _ subFieldName _ _ <- fields
                     ]
     notSetName <- oneofNotSetName fieldName
-    pure $ Just $ (fieldName, FieldOneOf (OneofField fieldElems notSetName))
+    pure $ Just $
+      QualifiedField (coerce fieldName) (FieldOneOf (OneofField fieldElems notSetName))
   _ ->
     pure Nothing
 
