@@ -135,39 +135,27 @@ testCase16 =
 
 testCase17 :: IO ()
 testCase17 = do
-  outputMessage TestProtoOneof.Something{
-    TestProtoOneof.somethingValue    = 42
-  , TestProtoOneof.somethingAnother  = 4242
-  , TestProtoOneof.somethingPickOne =
-      TestProtoOneof.SomethingPickOneName "hello world"
-  }
-  outputMessage TestProtoOneof.Something{
-    TestProtoOneof.somethingValue    = 1
-  , TestProtoOneof.somethingAnother  = 2
-  , TestProtoOneof.somethingPickOne =
-      TestProtoOneof.SomethingPickOneSomeid 3
-  }
-  outputMessage TestProtoOneof.Something{
-    TestProtoOneof.somethingValue    = 4
-  , TestProtoOneof.somethingAnother  = 5
-  , TestProtoOneof.somethingPickOne =
-      TestProtoOneof.SomethingPickOneDummyMsg
-        (Just (TestProtoOneof.DummyMsg 41))
-  }
-  outputMessage TestProtoOneof.Something{
-    TestProtoOneof.somethingValue    = 6
-  , TestProtoOneof.somethingAnother  = 7
-  , TestProtoOneof.somethingPickOne =
-      TestProtoOneof.SomethingPickOneDummyEnum
-        (Enumerated (Right TestProtoOneof.DummyEnumDUMMY2))
-  }
-  outputMessage TestProtoOneof.Something{
-    TestProtoOneof.somethingValue    = 8
-  , TestProtoOneof.somethingAnother  = 9
-  , TestProtoOneof.somethingPickOne =
-      TestProtoOneof.SomethingPickOneDummyEnum
-        (Enumerated (Right TestProtoOneof.DummyEnumDUMMY))
-  }
+  let emit v a p = outputMessage
+                     TestProtoOneof.Something
+                       { TestProtoOneof.somethingValue   = v
+                       , TestProtoOneof.somethingAnother = a
+                       , TestProtoOneof.somethingPickOne = p
+                       }
+  -- Send default values for oneof subfields
+
+  -- NB: These currently fail because our encoder does not correctly emit
+  -- default-valued oneof subfields
+
+  emit 1 2 $ TestProtoOneof.SomethingPickOneName ""
+  emit 3 4 $ TestProtoOneof.SomethingPickOneSomeid 0
+  emit 5 6 $ TestProtoOneof.SomethingPickOneDummyMsg (Just (TestProtoOneof.DummyMsg 0))
+  emit 7 8 $ TestProtoOneof.SomethingPickOneDummyEnum (Enumerated (Right TestProtoOneof.DummyEnumDUMMY))
+
+  -- Send non-default values for oneof subfields
+  emit 1 2 $ TestProtoOneof.SomethingPickOneName "hello world"
+  emit 3 4 $ TestProtoOneof.SomethingPickOneSomeid 42
+  emit 5 6 $ TestProtoOneof.SomethingPickOneDummyMsg (Just (TestProtoOneof.DummyMsg 66))
+  emit 7 8 $ TestProtoOneof.SomethingPickOneDummyEnum (Enumerated (Right TestProtoOneof.DummyEnumDUMMY2))
 
 main :: IO ()
 main = do testCase1
@@ -189,6 +177,8 @@ main = do testCase1
           -- Tests using imported messages
           testCase15
           testCase16
+
+          -- Oneof tests
           testCase17
 
           outputMessage (MultipleFields 0 0 0 0 "All tests complete" False)

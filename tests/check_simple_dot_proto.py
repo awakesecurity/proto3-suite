@@ -250,47 +250,48 @@ assert case16.localNesting.nestedMessage.nestedPacked == []
 assert case16.localNesting.nestedMessage.nestedUnpacked == []
 
 # Test case 17: Oneof
+
+## Read default values for oneof subfields
 case17a = read_proto(ImportedOneof)
-assert case17a.value == 42
-assert case17a.another == 4242
-assert case17a.HasField('name')
-assert case17a.name == "hello world"
+assert case17a.value   == 1
+assert case17a.another == 2
+assert case17a.HasField('name') and case17a.name == ""
 
 case17b = read_proto(ImportedOneof)
-assert case17b.value == 1
-assert case17b.another == 2
-assert case17b.HasField('someid')
-assert case17b.someid == 3
+assert case17b.value   == 3
+assert case17b.another == 4
+assert case17b.HasField('someid') and case17b.someid == 0
 
 case17c = read_proto(ImportedOneof)
-assert case17c.value == 4
-assert case17c.another == 5
-assert case17c.HasField('dummyMsg') and case17c.dummyMsg.dummy == 41
+assert case17c.value   == 5
+assert case17c.another == 6
+assert case17c.HasField('dummyMsg') and case17c.dummyMsg.dummy == 0
 
 case17d = read_proto(ImportedOneof)
-assert case17d.value == 6
-assert case17d.another == 7
-assert case17d.HasField('dummyEnum') and case17d.dummyEnum == DUMMY2
+assert case17d.value   == 7
+assert case17d.another == 8
+assert case17d.HasField('dummyEnum') and case17d.dummyEnum == DUMMY
 
+## Read non-default values for oneof subfields
 case17e = read_proto(ImportedOneof)
-assert case17e.value == 8
-assert case17e.another == 9
+assert case17e.value   == 1
+assert case17e.another == 2
+assert case17e.HasField('name') and case17e.name == "hello world"
 
-# NB: This test currently fails when paired against the SimpleEncodeDotProto.hs
-# encoder.
-#
-# TODO: *sigh* I think we need to change proto3-* to encode the default-valued
-# oneofs. Line of thinking: if the oneof field is not set we get NOT_SET here
-# (HasField evals false). If it is set but the subfield is set to the default
-# value for its type, we'll still see it as set when pairing against the python
-# encoder (and set to the default value, cf. normal behavior which is to omit
-# default-valued fields). I'm betting that the protobuf encoder needs to be
-# changed to default values when serializing oneof subfields.
-#
-# print '------------------ case17e'
-# print case17e
-# print '--------------------------'
-assert case17e.HasField('dummyEnum') and case17e.dummyEnum == DUMMY
+case17f = read_proto(ImportedOneof)
+assert case17f.value   == 3
+assert case17f.another == 4
+assert case17f.HasField('someid') and case17f.someid == 42
+
+case17g = read_proto(ImportedOneof)
+assert case17g.value   == 5
+assert case17g.another == 6
+assert case17g.HasField('dummyMsg') and case17g.dummyMsg.dummy == 66
+
+case17h = read_proto(ImportedOneof)
+assert case17h.value   == 7
+assert case17h.another == 8
+assert case17h.HasField('dummyEnum') and case17h.dummyEnum == DUMMY2
 
 # Wait for the special 'done' messsage
 done_msg = read_proto(MultipleFields)
