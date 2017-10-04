@@ -543,17 +543,22 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                    pure (apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ])
             FieldOneOf OneofField{notSetName, subfields} ->
                 do -- Create all pattern match & expr for each constructor:
-                   --    Constructor x -> encodeField fieldNumber x
-                   --    ...
-                   --    Constructor y -> encodeField fieldNumber (Nested y) -- for embedded message types
+                   --    Constructor y -> encodeField fieldNumber (Nested y)     -- for embedded message types
+                   --    Constructor x -> encodeField fieldNumber (AlwaysEmit x) -- for everything else
                    --    ...
                    --    ..._NOT_SET   -> mempty
                    alts <- sequence $
                      [ do
-                       varE <- wrapE ctxt dpType options (HsVar (unqual_ "x"))
+                       xE <- wrapE ctxt dpType options
+                             $ case dpType of
+                                 Prim (Named tyName)
+                                   | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
+                                     -> id
+                                 _ -> alwaysEmitE
+                             $ HsVar . unqual_ $ "x"
                        pure $
                         alt_ (HsPApp (unqual_ conName) [patVar "x"])
-                             (HsUnGuardedAlt (apply encodeMessageFieldE [fieldNumberE fieldNum, varE]))
+                             (HsUnGuardedAlt (apply encodeMessageFieldE [fieldNumberE fieldNum, xE]))
                              []
                      | OneofSubfield fieldNum conName _ dpType options <- subfields
                      ]
@@ -1138,10 +1143,10 @@ dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC,
   fieldNumberC, singleC, dotsC, pathC, nestedC, anonymousC, dotProtoOptionC,
   identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC,
   unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
-  methodNameC, nothingC, justC, mconcatE, encodeMessageFieldE, fromStringE,
-  decodeMessageFieldE, pureE, memptyE, msumE, atE, oneofE, succErrorE, predErrorE,
-  toEnumErrorE, fmapE, defaultOptionsE, serverLoopE, convertServerHandlerE,
-  convertServerReaderHandlerE, convertServerWriterHandlerE,
+  methodNameC, nothingC, justC, alwaysEmitC, mconcatE, encodeMessageFieldE,
+  fromStringE, decodeMessageFieldE, pureE, memptyE, msumE, atE, oneofE,
+  succErrorE, predErrorE, toEnumErrorE, fmapE, defaultOptionsE, serverLoopE,
+  convertServerHandlerE, convertServerReaderHandlerE, convertServerWriterHandlerE,
   convertServerRWHandlerE, clientRegisterMethodE, clientRequestE :: HsExp
 dotProtoFieldC        = HsVar (protobufName "DotProtoField")
 primC                 = HsVar (protobufName "Prim")
@@ -1170,6 +1175,7 @@ biDiStreamHandlerC    = HsVar (grpcName "BiDiStreamHandler")
 methodNameC           = HsVar (grpcName "MethodName")
 nothingC              = HsVar (haskellName "Nothing")
 justC                 = HsVar (haskellName "Just")
+alwaysEmitC           = HsVar (protobufName "AlwaysEmit")
 
 encodeMessageFieldE   = HsVar (protobufName "encodeMessageField")
 decodeMessageFieldE   = HsVar (protobufName "decodeMessageField")
@@ -1228,6 +1234,9 @@ intP :: Integral a => a -> HsPat
 intP x = (if x < 0 then HsPParen else id) . HsPLit . HsInt . fromIntegral $ x
 
 -- ** Expressions for protobuf-wire types
+
+alwaysEmitE :: HsExp -> HsExp
+alwaysEmitE = HsParen . HsApp alwaysEmitC
 
 fieldNumberE :: FieldNumber -> HsExp
 fieldNumberE = HsParen . HsApp fieldNumberC . intE . getFieldNumber

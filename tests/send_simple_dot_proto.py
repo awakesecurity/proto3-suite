@@ -166,7 +166,15 @@ write_proto(UsingImported(importedNesting = test_proto_import.WithNesting(nested
                                                                           nestedMessage2 = test_proto_import.WithNesting.Nested(nestedField1 = 3, nestedField2 = 4)),
                           localNesting = WithNesting(nestedMessage = WithNesting.Nested(nestedField1 = "field", nestedField2 = 0xBEEF, nestedPacked = [], nestedUnpacked = []))))
 
-# Test case 17: Oneof
+# # Test case 17: Oneof
+
+# HERE: need to be able to dump the encodings being used so that we can compare
+# apples to apples. Right now it seems as if the proto3-suite encoding and the
+# python encoding are entirely different.
+#
+# Another issue is to ensure that we can indeed
+
+# Use to test: python -c "import test_proto_oneof_pb2 as test_proto_oneof; print map(ord, test_proto_oneof.Something(value=1, another=2, someid=1).SerializeToString())"
 
 # Send default values for oneof subfields
 write_proto(test_proto_oneof.Something(value=1, another=2, name=""))
@@ -179,6 +187,9 @@ write_proto(test_proto_oneof.Something(value=1, another=2, name="hello world"))
 write_proto(test_proto_oneof.Something(value=3, another=4, someid=42))
 write_proto(test_proto_oneof.Something(value=5, another=6, dummyMsg=test_proto_oneof.DummyMsg(dummy=66)))
 write_proto(test_proto_oneof.Something(value=7, another=8, dummyEnum=test_proto_oneof.DUMMY2))
+
+# Send omitted oneof message subfields
+# write_proto(test_proto_oneof.Something(value=9, another=10)) # oneof is omitted
 
 # Send the special 'done' message
 write_proto(MultipleFields(multiFieldString = "All tests complete"))

@@ -100,14 +100,17 @@ instance HsProtobuf.Message Something where
                    (HsProtobuf.Signed somethingAnother)),
                 case somethingPickOne of
                     SomethingPickOneName x
-                      -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 4) x)
+                      -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 4)
+                            (HsProtobuf.AlwaysEmit x))
                     SomethingPickOneSomeid x
-                      -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 9) x)
+                      -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 9)
+                            (HsProtobuf.AlwaysEmit x))
                     SomethingPickOneDummyMsg x
                       -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 10)
                             (HsProtobuf.Nested x))
                     SomethingPickOneDummyEnum x
-                      -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 11) x)
+                      -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 11)
+                            (HsProtobuf.AlwaysEmit x))
                     SomethingPickOne_NOT_SET -> Hs.mempty])
         decodeMessage _
           = (Hs.pure Something) <*>
