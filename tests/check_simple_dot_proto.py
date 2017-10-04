@@ -4,6 +4,7 @@ import sys
 from test_proto_pb2 import *
 from test_proto_import_pb2 import WithNesting as ImportedWithNesting
 from test_proto_oneof_pb2 import Something as ImportedOneof
+from test_proto_oneof_pb2 import DUMMY, DUMMY2
 
 def read_proto(cls):
     length = int(raw_input())
@@ -260,6 +261,36 @@ assert case17b.value == 1
 assert case17b.another == 2
 assert case17b.HasField('someid')
 assert case17b.someid == 3
+
+case17c = read_proto(ImportedOneof)
+assert case17c.value == 4
+assert case17c.another == 5
+assert case17c.HasField('dummyMsg') and case17c.dummyMsg.dummy == 41
+
+case17d = read_proto(ImportedOneof)
+assert case17d.value == 6
+assert case17d.another == 7
+assert case17d.HasField('dummyEnum') and case17d.dummyEnum == DUMMY2
+
+case17e = read_proto(ImportedOneof)
+assert case17e.value == 8
+assert case17e.another == 9
+
+# NB: This test currently fails when paired against the SimpleEncodeDotProto.hs
+# encoder.
+#
+# TODO: *sigh* I think we need to change proto3-* to encode the default-valued
+# oneofs. Line of thinking: if the oneof field is not set we get NOT_SET here
+# (HasField evals false). If it is set but the subfield is set to the default
+# value for its type, we'll still see it as set when pairing against the python
+# encoder (and set to the default value, cf. normal behavior which is to omit
+# default-valued fields). I'm betting that the protobuf encoder needs to be
+# changed to default values when serializing oneof subfields.
+#
+# print '------------------ case17e'
+# print case17e
+# print '--------------------------'
+assert case17e.HasField('dummyEnum') and case17e.dummyEnum == DUMMY
 
 # Wait for the special 'done' messsage
 done_msg = read_proto(MultipleFields)

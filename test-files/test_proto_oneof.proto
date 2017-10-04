@@ -1,11 +1,38 @@
 syntax = "proto3";
 package TestProtoOneof;
 
+message DummyMsg {
+  int32 dummy = 1;
+}
+
+enum DummyEnum {
+  DUMMY  = 0;
+  DUMMY2 = 1;
+}
+
 message Something {
-  sint64 value = 1;
-  sint32 another = 2;
-  oneof name_or_id {
-    string name = 4;
-    int32 someid = 9;
+  sint64 value          = 1;
+  sint32 another        = 2;
+  oneof  pick_one {
+    string    name      = 4;
+    int32     someid    = 9;
+    DummyMsg  dummyMsg  = 10;
+    DummyEnum dummyEnum = 11;
   }
 }
+
+/* TODO: Test oneof subfield message containing oneof
+message Another {
+  sint32 value = 1;
+  oneof age_or_name {
+    sint32 age = 9;
+    string name = 4;
+  }
+  oneof this_or_that {
+    Something this = 10;
+    bytes that = 16;
+  }
+}
+*/
+
+/* TODO: Test imported message containing oneof */

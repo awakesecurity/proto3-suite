@@ -135,14 +135,39 @@ testCase16 =
 
 testCase17 :: IO ()
 testCase17 = do
-  outputMessage (TestProtoOneof.Something { TestProtoOneof.somethingValue = 42
-                                          , TestProtoOneof.somethingAnother = 4242
-                                          , TestProtoOneof.somethingNameOrId = TestProtoOneof.SomethingNameOrIdName "hello world"
-                                          })
-  outputMessage (TestProtoOneof.Something { TestProtoOneof.somethingValue = 1
-                                          , TestProtoOneof.somethingAnother = 2
-                                          , TestProtoOneof.somethingNameOrId = TestProtoOneof.SomethingNameOrIdSomeid 3
-                                          })
+  outputMessage TestProtoOneof.Something{
+    TestProtoOneof.somethingValue    = 42
+  , TestProtoOneof.somethingAnother  = 4242
+  , TestProtoOneof.somethingPickOne =
+      TestProtoOneof.SomethingPickOneName "hello world"
+  }
+  outputMessage TestProtoOneof.Something{
+    TestProtoOneof.somethingValue    = 1
+  , TestProtoOneof.somethingAnother  = 2
+  , TestProtoOneof.somethingPickOne =
+      TestProtoOneof.SomethingPickOneSomeid 3
+  }
+  outputMessage TestProtoOneof.Something{
+    TestProtoOneof.somethingValue    = 4
+  , TestProtoOneof.somethingAnother  = 5
+  , TestProtoOneof.somethingPickOne =
+      TestProtoOneof.SomethingPickOneDummyMsg
+        (Just (TestProtoOneof.DummyMsg 41))
+  }
+  outputMessage TestProtoOneof.Something{
+    TestProtoOneof.somethingValue    = 6
+  , TestProtoOneof.somethingAnother  = 7
+  , TestProtoOneof.somethingPickOne =
+      TestProtoOneof.SomethingPickOneDummyEnum
+        (Enumerated (Right TestProtoOneof.DummyEnumDUMMY2))
+  }
+  outputMessage TestProtoOneof.Something{
+    TestProtoOneof.somethingValue    = 8
+  , TestProtoOneof.somethingAnother  = 9
+  , TestProtoOneof.somethingPickOne =
+      TestProtoOneof.SomethingPickOneDummyEnum
+        (Enumerated (Right TestProtoOneof.DummyEnumDUMMY))
+  }
 
 main :: IO ()
 main = do testCase1

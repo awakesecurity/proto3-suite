@@ -147,8 +147,10 @@ compileTestDotProtos = do
 -- prop> encodesAs emitDefaults (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1))) "{\"enumField\":\"ENUM1\"}"
 -- prop> encodesAs omitDefaults (WithEnum (Enumerated (Right WithEnum_TestEnumENUM3))) "{\"enumField\":\"ENUM3\"}"
 -- prop> encodesAs omitDefaults (WithNesting $ Just $ WithNesting_Nested "" 0 [1,2] [66,99]) "{\"nestedMessage\":{\"nestedPacked\":[1,2],\"nestedUnpacked\":[66,99]}}"
--- prop> encodesAs omitDefaults (Something 42 99 (SomethingNameOrIdName "")) "{\"value\":\"42\",\"another\":99,\"name\":\"\"}"
--- prop> encodesAs omitDefaults (Something 42 99 (SomethingNameOrIdSomeid 0)) "{\"value\":\"42\",\"another\":99,\"someid\":0}"
+-- prop> encodesAs omitDefaults (Something 42 99 (SomethingPickOneName ""))                                       "{\"value\":\"42\",\"another\":99,\"name\":\"\"}"
+-- prop> encodesAs omitDefaults (Something 42 99 (SomethingPickOneSomeid 0))                                      "{\"value\":\"42\",\"another\":99,\"someid\":0}"
+-- prop> encodesAs omitDefaults (Something 42 99 (SomethingPickOneDummyMsg (Just (DummyMsg 66))))                 "{\"value\":\"42\",\"another\":99,\"dummyMsg\":{\"dummy\":66}}"
+-- prop> encodesAs omitDefaults (Something 42 99 (SomethingPickOneDummyEnum (Enumerated (Right DummyEnumDUMMY)))) "{\"value\":\"42\",\"another\":99,\"dummyEnum\":\"DUMMY\"}"
 
 -- | Specific decoding tests
 -- prop> decodesAs "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}" (SignedInts 2147483647 9223372036854775807)
@@ -156,9 +158,11 @@ compileTestDotProtos = do
 -- prop> decodesAs "{\"enumField\":null}"      (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))
 -- prop> decodesAs "{}"                        (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))
 -- prop> decodesAs "{\"nestedMessage\":{}}" (WithNesting $ Just $ WithNesting_Nested "" 0 [] [])
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"someid\":66}" (Something 42 99 (SomethingNameOrIdSomeid 66))
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"name\":\"foo\"}" (Something 42 99 (SomethingNameOrIdName "foo"))
--- prop> decodesAs "{\"value\":\"42\",\"another\":99}" (Something 42 99 SomethingNameOrId_NOT_SET)
+-- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"someid\":66}"               (Something 42 99 (SomethingPickOneSomeid 66))
+-- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"name\":\"foo\"}"            (Something 42 99 (SomethingPickOneName "foo"))
+-- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"dummyMsg\":{\"dummy\":41}}" (Something 42 99 (SomethingPickOneDummyMsg (Just (DummyMsg 41))))
+-- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"dummyEnum\":\"DUMMY\"}"     (Something 42 99 (SomethingPickOneDummyEnum (Enumerated (Right DummyEnumDUMMY))))
+-- prop> decodesAs "{\"value\":\"42\",\"another\":99}"                             (Something 42 99 SomethingPickOne_NOT_SET)
 
 -- * Helper quickcheck props
 

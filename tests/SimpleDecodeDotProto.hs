@@ -232,16 +232,34 @@ testCase16 = testCase "Proper resolution of shadowed message names" $
                  (Just (TestProtoImport.WithNesting_Nested 3 4)))
        usingImportedLocalNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] [])))
 
-testCase17 = testCase "Oneof" $
-    do TestProtoOneof.Something { .. } <- readProto
-       somethingValue @?= 42
+testCase17 = testCase "Oneof" $ do
+    do TestProtoOneof.Something{ .. } <- readProto
+       somethingValue   @?= 42
        somethingAnother @?= 4242
-       somethingNameOrId @?= TestProtoOneof.SomethingNameOrIdName "hello world"
+       somethingPickOne @?= TestProtoOneof.SomethingPickOneName "hello world"
 
-       TestProtoOneof.Something { .. } <- readProto
-       somethingValue @?= 1
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 1
        somethingAnother @?= 2
-       somethingNameOrId @?= TestProtoOneof.SomethingNameOrIdSomeid 3
+       somethingPickOne @?= TestProtoOneof.SomethingPickOneSomeid 3
+
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 4
+       somethingAnother @?= 5
+       somethingPickOne @?= TestProtoOneof.SomethingPickOneDummyMsg
+                                  (Just (TestProtoOneof.DummyMsg 41))
+
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 6
+       somethingAnother @?= 7
+       somethingPickOne @?= TestProtoOneof.SomethingPickOneDummyEnum
+                                  (Enumerated (Right TestProtoOneof.DummyEnumDUMMY2))
+
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 8
+       somethingAnother @?= 9
+       somethingPickOne @?= TestProtoOneof.SomethingPickOneDummyEnum
+                                  (Enumerated (Right TestProtoOneof.DummyEnumDUMMY))
 
 allTestsDone = testCase "Receive end of test suite sentinel message" $
    do MultipleFields{..} <- readProto

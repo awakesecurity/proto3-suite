@@ -169,6 +169,9 @@ write_proto(UsingImported(importedNesting = test_proto_import.WithNesting(nested
 # Test case 17: Oneof
 write_proto(test_proto_oneof.Something(value=42, another=4242, name="hello world"))
 write_proto(test_proto_oneof.Something(value=1, another=2, someid=3))
+write_proto(test_proto_oneof.Something(value=4, another=5, dummyMsg=test_proto_oneof.DummyMsg(dummy=41)))
+write_proto(test_proto_oneof.Something(value=6, another=7, dummyEnum=test_proto_oneof.DUMMY2))
+write_proto(test_proto_oneof.Something(value=8, another=9, dummyEnum=test_proto_oneof.DUMMY))
 
 # Send the special 'done' message
 write_proto(MultipleFields(multiFieldString = "All tests complete"))
