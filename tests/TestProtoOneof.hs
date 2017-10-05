@@ -122,7 +122,7 @@ instance HsProtobuf.Message Something where
                  (HsProtobuf.at HsProtobuf.decodeMessageField
                     (HsProtobuf.FieldNumber 2)))
               <*>
-              (HsProtobuf.oneof
+              (HsProtobuf.oneof SomethingPickOne_NOT_SET
                  [((HsProtobuf.FieldNumber 4),
                    (Hs.pure SomethingPickOneName) <*> HsProtobuf.decodeMessageField),
                   ((HsProtobuf.FieldNumber 9),

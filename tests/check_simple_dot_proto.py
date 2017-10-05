@@ -293,13 +293,14 @@ assert case17h.value   == 7
 assert case17h.another == 8
 assert case17h.HasField('dummyEnum') and case17h.dummyEnum == DUMMY2
 
-# case17i = read_proto(ImportedOneof)
-# assert case17i.value   == 9
-# assert case17i.another == 10
-# assert not case17i.HasField('name')
-# assert not case17i.HasField('someid')
-# assert not case17i.HasField('dummyMsg')
-# assert not case17i.HasField('dummyEnum')
+# Read with oneof not set
+case17i = read_proto(ImportedOneof)
+assert case17i.value   == 9
+assert case17i.another == 10
+assert not case17i.HasField('name')
+assert not case17i.HasField('someid')
+assert not case17i.HasField('dummyMsg')
+assert not case17i.HasField('dummyEnum')
 
 # Wait for the special 'done' messsage
 done_msg = read_proto(MultipleFields)

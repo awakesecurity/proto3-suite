@@ -157,6 +157,9 @@ testCase17 = do
   emit 5 6 $ TestProtoOneof.SomethingPickOneDummyMsg (Just (TestProtoOneof.DummyMsg 66))
   emit 7 8 $ TestProtoOneof.SomethingPickOneDummyEnum (Enumerated (Right TestProtoOneof.DummyEnumDUMMY2))
 
+  -- Send with oneof not set
+  emit 9 10 TestProtoOneof.SomethingPickOne_NOT_SET
+
 main :: IO ()
 main = do testCase1
           testCase2

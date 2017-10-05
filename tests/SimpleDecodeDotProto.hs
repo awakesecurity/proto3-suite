@@ -271,6 +271,11 @@ testCase17 = testCase "Oneof" $ do
        somethingAnother @?= 8
        somethingPickOne @?= TestProtoOneof.SomethingPickOneDummyEnum
                                   (Enumerated (Right TestProtoOneof.DummyEnumDUMMY2))
+    -- Read with oneof not set
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 9
+       somethingAnother @?= 10
+       somethingPickOne @?= TestProtoOneof.SomethingPickOne_NOT_SET
 
 allTestsDone = testCase "Receive end of test suite sentinel message" $
    do MultipleFields{..} <- readProto

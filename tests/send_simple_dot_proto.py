@@ -188,8 +188,8 @@ write_proto(test_proto_oneof.Something(value=3, another=4, someid=42))
 write_proto(test_proto_oneof.Something(value=5, another=6, dummyMsg=test_proto_oneof.DummyMsg(dummy=66)))
 write_proto(test_proto_oneof.Something(value=7, another=8, dummyEnum=test_proto_oneof.DUMMY2))
 
-# Send omitted oneof message subfields
-# write_proto(test_proto_oneof.Something(value=9, another=10)) # oneof is omitted
+# Send with oneof not set
+write_proto(test_proto_oneof.Something(value=9, another=10))
 
 # Send the special 'done' message
 write_proto(MultipleFields(multiFieldString = "All tests complete"))

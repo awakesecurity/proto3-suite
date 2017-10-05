@@ -573,7 +573,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
         [ case fieldInfo of
             FieldNormal _fieldName fieldNum dpType options ->
                 unwrapE ctxt dpType options $ apply atE [ decodeMessageFieldE, fieldNumberE fieldNum ]
-            FieldOneOf OneofField{subfields} -> do
+            FieldOneOf OneofField{notSetName,subfields} -> do
                 -- create a list of (fieldNumber, Cons <$> parser)
                 let subfieldParserE (OneofSubfield fieldNumber consName _ dpType options) = do
                       decodeMessageFieldE' <- unwrapE ctxt dpType options decodeMessageFieldE
@@ -584,7 +584,9 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                                             decodeMessageFieldE'
                                ]
                 subfieldParserEs <- mapM subfieldParserE subfields
-                pure $ apply oneofE [ HsList subfieldParserEs ]
+                pure $ apply oneofE [ HsVar (unqual_ notSetName)
+                                    , HsList subfieldParserEs
+                                    ]
         | QualifiedField _ fieldInfo <- qualifiedFields ]
 
      dotProtoE <- HsList <$> sequence
