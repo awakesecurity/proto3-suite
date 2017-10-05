@@ -146,19 +146,21 @@ testCase17 = do
   -- NB: These currently fail because our encoder does not correctly emit
   -- default-valued oneof subfields
 
-  emit 1 2 $ TestProtoOneof.SomethingPickOneName ""
-  emit 3 4 $ TestProtoOneof.SomethingPickOneSomeid 0
-  emit 5 6 $ TestProtoOneof.SomethingPickOneDummyMsg (Just (TestProtoOneof.DummyMsg 0))
-  emit 7 8 $ TestProtoOneof.SomethingPickOneDummyEnum (Enumerated (Right TestProtoOneof.DummyEnumDUMMY))
+  emit 1 2  $ TestProtoOneof.SomethingPickOneName ""
+  emit 3 4  $ TestProtoOneof.SomethingPickOneSomeid 0
+  emit 5 6  $ TestProtoOneof.SomethingPickOneDummyMsg1 (Just (TestProtoOneof.DummyMsg 0))
+  emit 7 8  $ TestProtoOneof.SomethingPickOneDummyMsg2 (Just (TestProtoOneof.DummyMsg 0))
+  emit 9 10 $ TestProtoOneof.SomethingPickOneDummyEnum (Enumerated (Right TestProtoOneof.DummyEnumDUMMY0))
 
   -- Send non-default values for oneof subfields
-  emit 1 2 $ TestProtoOneof.SomethingPickOneName "hello world"
-  emit 3 4 $ TestProtoOneof.SomethingPickOneSomeid 42
-  emit 5 6 $ TestProtoOneof.SomethingPickOneDummyMsg (Just (TestProtoOneof.DummyMsg 66))
-  emit 7 8 $ TestProtoOneof.SomethingPickOneDummyEnum (Enumerated (Right TestProtoOneof.DummyEnumDUMMY2))
+  emit 1 2  $ TestProtoOneof.SomethingPickOneName "hello world"
+  emit 3 4  $ TestProtoOneof.SomethingPickOneSomeid 42
+  emit 5 6  $ TestProtoOneof.SomethingPickOneDummyMsg1 (Just (TestProtoOneof.DummyMsg 66))
+  emit 7 8  $ TestProtoOneof.SomethingPickOneDummyMsg2 (Just (TestProtoOneof.DummyMsg 67))
+  emit 9 10 $ TestProtoOneof.SomethingPickOneDummyEnum (Enumerated (Right TestProtoOneof.DummyEnumDUMMY1))
 
   -- Send with oneof not set
-  emit 9 10 TestProtoOneof.SomethingPickOne_NOT_SET
+  emit 11 12 TestProtoOneof.SomethingPickOne_NOT_SET
 
 main :: IO ()
 main = do testCase1

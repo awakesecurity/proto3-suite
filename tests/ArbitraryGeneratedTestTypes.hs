@@ -123,9 +123,10 @@ instance Arbitrary TestProtoOneof.Something where
 instance Arbitrary TestProtoOneof.SomethingPickOne where
   arbitrary =
     QC.oneof
-      [ TestProtoOneof.SomethingPickOneName      <$> fmap T.pack arbitrary
-      , TestProtoOneof.SomethingPickOneSomeid    <$> arbitrary
-      , TestProtoOneof.SomethingPickOneDummyMsg  <$> arbitrary
+      [ TestProtoOneof.SomethingPickOneName       <$> fmap T.pack arbitrary
+      , TestProtoOneof.SomethingPickOneSomeid     <$> arbitrary
+      , TestProtoOneof.SomethingPickOneDummyMsg1  <$> arbitrary
+      , TestProtoOneof.SomethingPickOneDummyMsg2  <$> arbitrary
       , TestProtoOneof.SomethingPickOneDummyEnum . DotProto.Enumerated . Right
         <$> arbitraryBoundedEnum
       , pure TestProtoOneof.SomethingPickOne_NOT_SET

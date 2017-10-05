@@ -6,18 +6,19 @@ message DummyMsg {
 }
 
 enum DummyEnum {
-  DUMMY  = 0;
-  DUMMY2 = 1;
+  DUMMY0 = 0;
+  DUMMY1 = 1;
 }
 
 message Something {
   sint64 value          = 1;
   sint32 another        = 2;
-  oneof  pick_one {
+  oneof  pickOne {
     string    name      = 4;
     int32     someid    = 9;
-    DummyMsg  dummyMsg  = 10;
-    DummyEnum dummyEnum = 11;
+    DummyMsg  dummyMsg1 = 10;
+    DummyMsg  dummyMsg2 = 11;
+    DummyEnum dummyEnum = 12;
   }
 }
 

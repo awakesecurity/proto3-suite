@@ -55,30 +55,30 @@ instance HsJSONPB.FromJSONPB DummyMsg where
           = (HsJSONPB.withObject "DummyMsg"
                (\ obj -> (Hs.pure DummyMsg) <*> obj .: "dummy"))
  
-data DummyEnum = DummyEnumDUMMY
-               | DummyEnumDUMMY2
+data DummyEnum = DummyEnumDUMMY0
+               | DummyEnumDUMMY1
                deriving (Hs.Show, Hs.Bounded, Hs.Eq, Hs.Ord, Hs.Generic)
  
 instance HsProtobuf.Named DummyEnum where
         nameOf _ = (Hs.fromString "DummyEnum")
  
 instance Hs.Enum DummyEnum where
-        toEnum 0 = DummyEnumDUMMY
-        toEnum 1 = DummyEnumDUMMY2
+        toEnum 0 = DummyEnumDUMMY0
+        toEnum 1 = DummyEnumDUMMY1
         toEnum i = (Hs.toEnumError "DummyEnum" i (0 :: Hs.Int, 1))
-        fromEnum (DummyEnumDUMMY) = 0
-        fromEnum (DummyEnumDUMMY2) = 1
-        succ (DummyEnumDUMMY) = DummyEnumDUMMY2
+        fromEnum (DummyEnumDUMMY0) = 0
+        fromEnum (DummyEnumDUMMY1) = 1
+        succ (DummyEnumDUMMY0) = DummyEnumDUMMY1
         succ _ = Hs.succError "DummyEnum"
-        pred (DummyEnumDUMMY2) = DummyEnumDUMMY
+        pred (DummyEnumDUMMY1) = DummyEnumDUMMY0
         pred _ = Hs.predError "DummyEnum"
  
 instance HsJSONPB.ToJSONPB DummyEnum where
         toEncodingPB x _ = HsJSONPB.namedEncoding x
  
 instance HsJSONPB.FromJSONPB DummyEnum where
-        parseJSONPB (HsJSONPB.String "DUMMY") = Hs.pure DummyEnumDUMMY
-        parseJSONPB (HsJSONPB.String "DUMMY2") = Hs.pure DummyEnumDUMMY2
+        parseJSONPB (HsJSONPB.String "DUMMY0") = Hs.pure DummyEnumDUMMY0
+        parseJSONPB (HsJSONPB.String "DUMMY1") = Hs.pure DummyEnumDUMMY1
         parseJSONPB v = (HsJSONPB.typeMismatch "DummyEnum" v)
  
 data Something = Something{somethingValue :: Hs.Int64,
@@ -105,11 +105,14 @@ instance HsProtobuf.Message Something where
                     SomethingPickOneSomeid x
                       -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 9)
                             (HsProtobuf.AlwaysEmit x))
-                    SomethingPickOneDummyMsg x
+                    SomethingPickOneDummyMsg1 x
                       -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 10)
                             (HsProtobuf.Nested x))
-                    SomethingPickOneDummyEnum x
+                    SomethingPickOneDummyMsg2 x
                       -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 11)
+                            (HsProtobuf.Nested x))
+                    SomethingPickOneDummyEnum x
+                      -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 12)
                             (HsProtobuf.AlwaysEmit x))
                     SomethingPickOne_NOT_SET -> Hs.mempty])
         decodeMessage _
@@ -129,9 +132,12 @@ instance HsProtobuf.Message Something where
                    (Hs.pure SomethingPickOneSomeid) <*>
                      HsProtobuf.decodeMessageField),
                   ((HsProtobuf.FieldNumber 10),
-                   (Hs.pure SomethingPickOneDummyMsg) <*>
+                   (Hs.pure SomethingPickOneDummyMsg1) <*>
                      ((Hs.pure HsProtobuf.nested) <*> HsProtobuf.decodeMessageField)),
                   ((HsProtobuf.FieldNumber 11),
+                   (Hs.pure SomethingPickOneDummyMsg2) <*>
+                     ((Hs.pure HsProtobuf.nested) <*> HsProtobuf.decodeMessageField)),
+                  ((HsProtobuf.FieldNumber 12),
                    (Hs.pure SomethingPickOneDummyEnum) <*>
                      HsProtobuf.decodeMessageField)])
         dotProto _
@@ -147,14 +153,15 @@ instance HsProtobuf.Message Something where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB Something where
-        toEncodingPB (Something f1 f2 f4_or_f9_or_f10_or_f11)
+        toEncodingPB (Something f1 f2 f4_or_f9_or_f10_or_f11_or_f12)
           = (HsJSONPB.fieldsPB
                ["value" .= f1, "another" .= f2,
-                case f4_or_f9_or_f10_or_f11 of
+                case f4_or_f9_or_f10_or_f11_or_f12 of
                     SomethingPickOneName f4 -> (HsJSONPB.pair "name" f4)
                     SomethingPickOneSomeid f9 -> (HsJSONPB.pair "someid" f9)
-                    SomethingPickOneDummyMsg f10 -> (HsJSONPB.pair "dummyMsg" f10)
-                    SomethingPickOneDummyEnum f11 -> (HsJSONPB.pair "dummyEnum" f11)
+                    SomethingPickOneDummyMsg1 f10 -> (HsJSONPB.pair "dummyMsg1" f10)
+                    SomethingPickOneDummyMsg2 f11 -> (HsJSONPB.pair "dummyMsg2" f11)
+                    SomethingPickOneDummyEnum f12 -> (HsJSONPB.pair "dummyEnum" f12)
                     SomethingPickOne_NOT_SET -> Hs.mempty])
  
 instance HsJSONPB.FromJSONPB Something where
@@ -165,7 +172,10 @@ instance HsJSONPB.FromJSONPB Something where
                     Hs.msum
                       [SomethingPickOneName <$> (HsJSONPB.parseField obj "name"),
                        SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid"),
-                       SomethingPickOneDummyMsg <$> (HsJSONPB.parseField obj "dummyMsg"),
+                       SomethingPickOneDummyMsg1 <$>
+                         (HsJSONPB.parseField obj "dummyMsg1"),
+                       SomethingPickOneDummyMsg2 <$>
+                         (HsJSONPB.parseField obj "dummyMsg2"),
                        SomethingPickOneDummyEnum <$>
                          (HsJSONPB.parseField obj "dummyEnum"),
                        Hs.pure SomethingPickOne_NOT_SET]))
@@ -173,7 +183,8 @@ instance HsJSONPB.FromJSONPB Something where
 data SomethingPickOne = SomethingPickOne_NOT_SET
                       | SomethingPickOneName Hs.Text
                       | SomethingPickOneSomeid Hs.Int32
-                      | SomethingPickOneDummyMsg (Hs.Maybe TestProtoOneof.DummyMsg)
+                      | SomethingPickOneDummyMsg1 (Hs.Maybe TestProtoOneof.DummyMsg)
+                      | SomethingPickOneDummyMsg2 (Hs.Maybe TestProtoOneof.DummyMsg)
                       | SomethingPickOneDummyEnum (HsProtobuf.Enumerated
                                                      TestProtoOneof.DummyEnum)
                       deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)

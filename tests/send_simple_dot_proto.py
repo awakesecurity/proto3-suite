@@ -179,17 +179,19 @@ write_proto(UsingImported(importedNesting = test_proto_import.WithNesting(nested
 # Send default values for oneof subfields
 write_proto(test_proto_oneof.Something(value=1, another=2, name=""))
 write_proto(test_proto_oneof.Something(value=3, another=4, someid=0))
-write_proto(test_proto_oneof.Something(value=5, another=6, dummyMsg=test_proto_oneof.DummyMsg(dummy=0)))
-write_proto(test_proto_oneof.Something(value=7, another=8, dummyEnum=test_proto_oneof.DUMMY))
+write_proto(test_proto_oneof.Something(value=5, another=6, dummyMsg1=test_proto_oneof.DummyMsg(dummy=0)))
+write_proto(test_proto_oneof.Something(value=7, another=8, dummyMsg2=test_proto_oneof.DummyMsg(dummy=0)))
+write_proto(test_proto_oneof.Something(value=9, another=10, dummyEnum=test_proto_oneof.DUMMY0))
 
 # Send non-default values for oneof subfields
 write_proto(test_proto_oneof.Something(value=1, another=2, name="hello world"))
 write_proto(test_proto_oneof.Something(value=3, another=4, someid=42))
-write_proto(test_proto_oneof.Something(value=5, another=6, dummyMsg=test_proto_oneof.DummyMsg(dummy=66)))
-write_proto(test_proto_oneof.Something(value=7, another=8, dummyEnum=test_proto_oneof.DUMMY2))
+write_proto(test_proto_oneof.Something(value=5, another=6, dummyMsg1=test_proto_oneof.DummyMsg(dummy=66)))
+write_proto(test_proto_oneof.Something(value=7, another=8, dummyMsg2=test_proto_oneof.DummyMsg(dummy=67)))
+write_proto(test_proto_oneof.Something(value=9, another=10, dummyEnum=test_proto_oneof.DUMMY1))
 
 # Send with oneof not set
-write_proto(test_proto_oneof.Something(value=9, another=10))
+write_proto(test_proto_oneof.Something(value=11, another=12))
 
 # Send the special 'done' message
 write_proto(MultipleFields(multiFieldString = "All tests complete"))
