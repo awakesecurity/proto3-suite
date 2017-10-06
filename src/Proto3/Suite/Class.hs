@@ -468,11 +468,6 @@ instance (Bounded e, Named e, Enum e) => MessageField (Enumerated e)
 
 instance (HasDefault a, Primitive a) => MessageField (AlwaysEmit a) where
   encodeMessageField = encodePrimitive
-  decodeMessageField = one decodePrimitive def -- TODO: possibly need to do
-                                               -- something to yield NOT_SET
-                                               -- here; if we do, we should
-                                               -- probably change AlwaysEmit =>
-                                               -- AsOneof or something.
 
 seqToVec :: Seq a -> Vector a
 seqToVec = fromList . F.toList

@@ -540,10 +540,8 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                    pure (apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ])
             FieldOneOf OneofField{subfields} ->
                 do -- Create all pattern match & expr for each constructor:
-                   --    Constructor y -> encodeField fieldNumber (Nested (Just y)) -- for embedded message types
-                   --    Constructor x -> encodeField fieldNumber (AlwaysEmit x)    -- for everything else
-                   --    ...
-                   --    ..._NOT_SET   -> mempty
+                   --    Constructor y -> encodeMessageField num (Nested (Just y)) -- for embedded messages
+                   --    Constructor y -> encodeMessageField num (AlwaysEmit y)    -- for everything else
                    alts <- sequence $
                      [ do
                        xE <- wrapE ctxt dpType options

@@ -114,14 +114,6 @@ compileTestDotProtos = do
       , "test_proto_oneof_import.proto"
       ]
 
-generatePythonCode :: IO ()
-generatePythonCode = do
-  (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto.proto"]) empty
-  (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_import.proto"]) empty
-  (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_oneof.proto"]) empty
-  (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_oneof_import.proto"]) empty
-  Turtle.touch (pyTmpDir Turtle.</> "__init__.py")
-
 -- * Doctests for JSONPB
 
 -- $setup
