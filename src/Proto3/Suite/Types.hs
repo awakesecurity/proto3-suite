@@ -18,7 +18,7 @@ module Proto3.Suite.Types
   -- * Enumerable Types
   , Enumerated(..)
 
-  , AlwaysEmit(..)
+  , ForceEmit(..)
   , Nested(..)
   , UnpackedVec(..)
   , PackedVec(..)
@@ -99,10 +99,10 @@ newtype Nested a = Nested { nested :: Maybe a }
   deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable,
             Traversable, Applicative, Alternative, Monad)
 
--- | 'AlwaysEmit' provides a way to force emission of field values, even when
+-- | 'ForceEmit' provides a way to force emission of field values, even when
 -- default-value semantics states otherwise. Used when serializing oneof
 -- subfields.
-newtype AlwaysEmit a = AlwaysEmit{ alwaysEmit :: a }
+newtype ForceEmit a = ForceEmit{ forceEmit :: a }
   deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable,
             Traversable)
 

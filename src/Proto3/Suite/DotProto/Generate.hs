@@ -541,7 +541,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
             FieldOneOf OneofField{subfields} ->
                 do -- Create all pattern match & expr for each constructor:
                    --    Constructor y -> encodeMessageField num (Nested (Just y)) -- for embedded messages
-                   --    Constructor y -> encodeMessageField num (AlwaysEmit y)    -- for everything else
+                   --    Constructor y -> encodeMessageField num (ForceEmit y)     -- for everything else
                    alts <- sequence $
                      [ do
                        xE <- wrapE ctxt dpType options
@@ -549,7 +549,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                                  Prim (Named tyName)
                                    | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
                                      -> HsParen . HsApp (HsVar (haskellName "Just"))
-                                 _ -> alwaysEmitE
+                                 _ -> forceEmitE
                              $ HsVar (unqual_ "y")
                        pure $
                         alt_ (HsPApp (unqual_ conName) [patVar "y"])
@@ -1154,61 +1154,62 @@ dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC,
   fieldNumberC, singleC, dotsC, pathC, nestedC, anonymousC, dotProtoOptionC,
   identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC,
   unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
-  methodNameC, nothingC, justC, alwaysEmitC, mconcatE, encodeMessageFieldE,
+  methodNameC, nothingC, justC, forceEmitC, mconcatE, encodeMessageFieldE,
   fromStringE, decodeMessageFieldE, pureE, memptyE, msumE, atE, oneofE,
   succErrorE, predErrorE, toEnumErrorE, fmapE, defaultOptionsE, serverLoopE,
   convertServerHandlerE, convertServerReaderHandlerE, convertServerWriterHandlerE,
   convertServerRWHandlerE, clientRegisterMethodE, clientRequestE :: HsExp
-dotProtoFieldC        = HsVar (protobufName "DotProtoField")
-primC                 = HsVar (protobufName "Prim")
-optionalC             = HsVar (protobufName "Optional")
-repeatedC             = HsVar (protobufName "Repeated")
-nestedRepeatedC       = HsVar (protobufName "NestedRepeated")
-namedC                = HsVar (protobufName "Named")
-fieldNumberC          = HsVar (protobufName "FieldNumber")
-singleC               = HsVar (protobufName "Single")
-pathC                 = HsVar (protobufName "Path")
-dotsC                 = HsVar (protobufName "Dots")
-nestedC               = HsVar (protobufName "Nested")
-anonymousC            = HsVar (protobufName "Anonymous")
-dotProtoOptionC       = HsVar (protobufName "DotProtoOption")
-identifierC           = HsVar (protobufName "Identifier")
-stringLitC            = HsVar (protobufName "StringLit")
-intLitC               = HsVar (protobufName "IntLit")
-floatLitC             = HsVar (protobufName "FloatLit")
-boolLitC              = HsVar (protobufName "BoolLit")
-trueC                 = HsVar (haskellName "True")
-falseC                = HsVar (haskellName "False")
-unaryHandlerC         = HsVar (grpcName "UnaryHandler")
-clientStreamHandlerC  = HsVar (grpcName "ClientStreamHandler")
-serverStreamHandlerC  = HsVar (grpcName "ServerStreamHandler")
-biDiStreamHandlerC    = HsVar (grpcName "BiDiStreamHandler")
-methodNameC           = HsVar (grpcName "MethodName")
-nothingC              = HsVar (haskellName "Nothing")
-justC                 = HsVar (haskellName "Just")
-alwaysEmitC           = HsVar (protobufName "AlwaysEmit")
 
-encodeMessageFieldE   = HsVar (protobufName "encodeMessageField")
-decodeMessageFieldE   = HsVar (protobufName "decodeMessageField")
-atE                   = HsVar (protobufName "at")
-oneofE                = HsVar (protobufName "oneof")
-mconcatE              = HsVar (haskellName "mconcat")
-fromStringE           = HsVar (haskellName "fromString")
-pureE                 = HsVar (haskellName "pure")
-memptyE               = HsVar (haskellName "mempty")
-msumE                 = HsVar (haskellName "msum")
-succErrorE            = HsVar (haskellName "succError")
-predErrorE            = HsVar (haskellName "predError")
-toEnumErrorE          = HsVar (haskellName "toEnumError")
-fmapE                 = HsVar (haskellName "fmap")
-defaultOptionsE       = HsVar (grpcName "defaultOptions")
-serverLoopE           = HsVar (grpcName "serverLoop")
-convertServerHandlerE = HsVar (grpcName "convertGeneratedServerHandler")
+dotProtoFieldC       = HsVar (protobufName "DotProtoField")
+primC                = HsVar (protobufName "Prim")
+optionalC            = HsVar (protobufName "Optional")
+repeatedC            = HsVar (protobufName "Repeated")
+nestedRepeatedC      = HsVar (protobufName "NestedRepeated")
+namedC               = HsVar (protobufName "Named")
+fieldNumberC         = HsVar (protobufName "FieldNumber")
+singleC              = HsVar (protobufName "Single")
+pathC                = HsVar (protobufName "Path")
+dotsC                = HsVar (protobufName "Dots")
+nestedC              = HsVar (protobufName "Nested")
+anonymousC           = HsVar (protobufName "Anonymous")
+dotProtoOptionC      = HsVar (protobufName "DotProtoOption")
+identifierC          = HsVar (protobufName "Identifier")
+stringLitC           = HsVar (protobufName "StringLit")
+intLitC              = HsVar (protobufName "IntLit")
+floatLitC            = HsVar (protobufName "FloatLit")
+boolLitC             = HsVar (protobufName "BoolLit")
+trueC                = HsVar (haskellName "True")
+falseC               = HsVar (haskellName "False")
+unaryHandlerC        = HsVar (grpcName "UnaryHandler")
+clientStreamHandlerC = HsVar (grpcName "ClientStreamHandler")
+serverStreamHandlerC = HsVar (grpcName "ServerStreamHandler")
+biDiStreamHandlerC   = HsVar (grpcName "BiDiStreamHandler")
+methodNameC          = HsVar (grpcName "MethodName")
+nothingC             = HsVar (haskellName "Nothing")
+justC                = HsVar (haskellName "Just")
+forceEmitC           = HsVar (protobufName "ForceEmit")
+
+encodeMessageFieldE         = HsVar (protobufName "encodeMessageField")
+decodeMessageFieldE         = HsVar (protobufName "decodeMessageField")
+atE                         = HsVar (protobufName "at")
+oneofE                      = HsVar (protobufName "oneof")
+mconcatE                    = HsVar (haskellName "mconcat")
+fromStringE                 = HsVar (haskellName "fromString")
+pureE                       = HsVar (haskellName "pure")
+memptyE                     = HsVar (haskellName "mempty")
+msumE                       = HsVar (haskellName "msum")
+succErrorE                  = HsVar (haskellName "succError")
+predErrorE                  = HsVar (haskellName "predError")
+toEnumErrorE                = HsVar (haskellName "toEnumError")
+fmapE                       = HsVar (haskellName "fmap")
+defaultOptionsE             = HsVar (grpcName "defaultOptions")
+serverLoopE                 = HsVar (grpcName "serverLoop")
+convertServerHandlerE       = HsVar (grpcName "convertGeneratedServerHandler")
 convertServerReaderHandlerE = HsVar (grpcName "convertGeneratedServerReaderHandler")
 convertServerWriterHandlerE = HsVar (grpcName "convertGeneratedServerWriterHandler")
 convertServerRWHandlerE     = HsVar (grpcName "convertGeneratedServerRWHandler")
-clientRegisterMethodE = HsVar (grpcName "clientRegisterMethod")
-clientRequestE        = HsVar (grpcName "clientRequest")
+clientRegisterMethodE       = HsVar (grpcName "clientRegisterMethod")
+clientRequestE              = HsVar (grpcName "clientRequest")
 
 biDiStreamingC, serverStreamingC, clientStreamingC, normalC, serviceOptionsC,
   ioActionT, serverRequestT, serverResponseT, clientRequestT, clientResultT,
@@ -1249,8 +1250,8 @@ intP x = (if x < 0 then HsPParen else id) . HsPLit . HsInt . fromIntegral $ x
 
 -- ** Expressions for protobuf-wire types
 
-alwaysEmitE :: HsExp -> HsExp
-alwaysEmitE = HsParen . HsApp alwaysEmitC
+forceEmitE :: HsExp -> HsExp
+forceEmitE = HsParen . HsApp forceEmitC
 
 fieldNumberE :: FieldNumber -> HsExp
 fieldNumberE = HsParen . HsApp fieldNumberC . intE . getFieldNumber
