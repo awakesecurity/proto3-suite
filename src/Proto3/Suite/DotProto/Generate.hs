@@ -396,10 +396,6 @@ fieldLikeName ident@(firstChar:_)
                         in map toLower prefix ++ suffix
 fieldLikeName ident = ident
 
--- E.g. "SomethingPickOne" => "SomethingPickOne_NOT_SET"
-oneofNotSetName :: String -> CompileResult String
-oneofNotSetName = typeLikeName . (<> "__NOT__SET")
-
 prefixedConName :: String -> String -> CompileResult String
 prefixedConName msgName conName =
   (msgName ++) <$> typeLikeName conName
@@ -475,9 +471,10 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
            messagePartFieldD (DotProtoMessageOneOf fieldName _) =
                do fullName <- prefixedFieldName messageName =<<
                               dpIdentUnqualName fieldName
-                  fullTy <- prefixedConName messageName =<<
-                            dpIdentUnqualName fieldName
-                  pure [ ([HsIdent fullName], HsUnBangedTy (type_ fullTy) ) ]
+                  fullTy <- HsTyApp (HsTyCon (haskellName "Maybe")) . type_
+                            <$> do prefixedConName messageName
+                                     =<< dpIdentUnqualName fieldName
+                  pure [ ([HsIdent fullName], HsUnBangedTy fullTy) ]
            messagePartFieldD _ = pure []
 
            nestedDecls :: DotProtoDefinition -> CompileResult [HsDecl]
@@ -491,19 +488,19 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
 
            nestedOneOfDecls :: DotProtoIdentifier -> [DotProtoField] -> CompileResult [HsDecl]
            nestedOneOfDecls identifier fields =
-               do fullName   <- prefixedConName messageName =<<
-                                dpIdentUnqualName identifier
-                  notSetName <- oneofNotSetName fullName
+               do fullName <- prefixedConName messageName =<< dpIdentUnqualName identifier
                   let oneOfCons (DotProtoField _ ty fieldName _ _) =
-                        do consTy <- hsTypeFromDotProto ctxt' ty
+                        do consTy <- case ty of
+                             Prim msg@(Named msgName)
+                               | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup msgName ctxt'
+                                 -> -- Do not wrap message summands with Maybe.
+                                    hsTypeFromDotProtoPrim ctxt' msg
+                             _   -> hsTypeFromDotProto ctxt' ty
                            consName <- prefixedConName fullName =<< dpIdentUnqualName fieldName
                            pure $ conDecl_ (HsIdent consName) [HsUnBangedTy consTy]
                       oneOfCons DotProtoEmptyField =
                           internalError "field type : empty field"
-
-                  let notSetCons = conDecl_ (HsIdent notSetName) []
-                  cons <- (notSetCons:) <$> mapM oneOfCons fields
-
+                  cons <- mapM oneOfCons fields
                   pure [dataDecl_ fullName cons defaultMessageDeriving ]
 
        conDecl <- recDecl_ (HsIdent messageName) . mconcat <$>
@@ -541,10 +538,10 @@ messageInstD ctxt parentIdent msgIdent messageParts =
             FieldNormal _fieldName fieldNum dpType options ->
                 do fieldE <- wrapE ctxt dpType options recordFieldName'
                    pure (apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ])
-            FieldOneOf OneofField{notSetName, subfields} ->
+            FieldOneOf OneofField{subfields} ->
                 do -- Create all pattern match & expr for each constructor:
-                   --    Constructor y -> encodeField fieldNumber (Nested y)     -- for embedded message types
-                   --    Constructor x -> encodeField fieldNumber (AlwaysEmit x) -- for everything else
+                   --    Constructor y -> encodeField fieldNumber (Nested (Just y)) -- for embedded message types
+                   --    Constructor x -> encodeField fieldNumber (AlwaysEmit x)    -- for everything else
                    --    ...
                    --    ..._NOT_SET   -> mempty
                    alts <- sequence $
@@ -553,38 +550,47 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                              $ case dpType of
                                  Prim (Named tyName)
                                    | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
-                                     -> id
+                                     -> HsParen . HsApp (HsVar (haskellName "Just"))
                                  _ -> alwaysEmitE
-                             $ HsVar . unqual_ $ "x"
+                             $ HsVar (unqual_ "y")
                        pure $
-                        alt_ (HsPApp (unqual_ conName) [patVar "x"])
+                        alt_ (HsPApp (unqual_ conName) [patVar "y"])
                              (HsUnGuardedAlt (apply encodeMessageFieldE [fieldNumberE fieldNum, xE]))
                              []
                      | OneofSubfield fieldNum conName _ dpType options <- subfields
                      ]
-                     <>
-                     [ pure $ alt_ (HsPApp (unqual_ notSetName) [])
-                                   (HsUnGuardedAlt memptyE)
-                                   []
-                     ]
-                   pure $ HsCase recordFieldName' alts
+                   pure $ HsCase recordFieldName'
+                        $ [ alt_ (HsPApp (haskellName "Nothing") [])
+                                 (HsUnGuardedAlt memptyE)
+                                 []
+                          , alt_ (HsPApp (haskellName "Just") [patVar "x"])
+                                 (HsUnGuardedAlt (HsCase (HsVar (unqual_ "x")) alts))
+                                 []
+                          ]
 
      decodeMessagePartEs <- sequence
         [ case fieldInfo of
             FieldNormal _fieldName fieldNum dpType options ->
                 unwrapE ctxt dpType options $ apply atE [ decodeMessageFieldE, fieldNumberE fieldNum ]
-            FieldOneOf OneofField{notSetName,subfields} -> do
+            FieldOneOf OneofField{subfields} -> do
                 -- create a list of (fieldNumber, Cons <$> parser)
                 let subfieldParserE (OneofSubfield fieldNumber consName _ dpType options) = do
                       decodeMessageFieldE' <- unwrapE ctxt dpType options decodeMessageFieldE
+                      let fE = case dpType of
+                                 Prim (Named tyName)
+                                   | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
+                                     -> HsParen (HsApp fmapE (HsVar (unqual_ consName)))
+                                 _ -> HsParen (HsInfixApp (HsVar (haskellName "Just"))
+                                                          composeOp
+                                                          (HsVar (unqual_ consName)))
                       pure $ HsTuple
                                [ fieldNumberE fieldNumber
-                               , HsInfixApp (apply pureE [ HsVar (unqual_ consName) ])
+                               , HsInfixApp (apply pureE [ fE ])
                                             apOp
                                             decodeMessageFieldE'
                                ]
                 subfieldParserEs <- mapM subfieldParserE subfields
-                pure $ apply oneofE [ HsVar (unqual_ notSetName)
+                pure $ apply oneofE [ HsVar (haskellName "Nothing")
                                     , HsList subfieldParserEs
                                     ]
         | QualifiedField _ fieldInfo <- qualifiedFields ]
@@ -651,26 +657,29 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
   -- E.g.
   -- case f4_or_f9 of
-  --   SomethingPickOneName f4
+  --   Just (SomethingPickOneName f4)
   --     -> HsJSONPB.pair "name" f4
-  --   SomethingPickOneSomeid f9
+  --   Just (SomethingPickOneSomeid f9)
   --     -> HsJSONPB.pair "someid" f9
-  --   SomethingPickOne_NOT_SET
+  --   Nothing
   --     -> mempty
-  let oneofCaseE (OneofField{notSetName,subfields}) =
-        HsCase disjunctName (altEs <> [notSetE])
+  let oneofCaseE (OneofField{subfields}) =
+        HsCase disjunctName (altEs <> pure fallThruE)
         where
           altEs =
-            [ let patVarNm = oneofSubBinder sub
-              in
-              alt_ (HsPApp (unqual_ conName) [patVar patVarNm])
+            [ let patVarNm = oneofSubBinder sub in
+              alt_ (HsPApp (haskellName "Just")
+                           [ HsPParen
+                             $ HsPApp (unqual_ conName) [patVar patVarNm]
+                           ]
+                   )
                    (HsUnGuardedAlt (pairE pbFldName patVarNm))
                    []
             | sub@(OneofSubfield _ conName pbFldName _ _) <- subfields
             ]
           disjunctName = HsVar (unqual_ (oneofSubBinderDisjunct subfields))
-          notSetE =
-            alt_ (HsPApp (unqual_ notSetName) [])
+          fallThruE =
+            alt_ (HsPApp (haskellName "Nothing") [])
                  (HsUnGuardedAlt memptyE)
                  []
 
@@ -685,7 +694,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
                [ HsPApp (unqual_ msgName) $
                    [ patVar varNm | (_, varNm) <- normalFields ]
                    <>
-                   [ patVar (oneofSubBinderDisjunct subs) | OneofField subs _ <- oneofFields ]
+                   [ patVar (oneofSubBinderDisjunct subs) | OneofField subs <- oneofFields ]
                ]
                (HsUnGuardedRhs toEncodingPBE) []
 
@@ -711,26 +720,30 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
   -- E.g., for message Something{ oneof name_or_id { string name = _; int32 someid = _; } }:
   -- [ Hs.msum
-  --     [SomethingPickOneName <$> (HsJSONPB.parseField obj "name"),
-  --      SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid"),
-  --      Hs.pure SomethingPickOne_NOT_SET]
+  --     [Just . SomethingPickOneName <$> (HsJSONPB.parseField obj "name"),
+  --      Just . SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid")
+  -- ]
   -- , ...
   let oneofParserEs = oneofParserE <$> [ fld | QualifiedField _ (FieldOneOf fld) <- qualFields ]
         where
           oneofParserE
-            = HsApp msumE . HsList . (subParserEs <> notSetParserE)
-
-          notSetParserE OneofField{notSetName}
-            = [ HsApp pureE (HsVar (unqual_ notSetName)) ]
+            = HsApp msumE . HsList . (subParserEs <> fallThruE)
+          fallThruE OneofField{}
+            = [HsApp pureE (HsVar (haskellName "Nothing")) ]
           subParserEs OneofField{subfields}
             = subParserE <$> subfields
           subParserE OneofSubfield{subfieldConsName, subfieldName}
-            = HsInfixApp (HsVar (unqual_ subfieldConsName))
+            = HsInfixApp (HsInfixApp
+                            (HsVar (haskellName "Just"))
+                            composeOp
+                            (HsVar (unqual_ subfieldConsName))
+                         )
                          fmapOp
                          (apply (HsVar (jsonpbName "parseField"))
                                 [ HsVar (unqual_ "obj")
                                 , HsLit (HsString (coerce subfieldName))
-                                ])
+                                ]
+                         )
 
   let parseJSONPBE =
         apply (HsVar (jsonpbName "withObject"))
@@ -765,8 +778,7 @@ data FieldInfo
 
 -- | Bookkeeping for oneof fields
 data OneofField = OneofField
-  { subfields  :: [OneofSubfield]
-  , notSetName :: String
+  { subfields :: [OneofSubfield]
   } deriving Show
 
 -- | Bookkeeping for oneof subfields
@@ -798,9 +810,7 @@ getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
                          pure (OneofSubfield fieldNum c (coerce s) dpType options)
                     | DotProtoField fieldNum dpType subFieldName options _ <- fields
                     ]
-    notSetName <- oneofNotSetName fieldName
-    pure $ Just $
-      QualifiedField (coerce fieldName) (FieldOneOf (OneofField fieldElems notSetName))
+    pure $ Just $ QualifiedField (coerce fieldName) (FieldOneOf (OneofField fieldElems))
   _ ->
     pure Nothing
 
@@ -1223,6 +1233,9 @@ apOp  = HsQVarOp (UnQual (HsSymbol "<*>"))
 fmapOp :: HsQOp
 fmapOp  = HsQVarOp (UnQual (HsSymbol "<$>"))
 
+composeOp :: HsQOp
+composeOp = HsQVarOp (Qual haskellNS (HsSymbol "."))
+
 toJSONPBOp :: HsQOp
 toJSONPBOp = HsQVarOp (UnQual (HsSymbol ".="))
 
@@ -1362,12 +1375,14 @@ defaultImports usesGrpc =
         networkGrpcHighLevelServerUnregM = Module "Network.GRPC.HighLevel.Server.Unregistered"
         networkGrpcLowLevelCallM         = Module "Network.GRPC.LowLevel.Call"
 
-        haskellNS                 = Module "Hs"
         grpcNS                    = Module "HsGRPC"
         jsonpbNS                  = Module "HsJSONPB"
         protobufNS                = Module "HsProtobuf"
 
         importSym = HsIAbs . HsIdent
+
+haskellNS :: Module
+haskellNS = Module "Hs"
 
 defaultMessageDeriving, defaultEnumDeriving, defaultServiceDeriving :: [HsQName]
 defaultMessageDeriving = map haskellName [ "Show"
