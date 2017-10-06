@@ -16,6 +16,8 @@ import System.Exit
 
 import TestProto
 import qualified TestProtoImport
+import qualified TestProtoOneof
+import qualified TestProtoOneofImport
 
 main :: IO ()
 main = do putStr "\n"
@@ -23,13 +25,14 @@ main = do putStr "\n"
 
 tests, testCase1, testCase2, testCase3, testCase4, testCase5,
     testCase6, testCase8, testCase9, testCase10, testCase11,
-    testCase12, testCase13, testCase14, testCase15 :: TestTree
+    testCase12, testCase13, testCase14, testCase15, testCase16,
+    testCase17 :: TestTree
 tests = testGroup "Decode protobuf messages from Python"
           [  testCase1,  testCase2, testCaseSignedInts
           ,  testCase3,  testCase4,  testCase5,  testCase6
           ,  testCase7,  testCase8,  testCase9, testCase10
           , testCase11, testCase12, testCase13, testCase14
-          , testCase15, testCase16
+          , testCase15, testCase16, testCase17, testCase18
           , allTestsDone -- this should always run last
           ]
 
@@ -229,6 +232,92 @@ testCase16 = testCase "Proper resolution of shadowed message names" $
                  (Just (TestProtoImport.WithNesting_Nested 1 2))
                  (Just (TestProtoImport.WithNesting_Nested 3 4)))
        usingImportedLocalNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] [])))
+
+testCase17 = testCase "Oneof" $ do
+    -- Read default values for oneof subfields
+    do TestProtoOneof.Something{ .. } <- readProto
+       somethingValue   @?= 1
+       somethingAnother @?= 2
+       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneName "")
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 3
+       somethingAnother @?= 4
+       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneSomeid 0)
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 5
+       somethingAnother @?= 6
+       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneDummyMsg1
+                                    (TestProtoOneof.DummyMsg 0))
+
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 7
+       somethingAnother @?= 8
+       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneDummyMsg2
+                                    (TestProtoOneof.DummyMsg 0))
+
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 9
+       somethingAnother @?= 10
+       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneDummyEnum
+                                    (Enumerated (Right TestProtoOneof.DummyEnumDUMMY0)))
+    -- Read non-default values for oneof subfields
+    do TestProtoOneof.Something{ .. } <- readProto
+       somethingValue   @?= 1
+       somethingAnother @?= 2
+       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneName "hello world")
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 3
+       somethingAnother @?= 4
+       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneSomeid 42)
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 5
+       somethingAnother @?= 6
+       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneDummyMsg1
+                                    (TestProtoOneof.DummyMsg 66))
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 7
+       somethingAnother @?= 8
+       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneDummyMsg2
+                                    (TestProtoOneof.DummyMsg 67))
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 9
+       somethingAnother @?= 10
+       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneDummyEnum
+                                    (Enumerated (Right TestProtoOneof.DummyEnumDUMMY1)))
+    -- Read with oneof not set
+    do TestProtoOneof.Something { .. } <- readProto
+       somethingValue   @?= 11
+       somethingAnother @?= 12
+       somethingPickOne @?= Nothing
+
+testCase18 = testCase "Imported Oneof" $ do
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneDummyMsg1
+                                     (TestProtoOneof.DummyMsg 0))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneDummyMsg1
+                                     (TestProtoOneof.DummyMsg 68))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+                                     (TestProtoOneofImport.WithOneof Nothing))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+                                     (TestProtoOneofImport.WithOneof
+                                        (Just (TestProtoOneofImport.WithOneofPickOneA ""))))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+                                     (TestProtoOneofImport.WithOneof
+                                        (Just (TestProtoOneofImport.WithOneofPickOneB 0))))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+                                     (TestProtoOneofImport.WithOneof
+                                        (Just (TestProtoOneofImport.WithOneofPickOneA "foo"))))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+                                     (TestProtoOneofImport.WithOneof
+                                        (Just (TestProtoOneofImport.WithOneofPickOneB 19))))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Nothing
 
 allTestsDone = testCase "Receive end of test suite sentinel message" $
    do MultipleFields{..} <- readProto

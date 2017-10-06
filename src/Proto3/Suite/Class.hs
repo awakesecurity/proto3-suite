@@ -197,6 +197,10 @@ instance HasDefault (Nested a) where
   def = Nested Nothing
   isDefault = isNothing . nested
 
+instance (HasDefault a) => HasDefault (ForceEmit a) where
+  def       = ForceEmit def
+  isDefault = isDefault . forceEmit
+
 -- | Used in fields of generated records to represent an unwrapped
 -- 'PackedVec'/'UnpackedVec'
 instance HasDefault (Vector a) where
@@ -402,6 +406,10 @@ instance forall e. (Bounded e, Named e, Enum e) => Primitive (Enumerated e) wher
   decodePrimitive = fmap Enumerated Decode.enum
   primType _ = Named (Single (nameOf (Proxy :: Proxy e)))
 
+instance (Primitive a) => Primitive (ForceEmit a) where
+  encodePrimitive num = encodePrimitive num . forceEmit
+  decodePrimitive     = fmap ForceEmit decodePrimitive
+  primType _          = primType (Proxy :: Proxy a)
 
 -- | This class captures those types which can appear as message fields in
 -- the protocol buffers specification, i.e. 'Primitive' types, or lists of
@@ -457,6 +465,9 @@ instance MessageField TL.Text
 instance MessageField B.ByteString
 instance MessageField BL.ByteString
 instance (Bounded e, Named e, Enum e) => MessageField (Enumerated e)
+
+instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
+  encodeMessageField = encodePrimitive
 
 seqToVec :: Seq a -> Vector a
 seqToVec = fromList . F.toList

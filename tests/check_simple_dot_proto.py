@@ -1,8 +1,10 @@
 #!/usr/bin/python
 import sys
 # Import protoc generated {de,}serializers (generated from test_proto{,_import}.proto)
-from test_proto_pb2 import *
-from test_proto_import_pb2 import WithNesting as ImportedWithNesting
+from test_proto_pb2              import *
+from test_proto_import_pb2       import WithNesting as ImportedWithNesting
+from test_proto_oneof_pb2        import Something, WithImported, DUMMY0, DUMMY1
+from test_proto_oneof_import_pb2 import WithOneof
 
 def read_proto(cls):
     length = int(raw_input())
@@ -246,6 +248,107 @@ assert case16.localNesting.nestedMessage.nestedField1 == "field"
 assert case16.localNesting.nestedMessage.nestedField2 == 0xBEEF
 assert case16.localNesting.nestedMessage.nestedPacked == []
 assert case16.localNesting.nestedMessage.nestedUnpacked == []
+
+# Test case 17: Oneof
+
+## Read default values for oneof subfields
+case17a = read_proto(Something)
+assert case17a.value   == 1
+assert case17a.another == 2
+assert case17a.HasField('name') and case17a.name == ""
+
+case17b = read_proto(Something)
+assert case17b.value   == 3
+assert case17b.another == 4
+assert case17b.HasField('someid') and case17b.someid == 0
+
+case17c = read_proto(Something)
+assert case17c.value   == 5
+assert case17c.another == 6
+assert case17c.HasField('dummyMsg1') and case17c.dummyMsg1.dummy == 0
+
+case17d = read_proto(Something)
+assert case17d.value   == 7
+assert case17d.another == 8
+assert case17d.HasField('dummyMsg2') and case17d.dummyMsg2.dummy == 0
+
+case17e = read_proto(Something)
+assert case17e.value   == 9
+assert case17e.another == 10
+assert case17e.HasField('dummyEnum') and case17e.dummyEnum == DUMMY0
+
+## Read non-default values for oneof subfields
+case17f = read_proto(Something)
+assert case17f.value   == 1
+assert case17f.another == 2
+assert case17f.HasField('name') and case17f.name == "hello world"
+
+case17g = read_proto(Something)
+assert case17g.value   == 3
+assert case17g.another == 4
+assert case17g.HasField('someid') and case17g.someid == 42
+
+case17h = read_proto(Something)
+assert case17h.value   == 5
+assert case17h.another == 6
+assert case17h.HasField('dummyMsg1') and case17h.dummyMsg1.dummy == 66
+
+case17i = read_proto(Something)
+assert case17i.value   == 7
+assert case17i.another == 8
+assert case17i.HasField('dummyMsg2') and case17i.dummyMsg2.dummy == 67
+
+case17j = read_proto(Something)
+assert case17j.value   == 9
+assert case17j.another == 10
+assert case17j.HasField('dummyEnum') and case17j.dummyEnum == DUMMY1
+
+# Read with oneof not set
+case17k = read_proto(Something)
+assert case17k.value   == 11
+assert case17k.another == 12
+assert not case17k.HasField('name')
+assert not case17k.HasField('someid')
+assert not case17k.HasField('dummyMsg1')
+assert not case17k.HasField('dummyMsg2')
+assert not case17k.HasField('dummyEnum')
+
+# Test case 18: Imported Oneof
+
+case18a = read_proto(WithImported)
+assert case18a.HasField('dummyMsg1') and case18a.dummyMsg1.dummy == 0
+
+case18b = read_proto(WithImported)
+assert case18b.HasField('dummyMsg1') and case18b.dummyMsg1.dummy == 68
+
+case18c = read_proto(WithImported)
+assert case18c.HasField('withOneof')
+assert not case18c.withOneof.HasField('a')
+assert not case18c.withOneof.HasField('b')
+
+case18d = read_proto(WithImported)
+assert case18d.HasField('withOneof')
+assert case18d.withOneof.HasField('a') and case18d.withOneof.a == ""
+assert not case18d.withOneof.HasField('b')
+
+case18e = read_proto(WithImported)
+assert case18e.HasField('withOneof')
+assert not case18e.withOneof.HasField('a')
+assert case18e.withOneof.HasField('b') and case18e.withOneof.b == 0
+
+case18f = read_proto(WithImported)
+assert case18f.HasField('withOneof')
+assert case18f.withOneof.HasField('a') and case18f.withOneof.a == "foo"
+assert not case18f.withOneof.HasField('b')
+
+case18g = read_proto(WithImported)
+assert case18g.HasField('withOneof')
+assert not case18g.withOneof.HasField('a')
+assert case18g.withOneof.HasField('b') and case18g.withOneof.b == 19
+
+case18h = read_proto(WithImported)
+assert not case18h.HasField('dummyMsg1')
+assert not case18h.HasField('withOneof')
 
 # Wait for the special 'done' messsage
 done_msg = read_proto(MultipleFields)

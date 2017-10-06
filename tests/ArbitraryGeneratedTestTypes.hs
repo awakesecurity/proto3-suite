@@ -2,14 +2,17 @@
 
 module ArbitraryGeneratedTestTypes where
 
-import qualified Data.ByteString    as BS
-import qualified Data.Text.Lazy     as T
-import qualified Data.Vector        as V
-import           Test.QuickCheck    (Arbitrary, arbitrary,
-                                     arbitraryBoundedEnum, listOf)
-
+import qualified Data.ByteString       as BS
+import qualified Data.Text.Lazy        as T
+import qualified Data.Vector           as V
+import qualified Proto3.Suite.Types as DotProto
+import           Test.QuickCheck       (Arbitrary, arbitrary,
+                                        arbitraryBoundedEnum, listOf)
+import qualified Test.QuickCheck       as QC
 import           TestProto
 import qualified TestProtoImport
+import qualified TestProtoOneof
+import qualified TestProtoOneofImport
 
 instance Arbitrary a => Arbitrary (V.Vector a) where
   arbitrary = V.fromList <$> listOf arbitrary
@@ -110,3 +113,50 @@ instance Arbitrary TestProtoImport.WithNesting_Nested where
 
 instance Arbitrary Wrapped where
   arbitrary = Wrapped <$> arbitrary
+
+instance Arbitrary TestProtoOneof.DummyMsg where
+  arbitrary =
+    TestProtoOneof.DummyMsg
+    <$> arbitrary
+
+instance Arbitrary TestProtoOneof.Something where
+  arbitrary =
+    TestProtoOneof.Something
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+
+instance Arbitrary TestProtoOneof.SomethingPickOne where
+  arbitrary =
+    QC.oneof
+      [ TestProtoOneof.SomethingPickOneName       <$> fmap T.pack arbitrary
+      , TestProtoOneof.SomethingPickOneSomeid     <$> arbitrary
+      , TestProtoOneof.SomethingPickOneDummyMsg1  <$> arbitrary
+      , TestProtoOneof.SomethingPickOneDummyMsg2  <$> arbitrary
+      , TestProtoOneof.SomethingPickOneDummyEnum . DotProto.Enumerated . Right
+        <$> arbitraryBoundedEnum
+      ]
+
+instance Arbitrary TestProtoOneof.WithImported where
+  arbitrary =
+    TestProtoOneof.WithImported
+    <$> arbitrary
+
+instance Arbitrary TestProtoOneof.WithImportedPickOne where
+  arbitrary =
+    QC.oneof
+      [ TestProtoOneof.WithImportedPickOneDummyMsg1 <$> arbitrary
+      , TestProtoOneof.WithImportedPickOneWithOneof <$> arbitrary
+      ]
+
+instance Arbitrary TestProtoOneofImport.WithOneof where
+  arbitrary =
+    TestProtoOneofImport.WithOneof
+    <$> arbitrary
+
+instance Arbitrary TestProtoOneofImport.WithOneofPickOne where
+  arbitrary =
+    QC.oneof
+      [ TestProtoOneofImport.WithOneofPickOneA <$> fmap T.pack arbitrary
+      , TestProtoOneofImport.WithOneofPickOneB <$> arbitrary
+      ]

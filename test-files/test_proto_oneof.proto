@@ -1,0 +1,31 @@
+syntax = "proto3";
+package TestProtoOneof;
+import "test_proto_oneof_import.proto";
+
+message DummyMsg {
+  int32 dummy = 1;
+}
+
+enum DummyEnum {
+  DUMMY0 = 0;
+  DUMMY1 = 1;
+}
+
+message Something {
+  sint64 value          = 1;
+  sint32 another        = 2;
+  oneof  pickOne {
+    string    name      = 4;
+    int32     someid    = 9;
+    DummyMsg  dummyMsg1 = 10;
+    DummyMsg  dummyMsg2 = 11;
+    DummyEnum dummyEnum = 12;
+  }
+}
+
+message WithImported {
+  oneof pickOne {
+    DummyMsg                       dummyMsg1 = 1;
+    TestProtoOneofImport.WithOneof withOneof = 2;
+  }
+}

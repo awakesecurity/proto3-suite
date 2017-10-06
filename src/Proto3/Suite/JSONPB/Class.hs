@@ -59,6 +59,7 @@ import qualified Data.Aeson.Encoding              as E
 import qualified Data.Aeson.Internal              as A (formatError, iparse)
 import qualified Data.Aeson.Parser                as A (eitherDecodeWith)
 import qualified Data.Aeson.Types                 as A (Object, Parser, Series,
+                                                        explicitParseField,
                                                         explicitParseFieldMaybe,
                                                         typeMismatch)
 import qualified Data.Attoparsec.ByteString       as Atto (skipWhile)
@@ -127,7 +128,11 @@ eitherDecode = eitherFormatError . A.eitherDecodeWith jsonEOF (A.iparse parseJSO
 
 -- * Operator definitions
 
--- | Construct a (field name, JSONPB-encoded value) tuple
+pair :: ToJSONPB v => Text -> v -> Options -> A.Series
+pair k v opts = E.pair k (toEncodingPB v opts)
+
+-- | Construct a (field name, JSONPB-encoded value) tuple, respecting
+-- default-valuedness options
 (.=) :: (HasDefault v, ToJSONPB v) => Text -> v -> Options -> A.Series
 k .= v = f
   where
@@ -135,7 +140,7 @@ k .= v = f
       | not optEmitDefaultValuedFields && isDefault v
         = mempty
       | otherwise
-        = E.pair k (toEncodingPB v opts)
+        = pair k v opts
 
 -- | 'Data.Aeson..:' variant for JSONPB; if the given key is missing from the
 -- object, or if it is present but its value is null, we produce the default
@@ -144,6 +149,10 @@ k .= v = f
 obj .: key = obj .:? key A..!= def
   where
     (.:?) = A.explicitParseFieldMaybe parseJSONPB
+
+parseField :: FromJSONPB a
+           => A.Object -> Text -> A.Parser a
+parseField = A.explicitParseField parseJSONPB
 
 -- * JSONPB rendering and parsing options
 

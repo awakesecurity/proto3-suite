@@ -5,6 +5,8 @@ module Main where
 
 import           TestProto
 import qualified TestProtoImport
+import qualified TestProtoOneof
+import qualified TestProtoOneofImport
 import           Proto3.Suite
 import qualified Data.ByteString.Lazy as BL
 
@@ -132,6 +134,44 @@ testCase16 =
                                , usingImportedLocalNesting =
                                    Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] []))) })
 
+testCase17 :: IO ()
+testCase17 = do
+  let emit v a p = outputMessage
+                     TestProtoOneof.Something
+                       { TestProtoOneof.somethingValue   = v
+                       , TestProtoOneof.somethingAnother = a
+                       , TestProtoOneof.somethingPickOne = p
+                       }
+  -- Send default values for oneof subfields
+  emit 1 2  $ Just $ TestProtoOneof.SomethingPickOneName ""
+  emit 3 4  $ Just $ TestProtoOneof.SomethingPickOneSomeid 0
+  emit 5 6  $ Just $ TestProtoOneof.SomethingPickOneDummyMsg1 $ TestProtoOneof.DummyMsg 0
+  emit 7 8  $ Just $ TestProtoOneof.SomethingPickOneDummyMsg2 $ TestProtoOneof.DummyMsg 0
+  emit 9 10 $ Just $ TestProtoOneof.SomethingPickOneDummyEnum $ Enumerated $ Right $ TestProtoOneof.DummyEnumDUMMY0
+
+  -- Send non-default values for oneof subfields
+  emit 1 2  $ Just $ TestProtoOneof.SomethingPickOneName "hello world"
+  emit 3 4  $ Just $ TestProtoOneof.SomethingPickOneSomeid 42
+  emit 5 6  $ Just $ TestProtoOneof.SomethingPickOneDummyMsg1 $ TestProtoOneof.DummyMsg 66
+  emit 7 8  $ Just $ TestProtoOneof.SomethingPickOneDummyMsg2 $ TestProtoOneof.DummyMsg 67
+  emit 9 10 $ Just $ TestProtoOneof.SomethingPickOneDummyEnum $ Enumerated $ Right $ TestProtoOneof.DummyEnumDUMMY1
+
+  -- Send with oneof not set
+  emit 11 12 Nothing
+
+testCase18 :: IO ()
+testCase18 = do
+  let emit          = outputMessage . TestProtoOneof.WithImported
+  let emitWithOneof = emit . Just . TestProtoOneof.WithImportedPickOneWithOneof . TestProtoOneofImport.WithOneof
+  emit $ Just $ TestProtoOneof.WithImportedPickOneDummyMsg1 $ TestProtoOneof.DummyMsg 0
+  emit $ Just $ TestProtoOneof.WithImportedPickOneDummyMsg1 $ TestProtoOneof.DummyMsg 68
+  emitWithOneof Nothing
+  emitWithOneof $ Just $ TestProtoOneofImport.WithOneofPickOneA ""
+  emitWithOneof $ Just $ TestProtoOneofImport.WithOneofPickOneB 0
+  emitWithOneof $ Just $ TestProtoOneofImport.WithOneofPickOneA "foo"
+  emitWithOneof $ Just $ TestProtoOneofImport.WithOneofPickOneB 19
+  emit Nothing
+
 main :: IO ()
 main = do testCase1
           testCase2
@@ -152,5 +192,9 @@ main = do testCase1
           -- Tests using imported messages
           testCase15
           testCase16
+
+          -- Oneof tests
+          testCase17
+          testCase18
 
           outputMessage (MultipleFields 0 0 0 0 "All tests complete" False)
