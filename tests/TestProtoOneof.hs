@@ -24,6 +24,7 @@ import qualified Data.Int as Hs (Int16, Int32, Int64)
 import qualified Data.Word as Hs (Word16, Word32, Word64)
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
+import qualified TestProtoOneofImport
  
 data DummyMsg = DummyMsg{dummyMsgDummy :: Hs.Int32}
               deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
@@ -196,3 +197,61 @@ data SomethingPickOne = SomethingPickOneName Hs.Text
                       | SomethingPickOneDummyEnum (HsProtobuf.Enumerated
                                                      TestProtoOneof.DummyEnum)
                       deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+data WithImported = WithImported{withImportedPickOne ::
+                                 Hs.Maybe WithImportedPickOne}
+                  deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named WithImported where
+        nameOf _ = (Hs.fromString "WithImported")
+ 
+instance HsProtobuf.Message WithImported where
+        encodeMessage _
+          WithImported{withImportedPickOne = withImportedPickOne}
+          = (Hs.mconcat
+               [case withImportedPickOne of
+                    Hs.Nothing -> Hs.mempty
+                    Hs.Just x
+                      -> case x of
+                             WithImportedPickOneDummyMsg1 y
+                               -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                                     (HsProtobuf.Nested (Hs.Just y)))
+                             WithImportedPickOneWithOneof y
+                               -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                                     (HsProtobuf.Nested (Hs.Just y)))])
+        decodeMessage _
+          = (Hs.pure WithImported) <*>
+              (HsProtobuf.oneof Hs.Nothing
+                 [((HsProtobuf.FieldNumber 1),
+                   (Hs.pure (Hs.fmap WithImportedPickOneDummyMsg1)) <*>
+                     ((Hs.pure HsProtobuf.nested) <*> HsProtobuf.decodeMessageField)),
+                  ((HsProtobuf.FieldNumber 2),
+                   (Hs.pure (Hs.fmap WithImportedPickOneWithOneof)) <*>
+                     ((Hs.pure HsProtobuf.nested) <*> HsProtobuf.decodeMessageField))])
+        dotProto _ = []
+ 
+instance HsJSONPB.ToJSONPB WithImported where
+        toEncodingPB (WithImported f1_or_f2)
+          = (HsJSONPB.fieldsPB
+               [case f1_or_f2 of
+                    Hs.Just (WithImportedPickOneDummyMsg1 f1)
+                      -> (HsJSONPB.pair "dummyMsg1" f1)
+                    Hs.Just (WithImportedPickOneWithOneof f2)
+                      -> (HsJSONPB.pair "withOneof" f2)
+                    Hs.Nothing -> Hs.mempty])
+ 
+instance HsJSONPB.FromJSONPB WithImported where
+        parseJSONPB
+          = (HsJSONPB.withObject "WithImported"
+               (\ obj ->
+                  (Hs.pure WithImported) <*>
+                    Hs.msum
+                      [Hs.Just Hs.. WithImportedPickOneDummyMsg1 <$>
+                         (HsJSONPB.parseField obj "dummyMsg1"),
+                       Hs.Just Hs.. WithImportedPickOneWithOneof <$>
+                         (HsJSONPB.parseField obj "withOneof"),
+                       Hs.pure Hs.Nothing]))
+ 
+data WithImportedPickOne = WithImportedPickOneDummyMsg1 TestProtoOneof.DummyMsg
+                         | WithImportedPickOneWithOneof TestProtoOneofImport.WithOneof
+                         deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)

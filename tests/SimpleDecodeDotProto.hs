@@ -17,6 +17,7 @@ import System.Exit
 import TestProto
 import qualified TestProtoImport
 import qualified TestProtoOneof
+import qualified TestProtoOneofImport
 
 main :: IO ()
 main = do putStr "\n"
@@ -31,7 +32,7 @@ tests = testGroup "Decode protobuf messages from Python"
           ,  testCase3,  testCase4,  testCase5,  testCase6
           ,  testCase7,  testCase8,  testCase9, testCase10
           , testCase11, testCase12, testCase13, testCase14
-          , testCase15, testCase16, testCase17
+          , testCase15, testCase16, testCase17, testCase18
           , allTestsDone -- this should always run last
           ]
 
@@ -288,6 +289,35 @@ testCase17 = testCase "Oneof" $ do
        somethingValue   @?= 11
        somethingAnother @?= 12
        somethingPickOne @?= Nothing
+
+testCase18 = testCase "Imported Oneof" $ do
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneDummyMsg1
+                                     (TestProtoOneof.DummyMsg 0))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneDummyMsg1
+                                     (TestProtoOneof.DummyMsg 68))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+                                     (TestProtoOneofImport.WithOneof Nothing))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+                                     (TestProtoOneofImport.WithOneof
+                                        (Just (TestProtoOneofImport.WithOneofPickOneA ""))))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+                                     (TestProtoOneofImport.WithOneof
+                                        (Just (TestProtoOneofImport.WithOneofPickOneB 0))))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+                                     (TestProtoOneofImport.WithOneof
+                                        (Just (TestProtoOneofImport.WithOneofPickOneA "foo"))))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+                                     (TestProtoOneofImport.WithOneof
+                                        (Just (TestProtoOneofImport.WithOneofPickOneB 19))))
+  do TestProtoOneof.WithImported{ .. } <- readProto
+     withImportedPickOne @?= Nothing
 
 allTestsDone = testCase "Receive end of test suite sentinel message" $
    do MultipleFields{..} <- readProto

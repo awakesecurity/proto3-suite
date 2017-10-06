@@ -6,6 +6,7 @@ module Main where
 import           TestProto
 import qualified TestProtoImport
 import qualified TestProtoOneof
+import qualified TestProtoOneofImport
 import           Proto3.Suite
 import qualified Data.ByteString.Lazy as BL
 
@@ -158,6 +159,19 @@ testCase17 = do
   -- Send with oneof not set
   emit 11 12 Nothing
 
+testCase18 :: IO ()
+testCase18 = do
+  let emit          = outputMessage . TestProtoOneof.WithImported
+  let emitWithOneof = emit . Just . TestProtoOneof.WithImportedPickOneWithOneof . TestProtoOneofImport.WithOneof
+  emit $ Just $ TestProtoOneof.WithImportedPickOneDummyMsg1 $ TestProtoOneof.DummyMsg 0
+  emit $ Just $ TestProtoOneof.WithImportedPickOneDummyMsg1 $ TestProtoOneof.DummyMsg 68
+  emitWithOneof Nothing
+  emitWithOneof $ Just $ TestProtoOneofImport.WithOneofPickOneA ""
+  emitWithOneof $ Just $ TestProtoOneofImport.WithOneofPickOneB 0
+  emitWithOneof $ Just $ TestProtoOneofImport.WithOneofPickOneA "foo"
+  emitWithOneof $ Just $ TestProtoOneofImport.WithOneofPickOneB 19
+  emit Nothing
+
 main :: IO ()
 main = do testCase1
           testCase2
@@ -181,5 +195,6 @@ main = do testCase1
 
           -- Oneof tests
           testCase17
+          testCase18
 
           outputMessage (MultipleFields 0 0 0 0 "All tests complete" False)

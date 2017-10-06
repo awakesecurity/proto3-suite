@@ -3,8 +3,9 @@ import sys
 import os
 # Import protoc generated {de,}serializers (generated from test_proto{,_import}.proto)
 from test_proto_pb2 import *
-import test_proto_import_pb2 as test_proto_import
-import test_proto_oneof_pb2 as test_proto_oneof
+import test_proto_import_pb2       as test_proto_import
+import test_proto_oneof_pb2        as test_proto_oneof
+import test_proto_oneof_import_pb2 as test_proto_oneof_import
 
 def write_proto(msg):
     out = msg.SerializeToString()
@@ -166,15 +167,7 @@ write_proto(UsingImported(importedNesting = test_proto_import.WithNesting(nested
                                                                           nestedMessage2 = test_proto_import.WithNesting.Nested(nestedField1 = 3, nestedField2 = 4)),
                           localNesting = WithNesting(nestedMessage = WithNesting.Nested(nestedField1 = "field", nestedField2 = 0xBEEF, nestedPacked = [], nestedUnpacked = []))))
 
-# # Test case 17: Oneof
-
-# HERE: need to be able to dump the encodings being used so that we can compare
-# apples to apples. Right now it seems as if the proto3-suite encoding and the
-# python encoding are entirely different.
-#
-# Another issue is to ensure that we can indeed
-
-# Use to test: python -c "import test_proto_oneof_pb2 as test_proto_oneof; print map(ord, test_proto_oneof.Something(value=1, another=2, someid=1).SerializeToString())"
+# Test case 17: Oneof
 
 # Send default values for oneof subfields
 write_proto(test_proto_oneof.Something(value=1, another=2, name=""))
@@ -192,6 +185,16 @@ write_proto(test_proto_oneof.Something(value=9, another=10, dummyEnum=test_proto
 
 # Send with oneof not set
 write_proto(test_proto_oneof.Something(value=11, another=12))
+
+# Test case 18: Imported Oneof
+write_proto(test_proto_oneof.WithImported(dummyMsg1=test_proto_oneof.DummyMsg(dummy=0)))
+write_proto(test_proto_oneof.WithImported(dummyMsg1=test_proto_oneof.DummyMsg(dummy=68)))
+write_proto(test_proto_oneof.WithImported(withOneof=test_proto_oneof_import.WithOneof()))
+write_proto(test_proto_oneof.WithImported(withOneof=test_proto_oneof_import.WithOneof(a="")))
+write_proto(test_proto_oneof.WithImported(withOneof=test_proto_oneof_import.WithOneof(b=0)))
+write_proto(test_proto_oneof.WithImported(withOneof=test_proto_oneof_import.WithOneof(a="foo")))
+write_proto(test_proto_oneof.WithImported(withOneof=test_proto_oneof_import.WithOneof(b=19)))
+write_proto(test_proto_oneof.WithImported())
 
 # Send the special 'done' message
 write_proto(MultipleFields(multiFieldString = "All tests complete"))

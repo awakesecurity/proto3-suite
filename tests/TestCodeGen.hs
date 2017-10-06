@@ -5,6 +5,7 @@ module TestCodeGen where
 
 import           ArbitraryGeneratedTestTypes    ()
 import           Control.Applicative
+import           Control.Monad
 import qualified Data.ByteString.Lazy           as LBS
 import           Data.Monoid                    ((<>))
 import           Data.String                    (IsString)
@@ -20,6 +21,8 @@ import           Test.Tasty.HUnit               (testCase, (@?=))
 import           TestProto
 import           TestProtoOneof
 import qualified Turtle
+import           Turtle.Format             ((%))
+import qualified Turtle.Format             as F
 
 codeGenTests :: TestTree
 codeGenTests = testGroup "Code generator unit tests"
@@ -47,16 +50,8 @@ camelCaseFieldNames = testGroup "camelCasing of field names"
 simpleEncodeDotProto :: TestTree
 simpleEncodeDotProto =
     testCase "generate code for a simple .proto and then use it to encode messages" $
-    do Turtle.mktree hsTmpDir
-       Turtle.mktree pyTmpDir
-
-       compileTestDotProtos
-
+    do compileTestDotProtos
        (@?= ExitSuccess) =<< Turtle.proc "tests/encode.sh" [hsTmpDir] empty
-       (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto.proto"]) empty
-       (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_import.proto"]) empty
-       (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_oneof.proto"]) empty
-       Turtle.touch (pyTmpDir Turtle.</> "__init__.py")
 
        m <- Turtle.need "PYTHONPATH"
        pythonPath <- case m of
@@ -76,16 +71,8 @@ simpleEncodeDotProto =
 simpleDecodeDotProto :: TestTree
 simpleDecodeDotProto =
     testCase "generate code for a simple .proto and then use it to decode messages" $
-    do Turtle.mktree hsTmpDir
-       Turtle.mktree pyTmpDir
-
-       compileTestDotProtos
-
+    do compileTestDotProtos
        (@?= ExitSuccess) =<< Turtle.proc "tests/decode.sh" [hsTmpDir] empty
-       (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto.proto"]) empty
-       (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_import.proto"]) empty
-       (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_oneof.proto"]) empty
-       Turtle.touch (pyTmpDir Turtle.</> "__init__.py")
 
        m <- Turtle.need "PYTHONPATH"
        pythonPath <- case m of
@@ -96,6 +83,7 @@ simpleDecodeDotProto =
        let cmd = "python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto "
        (@?= ExitSuccess) =<< Turtle.shell cmd empty
 
+       -- Not using bracket so that we can inspect the output to fix the tests
        Turtle.rmtree hsTmpDir
        Turtle.rmtree pyTmpDir
 
@@ -107,9 +95,32 @@ pyTmpDir = "test-files/py-tmp"
 
 compileTestDotProtos :: IO ()
 compileTestDotProtos = do
-  compileDotProtoFileOrDie hsTmpDir ["test-files"] "test_proto.proto"
-  compileDotProtoFileOrDie hsTmpDir ["test-files"] "test_proto_oneof.proto"
-  compileDotProtoFileOrDie hsTmpDir ["test-files"] "test_proto_import.proto"
+  Turtle.mktree hsTmpDir
+  Turtle.mktree pyTmpDir
+  forM_ protoFiles $ \protoFile -> do
+    compileDotProtoFileOrDie hsTmpDir ["test-files"] protoFile
+    (@?= ExitSuccess) =<< Turtle.shell (T.concat [ "protoc --python_out="
+                                                 , pyTmpDir
+                                                 , " --proto_path=test-files"
+                                                 , " test-files/" <> Turtle.format F.fp protoFile
+                                                 ])
+                                       empty
+  Turtle.touch (pyTmpDir Turtle.</> "__init__.py")
+  where
+    protoFiles =
+      [ "test_proto.proto"
+      , "test_proto_import.proto"
+      , "test_proto_oneof.proto"
+      , "test_proto_oneof_import.proto"
+      ]
+
+generatePythonCode :: IO ()
+generatePythonCode = do
+  (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto.proto"]) empty
+  (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_import.proto"]) empty
+  (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_oneof.proto"]) empty
+  (@?= ExitSuccess) =<< Turtle.shell (T.concat ["protoc --python_out=", pyTmpDir, " --proto_path=test-files", " test-files/test_proto_oneof_import.proto"]) empty
+  Turtle.touch (pyTmpDir Turtle.</> "__init__.py")
 
 -- * Doctests for JSONPB
 
