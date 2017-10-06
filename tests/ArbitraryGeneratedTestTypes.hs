@@ -129,7 +129,6 @@ instance Arbitrary TestProtoOneof.SomethingPickOne where
       , TestProtoOneof.SomethingPickOneDummyMsg2  <$> arbitrary
       , TestProtoOneof.SomethingPickOneDummyEnum . DotProto.Enumerated . Right
         <$> arbitraryBoundedEnum
-      , pure TestProtoOneof.SomethingPickOne_NOT_SET
       ]
 
 instance Arbitrary TestProtoOneof.DummyMsg where

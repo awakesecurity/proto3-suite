@@ -82,7 +82,8 @@ instance HsJSONPB.FromJSONPB DummyEnum where
         parseJSONPB v = (HsJSONPB.typeMismatch "DummyEnum" v)
  
 data Something = Something{somethingValue :: Hs.Int64,
-                           somethingAnother :: Hs.Int32, somethingPickOne :: SomethingPickOne}
+                           somethingAnother :: Hs.Int32,
+                           somethingPickOne :: Hs.Maybe SomethingPickOne}
                deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
  
 instance HsProtobuf.Named Something where
@@ -99,22 +100,24 @@ instance HsProtobuf.Message Something where
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
                    (HsProtobuf.Signed somethingAnother)),
                 case somethingPickOne of
-                    SomethingPickOneName x
-                      -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 4)
-                            (HsProtobuf.AlwaysEmit x))
-                    SomethingPickOneSomeid x
-                      -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 9)
-                            (HsProtobuf.AlwaysEmit x))
-                    SomethingPickOneDummyMsg1 x
-                      -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 10)
-                            (HsProtobuf.Nested x))
-                    SomethingPickOneDummyMsg2 x
-                      -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 11)
-                            (HsProtobuf.Nested x))
-                    SomethingPickOneDummyEnum x
-                      -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 12)
-                            (HsProtobuf.AlwaysEmit x))
-                    SomethingPickOne_NOT_SET -> Hs.mempty])
+                    Hs.Nothing -> Hs.mempty
+                    Hs.Just x
+                      -> case x of
+                             SomethingPickOneName y
+                               -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 4)
+                                     (HsProtobuf.AlwaysEmit y))
+                             SomethingPickOneSomeid y
+                               -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 9)
+                                     (HsProtobuf.AlwaysEmit y))
+                             SomethingPickOneDummyMsg1 y
+                               -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 10)
+                                     (HsProtobuf.Nested (Hs.Just y)))
+                             SomethingPickOneDummyMsg2 y
+                               -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 11)
+                                     (HsProtobuf.Nested (Hs.Just y)))
+                             SomethingPickOneDummyEnum y
+                               -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 12)
+                                     (HsProtobuf.AlwaysEmit y))])
         decodeMessage _
           = (Hs.pure Something) <*>
               ((Hs.pure HsProtobuf.signed) <*>
@@ -125,20 +128,21 @@ instance HsProtobuf.Message Something where
                  (HsProtobuf.at HsProtobuf.decodeMessageField
                     (HsProtobuf.FieldNumber 2)))
               <*>
-              (HsProtobuf.oneof SomethingPickOne_NOT_SET
+              (HsProtobuf.oneof Hs.Nothing
                  [((HsProtobuf.FieldNumber 4),
-                   (Hs.pure SomethingPickOneName) <*> HsProtobuf.decodeMessageField),
+                   (Hs.pure (Hs.Just Hs.. SomethingPickOneName)) <*>
+                     HsProtobuf.decodeMessageField),
                   ((HsProtobuf.FieldNumber 9),
-                   (Hs.pure SomethingPickOneSomeid) <*>
+                   (Hs.pure (Hs.Just Hs.. SomethingPickOneSomeid)) <*>
                      HsProtobuf.decodeMessageField),
                   ((HsProtobuf.FieldNumber 10),
-                   (Hs.pure SomethingPickOneDummyMsg1) <*>
+                   (Hs.pure (Hs.fmap SomethingPickOneDummyMsg1)) <*>
                      ((Hs.pure HsProtobuf.nested) <*> HsProtobuf.decodeMessageField)),
                   ((HsProtobuf.FieldNumber 11),
-                   (Hs.pure SomethingPickOneDummyMsg2) <*>
+                   (Hs.pure (Hs.fmap SomethingPickOneDummyMsg2)) <*>
                      ((Hs.pure HsProtobuf.nested) <*> HsProtobuf.decodeMessageField)),
                   ((HsProtobuf.FieldNumber 12),
-                   (Hs.pure SomethingPickOneDummyEnum) <*>
+                   (Hs.pure (Hs.Just Hs.. SomethingPickOneDummyEnum)) <*>
                      HsProtobuf.decodeMessageField)])
         dotProto _
           = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
@@ -157,12 +161,15 @@ instance HsJSONPB.ToJSONPB Something where
           = (HsJSONPB.fieldsPB
                ["value" .= f1, "another" .= f2,
                 case f4_or_f9_or_f10_or_f11_or_f12 of
-                    SomethingPickOneName f4 -> (HsJSONPB.pair "name" f4)
-                    SomethingPickOneSomeid f9 -> (HsJSONPB.pair "someid" f9)
-                    SomethingPickOneDummyMsg1 f10 -> (HsJSONPB.pair "dummyMsg1" f10)
-                    SomethingPickOneDummyMsg2 f11 -> (HsJSONPB.pair "dummyMsg2" f11)
-                    SomethingPickOneDummyEnum f12 -> (HsJSONPB.pair "dummyEnum" f12)
-                    SomethingPickOne_NOT_SET -> Hs.mempty])
+                    Hs.Just (SomethingPickOneName f4) -> (HsJSONPB.pair "name" f4)
+                    Hs.Just (SomethingPickOneSomeid f9) -> (HsJSONPB.pair "someid" f9)
+                    Hs.Just (SomethingPickOneDummyMsg1 f10)
+                      -> (HsJSONPB.pair "dummyMsg1" f10)
+                    Hs.Just (SomethingPickOneDummyMsg2 f11)
+                      -> (HsJSONPB.pair "dummyMsg2" f11)
+                    Hs.Just (SomethingPickOneDummyEnum f12)
+                      -> (HsJSONPB.pair "dummyEnum" f12)
+                    Hs.Nothing -> Hs.mempty])
  
 instance HsJSONPB.FromJSONPB Something where
         parseJSONPB
@@ -170,21 +177,22 @@ instance HsJSONPB.FromJSONPB Something where
                (\ obj ->
                   (Hs.pure Something) <*> obj .: "value" <*> obj .: "another" <*>
                     Hs.msum
-                      [SomethingPickOneName <$> (HsJSONPB.parseField obj "name"),
-                       SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid"),
-                       SomethingPickOneDummyMsg1 <$>
+                      [Hs.Just Hs.. SomethingPickOneName <$>
+                         (HsJSONPB.parseField obj "name"),
+                       Hs.Just Hs.. SomethingPickOneSomeid <$>
+                         (HsJSONPB.parseField obj "someid"),
+                       Hs.Just Hs.. SomethingPickOneDummyMsg1 <$>
                          (HsJSONPB.parseField obj "dummyMsg1"),
-                       SomethingPickOneDummyMsg2 <$>
+                       Hs.Just Hs.. SomethingPickOneDummyMsg2 <$>
                          (HsJSONPB.parseField obj "dummyMsg2"),
-                       SomethingPickOneDummyEnum <$>
+                       Hs.Just Hs.. SomethingPickOneDummyEnum <$>
                          (HsJSONPB.parseField obj "dummyEnum"),
-                       Hs.pure SomethingPickOne_NOT_SET]))
+                       Hs.pure Hs.Nothing]))
  
-data SomethingPickOne = SomethingPickOne_NOT_SET
-                      | SomethingPickOneName Hs.Text
+data SomethingPickOne = SomethingPickOneName Hs.Text
                       | SomethingPickOneSomeid Hs.Int32
-                      | SomethingPickOneDummyMsg1 (Hs.Maybe TestProtoOneof.DummyMsg)
-                      | SomethingPickOneDummyMsg2 (Hs.Maybe TestProtoOneof.DummyMsg)
+                      | SomethingPickOneDummyMsg1 TestProtoOneof.DummyMsg
+                      | SomethingPickOneDummyMsg2 TestProtoOneof.DummyMsg
                       | SomethingPickOneDummyEnum (HsProtobuf.Enumerated
                                                      TestProtoOneof.DummyEnum)
                       deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)

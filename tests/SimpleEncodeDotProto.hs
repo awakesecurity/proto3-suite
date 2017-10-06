@@ -142,25 +142,21 @@ testCase17 = do
                        , TestProtoOneof.somethingPickOne = p
                        }
   -- Send default values for oneof subfields
-
-  -- NB: These currently fail because our encoder does not correctly emit
-  -- default-valued oneof subfields
-
-  emit 1 2  $ TestProtoOneof.SomethingPickOneName ""
-  emit 3 4  $ TestProtoOneof.SomethingPickOneSomeid 0
-  emit 5 6  $ TestProtoOneof.SomethingPickOneDummyMsg1 (Just (TestProtoOneof.DummyMsg 0))
-  emit 7 8  $ TestProtoOneof.SomethingPickOneDummyMsg2 (Just (TestProtoOneof.DummyMsg 0))
-  emit 9 10 $ TestProtoOneof.SomethingPickOneDummyEnum (Enumerated (Right TestProtoOneof.DummyEnumDUMMY0))
+  emit 1 2  $ Just $ TestProtoOneof.SomethingPickOneName ""
+  emit 3 4  $ Just $ TestProtoOneof.SomethingPickOneSomeid 0
+  emit 5 6  $ Just $ TestProtoOneof.SomethingPickOneDummyMsg1 $ TestProtoOneof.DummyMsg 0
+  emit 7 8  $ Just $ TestProtoOneof.SomethingPickOneDummyMsg2 $ TestProtoOneof.DummyMsg 0
+  emit 9 10 $ Just $ TestProtoOneof.SomethingPickOneDummyEnum $ Enumerated $ Right $ TestProtoOneof.DummyEnumDUMMY0
 
   -- Send non-default values for oneof subfields
-  emit 1 2  $ TestProtoOneof.SomethingPickOneName "hello world"
-  emit 3 4  $ TestProtoOneof.SomethingPickOneSomeid 42
-  emit 5 6  $ TestProtoOneof.SomethingPickOneDummyMsg1 (Just (TestProtoOneof.DummyMsg 66))
-  emit 7 8  $ TestProtoOneof.SomethingPickOneDummyMsg2 (Just (TestProtoOneof.DummyMsg 67))
-  emit 9 10 $ TestProtoOneof.SomethingPickOneDummyEnum (Enumerated (Right TestProtoOneof.DummyEnumDUMMY1))
+  emit 1 2  $ Just $ TestProtoOneof.SomethingPickOneName "hello world"
+  emit 3 4  $ Just $ TestProtoOneof.SomethingPickOneSomeid 42
+  emit 5 6  $ Just $ TestProtoOneof.SomethingPickOneDummyMsg1 $ TestProtoOneof.DummyMsg 66
+  emit 7 8  $ Just $ TestProtoOneof.SomethingPickOneDummyMsg2 $ TestProtoOneof.DummyMsg 67
+  emit 9 10 $ Just $ TestProtoOneof.SomethingPickOneDummyEnum $ Enumerated $ Right $ TestProtoOneof.DummyEnumDUMMY1
 
   -- Send with oneof not set
-  emit 11 12 TestProtoOneof.SomethingPickOne_NOT_SET
+  emit 11 12 Nothing
 
 main :: IO ()
 main = do testCase1
