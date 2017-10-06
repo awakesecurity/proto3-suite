@@ -140,6 +140,7 @@ compileTestDotProtos = do
 -- prop> roundTrip (x :: UsingImported)
 -- prop> roundTrip (x :: Wrapped)
 -- prop> roundTrip (x :: Something)
+-- prop> roundTrip (x :: WithImported)
 
 -- | Specific encoding tests
 -- prop> encodesAs omitDefaults (MultipleFields 0 0 0 0 "" False)                                                         "{}"
