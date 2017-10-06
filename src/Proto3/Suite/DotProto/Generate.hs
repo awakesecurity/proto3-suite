@@ -718,10 +718,11 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
   -- E.g., for message Something{ oneof name_or_id { string name = _; int32 someid = _; } }:
   -- [ Hs.msum
-  --     [Just . SomethingPickOneName <$> (HsJSONPB.parseField obj "name"),
-  --      Just . SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid")
+  --     [ Just . SomethingPickOneName   <$> (HsJSONPB.parseField obj "name")
+  --     , Just . SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid")
+  --     , pure Nothing
+  --     ]
   -- ]
-  -- , ...
   let oneofParserEs = oneofParserE <$> [ fld | QualifiedField _ (FieldOneOf fld) <- qualFields ]
         where
           oneofParserE
