@@ -639,18 +639,14 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   msgName    <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
   qualFields <- getQualifiedFields msgName messageParts
 
-  let normalFields =
-        [ (nm, "f" ++ show num) | QualifiedField _ (FieldNormal nm num _ _) <- qualFields ]
-
-  let oneofFields  =
-        [ fld | QualifiedField _ (FieldOneOf fld) <- qualFields ]
   -- E.g.
-  -- "another" .= f2
-  let dpairE fldNm varNm =
-        HsInfixApp (HsLit (HsString (coerce fldNm))) toJSONPBOp (HsVar (unqual_ varNm))
-
+  -- "another" .= f2 -- always succeeds (produces default value on missing field)
+  let defPairE fldName fldNum =
+        HsInfixApp (HsLit (HsString (coerce fldName)))
+                   toJSONPBOp
+                   (HsVar (unqual_ (fieldBinder fldNum)))
   -- E.g.
-  -- HsJSONPB.pair "name" f4
+  -- HsJSONPB.pair "name" f4 -- fails on missing field
   let pairE fldNm varNm =
         apply (HsVar (jsonpbName "pair"))
               [ HsLit (HsString (coerce fldNm))
@@ -675,28 +671,24 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
                              $ HsPApp (unqual_ conName) [patVar patVarNm]
                            ]
                    )
-                   (HsUnGuardedAlt (pairE pbFldName patVarNm))
+                   (HsUnGuardedAlt (pairE pbFldNm patVarNm))
                    []
-            | sub@(OneofSubfield _ conName pbFldName _ _) <- subfields
+            | sub@(OneofSubfield _ conName pbFldNm _ _) <- subfields
             ]
-          disjunctName = HsVar (unqual_ (oneofSubBinderDisjunct subfields))
+          disjunctName = HsVar (unqual_ (oneofSubDisjunctBinder subfields))
           fallThruE =
             alt_ (HsPApp (haskellName "Nothing") [])
                  (HsUnGuardedAlt memptyE)
                  []
 
-  let toEncodingPBE = fieldsPBE (normalEncEs <> oneofEncEs)
-        where
-          normalEncEs     = uncurry dpairE <$> normalFields
-          oneofEncEs      = oneofCaseE     <$> oneofFields
-          fieldsPBE encEs = apply (HsVar (jsonpbName "fieldsPB")) [ HsList encEs ]
+  let toEncodingPBE = apply (HsVar (jsonpbName "fieldsPB"))
+                            [ HsList (onQF defPairE oneofCaseE <$> qualFields) ]
+
+  let patBinder = onQF (const fieldBinder) (oneofSubDisjunctBinder . subfields)
 
   let toEncodingPBDecl =
         match_ (HsIdent "toEncodingPB")
-               [ HsPApp (unqual_ msgName) $
-                   [ patVar varNm | (_, varNm) <- normalFields ]
-                   <>
-                   [ patVar (oneofSubBinderDisjunct subs) | OneofField subs <- oneofFields ]
+               [ HsPApp (unqual_ msgName) (patVar . patBinder  <$> qualFields)
                ]
                (HsUnGuardedRhs toEncodingPBE) []
 
@@ -713,40 +705,35 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   msgName    <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
   qualFields <- getQualifiedFields msgName messageParts
 
-  let normalParserEs =
-        normalParserE <$> [ nm | QualifiedField _ (FieldNormal nm _ _ _) <- qualFields ]
-        where
-          normalParserE nm = HsInfixApp (HsVar (unqual_ "obj"))
-                                        parseJSONPBOp
-                                        (HsLit (HsString (coerce nm)))
-
   -- E.g., for message Something{ oneof name_or_id { string name = _; int32 someid = _; } }:
-  -- [ Hs.msum
-  --     [ Just . SomethingPickOneName   <$> (HsJSONPB.parseField obj "name")
-  --     , Just . SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid")
-  --     , pure Nothing
-  --     ]
-  -- ]
-  let oneofParserEs = oneofParserE <$> [ fld | QualifiedField _ (FieldOneOf fld) <- qualFields ]
+  -- Hs.msum
+  --   [ Just . SomethingPickOneName   <$> (HsJSONPB.parseField obj "name")
+  --   , Just . SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid")
+  --   , pure Nothing
+  --   ]
+  let oneofParserE fld =
+        HsApp msumE (HsList ((subParserEs <> fallThruE) fld))
         where
-          oneofParserE
-            = HsApp msumE . HsList . (subParserEs <> fallThruE)
           fallThruE OneofField{}
-            = [HsApp pureE (HsVar (haskellName "Nothing")) ]
+            = [ HsApp pureE (HsVar (haskellName "Nothing")) ]
           subParserEs OneofField{subfields}
             = subParserE <$> subfields
           subParserE OneofSubfield{subfieldConsName, subfieldName}
             = HsInfixApp (HsInfixApp
                             (HsVar (haskellName "Just"))
                             composeOp
-                            (HsVar (unqual_ subfieldConsName))
-                         )
+                            (HsVar (unqual_ subfieldConsName)))
                          fmapOp
                          (apply (HsVar (jsonpbName "parseField"))
                                 [ HsVar (unqual_ "obj")
                                 , HsLit (HsString (coerce subfieldName))
-                                ]
-                         )
+                                ])
+
+  -- E.g. obj .: "someid"
+  let normalParserE fldNm _ =
+        HsInfixApp (HsVar (unqual_ "obj"))
+                   parseJSONPBOp
+                   (HsLit (HsString (coerce fldNm)))
 
   let parseJSONPBE =
         apply (HsVar (jsonpbName "withObject"))
@@ -756,10 +743,10 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
         where
           fieldAps = foldl (\f -> HsInfixApp f apOp)
                            (apply pureE [ HsVar (unqual_ msgName) ])
-                           (normalParserEs <> oneofParserEs)
+                           (onQF normalParserE oneofParserE <$> qualFields)
 
   let parseJSONPBDecl =
-          match_ (HsIdent "parseJSONPB") [] (HsUnGuardedRhs parseJSONPBE) []
+        match_ (HsIdent "parseJSONPB") [] (HsUnGuardedRhs parseJSONPBE) []
 
   pure (instDecl_ (jsonpbName "FromJSONPB")
                  [ type_ msgName ]
@@ -817,11 +804,22 @@ getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
   _ ->
     pure Nothing
 
-oneofSubBinder :: OneofSubfield -> String
-oneofSubBinder = ("f" ++) . show . subfieldNumber
+-- | Project qualified fields, given a projection function per field type.
+onQF :: (FieldName -> FieldNumber -> a) -- ^ projection for normal fields
+     -> (OneofField -> a)               -- ^ projection for oneof fields
+     -> QualifiedField
+     -> a
+onQF f _ (QualifiedField _ (FieldNormal fldName fldNum _ _)) = f fldName fldNum
+onQF _ g (QualifiedField _ (FieldOneOf fld))                 = g fld
 
-oneofSubBinderDisjunct :: [OneofSubfield] -> String
-oneofSubBinderDisjunct = intercalate "_or_" . fmap oneofSubBinder
+fieldBinder :: FieldNumber -> String
+fieldBinder = ("f" ++) . show
+
+oneofSubBinder :: OneofSubfield -> String
+oneofSubBinder = fieldBinder . subfieldNumber
+
+oneofSubDisjunctBinder :: [OneofSubfield] -> String
+oneofSubDisjunctBinder = intercalate "_or_" . fmap oneofSubBinder
 
 -- ** Helpers to wrap/unwrap types for protobuf (de-)serialization
 
