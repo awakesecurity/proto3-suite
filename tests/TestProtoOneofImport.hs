@@ -24,14 +24,14 @@ import qualified Data.Int as Hs (Int16, Int32, Int64)
 import qualified Data.Word as Hs (Word16, Word32, Word64)
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
-
+ 
 data WithOneof = WithOneof{withOneofPickOne ::
                            Hs.Maybe WithOneofPickOne}
                deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
-
+ 
 instance HsProtobuf.Named WithOneof where
         nameOf _ = (Hs.fromString "WithOneof")
-
+ 
 instance HsProtobuf.Message WithOneof where
         encodeMessage _ WithOneof{withOneofPickOne = withOneofPickOne}
           = (Hs.mconcat
@@ -55,7 +55,7 @@ instance HsProtobuf.Message WithOneof where
                    (Hs.pure (Hs.Just Hs.. WithOneofPickOneB)) <*>
                      HsProtobuf.decodeMessageField)])
         dotProto _ = []
-
+ 
 instance HsJSONPB.ToJSONPB WithOneof where
         toEncodingPB (WithOneof f1_or_f2)
           = (HsJSONPB.fieldsPB
@@ -63,7 +63,7 @@ instance HsJSONPB.ToJSONPB WithOneof where
                     Hs.Just (WithOneofPickOneA f1) -> (HsJSONPB.pair "a" f1)
                     Hs.Just (WithOneofPickOneB f2) -> (HsJSONPB.pair "b" f2)
                     Hs.Nothing -> Hs.mempty])
-
+ 
 instance HsJSONPB.FromJSONPB WithOneof where
         parseJSONPB
           = (HsJSONPB.withObject "WithOneof"
@@ -73,7 +73,7 @@ instance HsJSONPB.FromJSONPB WithOneof where
                       [Hs.Just Hs.. WithOneofPickOneA <$> (HsJSONPB.parseField obj "a"),
                        Hs.Just Hs.. WithOneofPickOneB <$> (HsJSONPB.parseField obj "b"),
                        Hs.pure Hs.Nothing]))
-
+ 
 data WithOneofPickOne = WithOneofPickOneA Hs.Text
                       | WithOneofPickOneB Hs.Int32
                       deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
