@@ -13,9 +13,11 @@ module Proto3.Suite.JSONPB
   , eitherDecode
   , encode
     -- * Helper functions
-  , fieldsPB
-  , namedEncoding
+  , enumFieldEncoding
+  , enumFieldString
+  , object
   , pair
+  , pairs
   , parseField
     -- * Aeson re-exports
   , A.Value(..)
