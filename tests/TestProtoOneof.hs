@@ -49,7 +49,8 @@ instance HsProtobuf.Message DummyMsg where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB DummyMsg where
-        toEncodingPB (DummyMsg f1) = (HsJSONPB.fieldsPB ["dummy" .= f1])
+        toJSONPB (DummyMsg f1) = (HsJSONPB.object ["dummy" .= f1])
+        toEncodingPB (DummyMsg f1) = (HsJSONPB.pairs ["dummy" .= f1])
  
 instance HsJSONPB.FromJSONPB DummyMsg where
         parseJSONPB
@@ -75,7 +76,8 @@ instance Hs.Enum DummyEnum where
         pred _ = Hs.predError "DummyEnum"
  
 instance HsJSONPB.ToJSONPB DummyEnum where
-        toEncodingPB x _ = HsJSONPB.namedEncoding x
+        toJSONPB x _ = HsJSONPB.enumFieldString x
+        toEncodingPB x _ = HsJSONPB.enumFieldEncoding x
  
 instance HsJSONPB.FromJSONPB DummyEnum where
         parseJSONPB (HsJSONPB.String "DUMMY0") = Hs.pure DummyEnumDUMMY0
@@ -158,8 +160,21 @@ instance HsProtobuf.Message Something where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB Something where
+        toJSONPB (Something f1 f2 f4_or_f9_or_f10_or_f11_or_f12)
+          = (HsJSONPB.object
+               ["value" .= f1, "another" .= f2,
+                case f4_or_f9_or_f10_or_f11_or_f12 of
+                    Hs.Just (SomethingPickOneName f4) -> (HsJSONPB.pair "name" f4)
+                    Hs.Just (SomethingPickOneSomeid f9) -> (HsJSONPB.pair "someid" f9)
+                    Hs.Just (SomethingPickOneDummyMsg1 f10)
+                      -> (HsJSONPB.pair "dummyMsg1" f10)
+                    Hs.Just (SomethingPickOneDummyMsg2 f11)
+                      -> (HsJSONPB.pair "dummyMsg2" f11)
+                    Hs.Just (SomethingPickOneDummyEnum f12)
+                      -> (HsJSONPB.pair "dummyEnum" f12)
+                    Hs.Nothing -> Hs.mempty])
         toEncodingPB (Something f1 f2 f4_or_f9_or_f10_or_f11_or_f12)
-          = (HsJSONPB.fieldsPB
+          = (HsJSONPB.pairs
                ["value" .= f1, "another" .= f2,
                 case f4_or_f9_or_f10_or_f11_or_f12 of
                     Hs.Just (SomethingPickOneName f4) -> (HsJSONPB.pair "name" f4)
@@ -243,8 +258,15 @@ instance HsProtobuf.Message OneofFirst where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB OneofFirst where
+        toJSONPB (OneofFirst f1_or_f2 f3)
+          = (HsJSONPB.object
+               [case f1_or_f2 of
+                    Hs.Just (OneofFirstFirstChoice1 f1) -> (HsJSONPB.pair "choice1" f1)
+                    Hs.Just (OneofFirstFirstChoice2 f2) -> (HsJSONPB.pair "choice2" f2)
+                    Hs.Nothing -> Hs.mempty,
+                "last" .= f3])
         toEncodingPB (OneofFirst f1_or_f2 f3)
-          = (HsJSONPB.fieldsPB
+          = (HsJSONPB.pairs
                [case f1_or_f2 of
                     Hs.Just (OneofFirstFirstChoice1 f1) -> (HsJSONPB.pair "choice1" f1)
                     Hs.Just (OneofFirstFirstChoice2 f2) -> (HsJSONPB.pair "choice2" f2)
@@ -324,8 +346,18 @@ instance HsProtobuf.Message OneofMiddle where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB OneofMiddle where
+        toJSONPB (OneofMiddle f1 f2_or_f3 f4)
+          = (HsJSONPB.object
+               ["first" .= f1,
+                case f2_or_f3 of
+                    Hs.Just (OneofMiddleMiddleChoice1 f2)
+                      -> (HsJSONPB.pair "choice1" f2)
+                    Hs.Just (OneofMiddleMiddleChoice2 f3)
+                      -> (HsJSONPB.pair "choice2" f3)
+                    Hs.Nothing -> Hs.mempty,
+                "last" .= f4])
         toEncodingPB (OneofMiddle f1 f2_or_f3 f4)
-          = (HsJSONPB.fieldsPB
+          = (HsJSONPB.pairs
                ["first" .= f1,
                 case f2_or_f3 of
                     Hs.Just (OneofMiddleMiddleChoice1 f2)
@@ -385,8 +417,16 @@ instance HsProtobuf.Message WithImported where
         dotProto _ = []
  
 instance HsJSONPB.ToJSONPB WithImported where
+        toJSONPB (WithImported f1_or_f2)
+          = (HsJSONPB.object
+               [case f1_or_f2 of
+                    Hs.Just (WithImportedPickOneDummyMsg1 f1)
+                      -> (HsJSONPB.pair "dummyMsg1" f1)
+                    Hs.Just (WithImportedPickOneWithOneof f2)
+                      -> (HsJSONPB.pair "withOneof" f2)
+                    Hs.Nothing -> Hs.mempty])
         toEncodingPB (WithImported f1_or_f2)
-          = (HsJSONPB.fieldsPB
+          = (HsJSONPB.pairs
                [case f1_or_f2 of
                     Hs.Just (WithImportedPickOneDummyMsg1 f1)
                       -> (HsJSONPB.pair "dummyMsg1" f1)

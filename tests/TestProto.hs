@@ -49,8 +49,8 @@ instance HsProtobuf.Message Trivial where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB Trivial where
-        toEncodingPB (Trivial f1)
-          = (HsJSONPB.fieldsPB ["trivialField" .= f1])
+        toJSONPB (Trivial f1) = (HsJSONPB.object ["trivialField" .= f1])
+        toEncodingPB (Trivial f1) = (HsJSONPB.pairs ["trivialField" .= f1])
  
 instance HsJSONPB.FromJSONPB Trivial where
         parseJSONPB
@@ -143,8 +143,13 @@ instance HsProtobuf.Message MultipleFields where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB MultipleFields where
+        toJSONPB (MultipleFields f1 f2 f3 f4 f5 f6)
+          = (HsJSONPB.object
+               ["multiFieldDouble" .= f1, "multiFieldFloat" .= f2,
+                "multiFieldInt32" .= f3, "multiFieldInt64" .= f4,
+                "multiFieldString" .= f5, "multiFieldBool" .= f6])
         toEncodingPB (MultipleFields f1 f2 f3 f4 f5 f6)
-          = (HsJSONPB.fieldsPB
+          = (HsJSONPB.pairs
                ["multiFieldDouble" .= f1, "multiFieldFloat" .= f2,
                 "multiFieldInt32" .= f3, "multiFieldInt64" .= f4,
                 "multiFieldString" .= f5, "multiFieldBool" .= f6])
@@ -198,8 +203,10 @@ instance HsProtobuf.Message SignedInts where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB SignedInts where
+        toJSONPB (SignedInts f1 f2)
+          = (HsJSONPB.object ["signed32" .= f1, "signed64" .= f2])
         toEncodingPB (SignedInts f1 f2)
-          = (HsJSONPB.fieldsPB ["signed32" .= f1, "signed64" .= f2])
+          = (HsJSONPB.pairs ["signed32" .= f1, "signed64" .= f2])
  
 instance HsJSONPB.FromJSONPB SignedInts where
         parseJSONPB
@@ -231,8 +238,8 @@ instance HsProtobuf.Message WithEnum where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithEnum where
-        toEncodingPB (WithEnum f1)
-          = (HsJSONPB.fieldsPB ["enumField" .= f1])
+        toJSONPB (WithEnum f1) = (HsJSONPB.object ["enumField" .= f1])
+        toEncodingPB (WithEnum f1) = (HsJSONPB.pairs ["enumField" .= f1])
  
 instance HsJSONPB.FromJSONPB WithEnum where
         parseJSONPB
@@ -263,7 +270,8 @@ instance Hs.Enum WithEnum_TestEnum where
         pred _ = Hs.predError "WithEnum_TestEnum"
  
 instance HsJSONPB.ToJSONPB WithEnum_TestEnum where
-        toEncodingPB x _ = HsJSONPB.namedEncoding x
+        toJSONPB x _ = HsJSONPB.enumFieldString x
+        toEncodingPB x _ = HsJSONPB.enumFieldEncoding x
  
 instance HsJSONPB.FromJSONPB WithEnum_TestEnum where
         parseJSONPB (HsJSONPB.String "ENUM1")
@@ -300,8 +308,10 @@ instance HsProtobuf.Message WithNesting where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithNesting where
+        toJSONPB (WithNesting f1)
+          = (HsJSONPB.object ["nestedMessage" .= f1])
         toEncodingPB (WithNesting f1)
-          = (HsJSONPB.fieldsPB ["nestedMessage" .= f1])
+          = (HsJSONPB.pairs ["nestedMessage" .= f1])
  
 instance HsJSONPB.FromJSONPB WithNesting where
         parseJSONPB
@@ -375,8 +385,12 @@ instance HsProtobuf.Message WithNesting_Nested where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithNesting_Nested where
+        toJSONPB (WithNesting_Nested f1 f2 f3 f4)
+          = (HsJSONPB.object
+               ["nestedField1" .= f1, "nestedField2" .= f2, "nestedPacked" .= f3,
+                "nestedUnpacked" .= f4])
         toEncodingPB (WithNesting_Nested f1 f2 f3 f4)
-          = (HsJSONPB.fieldsPB
+          = (HsJSONPB.pairs
                ["nestedField1" .= f1, "nestedField2" .= f2, "nestedPacked" .= f3,
                 "nestedUnpacked" .= f4])
  
@@ -417,8 +431,10 @@ instance HsProtobuf.Message WithNestingRepeated where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithNestingRepeated where
+        toJSONPB (WithNestingRepeated f1)
+          = (HsJSONPB.object ["nestedMessages" .= f1])
         toEncodingPB (WithNestingRepeated f1)
-          = (HsJSONPB.fieldsPB ["nestedMessages" .= f1])
+          = (HsJSONPB.pairs ["nestedMessages" .= f1])
  
 instance HsJSONPB.FromJSONPB WithNestingRepeated where
         parseJSONPB
@@ -499,8 +515,12 @@ instance HsProtobuf.Message WithNestingRepeated_Nested where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithNestingRepeated_Nested where
+        toJSONPB (WithNestingRepeated_Nested f1 f2 f3 f4)
+          = (HsJSONPB.object
+               ["nestedField1" .= f1, "nestedField2" .= f2, "nestedPacked" .= f3,
+                "nestedUnpacked" .= f4])
         toEncodingPB (WithNestingRepeated_Nested f1 f2 f3 f4)
-          = (HsJSONPB.fieldsPB
+          = (HsJSONPB.pairs
                ["nestedField1" .= f1, "nestedField2" .= f2, "nestedPacked" .= f3,
                 "nestedUnpacked" .= f4])
  
@@ -549,8 +569,10 @@ instance HsProtobuf.Message NestedInts where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB NestedInts where
+        toJSONPB (NestedInts f1 f2)
+          = (HsJSONPB.object ["nestedInt1" .= f1, "nestedInt2" .= f2])
         toEncodingPB (NestedInts f1 f2)
-          = (HsJSONPB.fieldsPB ["nestedInt1" .= f1, "nestedInt2" .= f2])
+          = (HsJSONPB.pairs ["nestedInt1" .= f1, "nestedInt2" .= f2])
  
 instance HsJSONPB.FromJSONPB NestedInts where
         parseJSONPB
@@ -587,8 +609,10 @@ instance HsProtobuf.Message WithNestingRepeatedInts where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithNestingRepeatedInts where
+        toJSONPB (WithNestingRepeatedInts f1)
+          = (HsJSONPB.object ["nestedInts" .= f1])
         toEncodingPB (WithNestingRepeatedInts f1)
-          = (HsJSONPB.fieldsPB ["nestedInts" .= f1])
+          = (HsJSONPB.pairs ["nestedInts" .= f1])
  
 instance HsJSONPB.FromJSONPB WithNestingRepeatedInts where
         parseJSONPB
@@ -624,8 +648,10 @@ instance HsProtobuf.Message WithNestingInts where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithNestingInts where
+        toJSONPB (WithNestingInts f1)
+          = (HsJSONPB.object ["nestedInts" .= f1])
         toEncodingPB (WithNestingInts f1)
-          = (HsJSONPB.fieldsPB ["nestedInts" .= f1])
+          = (HsJSONPB.pairs ["nestedInts" .= f1])
  
 instance HsJSONPB.FromJSONPB WithNestingInts where
         parseJSONPB
@@ -659,8 +685,10 @@ instance HsProtobuf.Message WithRepetition where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithRepetition where
+        toJSONPB (WithRepetition f1)
+          = (HsJSONPB.object ["repeatedField1" .= f1])
         toEncodingPB (WithRepetition f1)
-          = (HsJSONPB.fieldsPB ["repeatedField1" .= f1])
+          = (HsJSONPB.pairs ["repeatedField1" .= f1])
  
 instance HsJSONPB.FromJSONPB WithRepetition where
         parseJSONPB
@@ -730,8 +758,11 @@ instance HsProtobuf.Message WithFixed where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithFixed where
+        toJSONPB (WithFixed f1 f2 f3 f4)
+          = (HsJSONPB.object
+               ["fixed1" .= f1, "fixed2" .= f2, "fixed3" .= f3, "fixed4" .= f4])
         toEncodingPB (WithFixed f1 f2 f3 f4)
-          = (HsJSONPB.fieldsPB
+          = (HsJSONPB.pairs
                ["fixed1" .= f1, "fixed2" .= f2, "fixed3" .= f3, "fixed4" .= f4])
  
 instance HsJSONPB.FromJSONPB WithFixed where
@@ -779,8 +810,10 @@ instance HsProtobuf.Message WithBytes where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithBytes where
+        toJSONPB (WithBytes f1 f2)
+          = (HsJSONPB.object ["bytes1" .= f1, "bytes2" .= f2])
         toEncodingPB (WithBytes f1 f2)
-          = (HsJSONPB.fieldsPB ["bytes1" .= f1, "bytes2" .= f2])
+          = (HsJSONPB.pairs ["bytes1" .= f1, "bytes2" .= f2])
  
 instance HsJSONPB.FromJSONPB WithBytes where
         parseJSONPB
@@ -829,8 +862,10 @@ instance HsProtobuf.Message WithPacking where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithPacking where
+        toJSONPB (WithPacking f1 f2)
+          = (HsJSONPB.object ["packing1" .= f1, "packing2" .= f2])
         toEncodingPB (WithPacking f1 f2)
-          = (HsJSONPB.fieldsPB ["packing1" .= f1, "packing2" .= f2])
+          = (HsJSONPB.pairs ["packing1" .= f1, "packing2" .= f2])
  
 instance HsJSONPB.FromJSONPB WithPacking where
         parseJSONPB
@@ -1000,8 +1035,14 @@ instance HsProtobuf.Message AllPackedTypes where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB AllPackedTypes where
+        toJSONPB (AllPackedTypes f1 f2 f3 f4 f5 f6 f7 f8 f9 f10)
+          = (HsJSONPB.object
+               ["packedWord32" .= f1, "packedWord64" .= f2, "packedInt32" .= f3,
+                "packedInt64" .= f4, "packedFixed32" .= f5, "packedFixed64" .= f6,
+                "packedFloat" .= f7, "packedDouble" .= f8, "packedSFixed32" .= f9,
+                "packedSFixed64" .= f10])
         toEncodingPB (AllPackedTypes f1 f2 f3 f4 f5 f6 f7 f8 f9 f10)
-          = (HsJSONPB.fieldsPB
+          = (HsJSONPB.pairs
                ["packedWord32" .= f1, "packedWord64" .= f2, "packedInt32" .= f3,
                 "packedInt64" .= f4, "packedFixed32" .= f5, "packedFixed64" .= f6,
                 "packedFloat" .= f7, "packedDouble" .= f8, "packedSFixed32" .= f9,
@@ -1086,8 +1127,12 @@ instance HsProtobuf.Message OutOfOrderFields where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB OutOfOrderFields where
+        toJSONPB (OutOfOrderFields f2001 f101 f30 f1002)
+          = (HsJSONPB.object
+               ["field1" .= f2001, "field2" .= f101, "field3" .= f30,
+                "field4" .= f1002])
         toEncodingPB (OutOfOrderFields f2001 f101 f30 f1002)
-          = (HsJSONPB.fieldsPB
+          = (HsJSONPB.pairs
                ["field1" .= f2001, "field2" .= f101, "field3" .= f30,
                 "field4" .= f1002])
  
@@ -1136,8 +1181,10 @@ instance HsProtobuf.Message ShadowedMessage where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB ShadowedMessage where
+        toJSONPB (ShadowedMessage f2 f1)
+          = (HsJSONPB.object ["name" .= f2, "value" .= f1])
         toEncodingPB (ShadowedMessage f2 f1)
-          = (HsJSONPB.fieldsPB ["name" .= f2, "value" .= f1])
+          = (HsJSONPB.pairs ["name" .= f2, "value" .= f1])
  
 instance HsJSONPB.FromJSONPB ShadowedMessage where
         parseJSONPB
@@ -1185,8 +1232,10 @@ instance HsProtobuf.Message MessageShadower where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB MessageShadower where
+        toJSONPB (MessageShadower f1 f2)
+          = (HsJSONPB.object ["shadowed_message" .= f1, "name" .= f2])
         toEncodingPB (MessageShadower f1 f2)
-          = (HsJSONPB.fieldsPB ["shadowed_message" .= f1, "name" .= f2])
+          = (HsJSONPB.pairs ["shadowed_message" .= f1, "name" .= f2])
  
 instance HsJSONPB.FromJSONPB MessageShadower where
         parseJSONPB
@@ -1235,8 +1284,10 @@ instance HsProtobuf.Message MessageShadower_ShadowedMessage where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB MessageShadower_ShadowedMessage where
+        toJSONPB (MessageShadower_ShadowedMessage f1 f2)
+          = (HsJSONPB.object ["name" .= f1, "value" .= f2])
         toEncodingPB (MessageShadower_ShadowedMessage f1 f2)
-          = (HsJSONPB.fieldsPB ["name" .= f1, "value" .= f2])
+          = (HsJSONPB.pairs ["name" .= f1, "value" .= f2])
  
 instance HsJSONPB.FromJSONPB MessageShadower_ShadowedMessage where
         parseJSONPB
@@ -1290,8 +1341,10 @@ instance HsProtobuf.Message WithQualifiedName where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithQualifiedName where
+        toJSONPB (WithQualifiedName f100 f200)
+          = (HsJSONPB.object ["qname1" .= f100, "qname2" .= f200])
         toEncodingPB (WithQualifiedName f100 f200)
-          = (HsJSONPB.fieldsPB ["qname1" .= f100, "qname2" .= f200])
+          = (HsJSONPB.pairs ["qname1" .= f100, "qname2" .= f200])
  
 instance HsJSONPB.FromJSONPB WithQualifiedName where
         parseJSONPB
@@ -1344,8 +1397,11 @@ instance HsProtobuf.Message UsingImported where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB UsingImported where
+        toJSONPB (UsingImported f100 f200)
+          = (HsJSONPB.object
+               ["importedNesting" .= f100, "localNesting" .= f200])
         toEncodingPB (UsingImported f100 f200)
-          = (HsJSONPB.fieldsPB
+          = (HsJSONPB.pairs
                ["importedNesting" .= f100, "localNesting" .= f200])
  
 instance HsJSONPB.FromJSONPB UsingImported where
@@ -1380,7 +1436,8 @@ instance HsProtobuf.Message Wrapped where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB Wrapped where
-        toEncodingPB (Wrapped f1) = (HsJSONPB.fieldsPB ["wrapped" .= f1])
+        toJSONPB (Wrapped f1) = (HsJSONPB.object ["wrapped" .= f1])
+        toEncodingPB (Wrapped f1) = (HsJSONPB.pairs ["wrapped" .= f1])
  
 instance HsJSONPB.FromJSONPB Wrapped where
         parseJSONPB

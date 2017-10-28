@@ -57,8 +57,14 @@ instance HsProtobuf.Message WithOneof where
         dotProto _ = []
  
 instance HsJSONPB.ToJSONPB WithOneof where
+        toJSONPB (WithOneof f1_or_f2)
+          = (HsJSONPB.object
+               [case f1_or_f2 of
+                    Hs.Just (WithOneofPickOneA f1) -> (HsJSONPB.pair "a" f1)
+                    Hs.Just (WithOneofPickOneB f2) -> (HsJSONPB.pair "b" f2)
+                    Hs.Nothing -> Hs.mempty])
         toEncodingPB (WithOneof f1_or_f2)
-          = (HsJSONPB.fieldsPB
+          = (HsJSONPB.pairs
                [case f1_or_f2 of
                     Hs.Just (WithOneofPickOneA f1) -> (HsJSONPB.pair "a" f1)
                     Hs.Just (WithOneofPickOneB f2) -> (HsJSONPB.pair "b" f2)

@@ -681,20 +681,20 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
                  (HsUnGuardedAlt memptyE)
                  []
 
-  let toEncodingPBE = apply (HsVar (jsonpbName "fieldsPB"))
-                            [ HsList (onQF defPairE oneofCaseE <$> qualFields) ]
-
   let patBinder = onQF (const fieldBinder) (oneofSubDisjunctBinder . subfields)
+  let applyE nm = apply (HsVar (jsonpbName nm)) [ HsList (onQF defPairE oneofCaseE <$> qualFields) ]
 
-  let toEncodingPBDecl =
-        match_ (HsIdent "toEncodingPB")
-               [ HsPApp (unqual_ msgName) (patVar . patBinder  <$> qualFields)
-               ]
-               (HsUnGuardedRhs toEncodingPBE) []
+  let matchE nm appNm = match_ (HsIdent nm)
+                          [ HsPApp (unqual_ msgName)
+                                   (patVar . patBinder  <$> qualFields) ]
+                          (HsUnGuardedRhs (applyE appNm))
+                          []
 
   pure (instDecl_ (jsonpbName "ToJSONPB")
                   [ type_ msgName ]
-                  [ HsFunBind [ toEncodingPBDecl ] ])
+                  [ HsFunBind [matchE "toJSONPB" "object"]
+                  , HsFunBind [matchE "toEncodingPB" "pairs"]
+                  ])
 
 fromJSONPBMessageInstD :: TypeContext
                        -> DotProtoIdentifier
@@ -983,10 +983,17 @@ dotProtoEnumD parentIdent enumIdent enumParts =
                        []
               ]
 
+         toJSONPBDecl =
+           match_ (HsIdent "toJSONPB") [ patVar "x", HsPWildCard ]
+             (HsUnGuardedRhs
+                (HsApp (HsVar (jsonpbName "enumFieldString"))
+                       (HsVar (unqual_ "x"))))
+             []
+
          toEncodingPBDecl =
            match_ (HsIdent "toEncodingPB") [ patVar "x", HsPWildCard ]
              (HsUnGuardedRhs
-                (HsApp (HsVar (jsonpbName "namedEncoding"))
+                (HsApp (HsVar (jsonpbName "enumFieldEncoding"))
                        (HsVar (unqual_ "x"))))
              []
 
@@ -997,7 +1004,9 @@ dotProtoEnumD parentIdent enumIdent enumParts =
                       [ HsFunBind toEnumD, HsFunBind fromEnumD
                       , HsFunBind succD, HsFunBind predD ]
           , instDecl_ (jsonpbName "ToJSONPB") [ type_ enumName ]
-                      [ HsFunBind [toEncodingPBDecl] ]
+                      [ HsFunBind [toJSONPBDecl]
+                      , HsFunBind [toEncodingPBDecl]
+                      ]
           , instDecl_ (jsonpbName "FromJSONPB") [ type_ enumName ]
                       [ HsFunBind parseJSONPBDecls ]
           ]
