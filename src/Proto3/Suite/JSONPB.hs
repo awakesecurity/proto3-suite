@@ -23,6 +23,8 @@ module Proto3.Suite.JSONPB
   , toAesonValue
     -- * Aeson re-exports
   , A.Value(..)
+  , A.ToJSON(..)
+  , A.FromJSON(..)
   , A.typeMismatch
   , A.withObject
   )
