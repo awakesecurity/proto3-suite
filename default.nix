@@ -1,9 +1,10 @@
-{ mkDerivation, aeson, attoparsec, base, base64-bytestring
-, bytestring, cereal, containers, deepseq, doctest, foldl
-, haskell-src, lens, mtl, neat-interpolation, optparse-generic
-, parsec, parsers, pretty, pretty-show, proto3-wire, QuickCheck
-, range-set-list, safe, semigroups, stdenv, system-filepath, tasty
-, tasty-hunit, tasty-quickcheck, text, transformers, turtle, vector
+{ mkDerivation, aeson, aeson-pretty, attoparsec, base
+, base64-bytestring, bytestring, cereal, containers, deepseq
+, doctest, foldl, haskell-src, lens, mtl, neat-interpolation
+, optparse-generic, parsec, parsers, pretty, pretty-show
+, proto3-wire, QuickCheck, range-set-list, safe, semigroups, stdenv
+, swagger2, system-filepath, tasty, tasty-hunit, tasty-quickcheck
+, text, transformers, turtle, vector
 }:
 mkDerivation {
   pname = "proto3-suite";
@@ -12,10 +13,11 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    aeson attoparsec base base64-bytestring bytestring cereal
-    containers deepseq foldl haskell-src lens mtl neat-interpolation
-    parsec parsers pretty pretty-show proto3-wire QuickCheck safe
-    semigroups system-filepath text transformers turtle vector
+    aeson aeson-pretty attoparsec base base64-bytestring bytestring
+    cereal containers deepseq foldl haskell-src lens mtl
+    neat-interpolation parsec parsers pretty pretty-show proto3-wire
+    QuickCheck safe semigroups swagger2 system-filepath text
+    transformers turtle vector
   ];
   executableHaskellDepends = [
     base containers optparse-generic proto3-wire range-set-list
