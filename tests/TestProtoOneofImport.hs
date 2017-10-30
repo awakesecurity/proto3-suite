@@ -24,6 +24,7 @@ import qualified Data.Int as Hs (Int16, Int32, Int64)
 import qualified Data.Word as Hs (Word16, Word32, Word64)
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
+import qualified Data.Aeson as HsAeson
  
 data WithOneof = WithOneof{withOneofPickOne ::
                            Hs.Maybe WithOneofPickOne}
@@ -79,6 +80,13 @@ instance HsJSONPB.FromJSONPB WithOneof where
                       [Hs.Just Hs.. WithOneofPickOneA <$> (HsJSONPB.parseField obj "a"),
                        Hs.Just Hs.. WithOneofPickOneB <$> (HsJSONPB.parseField obj "b"),
                        Hs.pure Hs.Nothing]))
+ 
+instance HsAeson.ToJSON WithOneof where
+        toJSON = HsJSONPB.toAesonValue
+        toEncoding = HsJSONPB.toAesonEncoding
+ 
+instance HsAeson.FromJSON WithOneof where
+        parseJSON = HsJSONPB.parseJSONPB
  
 data WithOneofPickOne = WithOneofPickOneA Hs.Text
                       | WithOneofPickOneB Hs.Int32
