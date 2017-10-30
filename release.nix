@@ -23,6 +23,15 @@ let
               aeson =
                 pkgs.haskell.lib.dontCheck (haskellPackagesNew.callPackage ./nix/aeson.nix { });
 
+              aeson-pretty =
+                haskellPackagesNew.callPackage ./nix/aeson-pretty.nix { };
+
+              cabal-doctest =
+                haskellPackagesNew.callPackage ./nix/cabal-doctest.nix { };
+
+              insert-ordered-containers =
+                haskellPackagesNew.callPackage ./nix/insert-ordered-containers.nix { };
+
               neat-interpolation =
                 haskellPackagesNew.callPackage ./nix/neat-interpolation.nix { };
 
@@ -62,6 +71,9 @@ let
 
               scientific =
                 pkgs.haskell.lib.dontCheck haskellPackagesOld.scientific;
+
+              swagger2 =
+                pkgs.haskell.lib.dontHaddock (haskellPackagesNew.callPackage ./nix/swagger2.nix { });
 
               turtle =
                 haskellPackagesNew.callPackage ./nix/turtle.nix { } ;
