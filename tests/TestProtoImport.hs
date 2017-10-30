@@ -24,7 +24,6 @@ import qualified Data.Int as Hs (Int16, Int32, Int64)
 import qualified Data.Word as Hs (Word16, Word32, Word64)
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
-import qualified Data.Aeson as HsAeson
  
 data WithNesting = WithNesting{withNestingNestedMessage1 ::
                                Hs.Maybe TestProtoImport.WithNesting_Nested,
@@ -80,11 +79,11 @@ instance HsJSONPB.FromJSONPB WithNesting where
                   (Hs.pure WithNesting) <*> obj .: "nestedMessage1" <*>
                     obj .: "nestedMessage2"))
  
-instance HsAeson.ToJSON WithNesting where
+instance HsJSONPB.ToJSON WithNesting where
         toJSON = HsJSONPB.toAesonValue
         toEncoding = HsJSONPB.toAesonEncoding
  
-instance HsAeson.FromJSON WithNesting where
+instance HsJSONPB.FromJSON WithNesting where
         parseJSON = HsJSONPB.parseJSONPB
  
 data WithNesting_Nested = WithNesting_Nested{withNesting_NestedNestedField1
@@ -137,9 +136,9 @@ instance HsJSONPB.FromJSONPB WithNesting_Nested where
                   (Hs.pure WithNesting_Nested) <*> obj .: "nestedField1" <*>
                     obj .: "nestedField2"))
  
-instance HsAeson.ToJSON WithNesting_Nested where
+instance HsJSONPB.ToJSON WithNesting_Nested where
         toJSON = HsJSONPB.toAesonValue
         toEncoding = HsJSONPB.toAesonEncoding
  
-instance HsAeson.FromJSON WithNesting_Nested where
+instance HsJSONPB.FromJSON WithNesting_Nested where
         parseJSON = HsJSONPB.parseJSONPB

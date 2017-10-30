@@ -24,7 +24,6 @@ import qualified Data.Int as Hs (Int16, Int32, Int64)
 import qualified Data.Word as Hs (Word16, Word32, Word64)
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
-import qualified Data.Aeson as HsAeson
 import qualified TestProtoOneofImport
  
 data DummyMsg = DummyMsg{dummyMsgDummy :: Hs.Int32}
@@ -58,11 +57,11 @@ instance HsJSONPB.FromJSONPB DummyMsg where
           = (HsJSONPB.withObject "DummyMsg"
                (\ obj -> (Hs.pure DummyMsg) <*> obj .: "dummy"))
  
-instance HsAeson.ToJSON DummyMsg where
+instance HsJSONPB.ToJSON DummyMsg where
         toJSON = HsJSONPB.toAesonValue
         toEncoding = HsJSONPB.toAesonEncoding
  
-instance HsAeson.FromJSON DummyMsg where
+instance HsJSONPB.FromJSON DummyMsg where
         parseJSON = HsJSONPB.parseJSONPB
  
 data DummyEnum = DummyEnumDUMMY0
@@ -92,11 +91,11 @@ instance HsJSONPB.FromJSONPB DummyEnum where
         parseJSONPB (HsJSONPB.String "DUMMY1") = Hs.pure DummyEnumDUMMY1
         parseJSONPB v = (HsJSONPB.typeMismatch "DummyEnum" v)
  
-instance HsAeson.ToJSON DummyEnum where
+instance HsJSONPB.ToJSON DummyEnum where
         toJSON = HsJSONPB.toAesonValue
         toEncoding = HsJSONPB.toAesonEncoding
  
-instance HsAeson.FromJSON DummyEnum where
+instance HsJSONPB.FromJSON DummyEnum where
         parseJSON = HsJSONPB.parseJSONPB
  
 data Something = Something{somethingValue :: Hs.Int64,
@@ -220,11 +219,11 @@ instance HsJSONPB.FromJSONPB Something where
                          (HsJSONPB.parseField obj "dummyEnum"),
                        Hs.pure Hs.Nothing]))
  
-instance HsAeson.ToJSON Something where
+instance HsJSONPB.ToJSON Something where
         toJSON = HsJSONPB.toAesonValue
         toEncoding = HsJSONPB.toAesonEncoding
  
-instance HsAeson.FromJSON Something where
+instance HsJSONPB.FromJSON Something where
         parseJSON = HsJSONPB.parseJSONPB
  
 data SomethingPickOne = SomethingPickOneName Hs.Text
@@ -308,11 +307,11 @@ instance HsJSONPB.FromJSONPB OneofFirst where
                        Hs.pure Hs.Nothing]
                     <*> obj .: "last"))
  
-instance HsAeson.ToJSON OneofFirst where
+instance HsJSONPB.ToJSON OneofFirst where
         toJSON = HsJSONPB.toAesonValue
         toEncoding = HsJSONPB.toAesonEncoding
  
-instance HsAeson.FromJSON OneofFirst where
+instance HsJSONPB.FromJSON OneofFirst where
         parseJSON = HsJSONPB.parseJSONPB
  
 data OneofFirstFirst = OneofFirstFirstChoice1 Hs.Text
@@ -409,11 +408,11 @@ instance HsJSONPB.FromJSONPB OneofMiddle where
                        Hs.pure Hs.Nothing]
                     <*> obj .: "last"))
  
-instance HsAeson.ToJSON OneofMiddle where
+instance HsJSONPB.ToJSON OneofMiddle where
         toJSON = HsJSONPB.toAesonValue
         toEncoding = HsJSONPB.toAesonEncoding
  
-instance HsAeson.FromJSON OneofMiddle where
+instance HsJSONPB.FromJSON OneofMiddle where
         parseJSON = HsJSONPB.parseJSONPB
  
 data OneofMiddleMiddle = OneofMiddleMiddleChoice1 Hs.Text
@@ -482,11 +481,11 @@ instance HsJSONPB.FromJSONPB WithImported where
                          (HsJSONPB.parseField obj "withOneof"),
                        Hs.pure Hs.Nothing]))
  
-instance HsAeson.ToJSON WithImported where
+instance HsJSONPB.ToJSON WithImported where
         toJSON = HsJSONPB.toAesonValue
         toEncoding = HsJSONPB.toAesonEncoding
  
-instance HsAeson.FromJSON WithImported where
+instance HsJSONPB.FromJSON WithImported where
         parseJSON = HsJSONPB.parseJSONPB
  
 data WithImportedPickOne = WithImportedPickOneDummyMsg1 TestProtoOneof.DummyMsg
