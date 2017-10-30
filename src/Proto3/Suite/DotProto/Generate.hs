@@ -368,7 +368,8 @@ nestedTypeName (Dots (Path parents)) nm =
     (<> ("_" <> nm)) <$> (intercalate "_" <$> mapM typeLikeName parents)
 nestedTypeName (Qualified {})  _  = internalError "nestedTypeName: Qualified"
 
-haskellName, jsonpbName, grpcName, protobufName :: String -> HsQName
+aesonName, haskellName, jsonpbName, grpcName, protobufName :: String -> HsQName
+aesonName    name = Qual (Module "HsAeson") (HsIdent name)
 haskellName  name = Qual (Module "Hs") (HsIdent name)
 jsonpbName   name = Qual (Module "HsJSONPB") (HsIdent name)
 grpcName     name = Qual (Module "HsGRPC") (HsIdent name)
@@ -526,6 +527,9 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
               , messageInst
               , toJSONPBInst
               , fromJSONPBInst
+                -- Generate Aeson instances in terms of JSONPB instances
+              , toJSONInstDecl messageName
+              , fromJSONInstDecl messageName
               ]
               <> nestedOneofs_
               <> nestedDecls_
@@ -1009,6 +1013,9 @@ dotProtoEnumD parentIdent enumIdent enumParts =
                       ]
           , instDecl_ (jsonpbName "FromJSONPB") [ type_ enumName ]
                       [ HsFunBind parseJSONPBDecls ]
+          -- Generate Aeson instances in terms of JSONPB instances
+          , toJSONInstDecl enumName
+          , fromJSONInstDecl enumName
           ]
 
 -- ** Generate code for dot proto services
@@ -1259,6 +1266,27 @@ intE x = (if x < 0 then HsParen else id) . HsLit . HsInt . fromIntegral $ x
 intP :: Integral a => a -> HsPat
 intP x = (if x < 0 then HsPParen else id) . HsPLit . HsInt . fromIntegral $ x
 
+toJSONInstDecl :: String -> HsDecl
+toJSONInstDecl typeName =
+  instDecl_ (aesonName "ToJSON")
+            [ type_ typeName ]
+            [ HsFunBind [ match_ (HsIdent "toJSON") []
+                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonValue"))) []
+                        ]
+            , HsFunBind [ match_ (HsIdent "toEncoding") []
+                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonEncoding"))) []
+                        ]
+            ]
+
+
+fromJSONInstDecl :: String -> HsDecl
+fromJSONInstDecl typeName =
+  instDecl_ (aesonName "FromJSON")
+            [ type_ typeName ]
+            [ HsFunBind [match_ (HsIdent "parseJSON") [] (HsUnGuardedRhs (HsVar (jsonpbName "parseJSONPB"))) []
+                        ]
+            ]
+
 -- ** Expressions for protobuf-wire types
 
 forceEmitE :: HsExp -> HsExp
@@ -1354,6 +1382,7 @@ defaultImports usesGrpc =
                               , importSym "Word64" ]))
   , importDecl_ ghcGenericsM              True (Just haskellNS) Nothing
   , importDecl_ ghcEnumM                  True (Just haskellNS) Nothing
+  , importDecl_ dataAesonM                True (Just aesonNS) Nothing
   ] <>
   if usesGrpc
     then [ importDecl_ networkGrpcHighLevelGeneratedM   False (Just grpcNS) Nothing
@@ -1374,6 +1403,7 @@ defaultImports usesGrpc =
         controlMonadM             = Module "Control.Monad"
         dataTextM                 = Module "Data.Text.Lazy"
         dataByteStringM           = Module "Data.ByteString"
+        dataAesonM                = Module "Data.Aeson"
         dataStringM               = Module "Data.String"
         dataIntM                  = Module "Data.Int"
         dataVectorM               = Module "Data.Vector"
@@ -1386,6 +1416,7 @@ defaultImports usesGrpc =
         networkGrpcHighLevelServerUnregM = Module "Network.GRPC.HighLevel.Server.Unregistered"
         networkGrpcLowLevelCallM         = Module "Network.GRPC.LowLevel.Call"
 
+        aesonNS                   = Module "HsAeson"
         grpcNS                    = Module "HsGRPC"
         jsonpbNS                  = Module "HsJSONPB"
         protobufNS                = Module "HsProtobuf"

@@ -105,12 +105,8 @@ class ToJSONPB a where
 
 -- | 'A.FromJSON' variant for JSONPB decoding from the 'A.Value' IR
 class FromJSONPB a where
-  -- | 'A.parseJSON' variant for JSONPB decoders. Equivalent to 'A.parseJSON' if
-  -- an implementation is not provided.
+  -- | 'A.parseJSON' variant for JSONPB decoders.
   parseJSONPB :: A.Value -> A.Parser a
-
-  default parseJSONPB :: (A.FromJSON a) => A.Value -> A.Parser a
-  parseJSONPB = A.parseJSON
 
 -- * JSONPB codec entry points
 
@@ -200,6 +196,15 @@ enumFieldString = A.String . T.pack . dropNamedPrefix (Proxy @a) . show
 enumFieldEncoding :: forall a. (Named a, Show a) => a -> A.Encoding
 enumFieldEncoding = E.string . dropNamedPrefix (Proxy @a) . show
 
+-- | A 'Data.Aeson' 'A.Value' encoder for values which can be
+-- JSONPB-encoded
+toAesonValue :: ToJSONPB a => a -> A.Value
+toAesonValue = flip toJSONPB defaultOptions
+
+-- | A direct 'A.Encoding' for values which can be JSONPB-encoded
+toAesonEncoding :: ToJSONPB a => a -> A.Encoding
+toAesonEncoding = flip toEncodingPB defaultOptions
+
 -- | Parse a JSONPB floating point value; first parameter provides context for
 -- type mismatches
 parseFP :: (A.FromJSON a, A.FromJSONKey a) => String -> A.Value -> A.Parser a
@@ -230,7 +235,8 @@ instance ToJSONPB Bool where
   toJSONPB     = const . A.toJSON
   toEncodingPB = const . A.toEncoding
 
-instance FromJSONPB Bool
+instance FromJSONPB Bool where
+  parseJSONPB = A.parseJSON
 
 --------------------------------------------------------------------------------
 -- Integer scalar types
@@ -329,7 +335,8 @@ instance FromJSONPB Double where
 instance ToJSONPB TL.Text where
   toJSONPB     = const . A.toJSON
   toEncodingPB = const . A.toEncoding
-instance FromJSONPB TL.Text
+instance FromJSONPB TL.Text where
+  parseJSONPB = A.parseJSON
 
 -- bytes
 
