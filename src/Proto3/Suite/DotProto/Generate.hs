@@ -505,7 +505,10 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                       oneOfCons DotProtoEmptyField =
                           internalError "field type : empty field"
                   cons <- mapM oneOfCons fields
-                  pure [dataDecl_ fullName cons defaultMessageDeriving ]
+                  pure [ dataDecl_ fullName cons defaultMessageDeriving
+                       , namedInstD fullName
+                       , toSchemaInstDecl fullName
+                       ]
 
        conDecl <- recDecl_ (HsIdent messageName) . mconcat <$>
                   mapM messagePartFieldD message
@@ -529,6 +532,8 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                 -- Generate Aeson instances in terms of JSONPB instances
               , toJSONInstDecl messageName
               , fromJSONInstDecl messageName
+              -- And the Swagger ToSchema instance corresponding to JSONPB encodings
+              , toSchemaInstDecl messageName
               ]
               <> nestedOneofs_
               <> nestedDecls_
@@ -1015,6 +1020,9 @@ dotProtoEnumD parentIdent enumIdent enumParts =
           -- Generate Aeson instances in terms of JSONPB instances
           , toJSONInstDecl enumName
           , fromJSONInstDecl enumName
+          -- And the Finite instance, used to infer a Swagger ToSchema instance
+          -- for this enumerated type.
+          , instDecl_ (protobufName "Finite") [ type_ enumName ] []
           ]
 
 -- ** Generate code for dot proto services
@@ -1283,6 +1291,15 @@ fromJSONInstDecl typeName =
   instDecl_ (jsonpbName "FromJSON")
             [ type_ typeName ]
             [ HsFunBind [match_ (HsIdent "parseJSON") [] (HsUnGuardedRhs (HsVar (jsonpbName "parseJSONPB"))) []
+                        ]
+            ]
+
+toSchemaInstDecl :: String -> HsDecl
+toSchemaInstDecl typeName =
+  instDecl_ (jsonpbName "ToSchema")
+            [ type_ typeName ]
+            [ HsFunBind [match_ (HsIdent "declareNamedSchema") []
+                                (HsUnGuardedRhs (HsVar (jsonpbName "genericDeclareNamedSchemaJSONPB"))) []
                         ]
             ]
 
