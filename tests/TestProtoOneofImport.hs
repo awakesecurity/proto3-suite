@@ -87,6 +87,15 @@ instance HsJSONPB.ToJSON WithOneof where
 instance HsJSONPB.FromJSON WithOneof where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema WithOneof where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data WithOneofPickOne = WithOneofPickOneA Hs.Text
                       | WithOneofPickOneB Hs.Int32
                       deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named WithOneofPickOne where
+        nameOf _ = (Hs.fromString "WithOneofPickOne")
+ 
+instance HsJSONPB.ToSchema WithOneofPickOne where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
