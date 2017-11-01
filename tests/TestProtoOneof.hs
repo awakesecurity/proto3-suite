@@ -25,13 +25,13 @@ import qualified Data.Word as Hs (Word16, Word32, Word64)
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
 import qualified TestProtoOneofImport
-
+ 
 data DummyMsg = DummyMsg{dummyMsgDummy :: Hs.Int32}
               deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
-
+ 
 instance HsProtobuf.Named DummyMsg where
         nameOf _ = (Hs.fromString "DummyMsg")
-
+ 
 instance HsProtobuf.Message DummyMsg where
         encodeMessage _ DummyMsg{dummyMsgDummy = dummyMsgDummy}
           = (Hs.mconcat
@@ -47,22 +47,22 @@ instance HsProtobuf.Message DummyMsg where
                 (HsProtobuf.Single "dummy")
                 []
                 Hs.Nothing)]
-
+ 
 instance HsJSONPB.ToJSONPB DummyMsg where
         toEncodingPB (DummyMsg f1) = (HsJSONPB.fieldsPB ["dummy" .= f1])
-
+ 
 instance HsJSONPB.FromJSONPB DummyMsg where
         parseJSONPB
           = (HsJSONPB.withObject "DummyMsg"
                (\ obj -> (Hs.pure DummyMsg) <*> obj .: "dummy"))
-
+ 
 data DummyEnum = DummyEnumDUMMY0
                | DummyEnumDUMMY1
                deriving (Hs.Show, Hs.Bounded, Hs.Eq, Hs.Ord, Hs.Generic)
-
+ 
 instance HsProtobuf.Named DummyEnum where
         nameOf _ = (Hs.fromString "DummyEnum")
-
+ 
 instance Hs.Enum DummyEnum where
         toEnum 0 = DummyEnumDUMMY0
         toEnum 1 = DummyEnumDUMMY1
@@ -73,23 +73,23 @@ instance Hs.Enum DummyEnum where
         succ _ = Hs.succError "DummyEnum"
         pred (DummyEnumDUMMY1) = DummyEnumDUMMY0
         pred _ = Hs.predError "DummyEnum"
-
+ 
 instance HsJSONPB.ToJSONPB DummyEnum where
         toEncodingPB x _ = HsJSONPB.namedEncoding x
-
+ 
 instance HsJSONPB.FromJSONPB DummyEnum where
         parseJSONPB (HsJSONPB.String "DUMMY0") = Hs.pure DummyEnumDUMMY0
         parseJSONPB (HsJSONPB.String "DUMMY1") = Hs.pure DummyEnumDUMMY1
         parseJSONPB v = (HsJSONPB.typeMismatch "DummyEnum" v)
-
+ 
 data Something = Something{somethingValue :: Hs.Int64,
                            somethingAnother :: Hs.Int32,
                            somethingPickOne :: Hs.Maybe SomethingPickOne}
                deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
-
+ 
 instance HsProtobuf.Named Something where
         nameOf _ = (Hs.fromString "Something")
-
+ 
 instance HsProtobuf.Message Something where
         encodeMessage _
           Something{somethingValue = somethingValue,
@@ -156,7 +156,7 @@ instance HsProtobuf.Message Something where
                 (HsProtobuf.Single "another")
                 []
                 Hs.Nothing)]
-
+ 
 instance HsJSONPB.ToJSONPB Something where
         toEncodingPB (Something f1 f2 f4_or_f9_or_f10_or_f11_or_f12)
           = (HsJSONPB.fieldsPB
@@ -171,7 +171,7 @@ instance HsJSONPB.ToJSONPB Something where
                     Hs.Just (SomethingPickOneDummyEnum f12)
                       -> (HsJSONPB.pair "dummyEnum" f12)
                     Hs.Nothing -> Hs.mempty])
-
+ 
 instance HsJSONPB.FromJSONPB Something where
         parseJSONPB
           = (HsJSONPB.withObject "Something"
@@ -189,7 +189,7 @@ instance HsJSONPB.FromJSONPB Something where
                        Hs.Just Hs.. SomethingPickOneDummyEnum <$>
                          (HsJSONPB.parseField obj "dummyEnum"),
                        Hs.pure Hs.Nothing]))
-
+ 
 data SomethingPickOne = SomethingPickOneName Hs.Text
                       | SomethingPickOneSomeid Hs.Int32
                       | SomethingPickOneDummyMsg1 TestProtoOneof.DummyMsg
@@ -197,14 +197,168 @@ data SomethingPickOne = SomethingPickOneName Hs.Text
                       | SomethingPickOneDummyEnum (HsProtobuf.Enumerated
                                                      TestProtoOneof.DummyEnum)
                       deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
-
+ 
+data OneofFirst = OneofFirst{oneofFirstFirst ::
+                             Hs.Maybe OneofFirstFirst,
+                             oneofFirstLast :: Hs.Int32}
+                deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named OneofFirst where
+        nameOf _ = (Hs.fromString "OneofFirst")
+ 
+instance HsProtobuf.Message OneofFirst where
+        encodeMessage _
+          OneofFirst{oneofFirstFirst = oneofFirstFirst,
+                     oneofFirstLast = oneofFirstLast}
+          = (Hs.mconcat
+               [case oneofFirstFirst of
+                    Hs.Nothing -> Hs.mempty
+                    Hs.Just x
+                      -> case x of
+                             OneofFirstFirstChoice1 y
+                               -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                                     (HsProtobuf.ForceEmit y))
+                             OneofFirstFirstChoice2 y
+                               -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                                     (HsProtobuf.ForceEmit y)),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 3)
+                   oneofFirstLast)])
+        decodeMessage _
+          = (Hs.pure OneofFirst) <*>
+              (HsProtobuf.oneof Hs.Nothing
+                 [((HsProtobuf.FieldNumber 1),
+                   (Hs.pure (Hs.Just Hs.. OneofFirstFirstChoice1)) <*>
+                     HsProtobuf.decodeMessageField),
+                  ((HsProtobuf.FieldNumber 2),
+                   (Hs.pure (Hs.Just Hs.. OneofFirstFirstChoice2)) <*>
+                     HsProtobuf.decodeMessageField)])
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 3))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 3)
+                (HsProtobuf.Prim HsProtobuf.Int32)
+                (HsProtobuf.Single "last")
+                []
+                Hs.Nothing)]
+ 
+instance HsJSONPB.ToJSONPB OneofFirst where
+        toEncodingPB (OneofFirst f1_or_f2 f3)
+          = (HsJSONPB.fieldsPB
+               [case f1_or_f2 of
+                    Hs.Just (OneofFirstFirstChoice1 f1) -> (HsJSONPB.pair "choice1" f1)
+                    Hs.Just (OneofFirstFirstChoice2 f2) -> (HsJSONPB.pair "choice2" f2)
+                    Hs.Nothing -> Hs.mempty,
+                "last" .= f3])
+ 
+instance HsJSONPB.FromJSONPB OneofFirst where
+        parseJSONPB
+          = (HsJSONPB.withObject "OneofFirst"
+               (\ obj ->
+                  (Hs.pure OneofFirst) <*>
+                    Hs.msum
+                      [Hs.Just Hs.. OneofFirstFirstChoice1 <$>
+                         (HsJSONPB.parseField obj "choice1"),
+                       Hs.Just Hs.. OneofFirstFirstChoice2 <$>
+                         (HsJSONPB.parseField obj "choice2"),
+                       Hs.pure Hs.Nothing]
+                    <*> obj .: "last"))
+ 
+data OneofFirstFirst = OneofFirstFirstChoice1 Hs.Text
+                     | OneofFirstFirstChoice2 Hs.Text
+                     deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+data OneofMiddle = OneofMiddle{oneofMiddleFirst :: Hs.Int32,
+                               oneofMiddleMiddle :: Hs.Maybe OneofMiddleMiddle,
+                               oneofMiddleLast :: Hs.Int32}
+                 deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named OneofMiddle where
+        nameOf _ = (Hs.fromString "OneofMiddle")
+ 
+instance HsProtobuf.Message OneofMiddle where
+        encodeMessage _
+          OneofMiddle{oneofMiddleFirst = oneofMiddleFirst,
+                      oneofMiddleMiddle = oneofMiddleMiddle,
+                      oneofMiddleLast = oneofMiddleLast}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   oneofMiddleFirst),
+                case oneofMiddleMiddle of
+                    Hs.Nothing -> Hs.mempty
+                    Hs.Just x
+                      -> case x of
+                             OneofMiddleMiddleChoice1 y
+                               -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                                     (HsProtobuf.ForceEmit y))
+                             OneofMiddleMiddleChoice2 y
+                               -> (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 3)
+                                     (HsProtobuf.ForceEmit y)),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 4)
+                   oneofMiddleLast)])
+        decodeMessage _
+          = (Hs.pure OneofMiddle) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+              <*>
+              (HsProtobuf.oneof Hs.Nothing
+                 [((HsProtobuf.FieldNumber 2),
+                   (Hs.pure (Hs.Just Hs.. OneofMiddleMiddleChoice1)) <*>
+                     HsProtobuf.decodeMessageField),
+                  ((HsProtobuf.FieldNumber 3),
+                   (Hs.pure (Hs.Just Hs.. OneofMiddleMiddleChoice2)) <*>
+                     HsProtobuf.decodeMessageField)])
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 4))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.Int32)
+                (HsProtobuf.Single "first")
+                []
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 4)
+                (HsProtobuf.Prim HsProtobuf.Int32)
+                (HsProtobuf.Single "last")
+                []
+                Hs.Nothing)]
+ 
+instance HsJSONPB.ToJSONPB OneofMiddle where
+        toEncodingPB (OneofMiddle f1 f2_or_f3 f4)
+          = (HsJSONPB.fieldsPB
+               ["first" .= f1,
+                case f2_or_f3 of
+                    Hs.Just (OneofMiddleMiddleChoice1 f2)
+                      -> (HsJSONPB.pair "choice1" f2)
+                    Hs.Just (OneofMiddleMiddleChoice2 f3)
+                      -> (HsJSONPB.pair "choice2" f3)
+                    Hs.Nothing -> Hs.mempty,
+                "last" .= f4])
+ 
+instance HsJSONPB.FromJSONPB OneofMiddle where
+        parseJSONPB
+          = (HsJSONPB.withObject "OneofMiddle"
+               (\ obj ->
+                  (Hs.pure OneofMiddle) <*> obj .: "first" <*>
+                    Hs.msum
+                      [Hs.Just Hs.. OneofMiddleMiddleChoice1 <$>
+                         (HsJSONPB.parseField obj "choice1"),
+                       Hs.Just Hs.. OneofMiddleMiddleChoice2 <$>
+                         (HsJSONPB.parseField obj "choice2"),
+                       Hs.pure Hs.Nothing]
+                    <*> obj .: "last"))
+ 
+data OneofMiddleMiddle = OneofMiddleMiddleChoice1 Hs.Text
+                       | OneofMiddleMiddleChoice2 Hs.Text
+                       deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
 data WithImported = WithImported{withImportedPickOne ::
                                  Hs.Maybe WithImportedPickOne}
                   deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
-
+ 
 instance HsProtobuf.Named WithImported where
         nameOf _ = (Hs.fromString "WithImported")
-
+ 
 instance HsProtobuf.Message WithImported where
         encodeMessage _
           WithImported{withImportedPickOne = withImportedPickOne}
@@ -229,7 +383,7 @@ instance HsProtobuf.Message WithImported where
                    (Hs.pure (Hs.fmap WithImportedPickOneWithOneof)) <*>
                      ((Hs.pure HsProtobuf.nested) <*> HsProtobuf.decodeMessageField))])
         dotProto _ = []
-
+ 
 instance HsJSONPB.ToJSONPB WithImported where
         toEncodingPB (WithImported f1_or_f2)
           = (HsJSONPB.fieldsPB
@@ -239,7 +393,7 @@ instance HsJSONPB.ToJSONPB WithImported where
                     Hs.Just (WithImportedPickOneWithOneof f2)
                       -> (HsJSONPB.pair "withOneof" f2)
                     Hs.Nothing -> Hs.mempty])
-
+ 
 instance HsJSONPB.FromJSONPB WithImported where
         parseJSONPB
           = (HsJSONPB.withObject "WithImported"
@@ -251,7 +405,7 @@ instance HsJSONPB.FromJSONPB WithImported where
                        Hs.Just Hs.. WithImportedPickOneWithOneof <$>
                          (HsJSONPB.parseField obj "withOneof"),
                        Hs.pure Hs.Nothing]))
-
+ 
 data WithImportedPickOne = WithImportedPickOneDummyMsg1 TestProtoOneof.DummyMsg
                          | WithImportedPickOneWithOneof TestProtoOneofImport.WithOneof
                          deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
