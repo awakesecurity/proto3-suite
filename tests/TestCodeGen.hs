@@ -27,7 +27,8 @@ import qualified Turtle.Format             as F
 codeGenTests :: TestTree
 codeGenTests = testGroup "Code generator unit tests"
   [ camelCaseMessageNames
-  , camelCaseFieldNames
+  , camelCaseMessageFieldNames
+  , don'tAlterEnumFieldNames
   , simpleEncodeDotProto
   , simpleDecodeDotProto
   ]
@@ -42,10 +43,27 @@ camelCaseMessageNames = testGroup "CamelCasing of message names"
   , testCase "Preserves trailing underscore" (typeLikeName "message_name_" @?= Right "MessageName_") ]
 
 
-camelCaseFieldNames :: TestTree
-camelCaseFieldNames = testGroup "camelCasing of field names"
+camelCaseMessageFieldNames :: TestTree
+camelCaseMessageFieldNames = testGroup "camelCasing of field names"
   [ testCase "Preserves capitalization patterns" (fieldLikeName "IP" @?= "ip")
   , testCase "Preserves underscores"             (fieldLikeName "IP_address" @?= "ip_address") ]
+
+don'tAlterEnumFieldNames :: TestTree
+don'tAlterEnumFieldNames
+  = testGroup "Do not alter enumeration field names"
+  $ tc <$> [ "fnord"
+           , "FNORD"
+           , "PascalCase"
+           , "camelCase"
+           , "VOCIFEROUS_SNAKE_CASE"
+           , "snake_case"
+           , "snake_case_"
+           ]
+  where
+    enumName     = "MyEnum"
+    tc fieldName = testCase fieldName
+                 $ prefixedEnumFieldName enumName fieldName
+                     @?= Right (enumName <> fieldName)
 
 simpleEncodeDotProto :: TestTree
 simpleEncodeDotProto =

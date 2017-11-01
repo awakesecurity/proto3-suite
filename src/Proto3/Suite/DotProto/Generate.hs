@@ -22,8 +22,9 @@ module Proto3.Suite.DotProto.Generate
   , readDotProtoWithContext
 
   -- * Exposed for unit-testing
-  , typeLikeName
   , fieldLikeName
+  , prefixedEnumFieldName
+  , typeLikeName
   ) where
 
 import           Control.Applicative
@@ -395,6 +396,9 @@ fieldLikeName ident@(firstChar:_)
   | isUpper firstChar = let (prefix, suffix) = span isUpper ident
                         in map toLower prefix ++ suffix
 fieldLikeName ident = ident
+
+prefixedEnumFieldName :: String -> String -> CompileResult String
+prefixedEnumFieldName enumName fieldName = pure (enumName <> fieldName)
 
 prefixedConName :: String -> String -> CompileResult String
 prefixedConName msgName conName =
@@ -909,7 +913,7 @@ dotProtoEnumD parentIdent enumIdent enumParts =
                  dpIdentUnqualName enumIdent
 
      enumCons <- sortBy (comparing fst) <$>
-                 sequence [ (i,) <$> (prefixedConName enumName =<<
+                 sequence [ (i,) <$> (prefixedEnumFieldName enumName =<<
                                       dpIdentUnqualName conIdent)
                           | DotProtoEnumField conIdent i <- enumParts ]
 
