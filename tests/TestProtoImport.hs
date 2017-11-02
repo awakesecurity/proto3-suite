@@ -65,8 +65,11 @@ instance HsProtobuf.Message WithNesting where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithNesting where
+        toJSONPB (WithNesting f1 f100)
+          = (HsJSONPB.object
+               ["nestedMessage1" .= f1, "nestedMessage2" .= f100])
         toEncodingPB (WithNesting f1 f100)
-          = (HsJSONPB.fieldsPB
+          = (HsJSONPB.pairs
                ["nestedMessage1" .= f1, "nestedMessage2" .= f100])
  
 instance HsJSONPB.FromJSONPB WithNesting where
@@ -114,8 +117,10 @@ instance HsProtobuf.Message WithNesting_Nested where
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB WithNesting_Nested where
+        toJSONPB (WithNesting_Nested f1 f2)
+          = (HsJSONPB.object ["nestedField1" .= f1, "nestedField2" .= f2])
         toEncodingPB (WithNesting_Nested f1 f2)
-          = (HsJSONPB.fieldsPB ["nestedField1" .= f1, "nestedField2" .= f2])
+          = (HsJSONPB.pairs ["nestedField1" .= f1, "nestedField2" .= f2])
  
 instance HsJSONPB.FromJSONPB WithNesting_Nested where
         parseJSONPB
