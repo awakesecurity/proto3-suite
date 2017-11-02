@@ -64,6 +64,9 @@ instance HsJSONPB.ToJSON Trivial where
 instance HsJSONPB.FromJSON Trivial where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema Trivial where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data MultipleFields = MultipleFields{multipleFieldsMultiFieldDouble
                                      :: Hs.Double,
                                      multipleFieldsMultiFieldFloat :: Hs.Float,
@@ -179,6 +182,9 @@ instance HsJSONPB.ToJSON MultipleFields where
 instance HsJSONPB.FromJSON MultipleFields where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema MultipleFields where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data SignedInts = SignedInts{signedIntsSigned32 :: Hs.Int32,
                              signedIntsSigned64 :: Hs.Int64}
                 deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
@@ -235,6 +241,9 @@ instance HsJSONPB.ToJSON SignedInts where
 instance HsJSONPB.FromJSON SignedInts where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema SignedInts where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data WithEnum = WithEnum{withEnumEnumField ::
                          HsProtobuf.Enumerated TestProto.WithEnum_TestEnum}
               deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
@@ -273,6 +282,9 @@ instance HsJSONPB.ToJSON WithEnum where
  
 instance HsJSONPB.FromJSON WithEnum where
         parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema WithEnum where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
  
 data WithEnum_TestEnum = WithEnum_TestEnumENUM1
                        | WithEnum_TestEnumENUM2
@@ -317,6 +329,8 @@ instance HsJSONPB.ToJSON WithEnum_TestEnum where
 instance HsJSONPB.FromJSON WithEnum_TestEnum where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsProtobuf.Finite WithEnum_TestEnum
+ 
 data WithNesting = WithNesting{withNestingNestedMessage ::
                                Hs.Maybe TestProto.WithNesting_Nested}
                  deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
@@ -359,6 +373,9 @@ instance HsJSONPB.ToJSON WithNesting where
  
 instance HsJSONPB.FromJSON WithNesting where
         parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema WithNesting where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
  
 data WithNesting_Nested = WithNesting_Nested{withNesting_NestedNestedField1
                                              :: Hs.Text,
@@ -452,6 +469,9 @@ instance HsJSONPB.ToJSON WithNesting_Nested where
 instance HsJSONPB.FromJSON WithNesting_Nested where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema WithNesting_Nested where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data WithNestingRepeated = WithNestingRepeated{withNestingRepeatedNestedMessages
                                                :: Hs.Vector TestProto.WithNestingRepeated_Nested}
                          deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
@@ -497,6 +517,9 @@ instance HsJSONPB.ToJSON WithNestingRepeated where
  
 instance HsJSONPB.FromJSON WithNestingRepeated where
         parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema WithNestingRepeated where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
  
 data WithNestingRepeated_Nested = WithNestingRepeated_Nested{withNestingRepeated_NestedNestedField1
                                                              :: Hs.Text,
@@ -596,6 +619,9 @@ instance HsJSONPB.ToJSON WithNestingRepeated_Nested where
 instance HsJSONPB.FromJSON WithNestingRepeated_Nested where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema WithNestingRepeated_Nested where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data NestedInts = NestedInts{nestedIntsNestedInt1 :: Hs.Int32,
                              nestedIntsNestedInt2 :: Hs.Int32}
                 deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
@@ -651,6 +677,9 @@ instance HsJSONPB.ToJSON NestedInts where
 instance HsJSONPB.FromJSON NestedInts where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema NestedInts where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data WithNestingRepeatedInts = WithNestingRepeatedInts{withNestingRepeatedIntsNestedInts
                                                        :: Hs.Vector TestProto.NestedInts}
                              deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
@@ -697,6 +726,9 @@ instance HsJSONPB.ToJSON WithNestingRepeatedInts where
 instance HsJSONPB.FromJSON WithNestingRepeatedInts where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema WithNestingRepeatedInts where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data WithNestingInts = WithNestingInts{withNestingIntsNestedInts ::
                                        Hs.Maybe TestProto.NestedInts}
                      deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
@@ -742,6 +774,9 @@ instance HsJSONPB.ToJSON WithNestingInts where
 instance HsJSONPB.FromJSON WithNestingInts where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema WithNestingInts where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data WithRepetition = WithRepetition{withRepetitionRepeatedField1
                                      :: Hs.Vector Hs.Int32}
                     deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
@@ -785,6 +820,9 @@ instance HsJSONPB.ToJSON WithRepetition where
  
 instance HsJSONPB.FromJSON WithRepetition where
         parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema WithRepetition where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
  
 data WithFixed = WithFixed{withFixedFixed1 ::
                            HsProtobuf.Fixed Hs.Word32,
@@ -871,6 +909,9 @@ instance HsJSONPB.ToJSON WithFixed where
 instance HsJSONPB.FromJSON WithFixed where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema WithFixed where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data WithBytes = WithBytes{withBytesBytes1 :: Hs.ByteString,
                            withBytesBytes2 :: Hs.Vector Hs.ByteString}
                deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
@@ -925,6 +966,9 @@ instance HsJSONPB.ToJSON WithBytes where
  
 instance HsJSONPB.FromJSON WithBytes where
         parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema WithBytes where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
  
 data WithPacking = WithPacking{withPackingPacking1 ::
                                Hs.Vector Hs.Int32,
@@ -984,6 +1028,9 @@ instance HsJSONPB.ToJSON WithPacking where
  
 instance HsJSONPB.FromJSON WithPacking where
         parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema WithPacking where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
  
 data AllPackedTypes = AllPackedTypes{allPackedTypesPackedWord32 ::
                                      Hs.Vector Hs.Word32,
@@ -1182,6 +1229,9 @@ instance HsJSONPB.ToJSON AllPackedTypes where
 instance HsJSONPB.FromJSON AllPackedTypes where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema AllPackedTypes where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data OutOfOrderFields = OutOfOrderFields{outOfOrderFieldsField1 ::
                                          Hs.Vector Hs.Word32,
                                          outOfOrderFieldsField2 :: Hs.Text,
@@ -1270,6 +1320,9 @@ instance HsJSONPB.ToJSON OutOfOrderFields where
 instance HsJSONPB.FromJSON OutOfOrderFields where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema OutOfOrderFields where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data ShadowedMessage = ShadowedMessage{shadowedMessageName ::
                                        Hs.Text,
                                        shadowedMessageValue :: Hs.Int32}
@@ -1324,6 +1377,9 @@ instance HsJSONPB.ToJSON ShadowedMessage where
  
 instance HsJSONPB.FromJSON ShadowedMessage where
         parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema ShadowedMessage where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
  
 data MessageShadower = MessageShadower{messageShadowerShadowedMessage
                                        :: Hs.Maybe TestProto.MessageShadower_ShadowedMessage,
@@ -1384,6 +1440,9 @@ instance HsJSONPB.ToJSON MessageShadower where
 instance HsJSONPB.FromJSON MessageShadower where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema MessageShadower where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data MessageShadower_ShadowedMessage = MessageShadower_ShadowedMessage{messageShadower_ShadowedMessageName
                                                                        :: Hs.Text,
                                                                        messageShadower_ShadowedMessageValue
@@ -1442,6 +1501,9 @@ instance HsJSONPB.ToJSON MessageShadower_ShadowedMessage where
  
 instance HsJSONPB.FromJSON MessageShadower_ShadowedMessage where
         parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema MessageShadower_ShadowedMessage where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
  
 data WithQualifiedName = WithQualifiedName{withQualifiedNameQname1
                                            :: Hs.Maybe TestProto.ShadowedMessage,
@@ -1506,6 +1568,9 @@ instance HsJSONPB.ToJSON WithQualifiedName where
  
 instance HsJSONPB.FromJSON WithQualifiedName where
         parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema WithQualifiedName where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
  
 data UsingImported = UsingImported{usingImportedImportedNesting ::
                                    Hs.Maybe TestProtoImport.WithNesting,
@@ -1572,6 +1637,9 @@ instance HsJSONPB.ToJSON UsingImported where
 instance HsJSONPB.FromJSON UsingImported where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema UsingImported where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data Wrapped = Wrapped{wrappedWrapped ::
                        Hs.Maybe TestProto.Wrapped}
              deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
@@ -1611,3 +1679,6 @@ instance HsJSONPB.ToJSON Wrapped where
  
 instance HsJSONPB.FromJSON Wrapped where
         parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema Wrapped where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB

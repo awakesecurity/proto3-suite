@@ -86,6 +86,9 @@ instance HsJSONPB.ToJSON WithNesting where
 instance HsJSONPB.FromJSON WithNesting where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema WithNesting where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data WithNesting_Nested = WithNesting_Nested{withNesting_NestedNestedField1
                                              :: Hs.Int32,
                                              withNesting_NestedNestedField2 :: Hs.Int32}
@@ -142,3 +145,6 @@ instance HsJSONPB.ToJSON WithNesting_Nested where
  
 instance HsJSONPB.FromJSON WithNesting_Nested where
         parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema WithNesting_Nested where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB

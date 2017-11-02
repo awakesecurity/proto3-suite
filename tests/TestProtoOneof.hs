@@ -64,6 +64,9 @@ instance HsJSONPB.ToJSON DummyMsg where
 instance HsJSONPB.FromJSON DummyMsg where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema DummyMsg where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data DummyEnum = DummyEnumDUMMY0
                | DummyEnumDUMMY1
                deriving (Hs.Show, Hs.Bounded, Hs.Eq, Hs.Ord, Hs.Generic)
@@ -97,6 +100,8 @@ instance HsJSONPB.ToJSON DummyEnum where
  
 instance HsJSONPB.FromJSON DummyEnum where
         parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsProtobuf.Finite DummyEnum
  
 data Something = Something{somethingValue :: Hs.Int64,
                            somethingAnother :: Hs.Int32,
@@ -226,6 +231,9 @@ instance HsJSONPB.ToJSON Something where
 instance HsJSONPB.FromJSON Something where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema Something where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data SomethingPickOne = SomethingPickOneName Hs.Text
                       | SomethingPickOneSomeid Hs.Int32
                       | SomethingPickOneDummyMsg1 TestProtoOneof.DummyMsg
@@ -233,6 +241,12 @@ data SomethingPickOne = SomethingPickOneName Hs.Text
                       | SomethingPickOneDummyEnum (HsProtobuf.Enumerated
                                                      TestProtoOneof.DummyEnum)
                       deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named SomethingPickOne where
+        nameOf _ = (Hs.fromString "SomethingPickOne")
+ 
+instance HsJSONPB.ToSchema SomethingPickOne where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
  
 data OneofFirst = OneofFirst{oneofFirstFirst ::
                              Hs.Maybe OneofFirstFirst,
@@ -314,9 +328,18 @@ instance HsJSONPB.ToJSON OneofFirst where
 instance HsJSONPB.FromJSON OneofFirst where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema OneofFirst where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data OneofFirstFirst = OneofFirstFirstChoice1 Hs.Text
                      | OneofFirstFirstChoice2 Hs.Text
                      deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named OneofFirstFirst where
+        nameOf _ = (Hs.fromString "OneofFirstFirst")
+ 
+instance HsJSONPB.ToSchema OneofFirstFirst where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
  
 data OneofMiddle = OneofMiddle{oneofMiddleFirst :: Hs.Int32,
                                oneofMiddleMiddle :: Hs.Maybe OneofMiddleMiddle,
@@ -415,9 +438,18 @@ instance HsJSONPB.ToJSON OneofMiddle where
 instance HsJSONPB.FromJSON OneofMiddle where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema OneofMiddle where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data OneofMiddleMiddle = OneofMiddleMiddleChoice1 Hs.Text
                        | OneofMiddleMiddleChoice2 Hs.Text
                        deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named OneofMiddleMiddle where
+        nameOf _ = (Hs.fromString "OneofMiddleMiddle")
+ 
+instance HsJSONPB.ToSchema OneofMiddleMiddle where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
  
 data WithImported = WithImported{withImportedPickOne ::
                                  Hs.Maybe WithImportedPickOne}
@@ -488,6 +520,15 @@ instance HsJSONPB.ToJSON WithImported where
 instance HsJSONPB.FromJSON WithImported where
         parseJSON = HsJSONPB.parseJSONPB
  
+instance HsJSONPB.ToSchema WithImported where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
 data WithImportedPickOne = WithImportedPickOneDummyMsg1 TestProtoOneof.DummyMsg
                          | WithImportedPickOneWithOneof TestProtoOneofImport.WithOneof
                          deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named WithImportedPickOne where
+        nameOf _ = (Hs.fromString "WithImportedPickOne")
+ 
+instance HsJSONPB.ToSchema WithImportedPickOne where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB

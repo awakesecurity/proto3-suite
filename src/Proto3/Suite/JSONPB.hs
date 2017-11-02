@@ -27,9 +27,14 @@ module Proto3.Suite.JSONPB
   , A.FromJSON(..)
   , A.typeMismatch
   , A.withObject
+    -- * Swagger schema helpers
+  , Swagger.ToSchema(..)
+  , Swagger.genericDeclareNamedSchemaJSONPB
+  ,
   )
 where
 
-import qualified Data.Aeson                    as A
-import qualified Data.Aeson.Types              as A
+import qualified Data.Aeson                             as A
+import qualified Data.Aeson.Types                       as A
+import qualified Proto3.Suite.DotProto.Generate.Swagger as Swagger
 import           Proto3.Suite.JSONPB.Class
