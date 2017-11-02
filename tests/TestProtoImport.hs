@@ -79,6 +79,13 @@ instance HsJSONPB.FromJSONPB WithNesting where
                   (Hs.pure WithNesting) <*> obj .: "nestedMessage1" <*>
                     obj .: "nestedMessage2"))
  
+instance HsJSONPB.ToJSON WithNesting where
+        toJSON = HsJSONPB.toAesonValue
+        toEncoding = HsJSONPB.toAesonEncoding
+ 
+instance HsJSONPB.FromJSON WithNesting where
+        parseJSON = HsJSONPB.parseJSONPB
+ 
 data WithNesting_Nested = WithNesting_Nested{withNesting_NestedNestedField1
                                              :: Hs.Int32,
                                              withNesting_NestedNestedField2 :: Hs.Int32}
@@ -128,3 +135,10 @@ instance HsJSONPB.FromJSONPB WithNesting_Nested where
                (\ obj ->
                   (Hs.pure WithNesting_Nested) <*> obj .: "nestedField1" <*>
                     obj .: "nestedField2"))
+ 
+instance HsJSONPB.ToJSON WithNesting_Nested where
+        toJSON = HsJSONPB.toAesonValue
+        toEncoding = HsJSONPB.toAesonEncoding
+ 
+instance HsJSONPB.FromJSON WithNesting_Nested where
+        parseJSON = HsJSONPB.parseJSONPB

@@ -526,6 +526,9 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
               , messageInst
               , toJSONPBInst
               , fromJSONPBInst
+                -- Generate Aeson instances in terms of JSONPB instances
+              , toJSONInstDecl messageName
+              , fromJSONInstDecl messageName
               ]
               <> nestedOneofs_
               <> nestedDecls_
@@ -1009,6 +1012,9 @@ dotProtoEnumD parentIdent enumIdent enumParts =
                       ]
           , instDecl_ (jsonpbName "FromJSONPB") [ type_ enumName ]
                       [ HsFunBind parseJSONPBDecls ]
+          -- Generate Aeson instances in terms of JSONPB instances
+          , toJSONInstDecl enumName
+          , fromJSONInstDecl enumName
           ]
 
 -- ** Generate code for dot proto services
@@ -1258,6 +1264,27 @@ intE x = (if x < 0 then HsParen else id) . HsLit . HsInt . fromIntegral $ x
 
 intP :: Integral a => a -> HsPat
 intP x = (if x < 0 then HsPParen else id) . HsPLit . HsInt . fromIntegral $ x
+
+toJSONInstDecl :: String -> HsDecl
+toJSONInstDecl typeName =
+  instDecl_ (jsonpbName "ToJSON")
+            [ type_ typeName ]
+            [ HsFunBind [ match_ (HsIdent "toJSON") []
+                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonValue"))) []
+                        ]
+            , HsFunBind [ match_ (HsIdent "toEncoding") []
+                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonEncoding"))) []
+                        ]
+            ]
+
+
+fromJSONInstDecl :: String -> HsDecl
+fromJSONInstDecl typeName =
+  instDecl_ (jsonpbName "FromJSON")
+            [ type_ typeName ]
+            [ HsFunBind [match_ (HsIdent "parseJSON") [] (HsUnGuardedRhs (HsVar (jsonpbName "parseJSONPB"))) []
+                        ]
+            ]
 
 -- ** Expressions for protobuf-wire types
 

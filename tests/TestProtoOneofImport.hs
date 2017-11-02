@@ -80,6 +80,13 @@ instance HsJSONPB.FromJSONPB WithOneof where
                        Hs.Just Hs.. WithOneofPickOneB <$> (HsJSONPB.parseField obj "b"),
                        Hs.pure Hs.Nothing]))
  
+instance HsJSONPB.ToJSON WithOneof where
+        toJSON = HsJSONPB.toAesonValue
+        toEncoding = HsJSONPB.toAesonEncoding
+ 
+instance HsJSONPB.FromJSON WithOneof where
+        parseJSON = HsJSONPB.parseJSONPB
+ 
 data WithOneofPickOne = WithOneofPickOneA Hs.Text
                       | WithOneofPickOneB Hs.Int32
                       deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)

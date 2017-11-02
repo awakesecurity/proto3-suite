@@ -19,8 +19,12 @@ module Proto3.Suite.JSONPB
   , pair
   , pairs
   , parseField
+  , toAesonEncoding
+  , toAesonValue
     -- * Aeson re-exports
   , A.Value(..)
+  , A.ToJSON(..)
+  , A.FromJSON(..)
   , A.typeMismatch
   , A.withObject
   )
