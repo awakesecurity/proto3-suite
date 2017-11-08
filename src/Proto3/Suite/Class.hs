@@ -56,21 +56,16 @@
 -- >                  Left e -> error e
 -- >                  Right msg -> msg
 
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DefaultSignatures          #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE PolyKinds                  #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Proto3.Suite.Class
   ( Primitive(..)
@@ -96,34 +91,33 @@ module Proto3.Suite.Class
   ) where
 
 import           Control.Monad
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString        as B
 import qualified Data.ByteString.Base64 as B64
-import qualified Data.Foldable as F
-import           Data.Functor (($>))
-import           Data.Int (Int32, Int64)
-import           Data.Maybe (fromMaybe, isNothing)
-import           Data.Monoid ((<>))
-import           Data.Sequence (Seq)
-import           Data.String (IsString(..))
-import           Proto3.Suite.Types as Wire
-import           Proto3.Suite.DotProto as DotProto
-import           Data.Proxy (Proxy(..))
-import           Data.Vector (Vector)
-import           Data.Word (Word32, Word64)
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text as T
-import qualified Data.Traversable as TR
+import qualified Data.ByteString.Lazy   as BL
+import qualified Data.Foldable          as F
+import           Data.Functor           (($>))
+import           Data.Int               (Int32, Int64)
+import           Data.Maybe             (fromMaybe, isNothing)
+import           Data.Monoid            ((<>))
+import           Data.Proxy             (Proxy (..))
+import           Data.Sequence          (Seq)
+import           Data.String            (IsString (..))
+import qualified Data.Text              as T
+import qualified Data.Text.Lazy         as TL
+import qualified Data.Traversable       as TR
+import           Data.Vector            (Vector)
+import           Data.Word              (Word32, Word64)
+import           GHC.Exts               (fromList)
 import           GHC.Generics
 import           GHC.TypeLits
-import           GHC.Exts (fromList)
+import           Proto3.Suite.DotProto  as DotProto
+import           Proto3.Suite.Types     as Wire
 import           Proto3.Wire
-import           Proto3.Wire.Decode ( Parser(..), RawPrimitive, RawField
-                                    , RawMessage, ParseError
-                                    , runParser)
-import qualified Proto3.Wire.Decode as Decode
-import qualified Proto3.Wire.Encode as Encode
-import           Safe (toEnumMay)
+import           Proto3.Wire.Decode     (ParseError, Parser (..), RawField,
+                                         RawMessage, RawPrimitive, runParser)
+import qualified Proto3.Wire.Decode     as Decode
+import qualified Proto3.Wire.Encode     as Encode
+import           Safe                   (toEnumMay)
 
 -- | A class for types with default values per the protocol buffers spec.
 class HasDefault a where
@@ -239,7 +233,7 @@ class Named a where
   nameOf :: IsString string => Proxy a -> string
 
   default nameOf :: (IsString string, GenericNamed (Rep a)) => Proxy a -> string
-  nameOf _ = genericNameOf (Proxy :: Proxy (Rep a))
+  nameOf _ = genericNameOf (Proxy @(Rep a))
 
 class GenericNamed (f :: * -> *) where
   genericNameOf :: IsString string => Proxy f -> string
@@ -261,7 +255,7 @@ class Enum a => Finite a where
   enumerate :: IsString string => Proxy a -> [(string, Int)]
 
   default enumerate :: (IsString string, GenericFinite (Rep a)) => Proxy a -> [(string, Int)]
-  enumerate _ = snd (genericEnumerate (Proxy :: Proxy (Rep a)) 0)
+  enumerate _ = snd (genericEnumerate (Proxy @(Rep a)) 0)
 
 -- | Generate metadata for an enum type.
 enum :: (Finite e, Named e) => Proxy e -> DotProtoDefinition
@@ -276,8 +270,8 @@ instance ( GenericFinite f
          , GenericFinite g
          ) => GenericFinite (f :+: g) where
   genericEnumerate _ i =
-    let (j, e1) = genericEnumerate (Proxy :: Proxy f) i
-        (k, e2) = genericEnumerate (Proxy :: Proxy g) j
+    let (j, e1) = genericEnumerate (Proxy @f) i
+        (k, e2) = genericEnumerate (Proxy @g) j
     in (k, e1 <> e2)
 
 instance Constructor c => GenericFinite (M1 C c f) where
@@ -286,10 +280,10 @@ instance Constructor c => GenericFinite (M1 C c f) where
       name = conName (undefined :: M1 C c f ())
 
 instance GenericFinite f => GenericFinite (M1 D t f) where
-  genericEnumerate _ = genericEnumerate (Proxy :: Proxy f)
+  genericEnumerate _ = genericEnumerate (Proxy @f)
 
 instance GenericFinite f => GenericFinite (M1 S t f) where
-  genericEnumerate _ = genericEnumerate (Proxy :: Proxy f)
+  genericEnumerate _ = genericEnumerate (Proxy @f)
 
 -- | This class captures those types which correspond to primitives in
 -- the protocol buffers specification.
@@ -317,10 +311,7 @@ toLazyByteString = Encode.toLazyByteString . encodeMessage (fieldNumber 1)
 fromByteString :: Message a => B.ByteString -> Either ParseError a
 fromByteString = Decode.parse (decodeMessage (fieldNumber 1))
 
--- | As 'fromByteString', except the input bytestring is base64-encoded
---
--- >>> fromB64 @Trivial "CCo="
--- Right (Trivial {trivialTrivialField = 42})
+-- | As 'fromByteString', except the input bytestring is base64-encoded.
 fromB64 :: Message a => B.ByteString -> Either ParseError a
 fromB64 = fromByteString . B64.decodeLenient
 
@@ -414,12 +405,12 @@ instance forall e. (Bounded e, Named e, Enum e) => Primitive (Enumerated e) wher
     where enumify (Left i) = i
           enumify (Right x) = fromEnum x
   decodePrimitive = fmap Enumerated Decode.enum
-  primType _ = Named (Single (nameOf (Proxy :: Proxy e)))
+  primType _ = Named (Single (nameOf (Proxy @e)))
 
 instance (Primitive a) => Primitive (ForceEmit a) where
   encodePrimitive num = encodePrimitive num . forceEmit
   decodePrimitive     = fmap ForceEmit decodePrimitive
-  primType _          = primType (Proxy :: Proxy a)
+  primType _          = primType (Proxy @a)
 
 -- | This class captures those types which can appear as message fields in
 -- the protocol buffers specification, i.e. 'Primitive' types, or lists of
@@ -485,12 +476,12 @@ seqToVec = fromList . F.toList
 instance (Named a, Message a) => MessageField (Nested a) where
   encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . nested
   decodeMessageField = fmap Nested (Decode.embedded (decodeMessage (fieldNumber 1)))
-  protoType _ = messageField (Prim $ Named (Single (nameOf (Proxy :: Proxy a)))) Nothing
+  protoType _ = messageField (Prim $ Named (Single (nameOf (Proxy @a)))) Nothing
 
 instance Primitive a => MessageField (UnpackedVec a) where
   encodeMessageField fn = foldMap (encodePrimitive fn)
   decodeMessageField = fmap (UnpackedVec . seqToVec) $ repeated decodePrimitive
-  protoType _ = messageField (Repeated $ primType (Proxy :: Proxy a)) (Just DotProto.UnpackedField)
+  protoType _ = messageField (Repeated $ primType (Proxy @a)) (Just DotProto.UnpackedField)
 
 instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
   encodeMessageField fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
@@ -500,9 +491,9 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
     where
       oneMsg :: Parser RawMessage a
       oneMsg = decodeMessage (fieldNumber 1)
-  protoType _ = messageField (NestedRepeated (Named (Single (nameOf (Proxy :: Proxy a))))) Nothing
+  protoType _ = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
 
-instance (Bounded e, Enum e) => MessageField (PackedVec (Enumerated e)) where
+instance (Bounded e, Enum e, Named e) => MessageField (PackedVec (Enumerated e)) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . foldMap omit
     where
       -- omit values which are outside the enum range
@@ -513,7 +504,7 @@ instance (Bounded e, Enum e) => MessageField (PackedVec (Enumerated e)) where
     where
       -- retain only those values which are inside the enum range
       retain = foldMap (pure . Enumerated. Right) . toEnumMay . fromIntegral
-  protoType _ = error "internal: DotProtoField generation for repeated enums is unimplemented"
+  protoType _ = messageField (Repeated (Named (Single (nameOf (Proxy @e))))) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Bool) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromBool
@@ -610,7 +601,7 @@ class Message a where
   decodeMessage = (fmap to .) genericDecodeMessage
 
   default dotProto :: GenericMessage (Rep a) => Proxy a -> [DotProtoField]
-  dotProto _ = genericDotProto (Proxy :: Proxy (Rep a))
+  dotProto _ = genericDotProto (Proxy @(Rep a))
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy a -> DotProtoDefinition
@@ -635,13 +626,13 @@ instance (KnownNat (GenericFieldCount f), GenericMessage f, GenericMessage g) =>
   type GenericFieldCount (f :*: g) = GenericFieldCount f + GenericFieldCount g
   genericEncodeMessage num (x :*: y) = genericEncodeMessage num x <> genericEncodeMessage (FieldNumber (getFieldNumber num + offset)) y
     where
-      offset = fromIntegral $ natVal (Proxy :: Proxy (GenericFieldCount f))
+      offset = fromIntegral $ natVal (Proxy @(GenericFieldCount f))
   genericDecodeMessage num = liftM2 (:*:) (genericDecodeMessage num) (genericDecodeMessage num2)
     where num2 = FieldNumber $ getFieldNumber num + offset
-          offset = fromIntegral $ natVal (Proxy :: Proxy (GenericFieldCount f))
-  genericDotProto _ = genericDotProto (Proxy :: Proxy f) <> adjust (genericDotProto (Proxy :: Proxy g))
+          offset = fromIntegral $ natVal (Proxy @(GenericFieldCount f))
+  genericDotProto _ = genericDotProto (Proxy @f) <> adjust (genericDotProto (Proxy @g))
     where
-      offset = fromIntegral $ natVal (Proxy :: Proxy (GenericFieldCount f))
+      offset = fromIntegral $ natVal (Proxy @(GenericFieldCount f))
       adjust = map adjustPart
       adjustPart part = part { dotProtoFieldNumber = (FieldNumber . (offset +) . getFieldNumber . dotProtoFieldNumber) part }
 
@@ -649,13 +640,13 @@ instance MessageField c => GenericMessage (K1 i c) where
   type GenericFieldCount (K1 i c) = 1
   genericEncodeMessage num (K1 x) = encodeMessageField num x
   genericDecodeMessage num = fmap K1 (at decodeMessageField num)
-  genericDotProto _ = [protoType (Proxy :: Proxy c)]
+  genericDotProto _ = [protoType (Proxy @c)]
 
 instance (Selector s, GenericMessage f) => GenericMessage (M1 S s f) where
   type GenericFieldCount (M1 S s f) = GenericFieldCount f
   genericEncodeMessage num (M1 x) = genericEncodeMessage num x
   genericDecodeMessage num = fmap M1 $ genericDecodeMessage num
-  genericDotProto _ = map applyName $ genericDotProto (Proxy :: Proxy f)
+  genericDotProto _ = map applyName $ genericDotProto (Proxy @f)
     where
       applyName :: DotProtoField -> DotProtoField
       applyName mp = mp { dotProtoFieldName = fromMaybe Anonymous newName} -- [issue] this probably doesn't match the intended name generating semantics
@@ -669,10 +660,10 @@ instance GenericMessage f => GenericMessage (M1 C t f) where
   type GenericFieldCount (M1 C t f) = GenericFieldCount f
   genericEncodeMessage num (M1 x) = genericEncodeMessage num x
   genericDecodeMessage num = fmap M1 $ genericDecodeMessage num
-  genericDotProto _ = genericDotProto (Proxy :: Proxy f)
+  genericDotProto _ = genericDotProto (Proxy @f)
 
 instance GenericMessage f => GenericMessage (M1 D t f) where
   type GenericFieldCount (M1 D t f) = GenericFieldCount f
   genericEncodeMessage num (M1 x) = genericEncodeMessage num x
   genericDecodeMessage num = fmap M1 $ genericDecodeMessage num
-  genericDotProto _ = genericDotProto (Proxy :: Proxy f)
+  genericDotProto _ = genericDotProto (Proxy @f)
