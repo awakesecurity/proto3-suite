@@ -21,6 +21,9 @@ module Proto3.Suite.DotProto.Generate
   , renderHsModuleForDotProto
   , readDotProtoWithContext
 
+  -- * Utilities
+  , isPackable
+
   -- * Exposed for unit-testing
   , fieldLikeName
   , prefixedEnumFieldName
@@ -831,31 +834,39 @@ oneofSubDisjunctBinder = intercalate "_or_" . fmap oneofSubBinder
 
 -- ** Helpers to wrap/unwrap types for protobuf (de-)serialization
 
-wrapE, unwrapE :: TypeContext -> DotProtoType -> [DotProtoOption]
-               -> HsExp -> CompileResult HsExp
-wrapE ctxt (Prim ty)     _ = pure . wrapPrimE ctxt ty
-wrapE ctxt (Optional ty) _ = pure . wrapPrimE ctxt ty
-wrapE ctxt (Repeated (Named tyName)) _
+wrapE :: TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> CompileResult HsExp
+wrapE ctxt dpt opts e = case dpt of
+  Prim ty
+    -> pure (wrapPrimE ctxt ty e)
+  Optional ty
+    -> pure (wrapPrimE ctxt ty e)
+  Repeated (Named tyName)
     | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
-        = pure . wrapWithFuncE "NestedVec"
-wrapE _ (Repeated ty)        opts
-    | isUnpacked opts = pure . wrapWithFuncE "UnpackedVec" . wrapPrimVecE ty
-    | isPacked opts || isPackableType ty = pure . wrapWithFuncE "PackedVec" .
-                                           wrapPrimVecE ty
-    | otherwise = pure . wrapWithFuncE "UnpackedVec" . wrapPrimVecE ty
-wrapE _ _ _ = const (internalError "wrapE: unimplemented")
+      -> pure (wrapWithFuncE "NestedVec" e)
+  Repeated ty
+    | isUnpacked opts                     -> wrapVE "UnpackedVec" ty
+    | isPacked opts || isPackable ctxt ty -> wrapVE "PackedVec"   ty
+    | otherwise                           -> wrapVE "UnpackedVec" ty
+  _ -> internalError "wrapE: unimplemented"
+  where
+    wrapVE nm ty = pure . wrapWithFuncE nm . wrapPrimVecE ty $ e
 
-unwrapE ctxt (Prim ty)     _ = pure . unwrapPrimE ctxt  ty
-unwrapE ctxt (Optional ty) _ = pure . unwrapPrimE ctxt ty
-unwrapE ctxt (Repeated (Named tyName)) _
-    | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
-        = pure . unwrapWithFuncE "nestedvec"
-unwrapE _ (Repeated ty) opts
-    | isUnpacked opts = pure . unwrapPrimVecE ty . unwrapWithFuncE "unpackedvec"
-    | isPacked opts || isPackableType ty =  pure . unwrapPrimVecE ty .
-                                            unwrapWithFuncE "packedvec"
-    | otherwise = pure . unwrapPrimVecE ty . unwrapWithFuncE "unpackedvec"
-unwrapE _ _ _ = const (internalError "unwrapE: unimplemented")
+unwrapE :: TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> CompileResult HsExp
+unwrapE ctxt dpt opts e = case dpt of
+ Prim ty
+   -> pure (unwrapPrimE ctxt ty e)
+ Optional ty
+   -> pure (unwrapPrimE ctxt ty e)
+ Repeated (Named tyName)
+   | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
+     -> pure (unwrapWithFuncE "nestedvec" e)
+ Repeated ty
+   | isUnpacked opts                     -> unwrapVE ty "unpackedvec"
+   | isPacked opts || isPackable ctxt ty -> unwrapVE ty "packedvec"
+   | otherwise                           -> unwrapVE ty "unpackedvec"
+ _ -> internalError "unwrapE: unimplemented"
+ where
+   unwrapVE ty nm = pure . unwrapPrimVecE ty . unwrapWithFuncE nm $ e
 
 wrapPrimVecE, unwrapPrimVecE :: DotProtoPrimType -> HsExp -> HsExp
 wrapPrimVecE SFixed32 = apply fmapE . (HsVar (protobufName "Signed"):) . (:[])
@@ -901,6 +912,31 @@ isUnpacked opts =
     case find (\(DotProtoOption name _) -> name == Single "packed") opts of
         Just (DotProtoOption _ (BoolLit x)) -> not x
         _ -> False
+
+-- | Returns 'True' if the given primitive type is packable. The 'TypeContext'
+-- is used to distinguish Named enums and messages, only the former of which are
+-- packable.
+isPackable :: TypeContext -> DotProtoPrimType -> Bool
+isPackable _ Bytes    = False
+isPackable _ String   = False
+isPackable _ Int32    = True
+isPackable _ Int64    = True
+isPackable _ SInt32   = True
+isPackable _ SInt64   = True
+isPackable _ UInt32   = True
+isPackable _ UInt64   = True
+isPackable _ Fixed32  = True
+isPackable _ Fixed64  = True
+isPackable _ SFixed32 = True
+isPackable _ SFixed64 = True
+isPackable _ Bool     = True
+isPackable _ Float    = True
+isPackable _ Double   = True
+isPackable ctxt (Named tyName)
+  | Just DotProtoKindEnum <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
+    = True
+  | otherwise
+    = False
 
 internalError, invalidTypeNameError, _unimplementedError
     :: String -> CompileResult a

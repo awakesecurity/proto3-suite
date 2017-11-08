@@ -96,8 +96,9 @@ def main():
     allPackedTypes.packedSFixed32.extend([1,2,3])
     allPackedTypes.packedSFixed64.extend([1,2,3])
     allPackedTypes.packedBool.extend([False,True])
+    allPackedTypes.packedEnum.extend([test_proto_pb2.FLD0,test_proto_pb2.FLD1])
+    allPackedTypes.unpackedEnum.extend([test_proto_pb2.FLD0,test_proto_pb2.FLD1])
     serialize_to_file(allPackedTypes, "all_packed_types.bin")
-
 
 if __name__ == '__main__':
     main()

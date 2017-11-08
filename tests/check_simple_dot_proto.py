@@ -172,7 +172,9 @@ assert len(case11a.packedWord32) == 0 and len(case11a.packedWord64) == 0 and \
     len(case11a.packedFixed32) == 0 and len(case11a.packedFixed64) == 0 and \
     len(case11a.packedFloat) == 0 and len(case11a.packedDouble) == 0 and \
     len(case11a.packedSFixed32) == 0 and len(case11a.packedSFixed64) == 0 and \
-    len(case11a.packedBool) == 0
+    len(case11a.packedBool) == 0 and \
+    len(case11a.packedEnum) == 0 and \
+    len(case11a.unpackedEnum) == 0
 
 case11b = read_proto(AllPackedTypes)
 assert list(case11b.packedWord32) == [1] and list(case11b.packedWord64) == [2] and \
@@ -180,7 +182,9 @@ assert list(case11b.packedWord32) == [1] and list(case11b.packedWord64) == [2] a
     list(case11b.packedFixed32) == [5] and list(case11b.packedFixed64) == [6] and \
     list(case11b.packedFloat) == [7] and list(case11b.packedDouble) == [8] and \
     list(case11b.packedSFixed32) == [9] and list(case11b.packedSFixed64) == [10] and \
-    list(case11b.packedBool) == [False]
+    list(case11b.packedBool) == [False] and \
+    list(case11b.packedEnum) == [FLD0] and \
+    list(case11b.unpackedEnum) == [FLD0]
 
 case11c = read_proto(AllPackedTypes)
 assert list(case11c.packedWord32) == [1] and list(case11c.packedWord64) == [2] and \
@@ -188,7 +192,9 @@ assert list(case11c.packedWord32) == [1] and list(case11c.packedWord64) == [2] a
     list(case11c.packedFixed32) == [5] and list(case11c.packedFixed64) == [6] and \
     list(case11c.packedFloat) == [-7] and list(case11c.packedDouble) == [-8] and \
     list(case11c.packedSFixed32) == [-9] and list(case11c.packedSFixed64) == [-10] and \
-    list(case11c.packedBool) == [True]
+    list(case11c.packedBool) == [True] and \
+    list(case11c.packedEnum) == [FLD1] and \
+    list(case11c.unpackedEnum) == [FLD1]
 
 case11d = read_proto(AllPackedTypes)
 expected_fp = [x / 8.0 for x in range(8, 80001)]
@@ -197,7 +203,9 @@ assert list(case11d.packedWord32) == range(1,10001) and list(case11d.packedWord6
     list(case11d.packedFixed32) == range(1,10001) and list(case11d.packedFixed64) == range(1,10001) and \
     list(case11d.packedFloat) == expected_fp and list(case11d.packedDouble) == expected_fp and \
     list(case11d.packedSFixed32) == range(1,10001) and list(case11d.packedSFixed64) == range(1,10001) and \
-    list(case11d.packedBool) == [False,True]
+    list(case11d.packedBool) == [False,True] and \
+    list(case11d.packedEnum) == [FLD0,FLD1] and \
+    list(case11d.unpackedEnum) == [FLD0,FLD1]
 
 # Test case 12: message with out of order field numbers
 case12a = read_proto(OutOfOrderFields)

@@ -191,6 +191,8 @@ parseFromGoldens = testGroup "Parse golden encodings"
                                           (fromList $ map Fixed [1,2,3])
                                           (fromList $ map Fixed [1,2,3])
                                           [False,True]
+                                          (Enumerated . Right <$> [TP.EFLD0, TP.EFLD1])
+                                          (Enumerated . Right <$> [TP.EFLD0, TP.EFLD1])
   , check "with_nesting_repeated.bin" $ TP.WithNestingRepeated
                                           [ TP.WithNestingRepeated_Nested "123abc" 123456 [1,2,3,4] [5,6,7,8]
                                           , TP.WithNestingRepeated_Nested "abc123" 654321 [0,9,8,7] [6,5,4,3]

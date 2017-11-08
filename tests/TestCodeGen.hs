@@ -10,6 +10,7 @@ import qualified Data.ByteString.Lazy           as LBS
 import           Data.Monoid                    ((<>))
 import           Data.String                    (IsString)
 import qualified Data.Text                      as T
+import           Prelude                        hiding (FilePath)
 import           Proto3.Suite
 import           Proto3.Suite.DotProto.Generate
 import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
@@ -20,9 +21,10 @@ import           Test.Tasty
 import           Test.Tasty.HUnit               (testCase, (@?=))
 import           TestProto
 import           TestProtoOneof
+import           Turtle                         (FilePath)
 import qualified Turtle
-import           Turtle.Format             ((%))
-import qualified Turtle.Format             as F
+import           Turtle.Format                  ((%))
+import qualified Turtle.Format                  as F
 
 codeGenTests :: TestTree
 codeGenTests = testGroup "Code generator unit tests"
@@ -106,6 +108,13 @@ simpleDecodeDotProto =
        Turtle.rmtree pyTmpDir
 
 -- * Helpers
+
+-- E.g. dumpAST ["test-files"] "test_proto.proto"
+dumpAST :: [FilePath] -> FilePath -> IO ()
+dumpAST incs fp = do
+  Right (dp, tc) <- readDotProtoWithContext incs fp
+  let Right src = renderHsModuleForDotProto dp tc
+  putStrLn src
 
 hsTmpDir, pyTmpDir :: IsString a => a
 hsTmpDir = "test-files/hs-tmp"
