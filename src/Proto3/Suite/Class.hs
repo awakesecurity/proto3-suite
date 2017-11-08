@@ -492,6 +492,18 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
       oneMsg = decodeMessage (fieldNumber 1)
   protoType _ = messageField (NestedRepeated (Named (Single (nameOf (Proxy :: Proxy a))))) Nothing
 
+instance MessageField (PackedVec Bool) where
+  encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromBool
+    where
+      fromBool False = 0
+      fromBool True  = 1
+  decodeMessageField = fmap (fmap toBool) (decodePacked Decode.packedVarints)
+    where
+      toBool :: Word64 -> Bool
+      toBool 1 = True
+      toBool _ = False
+  protoType _ = messageField (Repeated Bool) (Just DotProto.PackedField)
+
 instance MessageField (PackedVec Word32) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromIntegral
   decodeMessageField = decodePacked Decode.packedVarints

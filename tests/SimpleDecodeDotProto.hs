@@ -174,13 +174,13 @@ testCase10 = testCase "Packed and unpacked repeated types" $
 
 testCase11 = testCase "All possible packed types" $
     do a <- readProto
-       a @?= AllPackedTypes [] [] [] [] [] [] [] [] [] []
+       a @?= AllPackedTypes [] [] [] [] [] [] [] [] [] [] []
 
        b <- readProto
-       b @?= AllPackedTypes [1] [2] [3] [4] [5] [6] [7] [8] [9] [10]
+       b @?= AllPackedTypes [1] [2] [3] [4] [5] [6] [7] [8] [9] [10] [False]
 
        c <- readProto
-       c @?= AllPackedTypes [1] [2] [-3] [-4] [5] [6] [-7] [-8] [-9] [-10]
+       c @?= AllPackedTypes [1] [2] [-3] [-4] [5] [6] [-7] [-8] [-9] [-10] [True]
 
        d <- readProto
        d @?= AllPackedTypes [1..10000] [1..10000]
@@ -188,6 +188,7 @@ testCase11 = testCase "All possible packed types" $
                             [1..10000] [1..10000]
                             [1,1.125..10000] [1,1.125..10000]
                             [1..10000] [1..10000]
+                            [False,True]
 
 testCase12 = testCase "Message with out of order field numbers" $
     do OutOfOrderFields { .. } <- readProto
