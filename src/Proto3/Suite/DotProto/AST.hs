@@ -28,9 +28,6 @@ module Proto3.Suite.DotProto.AST
     , DotProtoMessagePart(..)
     , DotProtoField(..)
     , DotProtoReservedField(..)
-
-    -- * Utilities
-    , isPackableType
   ) where
 
 import           Data.String               (IsString)
@@ -401,25 +398,6 @@ instance Arbitrary DotProtoReservedField where
           begin <- arbitraryFieldNumber
           end   <- arbitraryFieldNumber
           return (FieldRange begin end)
-
--- | Returns 'True' if the given primitive type is packable
-isPackableType :: DotProtoPrimType -> Bool
-isPackableType (Named _) = False
-isPackableType Bytes = False
-isPackableType String = False
-isPackableType Int32 = True
-isPackableType Int64 = True
-isPackableType SInt32 = True
-isPackableType SInt64 = True
-isPackableType UInt32 = True
-isPackableType UInt64 = True
-isPackableType Fixed32 = True
-isPackableType Fixed64 = True
-isPackableType SFixed32 = True
-isPackableType SFixed64 = True
-isPackableType Bool = True
-isPackableType Float = True
-isPackableType Double = True
 
 --------------------------------------------------------------------------------
 -- | QC Arbitrary instance for generating random protobuf
