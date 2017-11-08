@@ -1,12 +1,10 @@
 {-# LANGUAGE OverloadedLists      #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE TypeApplications     #-}
 
 module Main where
 
 import qualified Data.ByteString.Lazy as BL
-import           GHC.Exts
 import           Proto3.Suite
 import           TestProto
 import qualified TestProtoImport
