@@ -92,10 +92,10 @@ testCase10 =
 
 testCase11 :: IO ()
 testCase11 =
-  do outputMessage (AllPackedTypes [] [] [] [] [] [] [] [] [] [])
-     outputMessage (AllPackedTypes [1] [2] [3] [4] [5] [6] [7] [8] [9] [10])
-     outputMessage (AllPackedTypes [1] [2] [-3] [-4] [5] [6] [-7] [-8] [-9] [-10])
-     outputMessage (AllPackedTypes [1..10000] [1..10000] [1..10000] [1..10000] [1..10000] [1..10000] [1,1.125..10000] [1,1.125..10000] [1..10000] [1..10000])
+  do outputMessage (AllPackedTypes [] [] [] [] [] [] [] [] [] [] [])
+     outputMessage (AllPackedTypes [1] [2] [3] [4] [5] [6] [7] [8] [9] [10] [False])
+     outputMessage (AllPackedTypes [1] [2] [-3] [-4] [5] [6] [-7] [-8] [-9] [-10] [True])
+     outputMessage (AllPackedTypes [1..10000] [1..10000] [1..10000] [1..10000] [1..10000] [1..10000] [1,1.125..10000] [1,1.125..10000] [1..10000] [1..10000] [False,True])
 
 testCase12 :: IO ()
 testCase12 =

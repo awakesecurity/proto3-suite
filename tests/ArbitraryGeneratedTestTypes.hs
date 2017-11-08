@@ -64,6 +64,7 @@ instance Arbitrary AllPackedTypes where
     AllPackedTypes
     <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
     <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+    <*> arbitrary
 
 instance Arbitrary SignedInts where
   arbitrary = SignedInts <$> arbitrary <*> arbitrary
