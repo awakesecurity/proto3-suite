@@ -94,6 +94,7 @@ message AllPackedTypes {
   repeated double packedDouble = 8 [packed=true];
   repeated sfixed32 packedSFixed32 = 9 [packed=true];
   repeated sfixed64 packedSFixed64 = 10 [packed=true];
+  repeated bool packedBool = 11 [packed=true];
 }
 
 message OutOfOrderFields {

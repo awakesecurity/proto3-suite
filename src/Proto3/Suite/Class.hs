@@ -515,6 +515,18 @@ instance (Bounded e, Enum e) => MessageField (PackedVec (Enumerated e)) where
       retain = foldMap (pure . Enumerated. Right) . toEnumMay . fromIntegral
   protoType _ = error "internal: DotProtoField generation for repeated enums is unimplemented"
 
+instance MessageField (PackedVec Bool) where
+  encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromBool
+    where
+      fromBool False = 0
+      fromBool True  = 1
+  decodeMessageField = fmap (fmap toBool) (decodePacked Decode.packedVarints)
+    where
+      toBool :: Word64 -> Bool
+      toBool 1 = True
+      toBool _ = False
+  protoType _ = messageField (Repeated Bool) (Just DotProto.PackedField)
+
 instance MessageField (PackedVec Word32) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromIntegral
   decodeMessageField = decodePacked Decode.packedVarints
