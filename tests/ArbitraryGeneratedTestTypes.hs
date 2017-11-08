@@ -60,11 +60,13 @@ instance Arbitrary BS.ByteString where
   arbitrary = BS.pack <$> arbitrary
 
 instance Arbitrary AllPackedTypes where
-  arbitrary =
+  arbitrary = do
     AllPackedTypes
-    <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-    <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-    <*> arbitrary
+      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      <*> arbitrary <*> arbEnums  <*> arbEnums
+    where
+      arbEnums = V.fromList <$> listOf (DotProto.Enumerated . Right <$> arbitraryBoundedEnum)
 
 instance Arbitrary SignedInts where
   arbitrary = SignedInts <$> arbitrary <*> arbitrary

@@ -83,6 +83,8 @@ message WithPacking {
   repeated int32 packing2 = 2 [packed=true];
 }
 
+enum E { FLD0 = 0; FLD1 = 1; }
+
 message AllPackedTypes {
   repeated uint32 packedWord32 = 1 [packed=true];
   repeated uint64 packedWord64 = 2 [packed=true];
@@ -95,6 +97,8 @@ message AllPackedTypes {
   repeated sfixed32 packedSFixed32 = 9 [packed=true];
   repeated sfixed64 packedSFixed64 = 10 [packed=true];
   repeated bool packedBool = 11 [packed=true];
+  repeated E packedEnum = 12 [packed=true];
+  repeated E unpackedEnum = 13 [packed=false];
 }
 
 message OutOfOrderFields {

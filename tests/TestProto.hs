@@ -1032,6 +1032,42 @@ instance HsJSONPB.FromJSON WithPacking where
 instance HsJSONPB.ToSchema WithPacking where
         declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
  
+data E = EFLD0
+       | EFLD1
+       deriving (Hs.Show, Hs.Bounded, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named E where
+        nameOf _ = (Hs.fromString "E")
+ 
+instance Hs.Enum E where
+        toEnum 0 = EFLD0
+        toEnum 1 = EFLD1
+        toEnum i = (Hs.toEnumError "E" i (0 :: Hs.Int, 1))
+        fromEnum (EFLD0) = 0
+        fromEnum (EFLD1) = 1
+        succ (EFLD0) = EFLD1
+        succ _ = Hs.succError "E"
+        pred (EFLD1) = EFLD0
+        pred _ = Hs.predError "E"
+ 
+instance HsJSONPB.ToJSONPB E where
+        toJSONPB x _ = HsJSONPB.enumFieldString x
+        toEncodingPB x _ = HsJSONPB.enumFieldEncoding x
+ 
+instance HsJSONPB.FromJSONPB E where
+        parseJSONPB (HsJSONPB.String "FLD0") = Hs.pure EFLD0
+        parseJSONPB (HsJSONPB.String "FLD1") = Hs.pure EFLD1
+        parseJSONPB v = (HsJSONPB.typeMismatch "E" v)
+ 
+instance HsJSONPB.ToJSON E where
+        toJSON = HsJSONPB.toAesonValue
+        toEncoding = HsJSONPB.toAesonEncoding
+ 
+instance HsJSONPB.FromJSON E where
+        parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsProtobuf.Finite E
+ 
 data AllPackedTypes = AllPackedTypes{allPackedTypesPackedWord32 ::
                                      Hs.Vector Hs.Word32,
                                      allPackedTypesPackedWord64 :: Hs.Vector Hs.Word64,
@@ -1047,7 +1083,11 @@ data AllPackedTypes = AllPackedTypes{allPackedTypesPackedWord32 ::
                                      Hs.Vector (HsProtobuf.Fixed Hs.Int32),
                                      allPackedTypesPackedSFixed64 ::
                                      Hs.Vector (HsProtobuf.Fixed Hs.Int64),
-                                     allPackedTypesPackedBool :: Hs.Vector Hs.Bool}
+                                     allPackedTypesPackedBool :: Hs.Vector Hs.Bool,
+                                     allPackedTypesPackedEnum ::
+                                     Hs.Vector (HsProtobuf.Enumerated TestProto.E),
+                                     allPackedTypesUnpackedEnum ::
+                                     Hs.Vector (HsProtobuf.Enumerated TestProto.E)}
                     deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
  
 instance HsProtobuf.Named AllPackedTypes where
@@ -1066,7 +1106,9 @@ instance HsProtobuf.Message AllPackedTypes where
                          allPackedTypesPackedDouble = allPackedTypesPackedDouble,
                          allPackedTypesPackedSFixed32 = allPackedTypesPackedSFixed32,
                          allPackedTypesPackedSFixed64 = allPackedTypesPackedSFixed64,
-                         allPackedTypesPackedBool = allPackedTypesPackedBool}
+                         allPackedTypesPackedBool = allPackedTypesPackedBool,
+                         allPackedTypesPackedEnum = allPackedTypesPackedEnum,
+                         allPackedTypesUnpackedEnum = allPackedTypesUnpackedEnum}
           = (Hs.mconcat
                [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
                    (HsProtobuf.PackedVec allPackedTypesPackedWord32)),
@@ -1091,7 +1133,11 @@ instance HsProtobuf.Message AllPackedTypes where
                    (HsProtobuf.PackedVec
                       (Hs.fmap HsProtobuf.Signed allPackedTypesPackedSFixed64))),
                 (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 11)
-                   (HsProtobuf.PackedVec allPackedTypesPackedBool))])
+                   (HsProtobuf.PackedVec allPackedTypesPackedBool)),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 12)
+                   (HsProtobuf.PackedVec allPackedTypesPackedEnum)),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 13)
+                   (HsProtobuf.UnpackedVec allPackedTypesUnpackedEnum))])
         decodeMessage _
           = (Hs.pure AllPackedTypes) <*>
               ((Hs.pure HsProtobuf.packedvec) <*>
@@ -1139,6 +1185,14 @@ instance HsProtobuf.Message AllPackedTypes where
               ((Hs.pure HsProtobuf.packedvec) <*>
                  (HsProtobuf.at HsProtobuf.decodeMessageField
                     (HsProtobuf.FieldNumber 11)))
+              <*>
+              ((Hs.pure HsProtobuf.packedvec) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 12)))
+              <*>
+              ((Hs.pure HsProtobuf.unpackedvec) <*>
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 13)))
         dotProto _
           = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
                 (HsProtobuf.Repeated HsProtobuf.UInt32)
@@ -1205,21 +1259,37 @@ instance HsProtobuf.Message AllPackedTypes where
                 (HsProtobuf.Single "packedBool")
                 [(HsProtobuf.DotProtoOption (HsProtobuf.Single "packed")
                     (HsProtobuf.BoolLit Hs.True))]
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 12)
+                (HsProtobuf.Repeated (HsProtobuf.Named (HsProtobuf.Single "E")))
+                (HsProtobuf.Single "packedEnum")
+                [(HsProtobuf.DotProtoOption (HsProtobuf.Single "packed")
+                    (HsProtobuf.BoolLit Hs.True))]
+                Hs.Nothing),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 13)
+                (HsProtobuf.Repeated (HsProtobuf.Named (HsProtobuf.Single "E")))
+                (HsProtobuf.Single "unpackedEnum")
+                [(HsProtobuf.DotProtoOption (HsProtobuf.Single "packed")
+                    (HsProtobuf.BoolLit Hs.False))]
                 Hs.Nothing)]
  
 instance HsJSONPB.ToJSONPB AllPackedTypes where
-        toJSONPB (AllPackedTypes f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11)
+        toJSONPB
+          (AllPackedTypes f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13)
           = (HsJSONPB.object
                ["packedWord32" .= f1, "packedWord64" .= f2, "packedInt32" .= f3,
                 "packedInt64" .= f4, "packedFixed32" .= f5, "packedFixed64" .= f6,
                 "packedFloat" .= f7, "packedDouble" .= f8, "packedSFixed32" .= f9,
-                "packedSFixed64" .= f10, "packedBool" .= f11])
-        toEncodingPB (AllPackedTypes f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11)
+                "packedSFixed64" .= f10, "packedBool" .= f11, "packedEnum" .= f12,
+                "unpackedEnum" .= f13])
+        toEncodingPB
+          (AllPackedTypes f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13)
           = (HsJSONPB.pairs
                ["packedWord32" .= f1, "packedWord64" .= f2, "packedInt32" .= f3,
                 "packedInt64" .= f4, "packedFixed32" .= f5, "packedFixed64" .= f6,
                 "packedFloat" .= f7, "packedDouble" .= f8, "packedSFixed32" .= f9,
-                "packedSFixed64" .= f10, "packedBool" .= f11])
+                "packedSFixed64" .= f10, "packedBool" .= f11, "packedEnum" .= f12,
+                "unpackedEnum" .= f13])
  
 instance HsJSONPB.FromJSONPB AllPackedTypes where
         parseJSONPB
@@ -1235,7 +1305,9 @@ instance HsJSONPB.FromJSONPB AllPackedTypes where
                     <*> obj .: "packedDouble"
                     <*> obj .: "packedSFixed32"
                     <*> obj .: "packedSFixed64"
-                    <*> obj .: "packedBool"))
+                    <*> obj .: "packedBool"
+                    <*> obj .: "packedEnum"
+                    <*> obj .: "unpackedEnum"))
  
 instance HsJSONPB.ToJSON AllPackedTypes where
         toJSON = HsJSONPB.toAesonValue
