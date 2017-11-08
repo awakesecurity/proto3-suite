@@ -65,6 +65,7 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TupleSections #-}
@@ -82,6 +83,7 @@ module Proto3.Suite.Class
   -- * Decoding
   , HasDefault(..)
   , fromByteString
+  , fromB64
 
   -- * Documentation
   , Named(..)
@@ -96,6 +98,7 @@ module Proto3.Suite.Class
 import           Control.Monad
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Base64 as B64
 import qualified Data.Foldable as F
 import           Data.Functor (($>))
 import           Data.Int (Int32, Int64)
@@ -314,6 +317,13 @@ toLazyByteString = Encode.toLazyByteString . encodeMessage (fieldNumber 1)
 fromByteString :: Message a => B.ByteString -> Either ParseError a
 fromByteString = Decode.parse (decodeMessage (fieldNumber 1))
 
+-- | As 'fromByteString', except the input bytestring is base64-encoded
+--
+-- >>> fromB64 @Trivial "CCo="
+-- Right (Trivial {trivialTrivialField = 42})
+fromB64 :: Message a => B.ByteString -> Either ParseError a
+fromB64 = fromByteString . B64.decodeLenient
+
 instance Primitive Int32 where
   encodePrimitive = Encode.int32
   decodePrimitive = Decode.int32
@@ -491,6 +501,19 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
       oneMsg :: Parser RawMessage a
       oneMsg = decodeMessage (fieldNumber 1)
   protoType _ = messageField (NestedRepeated (Named (Single (nameOf (Proxy :: Proxy a))))) Nothing
+
+instance (Bounded e, Enum e) => MessageField (PackedVec (Enumerated e)) where
+  encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . foldMap omit
+    where
+      -- omit values which are outside the enum range
+      omit :: Enumerated e -> PackedVec Word64
+      omit (Enumerated (Right e)) = pure . fromIntegral . fromEnum $ e
+      omit _                      = mempty
+  decodeMessageField = decodePacked (foldMap retain <$> Decode.packedVarints @Word64)
+    where
+      -- retain only those values which are inside the enum range
+      retain = foldMap (pure . Enumerated. Right) . toEnumMay . fromIntegral
+  protoType _ = error "internal: DotProtoField generation for repeated enums is unimplemented"
 
 instance MessageField (PackedVec Word32) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromIntegral
