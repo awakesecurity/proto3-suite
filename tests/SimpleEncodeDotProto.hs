@@ -1,14 +1,17 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedLists      #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
 
 module Main where
 
+import qualified Data.ByteString.Lazy as BL
+import           GHC.Exts
+import           Proto3.Suite
 import           TestProto
 import qualified TestProtoImport
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
-import           Proto3.Suite
-import qualified Data.ByteString.Lazy as BL
 
 outputMessage :: Message a => a -> IO ()
 outputMessage msg =
@@ -91,11 +94,23 @@ testCase10 =
      outputMessage (WithPacking [1, 2, 3, 4, 5] [5, 4, 3, 2, 1])
 
 testCase11 :: IO ()
-testCase11 =
-  do outputMessage (AllPackedTypes [] [] [] [] [] [] [] [] [] [] [])
-     outputMessage (AllPackedTypes [1] [2] [3] [4] [5] [6] [7] [8] [9] [10] [False])
-     outputMessage (AllPackedTypes [1] [2] [-3] [-4] [5] [6] [-7] [-8] [-9] [-10] [True])
-     outputMessage (AllPackedTypes [1..10000] [1..10000] [1..10000] [1..10000] [1..10000] [1..10000] [1,1.125..10000] [1,1.125..10000] [1..10000] [1..10000] [False,True])
+testCase11 = do
+  outputMessage $ AllPackedTypes [] [] [] [] [] [] [] [] [] [] [] [] []
+  outputMessage $ AllPackedTypes [1] [2] [3] [4] [5] [6] [7] [8] [9] [10]
+                                 [False][efld0] [efld0]
+  outputMessage $ AllPackedTypes [1] [2] [-3] [-4] [5] [6] [-7] [-8] [-9] [-10]
+                                 [True] [efld1] [efld1]
+  outputMessage $ AllPackedTypes [1..10000] [1..10000]
+                                 [1..10000] [1..10000]
+                                 [1..10000] [1..10000]
+                                 [1,1.125..10000] [1,1.125..10000]
+                                 [1..10000] [1..10000]
+                                 [False,True]
+                                 [efld0,efld1]
+                                 [efld0,efld1]
+  where
+    efld0 = Enumerated (Right EFLD0)
+    efld1 = Enumerated (Right EFLD1)
 
 testCase12 :: IO ()
 testCase12 =

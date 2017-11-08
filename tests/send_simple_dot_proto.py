@@ -102,7 +102,7 @@ write_proto(WithPacking(packing1 = [],
 write_proto(WithPacking(packing1 = [1, 2, 3, 4, 5],
                         packing2 = [5, 4, 3, 2, 1]))
 
-# # Test case 11: All possible packed types
+# Test case 11: All possible packed types
 write_proto(AllPackedTypes(packedWord32 = [],
                            packedWord64 = [],
                            packedInt32 = [],
@@ -113,7 +113,9 @@ write_proto(AllPackedTypes(packedWord32 = [],
                            packedDouble = [],
                            packedSFixed32 = [],
                            packedSFixed64 = [],
-                           packedBool = []))
+                           packedBool = [],
+                           packedEnum = [],
+                           unpackedEnum = []))
 write_proto(AllPackedTypes(packedWord32 = [1],
                            packedWord64 = [2],
                            packedInt32 = [3],
@@ -124,7 +126,9 @@ write_proto(AllPackedTypes(packedWord32 = [1],
                            packedDouble = [8],
                            packedSFixed32 = [9],
                            packedSFixed64 = [10],
-                           packedBool = [False]))
+                           packedBool = [False],
+                           packedEnum = [FLD0],
+                           unpackedEnum = [FLD0]))
 write_proto(AllPackedTypes(packedWord32 = [1],
                            packedWord64 = [2],
                            packedInt32 = [-3],
@@ -135,7 +139,9 @@ write_proto(AllPackedTypes(packedWord32 = [1],
                            packedDouble = [-8],
                            packedSFixed32 = [-9],
                            packedSFixed64 = [-10],
-                           packedBool = [True]))
+                           packedBool = [True],
+                           packedEnum = [FLD1],
+                           unpackedEnum = [FLD1]))
 expected_fp = [x / 8.0 for x in range(8, 80001)]
 write_proto(AllPackedTypes(packedWord32 = range(1, 10001),
                            packedWord64 = range(1, 10001),
@@ -147,7 +153,9 @@ write_proto(AllPackedTypes(packedWord32 = range(1, 10001),
                            packedDouble = expected_fp,
                            packedSFixed32 = range(1, 10001),
                            packedSFixed64 = range(1, 10001),
-                           packedBool = [False,True]))
+                           packedBool = [False,True],
+                           packedEnum = [FLD0,FLD1],
+                           unpackedEnum = [FLD0,FLD1]))
 
 # Test case 12: message with out of order field numbers
 write_proto(OutOfOrderFields(field1 = [], field2 = "", field3 = 2 ** 63 - 1, field4 = []))
