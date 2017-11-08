@@ -853,8 +853,10 @@ wrapE ctxt dpt opts e = case dpt of
 
 unwrapE :: TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> CompileResult HsExp
 unwrapE ctxt dpt opts e = case dpt of
- Prim ty     -> pure (unwrapPrimE ctxt ty e)
- Optional ty -> pure (unwrapPrimE ctxt ty e)
+ Prim ty
+   -> pure (unwrapPrimE ctxt ty e)
+ Optional ty
+   -> pure (unwrapPrimE ctxt ty e)
  Repeated (Named tyName)
    | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
      -> pure (unwrapWithFuncE "nestedvec" e)
