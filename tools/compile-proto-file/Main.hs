@@ -17,7 +17,7 @@ data Args w = Args
   { out        :: w ::: FilePath   <?> "Output directory path where generated Haskell modules will be written (directory is created if it does not exist; note that files in the output directory may be overwritten!)"
   , includeDir :: w ::: [FilePath] <?> "Path to search for included .proto files (can be repeated, and paths will be searched in order; the current directory is used if this option is not provided)"
   , proto      :: w ::: FilePath   <?> "Path to input .proto file"
-  , extraInstanceFile :: w ::: [FilePath] <?> "Additional file to provide instances that would otherwise be generated. Can be used multiple times."
+  , extraInstanceFile :: w ::: [FilePath] <?> "Additional file to provide instances that would otherwise be generated. Can be used multiple times. Note that instance overrides currently override matching identifiers without regards for qualification and namespacing."
   } deriving Generic
 instance ParseRecord (Args Wrapped)
 deriving instance Show (Args Unwrapped)
