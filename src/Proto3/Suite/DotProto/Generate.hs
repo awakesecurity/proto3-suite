@@ -154,16 +154,28 @@ hsModuleForDotProto
              , protoDefinitions = defs
              }
   importCtxt
-  = module_
-    <$> modulePathModName modulePath
-    <*> pure Nothing
-    <*> do mappend (defaultImports hasService `mappend` extraimports) <$> ctxtImports importCtxt
-    <*> do tc <- dotProtoTypeContext dp
-           replaceHsInstDecls extrainstances . mconcat  <$> mapM (dotProtoDefinitionD pkgIdent (tc <> importCtxt)) defs
+  = do
+     mname <- modulePathModName modulePath
+     module_ mname
+        <$> pure Nothing
+        <*> do mappend (defaultImports hasService `mappend` extraimports) <$> ctxtImports importCtxt
+        <*> do tc <- dotProtoTypeContext dp
+               replaceHsInstDecls (instancesForModule mname extrainstances) . mconcat  <$> mapM (dotProtoDefinitionD pkgIdent (tc <> importCtxt)) defs
 
   where hasService = not (null [ () | DotProtoService {} <- defs ])
+
 hsModuleForDotProto _ _ _
   = Left NoPackageDeclaration
+
+-- This very specific function will only work for the qualification on the very first type
+-- in the object of an instance declaration. Those are the only sort of instance declarations
+-- generated within this code, so it suffices.
+instancesForModule :: Module -> [HsDecl] -> [HsDecl]
+instancesForModule m = foldr go []
+   where go x xs = case x of
+             HsInstDecl a b c (HsTyCon (Qual tm  i):ts) d ->
+                        if m == tm then HsInstDecl a b c (HsTyCon (UnQual i):ts) d:xs else xs
+             _ -> xs
 
 -- | For each thing in @base@ replaces it if it finds a matching @override@
 replaceHsInstDecls :: [HsDecl] -> [HsDecl] -> [HsDecl]
