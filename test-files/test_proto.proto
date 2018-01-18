@@ -135,3 +135,7 @@ message UsingImported {
 message Wrapped {
   Wrapped wrapped = 1;
 }
+
+message Deprecated {
+  string randomField = 1 [deprecated=true];
+}
