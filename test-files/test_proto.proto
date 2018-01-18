@@ -136,6 +136,7 @@ message Wrapped {
   Wrapped wrapped = 1;
 }
 
-message Deprecated {
-  string randomField = 1 [deprecated=true];
+enum EnumAnnots {
+  FOO = 1337 [myOption = "hello world"];
+  BAR = 1701 [deprecated=true];
 }

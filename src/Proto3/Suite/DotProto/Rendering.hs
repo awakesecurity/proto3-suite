@@ -127,9 +127,16 @@ prettyPrintProtoDefinition opts = defn where
   field _ DotProtoEmptyField = PP.empty
 
   enumPart :: DotProtoIdentifier -> DotProtoEnumPart -> PP.Doc
-  enumPart msgName (DotProtoEnumField name value) = roEnumMemberName opts msgName name <+> PP.text "=" <+> pPrint value <> PP.text ";"
-  enumPart _       (DotProtoEnumOption opt)       = PP.text "option" <+> pPrint opt <> PP.text ";"
-  enumPart _       DotProtoEnumEmpty              = PP.empty
+  enumPart msgName (DotProtoEnumField name value options)
+    = roEnumMemberName opts msgName name
+    <+> PP.text "="
+    <+> pPrint value
+    <+> optionAnnotation options
+    <> PP.text ";"
+  enumPart _       (DotProtoEnumOption opt)
+    = PP.text "option" <+> pPrint opt <> PP.text ";"
+  enumPart _       DotProtoEnumEmpty
+    = PP.empty
 
 instance Pretty DotProtoServicePart where
   pPrint (DotProtoServiceRPC name (callname, callstrm) (retname, retstrm) options)

@@ -382,8 +382,10 @@ enumField = do fname <- identifier
                whiteSpace
                fpos <- fromInteger <$> integer
                whiteSpace
+               opts <- optionAnnotation
+               whiteSpace
                string ";"
-               return $ DotProtoEnumField fname fpos
+               return $ DotProtoEnumField fname fpos opts
 
 
 enumStatement :: Parser DotProtoEnumPart
