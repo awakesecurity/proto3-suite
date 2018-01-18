@@ -1018,7 +1018,7 @@ dotProtoEnumD parentIdent enumIdent enumParts =
              [ match_ (HsIdent "fromEnum") [ HsPApp (unqual_ conName) [] ]
                       (HsUnGuardedRhs (intE conIdx)) []
              | (conIdx, conName) <- enumCons ]
-         succD = zipWith succDPattern enumConNames (tail enumConNames) <> [ succFailure]
+         succD = zipWith succDPattern enumConNames (tail enumConNames) <> [ succFailure ]
          predD = zipWith predDPattern (tail enumConNames) enumConNames <> [ predFailure ]
 
          toEnumDPatterns =
