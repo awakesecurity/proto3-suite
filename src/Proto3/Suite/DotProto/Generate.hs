@@ -1005,6 +1005,7 @@ dotProtoEnumD parentIdent enumIdent enumParts =
                           | DotProtoEnumField conIdent i _options <- enumParts ]
 
      let enumNameE = HsLit (HsString enumName)
+         -- TODO assert that there is more than one enumeration constructor
          ((minEnumVal, maxEnumVal), enumConNames) = first (minimum &&& maximum) $ unzip enumCons
 
          boundsE = HsTuple
@@ -1047,10 +1048,7 @@ dotProtoEnumD parentIdent enumIdent enumParts =
          parseJSONPBDecls =
            [ let pat nm =
                    HsPApp (jsonpbName "String")
-                     [ HsPLit (HsString (case stripPrefix enumName nm of
-                                           Just s  -> s
-                                           Nothing -> nm))
-                     ]
+                     [ HsPLit (HsString (fromMaybe <*> stripPrefix enumName $ nm)) ]
              in
              match_ (HsIdent "parseJSONPB") [pat conName]
                     (HsUnGuardedRhs
