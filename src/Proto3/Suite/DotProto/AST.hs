@@ -263,7 +263,7 @@ instance Arbitrary DotProtoType where
 type DotProtoEnumValue = Int
 
 data DotProtoEnumPart
-  = DotProtoEnumField DotProtoIdentifier DotProtoEnumValue -- [DotProtoOption]
+  = DotProtoEnumField DotProtoIdentifier DotProtoEnumValue [DotProtoOption]
   | DotProtoEnumOption DotProtoOption
   | DotProtoEnumEmpty
   deriving (Show, Eq)
@@ -274,7 +274,8 @@ instance Arbitrary DotProtoEnumPart where
       arbitraryField = do
         identifier <- arbitraryIdentifier
         enumValue  <- arbitrary
-        return (DotProtoEnumField identifier enumValue)
+        opts       <- arbitrary
+        return (DotProtoEnumField identifier enumValue opts)
 
       arbitraryOption = do
         option <- arbitrary

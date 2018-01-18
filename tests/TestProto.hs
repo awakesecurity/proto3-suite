@@ -1769,3 +1769,47 @@ instance HsJSONPB.FromJSON Wrapped where
  
 instance HsJSONPB.ToSchema Wrapped where
         declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+ 
+data Deprecated = Deprecated{deprecatedRandomField :: Hs.Text}
+                deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+ 
+instance HsProtobuf.Named Deprecated where
+        nameOf _ = (Hs.fromString "Deprecated")
+ 
+instance HsProtobuf.Message Deprecated where
+        encodeMessage _
+          Deprecated{deprecatedRandomField = deprecatedRandomField}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   deprecatedRandomField)])
+        decodeMessage _
+          = (Hs.pure Deprecated) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.String)
+                (HsProtobuf.Single "randomField")
+                [(HsProtobuf.DotProtoOption (HsProtobuf.Single "deprecated")
+                    (HsProtobuf.BoolLit Hs.True))]
+                Hs.Nothing)]
+ 
+instance HsJSONPB.ToJSONPB Deprecated where
+        toJSONPB (Deprecated f1) = (HsJSONPB.object ["randomField" .= f1])
+        toEncodingPB (Deprecated f1)
+          = (HsJSONPB.pairs ["randomField" .= f1])
+ 
+instance HsJSONPB.FromJSONPB Deprecated where
+        parseJSONPB
+          = (HsJSONPB.withObject "Deprecated"
+               (\ obj -> (Hs.pure Deprecated) <*> obj .: "randomField"))
+ 
+instance HsJSONPB.ToJSON Deprecated where
+        toJSON = HsJSONPB.toAesonValue
+        toEncoding = HsJSONPB.toAesonEncoding
+ 
+instance HsJSONPB.FromJSON Deprecated where
+        parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema Deprecated where
+        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB

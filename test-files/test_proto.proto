@@ -135,3 +135,8 @@ message UsingImported {
 message Wrapped {
   Wrapped wrapped = 1;
 }
+
+enum EnumAnnots {
+  FOO = 0;
+  BAR = 1 [deprecated=true];
+}

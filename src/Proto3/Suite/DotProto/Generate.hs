@@ -31,6 +31,7 @@ module Proto3.Suite.DotProto.Generate
   ) where
 
 import           Control.Applicative
+import           Control.Arrow                  ((&&&), first)
 import           Control.Monad.Except
 import           Data.Char
 import           Data.Coerce
@@ -1001,14 +1002,12 @@ dotProtoEnumD parentIdent enumIdent enumParts =
      enumCons <- sortBy (comparing fst) <$>
                  sequence [ (i,) <$> (prefixedEnumFieldName enumName =<<
                                       dpIdentUnqualName conIdent)
-                          | DotProtoEnumField conIdent i <- enumParts ]
+                          | DotProtoEnumField conIdent i _options <- enumParts ]
 
      let enumNameE = HsLit (HsString enumName)
-         enumConNames = map snd enumCons
-
          -- TODO assert that there is more than one enumeration constructor
-         minEnumVal = fst (head enumCons)
-         maxEnumVal = fst (last enumCons)
+         ((minEnumVal, maxEnumVal), enumConNames) = first (minimum &&& maximum) $ unzip enumCons
+
          boundsE = HsTuple
                      [ HsExpTypeSig l (intE minEnumVal) (HsQualType [] (HsTyCon (haskellName "Int")))
                      , intE maxEnumVal
@@ -1049,16 +1048,13 @@ dotProtoEnumD parentIdent enumIdent enumParts =
          parseJSONPBDecls =
            [ let pat nm =
                    HsPApp (jsonpbName "String")
-                     [ HsPLit (HsString (case stripPrefix enumName nm of
-                                           Just s  -> s
-                                           Nothing -> nm))
-                     ]
+                     [ HsPLit (HsString (fromMaybe <*> stripPrefix enumName $ nm)) ]
              in
              match_ (HsIdent "parseJSONPB") [pat conName]
                     (HsUnGuardedRhs
                        (HsApp pureE (HsVar (unqual_ conName))))
                     []
-           | (_, conName) <- enumCons
+           | conName <- enumConNames
            ]
            <> [ match_ (HsIdent "parseJSONPB") [patVar "v"]
                        (HsUnGuardedRhs
@@ -1083,8 +1079,9 @@ dotProtoEnumD parentIdent enumIdent enumParts =
                        (HsVar (unqual_ "x"))))
              []
 
-     pure [ dataDecl_ enumName [ conDecl_ (HsIdent con) []
-                               | (_, con) <- enumCons] defaultEnumDeriving
+     pure [ dataDecl_ enumName
+                      [ conDecl_ (HsIdent con) [] | con <- enumConNames ]
+                      defaultEnumDeriving
           , namedInstD enumName
           , instDecl_ (haskellName "Enum") [ type_ enumName ]
                       [ HsFunBind toEnumD, HsFunBind fromEnumD

@@ -113,7 +113,7 @@ simpleDecodeDotProto =
 dumpAST :: [FilePath] -> FilePath -> IO ()
 dumpAST incs fp = do
   Right (dp, tc) <- readDotProtoWithContext incs fp
-  let Right src = renderHsModuleForDotProto dp tc
+  let Right src = renderHsModuleForDotProto mempty dp tc
   putStrLn src
 
 hsTmpDir, pyTmpDir :: IsString a => a
@@ -125,7 +125,7 @@ compileTestDotProtos = do
   Turtle.mktree hsTmpDir
   Turtle.mktree pyTmpDir
   forM_ protoFiles $ \protoFile -> do
-    compileDotProtoFileOrDie hsTmpDir ["test-files"] protoFile
+    compileDotProtoFileOrDie [] hsTmpDir ["test-files"] protoFile
     (@?= ExitSuccess) =<< Turtle.shell (T.concat [ "protoc --python_out="
                                                  , pyTmpDir
                                                  , " --proto_path=test-files"

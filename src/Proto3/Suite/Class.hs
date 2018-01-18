@@ -261,7 +261,7 @@ class Enum a => Finite a where
 enum :: (Finite e, Named e) => Proxy e -> DotProtoDefinition
 enum pr = DotProtoEnum (Single $ nameOf pr) (map enumField $ enumerate pr)
   where
-    enumField (name, value) = DotProtoEnumField (Single name) value
+    enumField (name, value) = DotProtoEnumField (Single name) value []
 
 class GenericFinite (f :: * -> *) where
   genericEnumerate :: IsString string => Proxy f -> Int -> (Int, [(string, Int)])
