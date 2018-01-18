@@ -192,14 +192,14 @@ instance Canonicalize [DotProtoEnumPart] where
 instance CanonicalRank DotProtoEnumPart
                        (Either (Maybe DotProtoOption) DotProtoEnumValue) where
   canonicalRank = \case
-    DotProtoEnumField _ value -> Right value
+    DotProtoEnumField _ value _ -> Right value
     DotProtoEnumOption option -> Left (Just option)
     DotProtoEnumEmpty -> Left Nothing
 
 instance Canonicalize DotProtoEnumPart where
   canonicalize = \case
-    DotProtoEnumField name value ->
-      DotProtoEnumField (canonicalize name) value
+    DotProtoEnumField name value opts ->
+      DotProtoEnumField (canonicalize name) value (map canonicalize opts)
     DotProtoEnumOption option ->
       DotProtoEnumOption (canonicalize option)
     DotProtoEnumEmpty ->
