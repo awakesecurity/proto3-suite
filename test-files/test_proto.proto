@@ -137,6 +137,6 @@ message Wrapped {
 }
 
 enum EnumAnnots {
-  FOO = 1337 [myOption = "hello world"];
-  BAR = 1701 [deprecated=true];
+  FOO = 0;
+  BAR = 1 [deprecated=true];
 }
