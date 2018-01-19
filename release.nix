@@ -85,7 +85,7 @@ let
     allowUnfree = true;
   };
 
-  nixpkgs = ./fetch-nixpkgs.nix {
+  nixpkgs = import ./fetch-nixpkgs.nix {
     rev    = "7ae9da426924537755ce9164fd5b5f81ce16a1c3";
     sha256 = "1fcvc066c270dd2yfir8cpj0gcslsbvw7grnk2fayb06rkppjxrf";
   };
