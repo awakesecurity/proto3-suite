@@ -3,6 +3,7 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module Proto3.Suite.DotProto.Parsing
@@ -11,6 +12,7 @@ module Proto3.Suite.DotProto.Parsing
   ) where
 
 import Control.Applicative hiding (empty)
+import Control.Monad
 import Data.Functor
 import qualified Data.Text as T
 import qualified Filesystem.Path.CurrentOS as FP
@@ -22,7 +24,31 @@ import Text.Parser.Char
 import Text.Parser.Combinators
 import Text.Parser.LookAhead
 import Text.Parser.Token
+import qualified Text.Parser.Token.Style as TokenStyle
+
+-- import qualified Text.Parsec.Token    as Lexer
+-- import qualified Text.Parsec.Language as Lexer (javaStyle)
 import qualified Turtle
+
+-- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
+newtype ProtoParser a = ProtoParser { runProtoParser :: Parser a }
+  deriving ( Functor, Applicative, Alternative, Monad, MonadPlus
+           , Parsing, CharParsing, LookAheadParsing)
+
+instance TokenParsing ProtoParser where
+  someSpace = TokenStyle.buildSomeSpaceParser (ProtoParser someSpace)
+                                              TokenStyle.javaCommentStyle
+  nesting     = ProtoParser . nesting . runProtoParser
+  semi        = ProtoParser semi
+  highlight h = ProtoParser . highlight h . runProtoParser
+  token       = ProtoParser . token . runProtoParser
+
+-- -- Tokenizer
+-- lexer = Lexer.makeTokenParser Lexer.javaStyle
+-- parens = Lexer.parens lexer
+-- whiteSpace = Lexer.whiteSpace lexer
+-- semiSep = Lexer.semiSep lexer
+-- semiSep1 = Lexer.semiSep1 lexer
 
 ----------------------------------------
 -- interfaces
@@ -31,7 +57,7 @@ import qualified Turtle
 -- module path to be injected into the AST as part of 'DotProtoMeta' metadata on
 -- a successful parse.
 parseProto :: Path -> String -> Either ParseError DotProto
-parseProto modulePath = parse (topLevel modulePath) "" . stripComments
+parseProto modulePath = parse (runProtoParser (topLevel modulePath)) "" -- . stripComments
 
 -- | @parseProtoFile mp fp@ reads and parses the .proto file found at @fp@. @mp@
 -- is used downstream during code generation when we need to generate names
@@ -45,22 +71,25 @@ parseProtoFile modulePath =
 ----------------------------------------
 -- convenience
 
-listSep :: Parser ()
-listSep = whiteSpace >> text "," >> whiteSpace
+listSep :: ProtoParser ()
+listSep = textSymbol "," --  whiteSpace >> text "," >> whiteSpace
 
-empty :: Parser ()
-empty = whiteSpace >> text ";" >> return ()
+empty :: ProtoParser ()
+empty = textSymbol ";"  -- whiteSpace >> text ";" >> return ()
 
-fieldNumber :: Parser FieldNumber
+nonEmptyList :: ProtoParser a -> ProtoParser [a]
+nonEmptyList one = one `sepBy1` listSep
+
+fieldNumber :: ProtoParser FieldNumber
 fieldNumber = FieldNumber . fromInteger <$> integer
 
 -- [issue] this is a terrible, naive way to strip comments
 --         any string that contains "//" breaks
 --         a regex would be better, but the best thing to do is to just replace all the string logic with a lexer
-_stripComments :: String -> String
-_stripComments ('/':'/':rest) = _stripComments (dropWhile (/= '\n') rest)
-_stripComments (x:rest)       = x:_stripComments rest
-_stripComments []             = []
+-- _stripComments :: String -> String
+-- _stripComments ('/':'/':rest) = _stripComments (dropWhile (/= '\n') rest)
+-- _stripComments (x:rest)       = x:_stripComments rest
+-- _stripComments []             = []
 
 -- [issue] This is still a terrible and naive way to strip comments, was written
 -- hastily, and has been only lightly tested. However, it improves upon
@@ -74,42 +103,42 @@ _stripComments []             = []
 -- errors are still correct. Although this implementation is handy to toss out
 -- in the interests of getting some more .protos parsable, it's probably not
 -- worth maintaining, and has an ad-hoc smell. If we find ourselves mucking with
--- this much at all in the very near short term, let's just pay the freight and
+-- this much at all in the nvery near short term, let's just pay the freight and
 -- use `Text.Parsec.Token` or somesuch.
-data StripCommentState
-       --               | starts  | ends | error on?       |
-  = BC -- block comment | "/*"    | "*/" | mismatch        |
-  | DQ -- double quote  | '"'     | '"'  | mismatch        |
-  | LC -- line comment  | "//"    | '\n' | mismatch ('\n') |
-  deriving Show
+-- data StripCommentState
+--        --               | starts  | ends | error on?       |
+--   = BC -- block comment | "/*"    | "*/" | mismatch        |
+--   | DQ -- double quote  | '"'     | '"'  | mismatch        |
+--   | LC -- line comment  | "//"    | '\n' | mismatch ('\n') |
+--   deriving Show
 
-stripComments :: String -> String
-stripComments = go [] where
-  go []        ('/':'*':cs) = go [BC] cs
-  go st@(BC:_) ('/':'*':cs) = go (BC:st) cs
-  go []        ('*':'/':_)  = error "*/ without preceding /*"
-  go (BC:st)   ('*':'/':cs) = go st cs
-  go st@(BC:_) (_:cs)       = go st cs
-  go []        ('/':'/':cs) = go [LC] cs
-  go []        ('"':cs)     = '"' : go [DQ] cs
-  go (LC:st)   cs@('\n':_)  = go st cs
-  go st@(LC:_) (_:cs)       = go st cs
-  go (DQ:st)   ('"':cs)     = '"' : go st cs
-  go st        (c:cs)       = c : go st cs
-  go []        []           = []
-  go (BC:_)    []           = error "unterminated block comment"
-  go (DQ:_)    []           = error "unterminated double-quote"
-  go (LC:_)    []           = error "unterminated line comment (missing newline)"
+-- stripComments :: String -> String
+-- stripComments = go [] where
+--   go []        ('/':'*':cs) = go [BC] cs
+--   go st@(BC:_) ('/':'*':cs) = go (BC:st) cs
+--   go []        ('*':'/':_)  = error "*/ without preceding /*"
+--   go (BC:st)   ('*':'/':cs) = go st cs
+--   go st@(BC:_) (_:cs)       = go st cs
+--   go []        ('/':'/':cs) = go [LC] cs
+--   go []        ('"':cs)     = '"' : go [DQ] cs
+--   go (LC:st)   cs@('\n':_)  = go st cs
+--   go st@(LC:_) (_:cs)       = go st cs
+--   go (DQ:st)   ('"':cs)     = '"' : go st cs
+--   go st        (c:cs)       = c : go st cs
+--   go []        []           = []
+--   go (BC:_)    []           = error "unterminated block comment"
+--   go (DQ:_)    []           = error "unterminated double-quote"
+--   go (LC:_)    []           = error "unterminated line comment (missing newline)"
 
 ----------------------------------------
 -- identifiers
 
-identifierName :: Parser String
+identifierName :: ProtoParser String
 identifierName = do h <- letter
                     t <- many (alphaNum <|> char '_')
                     return $ h:t
 
-identifier :: Parser DotProtoIdentifier
+identifier :: ProtoParser DotProtoIdentifier
 identifier = do is <- identifierName `sepBy1` string "."
                 return $ case is of
                   [i] -> Single i
@@ -122,7 +151,7 @@ identifier = do is <- identifierName `sepBy1` string "."
 -- [update] the leading dot denotes that the identifier path starts in global scope
 --          i still haven't seen a use case for this but i can add it upon request
 
-nestedIdentifier :: Parser DotProtoIdentifier
+nestedIdentifier :: ProtoParser DotProtoIdentifier
 nestedIdentifier = do h <- parens identifier
                       string "."
                       t <- identifier
@@ -132,19 +161,19 @@ nestedIdentifier = do h <- parens identifier
 -- values
 
 -- [issue] these string parsers are weak to \" and \000 octal codes
-stringLit :: Parser String
+stringLit :: ProtoParser String
 stringLit = stringLiteral <|> stringLiteral'
 
-bool :: Parser Bool
+bool :: ProtoParser Bool
 bool = (string "true"  >> (notFollowedBy $ alphaNum <|> char '_') $> True) -- used to distinguish "true_" (Identifier) from "true" (BoolLit)
    <|> (string "false" >> (notFollowedBy $ alphaNum <|> char '_') $> False)
 
 -- the `parsers` package actually does not expose a parser for signed fractional values
-floatLit :: Parser Double
+floatLit :: ProtoParser Double
 floatLit = do sign <- char '-' $> negate <|> char '+' $> id <|> pure id
               sign <$> double
 
-value :: Parser DotProtoValue
+value :: ProtoParser DotProtoValue
 value = try (BoolLit              <$> bool)
     <|> try (StringLit            <$> stringLit)
     <|> try (FloatLit             <$> floatLit)
@@ -154,7 +183,7 @@ value = try (BoolLit              <$> bool)
 ----------------------------------------
 -- types
 
-primType :: Parser DotProtoPrimType
+primType :: ProtoParser DotProtoPrimType
 primType = try (string "double"   $> Double)
        <|> try (string "float"    $> Float)
        <|> try (string "int32"    $> Int32)
@@ -175,15 +204,11 @@ primType = try (string "double"   $> Double)
 --------------------------------------------------------------------------------
 -- top-level parser and version annotation
 
-syntaxSpec :: Parser ()
+syntaxSpec :: ProtoParser ()
 syntaxSpec = do string "syntax"
-                whiteSpace
                 string "="
-                whiteSpace
                 string "'proto3'" <|> string "\"proto3\""
-                whiteSpace
                 string ";"
-                whiteSpace
 
 data DotProtoStatement
   = DPSOption     DotProtoOption
@@ -205,40 +230,36 @@ sortStatements modulePath statements
     adapt (x:_) = x
     adapt _     = DotProtoNoPackage
 
-topLevel :: Path -> Parser DotProto
-topLevel modulePath = do whiteSpace
-                         syntaxSpec
-                         whiteSpace
-                         sortStatements modulePath <$> topStatement `sepBy` whiteSpace
+topLevel :: Path -> ProtoParser DotProto
+topLevel modulePath = do syntaxSpec
+                         sortStatements modulePath <$> many topStatement
 
 --------------------------------------------------------------------------------
 -- top-level statements
 
-topStatement :: Parser DotProtoStatement
+topStatement :: ProtoParser DotProtoStatement
 topStatement = (DPSImport     <$> import_)
            <|> (DPSPackage    <$> package)
            <|> (DPSOption     <$> topOption)
            <|> (DPSDefinition <$> definition)
            <|> empty $> DPSEmpty
 
-import_ :: Parser DotProtoImport
+import_ :: ProtoParser DotProtoImport
 import_ = do string "import"
-             whiteSpace
-             qualifier <- option DotProtoImportDefault ((string "weak" $> DotProtoImportWeak) <|> (string "public" $> DotProtoImportPublic))
-             whiteSpace
+             qualifier <- option DotProtoImportDefault $
+                                 string "weak" $> DotProtoImportWeak
+                             <|> string "public" $> DotProtoImportPublic
              target <- FP.fromText . T.pack <$> stringLit
              string ";"
              return $ DotProtoImport qualifier target
 
-package :: Parser DotProtoPackageSpec
+package :: ProtoParser DotProtoPackageSpec
 package = do string "package"
-             whiteSpace
              p <- identifier
-             whiteSpace
              string ";"
              return $ DotProtoPackageSpec p
 
-definition :: Parser DotProtoDefinition
+definition :: ProtoParser DotProtoDefinition
 definition = message
          <|> enum
          <|> service
@@ -246,84 +267,68 @@ definition = message
 --------------------------------------------------------------------------------
 -- options
 
-optionName :: Parser DotProtoIdentifier
-optionName = do ohead <- nestedIdentifier <|> identifier -- this permits the (p.p2).p3 option identifier form
-                                                         -- i'm not actually sure if this form is used in non-option statements
-                whiteSpace
-                string "="
-                return ohead
+-- optionName :: ProtoParser DotProtoIdentifier
+-- optionName = do ohead <- nestedIdentifier <|> identifier -- this permits the (p.p2).p3 option identifier form
+--                                                          -- i'm not actually sure if this form is used in non-option statements
+--                 string "="
+--                 return ohead
 
-optionValue :: Parser DotProtoValue
-optionValue = do whiteSpace
-                 v <- value
-                 return v
+-- optionValue :: ProtoParser DotProtoValue
+-- optionValue = value
 
-inlineOption :: Parser DotProtoOption
-inlineOption = DotProtoOption <$> optionName <*> optionValue
+inlineOption :: ProtoParser DotProtoOption
+inlineOption = DotProtoOption <$> (optionName <* string "=") <*> value
+  where
+    optionName = nestedIdentifier <|> identifier
 
-optionAnnotation :: Parser [DotProtoOption]
-optionAnnotation = (brackets $ inlineOption `sepBy1` listSep) <|> pure []
+optionAnnotation :: ProtoParser [DotProtoOption]
+optionAnnotation = brackets (nonEmptyList inlineOption) <|> pure []
 
-topOption :: Parser DotProtoOption
-topOption = do string "option"
-               whiteSpace
-               v <- DotProtoOption <$> optionName <*> optionValue
-               whiteSpace
-               string ";"
-               whiteSpace
-               return v
+topOption :: ProtoParser DotProtoOption
+topOption = string "option" *> inlineOption <* string ";"
 
 --------------------------------------------------------------------------------
 -- service statements
 
-servicePart :: Parser DotProtoServicePart
+servicePart :: ProtoParser DotProtoServicePart
 servicePart = rpc
           <|> (DotProtoServiceOption <$> topOption)
           <|> empty $> DotProtoServiceEmpty
 
-rpcOptions :: Parser [DotProtoOption]
+rpcOptions :: ProtoParser [DotProtoOption]
 rpcOptions = braces $ many topOption
 
-rpcClause :: Parser (DotProtoIdentifier, Streaming)
+rpcClause :: ProtoParser (DotProtoIdentifier, Streaming)
 rpcClause = do
   let sid ctx = (,ctx) <$> identifier
   -- NB: Distinguish "stream stream.foo" from "stream.foo"
-  try (string "stream" *> whiteSpace *> sid Streaming) <|> sid NonStreaming
+  try (symbol "stream" *> sid Streaming) <|> sid NonStreaming
 
-rpc :: Parser DotProtoServicePart
-rpc = do string "rpc"
-         whiteSpace
+rpc :: ProtoParser DotProtoServicePart
+rpc = do symbol "rpc"
          name <- Single <$> identifierName
-         whiteSpace
          subjecttype <- parens rpcClause
-         whiteSpace
-         string "returns"
-         whiteSpace
+         symbol "returns"
          returntype <- parens rpcClause
-         whiteSpace
-         options <- rpcOptions <|> (string ";" $> [])
+         options <- rpcOptions <|> (symbol ";" $> [])
          return $ DotProtoServiceRPC name subjecttype returntype options
 
-service :: Parser DotProtoDefinition
-service = do string "service"
-             whiteSpace
+service :: ProtoParser DotProtoDefinition
+service = do symbol "service"
              name <- Single <$> identifierName
-             whiteSpace
-             statements <- braces (servicePart `sepEndBy` whiteSpace)
+             statements <- braces (many servicePart)
              return $ DotProtoService name statements
 
 --------------------------------------------------------------------------------
 -- message definitions
 
-message :: Parser DotProtoDefinition
-message = do string "message"
-             whiteSpace
+message :: ProtoParser DotProtoDefinition
+message = do symbol "message"
              name <- Single <$> identifierName
-             whiteSpace
-             body <- braces (messagePart `sepEndBy` whiteSpace)
+             body <- braces (many messagePart)
              return $ DotProtoMessage name body
 
-messagePart :: Parser DotProtoMessagePart
+messagePart :: ProtoParser DotProtoMessagePart
 messagePart = try (DotProtoMessageDefinition <$> enum)
           <|> try (DotProtoMessageReserved   <$> reservedField)
           <|> try (DotProtoMessageDefinition <$> message)
@@ -331,121 +336,89 @@ messagePart = try (DotProtoMessageDefinition <$> enum)
           <|> try (DotProtoMessageField      <$> messageMapField)
           <|>     (DotProtoMessageField      <$> messageField)
 
-messageField :: Parser DotProtoField
-messageField = do ctor <- (try $ string "repeated" $> Repeated) <|> pure Prim
-                  whiteSpace
+messageField :: ProtoParser DotProtoField
+messageField = do ctor <- (try $ symbol "repeated" $> Repeated) <|> pure Prim
                   mtype <- primType
-                  whiteSpace
                   mname <- identifier
-                  whiteSpace
-                  string "="
-                  whiteSpace
+                  symbol "="
                   mnumber <- fieldNumber
-                  whiteSpace
                   moptions <- optionAnnotation
-                  whiteSpace
-                  string ";"
+                  symbol ";"
                   -- TODO: parse comments
                   return $ DotProtoField mnumber (ctor mtype) mname moptions Nothing
 
-messageMapField :: Parser DotProtoField
-messageMapField = do string "map"
-                     whiteSpace
-                     string "<"
-                     whiteSpace
+messageMapField :: ProtoParser DotProtoField
+messageMapField = do symbol "map"
+                     symbol "<"
                      ktype <- primType
-                     whiteSpace
-                     string ","
-                     whiteSpace
+                     symbol ","
                      vtype <- primType
-                     whiteSpace
-                     string ">"
-                     whiteSpace
+                     symbol ">"
                      mname <- identifier
-                     whiteSpace
-                     string "="
+                     symbol "="
                      fpos <- fieldNumber
-                     whiteSpace
                      fos <- optionAnnotation
-                     whiteSpace
-                     string ";"
+                     symbol ";"
                      -- TODO: parse comments
                      return $ DotProtoField fpos (Map ktype vtype) mname fos Nothing
 
 --------------------------------------------------------------------------------
 -- enumerations
 
-enumField :: Parser DotProtoEnumPart
+enumField :: ProtoParser DotProtoEnumPart
 enumField = do fname <- identifier
-               whiteSpace
-               string "="
-               whiteSpace
+               symbol "="
                fpos <- fromInteger <$> integer
-               whiteSpace
                opts <- optionAnnotation
-               whiteSpace
-               string ";"
+               symbol ";"
                return $ DotProtoEnumField fname fpos opts
 
 
-enumStatement :: Parser DotProtoEnumPart
+enumStatement :: ProtoParser DotProtoEnumPart
 enumStatement = try (DotProtoEnumOption <$> topOption)
             <|> enumField
             <|> empty $> DotProtoEnumEmpty
 
-enum :: Parser DotProtoDefinition
-enum = do string "enum"
-          whiteSpace
+enum :: ProtoParser DotProtoDefinition
+enum = do symbol "enum"
           ename <- Single <$> identifierName
-          whiteSpace
-          ebody <- braces (enumStatement `sepEndBy` whiteSpace)
+          ebody <- braces (many enumStatement)
           return $ DotProtoEnum ename ebody
 
 --------------------------------------------------------------------------------
 -- oneOf
 
-oneOfField :: Parser DotProtoField
+oneOfField :: ProtoParser DotProtoField
 oneOfField = do ftype <- Prim <$> primType
-                whiteSpace
                 fname <- identifier
-                whiteSpace
-                string "="
-                whiteSpace
+                symbol "="
                 fpos <- fromInteger <$> integer
-                whiteSpace
                 fops <- optionAnnotation
-                whiteSpace
-                string ";"
+                symbol ";"
                 -- TODO: parse comments
                 return $ DotProtoField fpos ftype fname fops Nothing
 
-messageOneOf :: Parser DotProtoMessagePart
-messageOneOf = do string "oneof"
-                  whiteSpace
+messageOneOf :: ProtoParser DotProtoMessagePart
+messageOneOf = do symbol "oneof"
                   name <- identifier
-                  whiteSpace
-                  body <- braces $ (oneOfField <|> empty $> DotProtoEmptyField) `sepEndBy` whiteSpace
+                  body <- braces $ many (oneOfField <|> empty $> DotProtoEmptyField)
                   return $ DotProtoMessageOneOf name body
 
 --------------------------------------------------------------------------------
 -- field reservations
 
-range :: Parser DotProtoReservedField
-range = do lookAhead (integer >> whiteSpace >> string "to") -- [note] parsec commits to this parser too early without this lookahead
+range :: ProtoParser DotProtoReservedField
+range = do lookAhead (integer >> symbol "to") -- [note] parsec commits to this parser too early without this lookahead
            s <- fromInteger <$> integer
-           whiteSpace
-           string "to"
-           whiteSpace
+           symbol "to"
            e <- fromInteger <$> integer
            return $ FieldRange s e
 
-ranges :: Parser [DotProtoReservedField]
-ranges = (try range <|> (SingleField . fromInteger <$> integer)) `sepBy1` listSep
+ranges :: ProtoParser [DotProtoReservedField]
+ranges = nonEmptyList (try range <|> (SingleField . fromInteger <$> integer))
 
-reservedField :: Parser [DotProtoReservedField]
-reservedField = do string "reserved"
-                   whiteSpace
-                   v <- ranges <|> ((ReservedIdentifier <$> stringLit) `sepBy1` listSep)
-                   whiteSpace
-                   string ";"
+reservedField :: ProtoParser [DotProtoReservedField]
+reservedField = do symbol "reserved"
+                   v <- ranges <|> nonEmptyList (ReservedIdentifier <$> stringLit)
+                   symbol ";"
                    return v
