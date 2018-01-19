@@ -11,76 +11,71 @@
 let
   config = {
     packageOverrides = pkgs:
-      let
-        python_protobuf3_0 =
-          (pkgs.pythonPackages.protobufBuild pkgs.protobuf3_0).override {
-            doCheck = false;
-          };
-      in
-        { haskellPackages = pkgs.haskellPackages.override {
-            overrides = haskellPackagesNew: haskellPackagesOld: rec {
+      { haskellPackages = pkgs.haskellPackages.override {
+          overrides = haskellPackagesNew: haskellPackagesOld: rec {
 
-              aeson =
-                pkgs.haskell.lib.dontCheck (haskellPackagesNew.callPackage ./nix/aeson.nix { });
+            aeson =
+              pkgs.haskell.lib.dontCheck (haskellPackagesNew.callPackage ./nix/aeson.nix { });
 
-              aeson-pretty =
-                haskellPackagesNew.callPackage ./nix/aeson-pretty.nix { };
+            aeson-pretty =
+              haskellPackagesNew.callPackage ./nix/aeson-pretty.nix { };
 
-              cabal-doctest =
-                haskellPackagesNew.callPackage ./nix/cabal-doctest.nix { };
+            cabal-doctest =
+              haskellPackagesNew.callPackage ./nix/cabal-doctest.nix { };
 
-              insert-ordered-containers =
-                haskellPackagesNew.callPackage ./nix/insert-ordered-containers.nix { };
+            insert-ordered-containers =
+              haskellPackagesNew.callPackage ./nix/insert-ordered-containers.nix { };
 
-              neat-interpolation =
-                haskellPackagesNew.callPackage ./nix/neat-interpolation.nix { };
+            neat-interpolation =
+              haskellPackagesNew.callPackage ./nix/neat-interpolation.nix { };
 
-              optparse-applicative =
-                haskellPackagesNew.callPackage ./nix/optparse-applicative.nix { } ;
+            optparse-applicative =
+              haskellPackagesNew.callPackage ./nix/optparse-applicative.nix { } ;
 
-              optparse-generic =
-                haskellPackagesNew.callPackage ./nix/optparse-generic.nix { } ;
+            optparse-generic =
+              haskellPackagesNew.callPackage ./nix/optparse-generic.nix { } ;
 
-              proto3-suite-no-tests =
-                pkgs.haskell.lib.dontCheck
-                  (haskellPackagesNew.callPackage ./default.nix { });
+            proto3-suite-no-tests =
+              pkgs.haskell.lib.dontCheck
+                (haskellPackagesNew.callPackage ./default.nix { });
 
-              proto3-suite =
-                pkgs.haskell.lib.overrideCabal
-                  (haskellPackagesNew.callPackage ./default.nix { })
-                  (oldAttrs: {
-                      patches = [ tests/tests.patch ];
+            proto3-suite =
+              pkgs.haskell.lib.overrideCabal
+                (haskellPackagesNew.callPackage ./default.nix { })
+                (oldAttrs: {
+                    patches = [ tests/tests.patch ];
 
-                      postPatch = ''
-                        substituteInPlace tests/encode.sh --replace @ghc@ ${pkgs.ghc} --replace @bash@ ${pkgs.bash}
-                        substituteInPlace tests/decode.sh --replace @ghc@ ${pkgs.ghc} --replace @bash@ ${pkgs.bash}
-                      '';
+                    postPatch = ''
+                      substituteInPlace tests/encode.sh --replace @ghc@ ${pkgs.ghc} --replace @bash@ ${pkgs.bash}
+                      substituteInPlace tests/decode.sh --replace @ghc@ ${pkgs.ghc} --replace @bash@ ${pkgs.bash}
+                    '';
 
-                      testHaskellDepends = oldAttrs.testHaskellDepends ++ [
-                        pkgs.ghc
-                        proto3-suite-no-tests
-                        pkgs.protobuf3_0
-                        pkgs.python
-                        python_protobuf3_0
-                      ];
-                    }
-                  );
+                    testHaskellDepends = oldAttrs.testHaskellDepends ++ [
+                      pkgs.ghc
+                      proto3-suite-no-tests
+                      pkgs.protobuf3_1
+                      pkgs.python
+                    ];
+                  }
+                );
 
-              proto3-wire =
-                haskellPackagesNew.callPackage ./nix/proto3-wire.nix { };
+            proto3-wire =
+              haskellPackagesNew.callPackage ./nix/proto3-wire.nix { };
 
-              scientific =
-                pkgs.haskell.lib.dontCheck haskellPackagesOld.scientific;
+            scientific =
+              pkgs.haskell.lib.dontCheck haskellPackagesOld.scientific;
 
-              swagger2 =
-                pkgs.haskell.lib.dontHaddock (haskellPackagesNew.callPackage ./nix/swagger2.nix { });
+            swagger2 =
+              pkgs.haskell.lib.dontCheck
+                (pkgs.haskell.lib.dontHaddock
+                  (haskellPackagesNew.callPackage ./nix/swagger2.nix { }));
 
-              turtle =
-                haskellPackagesNew.callPackage ./nix/turtle.nix { } ;
+            turtle =
+              haskellPackagesNew.callPackage ./nix/turtle.nix { } ;
 
-            };
           };
         };
+      };
 
     allowUnfree = true;
   };
