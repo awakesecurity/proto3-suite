@@ -12,8 +12,8 @@ let
   config = {
     packageOverrides = pkgs:
       let
-        python_protobuf3_0 =
-          (pkgs.pythonPackages.protobufBuild pkgs.protobuf3_0).override {
+        python_protobuf3_1 =
+          pkgs.protobuf3_1.override {
             doCheck = false;
           };
       in
@@ -59,9 +59,9 @@ let
                       testHaskellDepends = oldAttrs.testHaskellDepends ++ [
                         pkgs.ghc
                         proto3-suite-no-tests
-                        pkgs.protobuf3_0
+                        pkgs.protobuf3_1
                         pkgs.python
-                        python_protobuf3_0
+                        python_protobuf3_1
                       ];
                     }
                   );
@@ -73,7 +73,9 @@ let
                 pkgs.haskell.lib.dontCheck haskellPackagesOld.scientific;
 
               swagger2 =
-                pkgs.haskell.lib.dontHaddock (haskellPackagesNew.callPackage ./nix/swagger2.nix { });
+                pkgs.haskell.lib.dontCheck
+                  (pkgs.haskell.lib.dontHaddock
+                    (haskellPackagesNew.callPackage ./nix/swagger2.nix { }));
 
               turtle =
                 haskellPackagesNew.callPackage ./nix/turtle.nix { } ;
