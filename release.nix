@@ -87,7 +87,7 @@ let
 
   nixpkgs = import ./fetch-nixpkgs.nix {
     rev    = "7ae9da426924537755ce9164fd5b5f81ce16a1c3";
-    sha256 = "1fcvc066c270dd2yfir8cpj0gcslsbvw7grnk2fayb06rkppjxrf";
+    sha256 = "1zg1j2fsfj6qhh724nc8fnn3ig3rm6nd29zzhjrbjkszkjspc9pl";
   };
 
    linuxPkgs = import nixpkgs { inherit config; system = "x86_64-linux" ; };
