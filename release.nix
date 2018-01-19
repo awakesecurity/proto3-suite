@@ -12,8 +12,8 @@ let
   config = {
     packageOverrides = pkgs:
       let
-        python_protobuf3_0 =
-          (pkgs.pythonPackages.protobufBuild pkgs.protobuf3_0).override {
+        python_protobuf3_1 =
+          pkgs.protobuf3_1.override {
             doCheck = false;
           };
       in
@@ -59,9 +59,9 @@ let
                       testHaskellDepends = oldAttrs.testHaskellDepends ++ [
                         pkgs.ghc
                         proto3-suite-no-tests
-                        pkgs.protobuf3_0
+                        pkgs.protobuf3_1
                         pkgs.python
-                        python_protobuf3_0
+                        python_protobuf3_1
                       ];
                     }
                   );

@@ -61,14 +61,8 @@ instance TokenParsing ProtoParser where
   highlight h = ProtoParser . highlight h . runProtoParser
   token       = ProtoParser . token . runProtoParser
 
-listSep :: ProtoParser ()
-listSep = textSymbol ","
-
 empty :: ProtoParser ()
-empty = textSymbol ";"
-
-nonEmptyList :: ProtoParser a -> ProtoParser [a]
-nonEmptyList one = one `sepBy1` listSep
+empty = whiteSpace >> textSymbol ";" >> return ()
 
 fieldNumber :: ProtoParser FieldNumber
 fieldNumber = FieldNumber . fromInteger <$> integer
@@ -108,8 +102,8 @@ stringLit :: ProtoParser String
 stringLit = stringLiteral <|> stringLiteral'
 
 bool :: ProtoParser Bool
-bool = string "true"  >> notFollowedBy (alphaNum <|> char '_') $> True -- used to distinguish "true_" (Identifier) from "true" (BoolLit)
-   <|> string "false" >> notFollowedBy (alphaNum <|> char '_') $> False
+bool = (string "true"  >> notFollowedBy (alphaNum <|> char '_') $> True) -- used to distinguish "true_" (Identifier) from "true" (BoolLit)
+   <|> (string "false" >> notFollowedBy (alphaNum <|> char '_') $> False)
 
 -- the `parsers` package actually does not expose a parser for signed fractional values
 floatLit :: ProtoParser Double
@@ -148,10 +142,11 @@ primType = try (string "double"   $> Double)
 -- top-level parser and version annotation
 
 syntaxSpec :: ProtoParser ()
-syntaxSpec = do string "syntax"
-                string "="
-                string "'proto3'" <|> string "\"proto3\""
-                string ";"
+syntaxSpec = void $ do
+  symbol "syntax"
+  symbol "="
+  symbol "'proto3'" <|> symbol "\"proto3\""
+  symbol ";"
 
 data DotProtoStatement
   = DPSOption     DotProtoOption
@@ -174,7 +169,8 @@ sortStatements modulePath statements
     adapt _     = DotProtoNoPackage
 
 topLevel :: Path -> ProtoParser DotProto
-topLevel modulePath = do syntaxSpec
+topLevel modulePath = do whiteSpace
+                         syntaxSpec
                          sortStatements modulePath <$> many topStatement
 
 --------------------------------------------------------------------------------
@@ -188,18 +184,18 @@ topStatement = DPSImport     <$> import_
            <|> DPSEmpty      <$  empty
 
 import_ :: ProtoParser DotProtoImport
-import_ = do string "import"
+import_ = do symbol "import"
              qualifier <- option DotProtoImportDefault $
-                                 string "weak" $> DotProtoImportWeak
-                             <|> string "public" $> DotProtoImportPublic
+                                 symbol "weak" $> DotProtoImportWeak
+                             <|> symbol "public" $> DotProtoImportPublic
              target <- FP.fromText . T.pack <$> stringLit
-             string ";"
+             symbol ";"
              return $ DotProtoImport qualifier target
 
 package :: ProtoParser DotProtoPackageSpec
-package = do string "package"
+package = do symbol "package"
              p <- identifier
-             string ";"
+             symbol ";"
              return $ DotProtoPackageSpec p
 
 definition :: ProtoParser DotProtoDefinition
@@ -220,15 +216,15 @@ definition = message
 -- optionValue = value
 
 inlineOption :: ProtoParser DotProtoOption
-inlineOption = DotProtoOption <$> (optionName <* string "=") <*> value
+inlineOption = DotProtoOption <$> (optionName <* symbol "=") <*> value
   where
     optionName = nestedIdentifier <|> identifier
 
 optionAnnotation :: ProtoParser [DotProtoOption]
-optionAnnotation = brackets (nonEmptyList inlineOption) <|> pure []
+optionAnnotation = brackets (semiSep1 inlineOption) <|> pure []
 
 topOption :: ProtoParser DotProtoOption
-topOption = string "option" *> inlineOption <* string ";"
+topOption = symbol "option" *> inlineOption <* symbol ";"
 
 --------------------------------------------------------------------------------
 -- service statements
@@ -356,10 +352,10 @@ range = do lookAhead (integer >> symbol "to") -- [note] parsec commits to this p
            return $ FieldRange s e
 
 ranges :: ProtoParser [DotProtoReservedField]
-ranges = nonEmptyList (try range <|> SingleField . fromInteger <$> integer)
+ranges = semiSep1 (try range <|> SingleField . fromInteger <$> integer)
 
 reservedField :: ProtoParser [DotProtoReservedField]
 reservedField = do symbol "reserved"
-                   v <- ranges <|> nonEmptyList (ReservedIdentifier <$> stringLit)
+                   v <- ranges <|> semiSep1 (ReservedIdentifier <$> stringLit)
                    symbol ";"
                    return v
