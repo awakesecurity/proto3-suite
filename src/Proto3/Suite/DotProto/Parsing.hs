@@ -25,30 +25,7 @@ import Text.Parser.Combinators
 import Text.Parser.LookAhead
 import Text.Parser.Token
 import qualified Text.Parser.Token.Style as TokenStyle
-
--- import qualified Text.Parsec.Token    as Lexer
--- import qualified Text.Parsec.Language as Lexer (javaStyle)
 import qualified Turtle
-
--- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
-newtype ProtoParser a = ProtoParser { runProtoParser :: Parser a }
-  deriving ( Functor, Applicative, Alternative, Monad, MonadPlus
-           , Parsing, CharParsing, LookAheadParsing)
-
-instance TokenParsing ProtoParser where
-  someSpace = TokenStyle.buildSomeSpaceParser (ProtoParser someSpace)
-                                              TokenStyle.javaCommentStyle
-  nesting     = ProtoParser . nesting . runProtoParser
-  semi        = ProtoParser semi
-  highlight h = ProtoParser . highlight h . runProtoParser
-  token       = ProtoParser . token . runProtoParser
-
--- -- Tokenizer
--- lexer = Lexer.makeTokenParser Lexer.javaStyle
--- parens = Lexer.parens lexer
--- whiteSpace = Lexer.whiteSpace lexer
--- semiSep = Lexer.semiSep lexer
--- semiSep1 = Lexer.semiSep1 lexer
 
 ----------------------------------------
 -- interfaces
@@ -71,6 +48,19 @@ parseProtoFile modulePath =
 ----------------------------------------
 -- convenience
 
+-- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
+newtype ProtoParser a = ProtoParser { runProtoParser :: Parser a }
+  deriving ( Functor, Applicative, Alternative, Monad, MonadPlus
+           , Parsing, CharParsing, LookAheadParsing)
+
+instance TokenParsing ProtoParser where
+  someSpace   = TokenStyle.buildSomeSpaceParser (ProtoParser someSpace)
+                                                TokenStyle.javaCommentStyle
+  nesting     = ProtoParser . nesting . runProtoParser
+  semi        = ProtoParser semi
+  highlight h = ProtoParser . highlight h . runProtoParser
+  token       = ProtoParser . token . runProtoParser
+
 listSep :: ProtoParser ()
 listSep = textSymbol "," --  whiteSpace >> text "," >> whiteSpace
 
@@ -82,53 +72,6 @@ nonEmptyList one = one `sepBy1` listSep
 
 fieldNumber :: ProtoParser FieldNumber
 fieldNumber = FieldNumber . fromInteger <$> integer
-
--- [issue] this is a terrible, naive way to strip comments
---         any string that contains "//" breaks
---         a regex would be better, but the best thing to do is to just replace all the string logic with a lexer
--- _stripComments :: String -> String
--- _stripComments ('/':'/':rest) = _stripComments (dropWhile (/= '\n') rest)
--- _stripComments (x:rest)       = x:_stripComments rest
--- _stripComments []             = []
-
--- [issue] This is still a terrible and naive way to strip comments, was written
--- hastily, and has been only lightly tested. However, it improves upon
--- `_stripComments` above: it handles /* block comments /* with nesting */ */,
--- "// string lits with comments in them", etc., and thus is closer to the
--- protobuf3 grammar. The right solution is still to replace this with a proper
--- lexer, but since we might switch to using the `protoc`-based `FileDescriptor`
--- parsing instead, we should hold off. If we do decide to stick with this
--- parser, we should also inject comments into the AST so that they can be
--- marshaled into the generated code, and ensure that line numbers reported in
--- errors are still correct. Although this implementation is handy to toss out
--- in the interests of getting some more .protos parsable, it's probably not
--- worth maintaining, and has an ad-hoc smell. If we find ourselves mucking with
--- this much at all in the nvery near short term, let's just pay the freight and
--- use `Text.Parsec.Token` or somesuch.
--- data StripCommentState
---        --               | starts  | ends | error on?       |
---   = BC -- block comment | "/*"    | "*/" | mismatch        |
---   | DQ -- double quote  | '"'     | '"'  | mismatch        |
---   | LC -- line comment  | "//"    | '\n' | mismatch ('\n') |
---   deriving Show
-
--- stripComments :: String -> String
--- stripComments = go [] where
---   go []        ('/':'*':cs) = go [BC] cs
---   go st@(BC:_) ('/':'*':cs) = go (BC:st) cs
---   go []        ('*':'/':_)  = error "*/ without preceding /*"
---   go (BC:st)   ('*':'/':cs) = go st cs
---   go st@(BC:_) (_:cs)       = go st cs
---   go []        ('/':'/':cs) = go [LC] cs
---   go []        ('"':cs)     = '"' : go [DQ] cs
---   go (LC:st)   cs@('\n':_)  = go st cs
---   go st@(LC:_) (_:cs)       = go st cs
---   go (DQ:st)   ('"':cs)     = '"' : go st cs
---   go st        (c:cs)       = c : go st cs
---   go []        []           = []
---   go (BC:_)    []           = error "unterminated block comment"
---   go (DQ:_)    []           = error "unterminated double-quote"
---   go (LC:_)    []           = error "unterminated line comment (missing newline)"
 
 ----------------------------------------
 -- identifiers
@@ -165,8 +108,8 @@ stringLit :: ProtoParser String
 stringLit = stringLiteral <|> stringLiteral'
 
 bool :: ProtoParser Bool
-bool = (string "true"  >> (notFollowedBy $ alphaNum <|> char '_') $> True) -- used to distinguish "true_" (Identifier) from "true" (BoolLit)
-   <|> (string "false" >> (notFollowedBy $ alphaNum <|> char '_') $> False)
+bool = string "true"  >> notFollowedBy (alphaNum <|> char '_') $> True -- used to distinguish "true_" (Identifier) from "true" (BoolLit)
+   <|> string "false" >> notFollowedBy (alphaNum <|> char '_') $> False
 
 -- the `parsers` package actually does not expose a parser for signed fractional values
 floatLit :: ProtoParser Double
@@ -238,11 +181,11 @@ topLevel modulePath = do syntaxSpec
 -- top-level statements
 
 topStatement :: ProtoParser DotProtoStatement
-topStatement = (DPSImport     <$> import_)
-           <|> (DPSPackage    <$> package)
-           <|> (DPSOption     <$> topOption)
-           <|> (DPSDefinition <$> definition)
-           <|> empty $> DPSEmpty
+topStatement = DPSImport     <$> import_
+           <|> DPSPackage    <$> package
+           <|> DPSOption     <$> topOption
+           <|> DPSDefinition <$> definition
+           <|> DPSEmpty      <$  empty
 
 import_ :: ProtoParser DotProtoImport
 import_ = do string "import"
