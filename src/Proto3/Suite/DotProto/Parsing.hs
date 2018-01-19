@@ -34,7 +34,7 @@ import qualified Turtle
 -- module path to be injected into the AST as part of 'DotProtoMeta' metadata on
 -- a successful parse.
 parseProto :: Path -> String -> Either ParseError DotProto
-parseProto modulePath = parse (runProtoParser (topLevel modulePath)) "" -- . stripComments
+parseProto modulePath = parse (runProtoParser (topLevel modulePath)) ""
 
 -- | @parseProtoFile mp fp@ reads and parses the .proto file found at @fp@. @mp@
 -- is used downstream during code generation when we need to generate names
@@ -62,10 +62,10 @@ instance TokenParsing ProtoParser where
   token       = ProtoParser . token . runProtoParser
 
 listSep :: ProtoParser ()
-listSep = textSymbol "," --  whiteSpace >> text "," >> whiteSpace
+listSep = textSymbol ","
 
 empty :: ProtoParser ()
-empty = textSymbol ";"  -- whiteSpace >> text ";" >> return ()
+empty = textSymbol ";"
 
 nonEmptyList :: ProtoParser a -> ProtoParser [a]
 nonEmptyList one = one `sepBy1` listSep
@@ -280,14 +280,13 @@ messagePart = try (DotProtoMessageDefinition <$> enum)
           <|>     (DotProtoMessageField      <$> messageField)
 
 messageField :: ProtoParser DotProtoField
-messageField = do ctor <- (try $ symbol "repeated" $> Repeated) <|> pure Prim
+messageField = do ctor <- try (symbol "repeated" $> Repeated) <|> pure Prim
                   mtype <- primType
                   mname <- identifier
                   symbol "="
                   mnumber <- fieldNumber
                   moptions <- optionAnnotation
                   symbol ";"
-                  -- TODO: parse comments
                   return $ DotProtoField mnumber (ctor mtype) mname moptions Nothing
 
 messageMapField :: ProtoParser DotProtoField
@@ -302,7 +301,6 @@ messageMapField = do symbol "map"
                      fpos <- fieldNumber
                      fos <- optionAnnotation
                      symbol ";"
-                     -- TODO: parse comments
                      return $ DotProtoField fpos (Map ktype vtype) mname fos Nothing
 
 --------------------------------------------------------------------------------
@@ -358,7 +356,7 @@ range = do lookAhead (integer >> symbol "to") -- [note] parsec commits to this p
            return $ FieldRange s e
 
 ranges :: ProtoParser [DotProtoReservedField]
-ranges = nonEmptyList (try range <|> (SingleField . fromInteger <$> integer))
+ranges = nonEmptyList (try range <|> SingleField . fromInteger <$> integer)
 
 reservedField :: ProtoParser [DotProtoReservedField]
 reservedField = do symbol "reserved"
