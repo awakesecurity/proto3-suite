@@ -1,5 +1,7 @@
 # `proto3-suite`
 
+[![Build Status](https://travis-ci.org/awakesecurity/proto3-suite.svg?branch=master)](https://travis-ci.org/awakesecurity/proto3-suite)
+
 This package defines tools for working with protocol buffers version 3 in Haskell.
 
 This library provides a higher-level API to
