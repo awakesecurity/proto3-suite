@@ -85,19 +85,10 @@ let
     allowUnfree = true;
   };
 
-  bootstrap = import <nixpkgs> { };
-
-  nixpkgs =
-    let
-      json = builtins.fromJSON (builtins.readFile ./nixpkgs.json);
-    in
-      bootstrap.fetchFromGitHub {
-        owner = "NixOS";
-
-        repo = "nixpkgs";
-
-        inherit (json) rev sha256;
-      };
+  nixpkgs = ./fetch-nixpkgs.nix {
+    rev    = "7ae9da426924537755ce9164fd5b5f81ce16a1c3";
+    sha256 = "1fcvc066c270dd2yfir8cpj0gcslsbvw7grnk2fayb06rkppjxrf";
+  };
 
    linuxPkgs = import nixpkgs { inherit config; system = "x86_64-linux" ; };
   darwinPkgs = import nixpkgs { inherit config; system = "x86_64-darwin"; };
