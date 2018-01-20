@@ -75,11 +75,19 @@ identifierName = do h <- letter
                     t <- many (alphaNum <|> char '_')
                     return $ h:t
 
+-- Parses a full identifier, without consuming trailing space.
+_identifier :: ProtoParser DotProtoIdentifier
+_identifier = do is <- identifierName `sepBy1` string "."
+                 return $ case is of
+                   [i] -> Single i
+                   _   -> Dots (Path is)
+
+singleIdentifier :: ProtoParser DotProtoIdentifier
+singleIdentifier = Single <$> token identifierName
+
+-- Parses a full identifier, consuming trailing space.
 identifier :: ProtoParser DotProtoIdentifier
-identifier = do is <- identifierName `sepBy1` string "."
-                return $ case is of
-                  [i] -> Single i
-                  _   -> Dots (Path is)
+identifier = token _identifier
 
 -- [note] message and enum types are defined by the proto3 spec to have an optional leading period (messageType and enumType in the spec)
 --        what this indicates is, as far as i can tell, not documented, and i haven't found this syntax used in practice
@@ -88,11 +96,13 @@ identifier = do is <- identifierName `sepBy1` string "."
 -- [update] the leading dot denotes that the identifier path starts in global scope
 --          i still haven't seen a use case for this but i can add it upon request
 
+-- Parses a nested identifier, consuming trailing space.
 nestedIdentifier :: ProtoParser DotProtoIdentifier
-nestedIdentifier = do h <- parens identifier
-                      string "."
-                      t <- identifier
-                      return $ Qualified h t
+nestedIdentifier = token $ do
+  h <- parens _identifier
+  string "."
+  t <- _identifier
+  return $ Qualified h t
 
 ----------------------------------------
 -- values
@@ -102,8 +112,10 @@ stringLit :: ProtoParser String
 stringLit = stringLiteral <|> stringLiteral'
 
 bool :: ProtoParser Bool
-bool = (string "true"  >> notFollowedBy (alphaNum <|> char '_') $> True) -- used to distinguish "true_" (Identifier) from "true" (BoolLit)
-   <|> (string "false" >> notFollowedBy (alphaNum <|> char '_') $> False)
+bool = token $ lit "true" True <|> lit "false" False
+  where
+    -- used to distinguish "true_" (Identifier) from "true" (BoolLit)
+    lit s c = string s >> notFollowedBy (alphaNum <|> char '_') >> pure c
 
 -- the `parsers` package actually does not expose a parser for signed fractional values
 floatLit :: ProtoParser Double
@@ -121,21 +133,21 @@ value = try (BoolLit              <$> bool)
 -- types
 
 primType :: ProtoParser DotProtoPrimType
-primType = try (string "double"   $> Double)
-       <|> try (string "float"    $> Float)
-       <|> try (string "int32"    $> Int32)
-       <|> try (string "int64"    $> Int64)
-       <|> try (string "sint32"   $> SInt32)
-       <|> try (string "sint64"   $> SInt64)
-       <|> try (string "uint32"   $> UInt32)
-       <|> try (string "uint64"   $> UInt64)
-       <|> try (string "fixed32"  $> Fixed32)
-       <|> try (string "fixed64"  $> Fixed64)
-       <|> try (string "sfixed32" $> SFixed32)
-       <|> try (string "sfixed64" $> SFixed64)
-       <|> try (string "string"   $> String)
-       <|> try (string "bytes"    $> Bytes)
-       <|> try (string "bool"     $> Bool)
+primType = try (symbol "double"   $> Double)
+       <|> try (symbol "float"    $> Float)
+       <|> try (symbol "int32"    $> Int32)
+       <|> try (symbol "int64"    $> Int64)
+       <|> try (symbol "sint32"   $> SInt32)
+       <|> try (symbol "sint64"   $> SInt64)
+       <|> try (symbol "uint32"   $> UInt32)
+       <|> try (symbol "uint64"   $> UInt64)
+       <|> try (symbol "fixed32"  $> Fixed32)
+       <|> try (symbol "fixed64"  $> Fixed64)
+       <|> try (symbol "sfixed32" $> SFixed32)
+       <|> try (symbol "sfixed64" $> SFixed64)
+       <|> try (symbol "string"   $> String)
+       <|> try (symbol "bytes"    $> Bytes)
+       <|> try (symbol "bool"     $> Bool)
        <|> Named <$> identifier
 
 --------------------------------------------------------------------------------
@@ -206,15 +218,6 @@ definition = message
 --------------------------------------------------------------------------------
 -- options
 
--- optionName :: ProtoParser DotProtoIdentifier
--- optionName = do ohead <- nestedIdentifier <|> identifier -- this permits the (p.p2).p3 option identifier form
---                                                          -- i'm not actually sure if this form is used in non-option statements
---                 string "="
---                 return ohead
-
--- optionValue :: ProtoParser DotProtoValue
--- optionValue = value
-
 inlineOption :: ProtoParser DotProtoOption
 inlineOption = DotProtoOption <$> (optionName <* symbol "=") <*> value
   where
@@ -245,7 +248,7 @@ rpcClause = do
 
 rpc :: ProtoParser DotProtoServicePart
 rpc = do symbol "rpc"
-         name <- Single <$> identifierName
+         name <- singleIdentifier
          subjecttype <- parens rpcClause
          symbol "returns"
          returntype <- parens rpcClause
@@ -254,7 +257,7 @@ rpc = do symbol "rpc"
 
 service :: ProtoParser DotProtoDefinition
 service = do symbol "service"
-             name <- Single <$> identifierName
+             name <- singleIdentifier
              statements <- braces (many servicePart)
              return $ DotProtoService name statements
 
@@ -263,7 +266,7 @@ service = do symbol "service"
 
 message :: ProtoParser DotProtoDefinition
 message = do symbol "message"
-             name <- Single <$> identifierName
+             name <- identifier
              body <- braces (many messagePart)
              return $ DotProtoMessage name body
 
@@ -272,32 +275,31 @@ messagePart = try (DotProtoMessageDefinition <$> enum)
           <|> try (DotProtoMessageReserved   <$> reservedField)
           <|> try (DotProtoMessageDefinition <$> message)
           <|> try messageOneOf
-          <|> try (DotProtoMessageField      <$> messageMapField)
-          <|>     (DotProtoMessageField      <$> messageField)
+          <|> try (DotProtoMessageField      <$> messageField)
+
+messageType :: ProtoParser DotProtoType
+messageType = mapType <|> dotProtoType
+  where
+    mapType = do symbol "map"
+                 symbol "<"
+                 ktype <- primType
+                 symbol ","
+                 vtype <- primType
+                 symbol ">"
+                 return (Map ktype vtype)
+
+    dotProtoType = do ctor <- try (symbol "repeated" $> Repeated) <|> pure Prim
+                      mtype <- primType
+                      return (ctor mtype)
 
 messageField :: ProtoParser DotProtoField
-messageField = do ctor <- try (symbol "repeated" $> Repeated) <|> pure Prim
-                  mtype <- primType
+messageField = do mtype <- messageType
                   mname <- identifier
                   symbol "="
                   mnumber <- fieldNumber
                   moptions <- optionAnnotation
                   symbol ";"
-                  return $ DotProtoField mnumber (ctor mtype) mname moptions Nothing
-
-messageMapField :: ProtoParser DotProtoField
-messageMapField = do symbol "map"
-                     symbol "<"
-                     ktype <- primType
-                     symbol ","
-                     vtype <- primType
-                     symbol ">"
-                     mname <- identifier
-                     symbol "="
-                     fpos <- fieldNumber
-                     fos <- optionAnnotation
-                     symbol ";"
-                     return $ DotProtoField fpos (Map ktype vtype) mname fos Nothing
+                  return $ DotProtoField mnumber mtype mname moptions Nothing
 
 --------------------------------------------------------------------------------
 -- enumerations
@@ -318,7 +320,7 @@ enumStatement = try (DotProtoEnumOption <$> topOption)
 
 enum :: ProtoParser DotProtoDefinition
 enum = do symbol "enum"
-          ename <- Single <$> identifierName
+          ename <- singleIdentifier
           ebody <- braces (many enumStatement)
           return $ DotProtoEnum ename ebody
 
@@ -345,14 +347,14 @@ messageOneOf = do symbol "oneof"
 -- field reservations
 
 range :: ProtoParser DotProtoReservedField
-range = do lookAhead (integer >> symbol "to") -- [note] parsec commits to this parser too early without this lookahead
+range = do lookAhead (integer >> string "to") -- [note] parsec commits to this parser too early without this lookahead
            s <- fromInteger <$> integer
            symbol "to"
            e <- fromInteger <$> integer
            return $ FieldRange s e
 
 ranges :: ProtoParser [DotProtoReservedField]
-ranges = semiSep1 (try range <|> SingleField . fromInteger <$> integer)
+ranges = semiSep1 (try range <|> (SingleField . fromInteger <$> integer))
 
 reservedField :: ProtoParser [DotProtoReservedField]
 reservedField = do symbol "reserved"
