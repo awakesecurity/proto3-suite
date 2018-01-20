@@ -266,19 +266,25 @@ service = do symbol "service"
 
 message :: ProtoParser DotProtoDefinition
 message = do symbol "message"
-             name <- identifier
+             name <- singleIdentifier
              body <- braces (many messagePart)
              return $ DotProtoMessage name body
+
+messageOneOf :: ProtoParser DotProtoMessagePart
+messageOneOf = do symbol "oneof"
+                  name <- singleIdentifier
+                  body <- braces $ many (messageField <|> empty $> DotProtoEmptyField)
+                  return $ DotProtoMessageOneOf name body
 
 messagePart :: ProtoParser DotProtoMessagePart
 messagePart = try (DotProtoMessageDefinition <$> enum)
           <|> try (DotProtoMessageReserved   <$> reservedField)
           <|> try (DotProtoMessageDefinition <$> message)
           <|> try messageOneOf
-          <|> try (DotProtoMessageField      <$> messageField)
+          <|>     (DotProtoMessageField      <$> messageField)
 
 messageType :: ProtoParser DotProtoType
-messageType = mapType <|> dotProtoType
+messageType = try mapType <|> dotProtoType
   where
     mapType = do symbol "map"
                  symbol "<"
@@ -325,29 +331,10 @@ enum = do symbol "enum"
           return $ DotProtoEnum ename ebody
 
 --------------------------------------------------------------------------------
--- oneOf
-
-oneOfField :: ProtoParser DotProtoField
-oneOfField = do ftype <- Prim <$> primType
-                fname <- identifier
-                symbol "="
-                fpos <- fromInteger <$> integer
-                fops <- optionAnnotation
-                symbol ";"
-                -- TODO: parse comments
-                return $ DotProtoField fpos ftype fname fops Nothing
-
-messageOneOf :: ProtoParser DotProtoMessagePart
-messageOneOf = do symbol "oneof"
-                  name <- identifier
-                  body <- braces $ many (oneOfField <|> empty $> DotProtoEmptyField)
-                  return $ DotProtoMessageOneOf name body
-
---------------------------------------------------------------------------------
 -- field reservations
 
 range :: ProtoParser DotProtoReservedField
-range = do lookAhead (integer >> string "to") -- [note] parsec commits to this parser too early without this lookahead
+range = do lookAhead (integer >> symbol "to") -- [note] parsec commits to this parser too early without this lookahead
            s <- fromInteger <$> integer
            symbol "to"
            e <- fromInteger <$> integer
