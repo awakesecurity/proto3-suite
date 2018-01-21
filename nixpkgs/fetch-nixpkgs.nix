@@ -27,7 +27,7 @@ ifThenElse {
       };
 
       builtin-paths = import <nix/config.nix>;
-      
+
       script = builtins.toFile "nixpkgs-unpacker" ''
         "$coreutils/mkdir" "$out"
         cd "$out"

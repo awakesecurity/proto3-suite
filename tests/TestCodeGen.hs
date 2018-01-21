@@ -67,21 +67,21 @@ don'tAlterEnumFieldNames
                  $ prefixedEnumFieldName enumName fieldName
                      @?= Right (enumName <> fieldName)
 
+setPythonPath :: IO ()
+setPythonPath = Turtle.export "PYTHONPATH" =<< do
+  maybe pyTmpDir ((pyTmpDir <> ":") <>) <$> Turtle.need "PYTHONPATH"
+
 simpleEncodeDotProto :: TestTree
 simpleEncodeDotProto =
     testCase "generate code for a simple .proto and then use it to encode messages" $
     do compileTestDotProtos
+       -- Compile our generated encoder
        (@?= ExitSuccess) =<< Turtle.proc "tests/encode.sh" [hsTmpDir] empty
 
-       m <- Turtle.need "PYTHONPATH"
-       pythonPath <- case m of
-           Nothing         -> fail "PYTHONPATH environment variable is not set"
-           Just pythonPath -> return pythonPath
-       Turtle.export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
-
-       let cmd = (hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py")
-       -- The python test exits with a special error code to indicate all tests
-       -- were successful
+       -- The python encoder test exits with a special error code to indicate
+       -- all tests were successful
+       setPythonPath
+       let cmd = hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py"
        (@?= ExitFailure 12) =<< Turtle.shell cmd empty
 
        -- Not using bracket so that we can inspect the output to fix the tests
@@ -92,14 +92,10 @@ simpleDecodeDotProto :: TestTree
 simpleDecodeDotProto =
     testCase "generate code for a simple .proto and then use it to decode messages" $
     do compileTestDotProtos
+       -- Compile our generated decoder
        (@?= ExitSuccess) =<< Turtle.proc "tests/decode.sh" [hsTmpDir] empty
 
-       m <- Turtle.need "PYTHONPATH"
-       pythonPath <- case m of
-           Nothing         -> fail "PYTHONPATH environment variable is not set"
-           Just pythonPath -> return pythonPath
-       Turtle.export "PYTHONPATH" (pythonPath <> ":" <> pyTmpDir)
-
+       setPythonPath
        let cmd = "python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto "
        (@?= ExitSuccess) =<< Turtle.shell cmd empty
 
