@@ -38,20 +38,23 @@ let
               (self.callPackage ./default.nix { })
               (drv:
                  let
-                   cabal-install = self.cabal-install;
-
-                   ghc = self.ghcWithPackages (pkgs:
-                     drv.testHaskellDepends ++ [ pkgs.proto3-suite-boot ]
-                   );
-
                    python = pkgs.python.withPackages (pkgs: [ pkgs.protobuf3_0 ]);
                  in
                    {
-                     shellHook = (drv.shellHook or "") + ''
-                       export PATH=${cabal-install}/bin:${ghc}/bin:${python}/bin''${PATH:+:}$PATH
-                     '';
+                     shellHook = (drv.shellHook or "") +
+                       (let
+                          ghc = self.ghcWithPackages (pkgs:
+                            drv.testHaskellDepends ++ [ pkgs.proto3-suite-boot ]
+                          );
+                        in ''
+                          export PATH=${self.cabal-install}/bin:${ghc}/bin:${python}/bin''${PATH:+:}$PATH
+                        '');
 
-                     testToolDepends = (drv.testToolDepends or []) ++ [ghc python];
+                     testHaskellDepends = drv.testHaskellDepends ++ [
+                       pkgs.ghc
+                       proto3-suite-boot
+                       python
+                     ];
                    }
               );
 
