@@ -54,8 +54,9 @@ newtype ProtoParser a = ProtoParser { runProtoParser :: Parser a }
            , Parsing, CharParsing, LookAheadParsing)
 
 instance TokenParsing ProtoParser where
-  someSpace   = TokenStyle.buildSomeSpaceParser (ProtoParser someSpace)
-                                                TokenStyle.javaCommentStyle
+  someSpace   = TokenStyle.buildSomeSpaceParser
+                  (ProtoParser someSpace)
+                  TokenStyle.javaCommentStyle
   -- use the default implementation for other methods:
   -- nesting, semi, highlight, token
 
