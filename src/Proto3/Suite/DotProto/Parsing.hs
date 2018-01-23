@@ -56,10 +56,8 @@ newtype ProtoParser a = ProtoParser { runProtoParser :: Parser a }
 instance TokenParsing ProtoParser where
   someSpace   = TokenStyle.buildSomeSpaceParser (ProtoParser someSpace)
                                                 TokenStyle.javaCommentStyle
-  nesting     = ProtoParser . nesting . runProtoParser
-  semi        = ProtoParser semi
-  highlight h = ProtoParser . highlight h . runProtoParser
-  token       = ProtoParser . token . runProtoParser
+  -- use the default implementation for other methods:
+  -- nesting, semi, highlight, token.
 
 empty :: ProtoParser ()
 empty = whiteSpace >> textSymbol ";" >> return ()
@@ -201,13 +199,13 @@ import_ = do symbol "import"
                                  symbol "weak" $> DotProtoImportWeak
                              <|> symbol "public" $> DotProtoImportPublic
              target <- FP.fromText . T.pack <$> stringLit
-             symbol ";"
+             semi
              return $ DotProtoImport qualifier target
 
 package :: ProtoParser DotProtoPackageSpec
 package = do symbol "package"
              p <- identifier
-             symbol ";"
+             semi
              return $ DotProtoPackageSpec p
 
 definition :: ProtoParser DotProtoDefinition
@@ -221,13 +219,13 @@ definition = message
 inlineOption :: ProtoParser DotProtoOption
 inlineOption = DotProtoOption <$> (optionName <* symbol "=") <*> value
   where
-    optionName = try nestedIdentifier <|> identifier
+    optionName = nestedIdentifier <|> identifier
 
 optionAnnotation :: ProtoParser [DotProtoOption]
 optionAnnotation = brackets (commaSep1 inlineOption) <|> pure []
 
 topOption :: ProtoParser DotProtoOption
-topOption = symbol "option" *> inlineOption <* symbol ";"
+topOption = symbol "option" *> inlineOption <* semi
 
 --------------------------------------------------------------------------------
 -- service statements
@@ -252,7 +250,7 @@ rpc = do symbol "rpc"
          subjecttype <- parens rpcClause
          symbol "returns"
          returntype <- parens rpcClause
-         options <- rpcOptions <|> (symbol ";" $> [])
+         options <- rpcOptions <|> (semi $> [])
          return $ DotProtoServiceRPC name subjecttype returntype options
 
 service :: ProtoParser DotProtoDefinition
@@ -281,10 +279,10 @@ messagePart = try (DotProtoMessageDefinition <$> enum)
           <|> try (DotProtoMessageReserved   <$> reservedField)
           <|> try (DotProtoMessageDefinition <$> message)
           <|> try messageOneOf
-          <|>     (DotProtoMessageField      <$> messageField)
+          <|> try (DotProtoMessageField      <$> messageField)
 
 messageType :: ProtoParser DotProtoType
-messageType = try mapType <|> dotProtoType
+messageType = try mapType <|> try repType <|> (Prim <$> primType)
   where
     mapType = do symbol "map"
                  symbol "<"
@@ -294,9 +292,9 @@ messageType = try mapType <|> dotProtoType
                  symbol ">"
                  return (Map ktype vtype)
 
-    dotProtoType = do ctor <- try (symbol "repeated" $> Repeated) <|> pure Prim
-                      mtype <- primType
-                      return (ctor mtype)
+    repType = do symbol "repeated"
+                 mtype <- primType
+                 return (Repeated mtype)
 
 messageField :: ProtoParser DotProtoField
 messageField = do mtype <- messageType
@@ -304,7 +302,7 @@ messageField = do mtype <- messageType
                   symbol "="
                   mnumber <- fieldNumber
                   moptions <- optionAnnotation
-                  symbol ";"
+                  semi
                   return $ DotProtoField mnumber mtype mname moptions Nothing
 
 --------------------------------------------------------------------------------
@@ -315,7 +313,7 @@ enumField = do fname <- identifier
                symbol "="
                fpos <- fromInteger <$> integer
                opts <- optionAnnotation
-               symbol ";"
+               semi
                return $ DotProtoEnumField fname fpos opts
 
 
@@ -346,5 +344,5 @@ ranges = commaSep1 (try range <|> (SingleField . fromInteger <$> integer))
 reservedField :: ProtoParser [DotProtoReservedField]
 reservedField = do symbol "reserved"
                    v <- ranges <|> commaSep1 (ReservedIdentifier <$> stringLit)
-                   symbol ";"
+                   semi
                    return v
