@@ -57,7 +57,7 @@ instance TokenParsing ProtoParser where
   someSpace   = TokenStyle.buildSomeSpaceParser (ProtoParser someSpace)
                                                 TokenStyle.javaCommentStyle
   -- use the default implementation for other methods:
-  -- nesting, semi, highlight, token.
+  -- nesting, semi, highlight, token
 
 empty :: ProtoParser ()
 empty = whiteSpace >> textSymbol ";" >> return ()
@@ -156,7 +156,7 @@ syntaxSpec = void $ do
   symbol "syntax"
   symbol "="
   symbol "'proto3'" <|> symbol "\"proto3\""
-  symbol ";"
+  semi
 
 data DotProtoStatement
   = DPSOption     DotProtoOption
