@@ -37,16 +37,19 @@ import           Test.QuickCheck (Arbitrary(..))
 
 -- | 'Fixed' provides a way to encode integers in the fixed-width wire formats.
 newtype Fixed a = Fixed { fixed :: a }
-  deriving (Show, Eq, Ord, Num, Generic, NFData, Arbitrary, Enum, Bounded, Functor)
+  deriving (Show, Eq, Ord, Num, Generic, NFData, Arbitrary, Enum, Bounded
+           , Functor, Foldable, Traversable)
 
 -- | 'Signed' provides a way to encode integers in the signed wire formats.
 newtype Signed a = Signed { signed :: a }
-  deriving (Show, Eq, Ord, Num, Generic, NFData, Arbitrary, Bounded)
+  deriving (Show, Eq, Ord, Num, Generic, NFData, Arbitrary, Bounded
+           , Functor, Foldable, Traversable)
 
 -- | 'Enumerated' lifts any type with an 'IsEnum' instance so that it can be encoded
 -- with 'HasEncoding'.
 newtype Enumerated a = Enumerated { enumerated :: Either Int a }
-  deriving (Show, Eq, Ord, Generic, NFData)
+  deriving (Show, Eq, Ord, Generic, NFData
+           , Functor, Foldable, Traversable)
 
 instance (Bounded a, Enum a) => Arbitrary (Enumerated a) where
   arbitrary = do
