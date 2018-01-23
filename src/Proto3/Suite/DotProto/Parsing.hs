@@ -285,16 +285,11 @@ messageType :: ProtoParser DotProtoType
 messageType = try mapType <|> try repType <|> (Prim <$> primType)
   where
     mapType = do symbol "map"
-                 symbol "<"
-                 ktype <- primType
-                 symbol ","
-                 vtype <- primType
-                 symbol ">"
-                 return (Map ktype vtype)
+                 angles $ Map <$> (primType <* comma)
+                              <*> primType
 
     repType = do symbol "repeated"
-                 mtype <- primType
-                 return (Repeated mtype)
+                 Repeated <$> primType
 
 messageField :: ProtoParser DotProtoField
 messageField = do mtype <- messageType
