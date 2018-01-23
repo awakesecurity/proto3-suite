@@ -221,10 +221,10 @@ definition = message
 inlineOption :: ProtoParser DotProtoOption
 inlineOption = DotProtoOption <$> (optionName <* symbol "=") <*> value
   where
-    optionName = nestedIdentifier <|> identifier
+    optionName = try nestedIdentifier <|> identifier
 
 optionAnnotation :: ProtoParser [DotProtoOption]
-optionAnnotation = brackets (semiSep1 inlineOption) <|> pure []
+optionAnnotation = brackets (commaSep1 inlineOption) <|> pure []
 
 topOption :: ProtoParser DotProtoOption
 topOption = symbol "option" *> inlineOption <* symbol ";"
@@ -341,10 +341,10 @@ range = do lookAhead (integer >> symbol "to") -- [note] parsec commits to this p
            return $ FieldRange s e
 
 ranges :: ProtoParser [DotProtoReservedField]
-ranges = semiSep1 (try range <|> (SingleField . fromInteger <$> integer))
+ranges = commaSep1 (try range <|> (SingleField . fromInteger <$> integer))
 
 reservedField :: ProtoParser [DotProtoReservedField]
 reservedField = do symbol "reserved"
-                   v <- ranges <|> semiSep1 (ReservedIdentifier <$> stringLit)
+                   v <- ranges <|> commaSep1 (ReservedIdentifier <$> stringLit)
                    symbol ";"
                    return v
