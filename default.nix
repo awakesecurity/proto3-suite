@@ -12,6 +12,7 @@ mkDerivation {
   src = ./.;
   isLibrary = true;
   isExecutable = true;
+  enableSeparateDataOutput = true;
   libraryHaskellDepends = [
     aeson aeson-pretty attoparsec base base64-bytestring bytestring
     cereal containers deepseq foldl haskell-src lens mtl
