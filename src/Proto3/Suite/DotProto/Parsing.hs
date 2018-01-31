@@ -61,7 +61,7 @@ instance TokenParsing ProtoParser where
   -- nesting, semi, highlight, token
 
 empty :: ProtoParser ()
-empty = whiteSpace >> textSymbol ";" >> return ()
+empty = textSymbol ";" >> return ()
 
 fieldNumber :: ProtoParser FieldNumber
 fieldNumber = FieldNumber . fromInteger <$> integer
