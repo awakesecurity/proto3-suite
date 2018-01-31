@@ -78,6 +78,7 @@ module Proto3.Suite.Class
   -- * Decoding
   , HasDefault(..)
   , fromByteString
+  , fromByteStringPartial
   , fromB64
 
   -- * Documentation
@@ -310,6 +311,12 @@ toLazyByteString = Encode.toLazyByteString . encodeMessage (fieldNumber 1)
 -- | Parse any message that can be decoded.
 fromByteString :: Message a => B.ByteString -> Either ParseError a
 fromByteString = Decode.parse (decodeMessage (fieldNumber 1))
+
+-- | Like 'fromByteString' but can be used in cases where we do
+-- not yet have the entire input.  Also returns unconsumed input.
+fromByteStringPartial :: Message a
+                      => B.ByteString -> Decode.Result ParseError a
+fromByteStringPartial = Decode.parsePartial (decodeMessage (fieldNumber 1))
 
 -- | As 'fromByteString', except the input bytestring is base64-encoded.
 fromB64 :: Message a => B.ByteString -> Either ParseError a
