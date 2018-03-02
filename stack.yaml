@@ -7,8 +7,8 @@ packages:
     commit: a938330bf794cf3fa05591d03906915df98d157c
   extra-dep: true
 
-extra-deps: [ aeson-1.1.1.0
-            , aeson-pretty-0.8.2
+extra-deps: [ aeson-1.2.4.0
+            , aeson-pretty-0.8.5
             , cabal-doctest-1.0.2
             , insert-ordered-containers-0.2.1.0
             , neat-interpolation-0.3.2.1
