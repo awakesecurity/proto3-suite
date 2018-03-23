@@ -86,8 +86,8 @@ let
   darwinPkgs = import nixpkgs { inherit config; system = "x86_64-darwin"; };
         pkgs = import nixpkgs { inherit config; };
 in
-  { proto3-suite-linux    =     linuxPkgs.haskellPackages.proto3-suite;
-    proto3-suite-darwin   =    darwinPkgs.haskellPackages.proto3-suite;
-    proto3-suite          =          pkgs.haskellPackages.proto3-suite;
-    proto3-suite-no-tests = pkgs.haskellPackages.proto3-suite-no-tests;
+  { proto3-suite-linux  =  linuxPkgs.haskellPackages.proto3-suite;
+    proto3-suite-darwin = darwinPkgs.haskellPackages.proto3-suite;
+    proto3-suite        =       pkgs.haskellPackages.proto3-suite;
+    proto3-suite-boot   =       pkgs.haskellPackages.proto3-suite-boot;
   }
