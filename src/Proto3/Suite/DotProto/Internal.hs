@@ -64,23 +64,23 @@ dieLines (Turtle.textToLines -> msg) = do
 -- Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
 --
 -- >>> toModulePath "google/protobuf/timestamp.proto"
--- Right (Path ["Google","Protobuf","Timestamp"])
+-- Right (Path {components = ["Google","Protobuf","Timestamp"]})
 --
 -- >>> toModulePath "a/b/c/google.protobuf.timestamp.proto"
--- Right (Path ["A","B","C","Google","Protobuf","Timestamp"])
+-- Right (Path {components = ["A","B","C","Google","Protobuf","Timestamp"]})
 --
 -- >>> toModulePath "foo/FiLeName_underscore.and.then.some.dots.proto"
--- Right (Path ["Foo","FiLeName_underscore","And","Then","Some","Dots"])
+-- Right (Path {components = ["Foo","FiLeName_underscore","And","Then","Some","Dots"]})
 --
 -- >>> toModulePath "foo/bar/././baz/../boggle.proto"
--- Right (Path ["Foo","Bar","Boggle"])
+-- Right (Path {components = ["Foo","Bar","Boggle"]})
 --
 -- >>> toModulePath "./foo.proto"
--- Right (Path ["Foo"])
+-- Right (Path {components = ["Foo"]})
 --
 -- NB: We ignore preceding single '.' characters
 -- >>> toModulePath ".foo.proto"
--- Right (Path ["Foo"])
+-- Right (Path {components = ["Foo"]})
 toModulePath :: FilePath -> Either String Path
 toModulePath fp0@(fromMaybe fp0 . FP.stripPrefix "./" -> fp)
   | Turtle.absolute fp

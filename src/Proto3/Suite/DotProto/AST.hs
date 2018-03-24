@@ -62,7 +62,7 @@ newtype PackageName = PackageName
 instance Show PackageName where
   show = show . getPackageName
 
-newtype Path = Path [String] deriving (Show, Eq, Ord)
+newtype Path = Path { components :: [String] } deriving (Show, Eq, Ord)
 
 data DotProtoIdentifier
   = Single String
