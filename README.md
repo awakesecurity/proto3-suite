@@ -33,7 +33,7 @@ Alternately, the `nix-shell` environment provides an incremental build
 environment (but see below for testing). From the root of this repository:
 
 ```bash
-$ nix-shell release.nix -A proto3-suite-no-tests.env
+$ nix-shell
 [nix-shell]$ cabal configure
 [nix-shell]$ cabal build
 ```
@@ -41,7 +41,7 @@ $ nix-shell release.nix -A proto3-suite-no-tests.env
 Once your source code compiles and you want to test, do this instead:
 
 ```bash
-$ nix-shell release.nix -A proto3-suite.env
+$ nix-shell
 [nix-shell]$ cabal configure --enable-tests
 [nix-shell]$ cabal build
 [nix-shell]$ cabal test
