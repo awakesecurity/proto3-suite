@@ -65,7 +65,7 @@ don'tAlterEnumFieldNames
     enumName     = "MyEnum"
     tc fieldName = testCase fieldName
                  $ prefixedEnumFieldName enumName fieldName
-                     @?= Right (enumName <> fieldName)
+                     @?= (enumName <> fieldName)
 
 setPythonPath :: IO ()
 setPythonPath = Turtle.export "PYTHONPATH" =<< do

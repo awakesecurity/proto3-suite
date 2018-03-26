@@ -44,7 +44,7 @@ import           Data.Ord                       (comparing)
 import qualified Data.Set                       as S
 import           Data.String                    (fromString)
 import qualified Data.Text                      as T
-import           Filesystem.Path.CurrentOS      ((</>))
+import           Filesystem.Path.CurrentOS      ((</>), (<.>))
 import qualified Filesystem.Path.CurrentOS      as FP
 import           Language.Haskell.Pretty
 import           Language.Haskell.Syntax
@@ -81,40 +81,78 @@ liftEither x =
         Left  e -> throwError e
         Right a -> return a
 
--- | @compileDotProtoFile out includeDir dotProtoPath@ compiles the .proto file
--- at @dotProtoPath@ into a new Haskell module in @out/@, using the ordered
--- @paths@ list to determine which paths to be searched for the .proto file and
--- its transitive includes. 'compileDotProtoFileOrDie' provides a wrapper around
--- this function which terminates the program with an error message.
--- Instances declared in @extrainstances@ will take precedence over those that
--- would be otherwise generated.
+-- | Generate a Haskell module corresponding to a @.proto@ file
 compileDotProtoFile
     :: [FilePath]
+    -- ^ Haskell modules containing instances used to override default generated
+    -- instances
     -> FilePath
+    -- ^ Output directory
     -> [FilePath]
+    -- ^ List of search paths
     -> FilePath
+    -- ^ Path to @.proto@ file (relative to search path)
     -> IO (Either CompileError ())
-compileDotProtoFile extrainstances out paths dotProtoPath = runExceptT $ do
-  (dp, tc) <- ExceptT $ readDotProtoWithContext paths dotProtoPath
-  let DotProtoMeta (Path mp) = protoMeta dp
-      mkHsModPath            = (out </>) . (FP.<.> "hs") . FP.concat . (fromString <$>)
-  when (null mp) $ throwError InternalEmptyModulePath
-  mp' <- mkHsModPath <$> mapM (ExceptT . pure . typeLikeName) mp
-  eis <- fmap mconcat . mapM getExtraInstances $ extrainstances
-  hs  <- renderHsModuleForDotProto eis dp tc
-  Turtle.mktree (FP.directory mp')
-  liftIO $ writeFile (FP.encodeString mp') hs
+compileDotProtoFile
+  extraInstanceFiles
+  outputDirectory
+  searchPaths
+  dotProtoPath = runExceptT $ do
+    (dotProto, importTypeContext) <- do
+      ExceptT (readDotProtoWithContext searchPaths dotProtoPath)
+
+    let DotProto     { protoMeta      } = dotProto
+    let DotProtoMeta { metaModulePath } = protoMeta
+    let Path         { components     } = metaModulePath
+
+    when (null components) (throwError InternalEmptyModulePath)
+
+    typeLikeComponents <- traverse typeLikeName components
+
+    let relativePath = FP.concat (map fromString typeLikeComponents) <.> "hs"
+    let modulePath   = outputDirectory </> relativePath
+
+    Turtle.mktree (Turtle.directory modulePath)
+
+    listOfExtraInstances <- traverse getExtraInstances extraInstanceFiles
+
+    let extraInstances = mconcat listOfExtraInstances
+
+    haskellModule <- do
+      renderHsModuleForDotProto extraInstances dotProto importTypeContext
+
+    liftIO (writeFile (FP.encodeString modulePath) haskellModule)
 
 -- | As 'compileDotProtoFile', except terminates the program with an error
 -- message on failure.
 compileDotProtoFileOrDie
-    :: [FilePath] -> FilePath -> [FilePath] -> FilePath -> IO ()
-compileDotProtoFileOrDie extrainstances out paths dotProtoPath = do
-  compileResult <- compileDotProtoFile extrainstances out paths dotProtoPath
+    :: [FilePath]
+    -- ^ Haskell modules containing instances used to override default generated
+    -- instances
+    -> FilePath
+    -- ^ Output directory
+    -> [FilePath]
+    -- ^ List of search paths
+    -> FilePath
+    -- ^ Path to @.proto@ file (relative to search path)
+    -> IO ()
+compileDotProtoFileOrDie
+  extraInstanceFiles
+  outputDirectory
+  searchPaths
+  dotProtoPath = do
+  compileResult <- do
+    compileDotProtoFile
+      extraInstanceFiles
+      outputDirectory
+      searchPaths
+      dotProtoPath
+
   case compileResult of
     Left e -> do
-      let errText          = T.pack (show e) -- TODO: pretty print the error messages
-          dotProtoPathText = Turtle.format F.fp dotProtoPath
+      -- TODO: pretty print the error messages
+      let errText          = Turtle.format Turtle.w  e
+      let dotProtoPathText = Turtle.format Turtle.fp dotProtoPath
       dieLines [Neat.text|
         Error: failed to compile "${dotProtoPathText}":
 
@@ -125,15 +163,30 @@ compileDotProtoFileOrDie extrainstances out paths dotProtoPath = do
 getExtraInstances
     :: (MonadIO m, MonadError CompileError m)
     => FilePath -> m ([HsImportDecl], [HsDecl])
-getExtraInstances fp = do
-  parseRes <- parseModule <$> liftIO (readFile (FP.encodeString fp))
-  case parseRes of
-         ParseOk (HsModule _srcloc _mod _es idecls decls) ->
-             let isInstDecl HsInstDecl{} = True
-                 isInstDecl _ = False
-             in return (idecls, filter isInstDecl decls) --TODO give compile result
-         ParseFailed src err -> throwError . InternalError $ "extra instance parse failed\n" ++ show src ++ ": " ++ show err
+getExtraInstances extraInstanceFile = do
+  let extraInstanceFileString = FP.encodeString extraInstanceFile
 
+  parseRes <- parseModule <$> liftIO (readFile extraInstanceFileString)
+
+  case parseRes of
+    ParseOk (HsModule _srcloc _mod _es idecls decls) -> do
+      let isInstDecl HsInstDecl{} = True
+          isInstDecl _            = False
+
+      return (idecls, filter isInstDecl decls) --TODO give compile result
+
+    ParseFailed srcLoc err -> do
+      let srcLocText = Turtle.format Turtle.w srcLoc
+
+      let errText = T.pack err
+
+      let message = [Neat.text|
+            Error: Failed to parse instance file
+
+            ${srcLocText}: ${errText}
+          |]
+
+      internalError (T.unpack message)
 
 -- | Compile a 'DotProto' AST into a 'String' representing the Haskell
 --   source of a module implementing types and instances for the .proto
@@ -141,46 +194,71 @@ getExtraInstances fp = do
 renderHsModuleForDotProto
     :: MonadError CompileError m
     => ([HsImportDecl],[HsDecl]) -> DotProto -> TypeContext -> m String
-renderHsModuleForDotProto eis dp importCtxt =
-    fmap (("{-# LANGUAGE DeriveGeneric #-}\n" ++) .
-          ("{-# LANGUAGE DataKinds #-}\n" ++) .
-          ("{-# LANGUAGE GADTs #-}\n" ++) .
-          ("{-# LANGUAGE OverloadedStrings #-}\n" ++) .
-          ("{-# OPTIONS_GHC -fno-warn-unused-imports #-}\n" ++) .
-          ("{-# OPTIONS_GHC -fno-warn-name-shadowing #-}\n" ++) .
-          ("{-# OPTIONS_GHC -fno-warn-unused-matches #-}\n" ++) .
+renderHsModuleForDotProto extraInstanceFiles dotProto importCtxt = do
+    haskellModule <- hsModuleForDotProto extraInstanceFiles dotProto importCtxt
+    return (T.unpack header ++ prettyPrint haskellModule)
+  where
+    header = [Neat.text|
+      {-# LANGUAGE DeriveGeneric     #-}
+      {-# LANGUAGE DataKinds         #-}
+      {-# LANGUAGE GADTs             #-}
+      {-# LANGUAGE OverloadedStrings #-}
+      {-# OPTIONS_GHC -fno-warn-unused-imports #-}
+      {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+      {-# OPTIONS_GHC -fno-warn-unused-matches #-}
 
-          ("-- | Generated by Haskell protocol buffer compiler. " ++) .
-          ("DO NOT EDIT!\n" ++) .
-          prettyPrint) $
-    hsModuleForDotProto eis dp importCtxt
+      -- | Generated by Haskell protocol buffer compiler. DO NOT EDIT!
+    |]
 
 -- | Compile a Haskell module AST given a 'DotProto' package AST.
 -- Instances given in @eis@ override those otherwise generated.
 hsModuleForDotProto
     :: MonadError CompileError m
-    => ([HsImportDecl], [HsDecl]) -> DotProto -> TypeContext -> m HsModule
-hsModuleForDotProto _eis (DotProto{ protoMeta = DotProtoMeta (Path []) }) _importCtxt
-  = throwError InternalEmptyModulePath
+    => ([HsImportDecl], [HsDecl])
+    -- ^ Extra user-define instances that override default generated instances
+    -> DotProto
+    -- ^
+    -> TypeContext
+    -- ^
+    -> m HsModule
 hsModuleForDotProto
-  (extraimports, extrainstances)
-  dp@DotProto{ protoPackage     = DotProtoPackageSpec pkgIdent
-             , protoMeta        = DotProtoMeta modulePath
-             , protoDefinitions = defs
-             }
-  importCtxt
-  = do
-     mname <- modulePathModName modulePath
-     module_ mname
-        <$> pure Nothing
-        <*> do mappend (defaultImports hasService `mappend` extraimports) <$> ctxtImports importCtxt
-        <*> do tc <- dotProtoTypeContext dp
-               replaceHsInstDecls (instancesForModule mname extrainstances) . mconcat  <$> mapM (dotProtoDefinitionD pkgIdent (tc <> importCtxt)) defs
+    _
+    DotProto { protoMeta = DotProtoMeta { metaModulePath = Path [] } }
+    _ =
+    throwError InternalEmptyModulePath
+hsModuleForDotProto
+  (extraImports, extraInstances)
+  dotProto@DotProto
+    { protoPackage     = DotProtoPackageSpec packageIdentifier
+    , protoMeta        = DotProtoMeta { metaModulePath = modulePath }
+    , protoDefinitions
+    }
+  importTypeContext = do
+    moduleName <- modulePathModName modulePath
 
-  where hasService = not (null [ () | DotProtoService {} <- defs ])
+    typeContextImports <- ctxtImports importTypeContext
 
-hsModuleForDotProto _ _ _
-  = throwError NoPackageDeclaration
+    let importDeclarations =
+          concat [ defaultImports hasService, extraImports, typeContextImports ]
+
+    typeContext <- dotProtoTypeContext dotProto
+
+    let toDotProtoDeclaration =
+            dotProtoDefinitionD packageIdentifier (typeContext <> importTypeContext)
+
+    let instances = instancesForModule moduleName extraInstances
+
+    listOfDeclarations <- traverse toDotProtoDeclaration protoDefinitions
+
+    let overridenDeclarations =
+          replaceHsInstDecls instances (mconcat listOfDeclarations)
+
+    return (module_ moduleName Nothing importDeclarations overridenDeclarations)
+  where
+    hasService = not (null [ () | DotProtoService {} <- protoDefinitions ])
+
+hsModuleForDotProto _ _ _ =
+  throwError NoPackageDeclaration
 
 -- This very specific function will only work for the qualification on the very first type
 -- in the object of an instance declaration. Those are the only sort of instance declarations
@@ -467,9 +545,8 @@ fieldLikeName ident@(firstChar:_)
                         in map toLower prefix ++ suffix
 fieldLikeName ident = ident
 
-prefixedEnumFieldName
-    :: Monad m => String -> String -> m String
-prefixedEnumFieldName enumName fieldName = pure (enumName <> fieldName)
+prefixedEnumFieldName :: String -> String -> String
+prefixedEnumFieldName enumName fieldName = enumName <> fieldName
 
 prefixedConName
     :: MonadError CompileError m => String -> String -> m String
@@ -1065,8 +1142,8 @@ dotProtoEnumD parentIdent enumIdent enumParts =
                  dpIdentUnqualName enumIdent
 
      enumCons <- sortBy (comparing fst) <$>
-                 sequence [ (i,) <$> (prefixedEnumFieldName enumName =<<
-                                      dpIdentUnqualName conIdent)
+                 sequence [ (i,) <$> (fmap (prefixedEnumFieldName enumName)
+                                      (dpIdentUnqualName conIdent))
                           | DotProtoEnumField conIdent i _options <- enumParts ]
 
      let enumNameE = HsLit (HsString enumName)
