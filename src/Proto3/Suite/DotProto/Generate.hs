@@ -30,6 +30,8 @@ module Proto3.Suite.DotProto.Generate
   , typeLikeName
   ) where
 
+import Debug.Trace
+
 import           Control.Applicative
 import           Control.Arrow                  ((&&&), first)
 import           Control.Monad.Except
@@ -553,6 +555,8 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                   cons <- mapM oneOfCons fields
                   pure [ dataDecl_ fullName cons defaultMessageDeriving
                        , namedInstD fullName
+                       , toJSONInstDecl fullName
+                       , fromJSONInstDecl fullName
                        , toSchemaInstDecl fullName
                        ]
 
@@ -583,6 +587,8 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
               ]
               <> nestedOneofs_
               <> nestedDecls_
+
+-- *** Generate Protobuf 'Message' instances
 
 messageInstD :: TypeContext -> DotProtoIdentifier -> DotProtoIdentifier
              -> [DotProtoMessagePart] -> CompileResult HsDecl
@@ -684,6 +690,8 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                       , decodeMessageDecl
                       , dotProtoDecl ]))
 
+-- *** Generate ToJSONPB/FromJSONPB instances
+
 toJSONPBMessageInstD :: TypeContext
                      -> DotProtoIdentifier
                      -> DotProtoIdentifier
@@ -715,7 +723,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   --     -> HsJSONPB.pair "someid" f9
   --   Nothing
   --     -> mempty
-  let oneofCaseE (OneofField{subfields}) =
+  let oneofCaseE oneofName (OneofField subfields) =
         HsCase disjunctName (altEs <> pure fallThruE)
         where
           altEs =
@@ -735,7 +743,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
                  (HsUnGuardedAlt memptyE)
                  []
 
-  let patBinder = onQF (const fieldBinder) (oneofSubDisjunctBinder . subfields)
+  let patBinder = onQF (const fieldBinder) (const (oneofSubDisjunctBinder . subfields))
   let applyE nm = apply (HsVar (jsonpbName nm)) [ HsList (onQF defPairE oneofCaseE <$> qualFields) ]
 
   let matchE nm appNm = match_ (HsIdent nm)
@@ -765,7 +773,7 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   --   , Just . SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid")
   --   , pure Nothing
   --   ]
-  let oneofParserE fld =
+  let oneofParserE oneofName fld =
         HsApp msumE (HsList ((subParserEs <> fallThruE) fld))
         where
           fallThruE OneofField{}
@@ -805,6 +813,39 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   pure (instDecl_ (jsonpbName "FromJSONPB")
                  [ type_ msgName ]
                  [ HsFunBind [ parseJSONPBDecl ] ])
+
+-- *** Generate default Aeson To/FromJSON and Swagger ToSchema instances
+-- (These are defined in terms of ToJSONPB)
+
+toJSONInstDecl :: String -> HsDecl
+toJSONInstDecl typeName =
+  instDecl_ (jsonpbName "ToJSON")
+            [ type_ typeName ]
+            [ HsFunBind [ match_ (HsIdent "toJSON") []
+                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonValue"))) []
+                        ]
+            , HsFunBind [ match_ (HsIdent "toEncoding") []
+                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonEncoding"))) []
+                        ]
+            ]
+
+fromJSONInstDecl :: String -> HsDecl
+fromJSONInstDecl typeName =
+  instDecl_ (jsonpbName "FromJSON")
+            [ type_ typeName ]
+            [ HsFunBind [match_ (HsIdent "parseJSON") [] (HsUnGuardedRhs (HsVar (jsonpbName "parseJSONPB"))) []
+                        ]
+            ]
+
+toSchemaInstDecl :: String -> HsDecl
+toSchemaInstDecl typeName =
+  instDecl_ (jsonpbName "ToSchema")
+            [ type_ typeName ]
+            [ HsFunBind [match_ (HsIdent "declareNamedSchema") []
+                                (HsUnGuardedRhs (HsVar (jsonpbName "genericDeclareNamedSchemaJSONPB"))) []
+                        ]
+            ]
+
 
 -- ** Codegen bookkeeping helpers
 
@@ -860,11 +901,11 @@ getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
 
 -- | Project qualified fields, given a projection function per field type.
 onQF :: (FieldName -> FieldNumber -> a) -- ^ projection for normal fields
-     -> (OneofField -> a)               -- ^ projection for oneof fields
+     -> (FieldName -> OneofField -> a)  -- ^ projection for oneof fields
      -> QualifiedField
      -> a
 onQF f _ (QualifiedField _ (FieldNormal fldName fldNum _ _)) = f fldName fldNum
-onQF _ g (QualifiedField _ (FieldOneOf fld))                 = g fld
+onQF _ g (QualifiedField fldName (FieldOneOf fld))           = trace ("fieldName is " <> show fldName) $ g fldName fld
 
 fieldBinder :: FieldNumber -> String
 fieldBinder = ("f" ++) . show
@@ -1347,36 +1388,6 @@ intE x = (if x < 0 then HsParen else id) . HsLit . HsInt . fromIntegral $ x
 
 intP :: Integral a => a -> HsPat
 intP x = (if x < 0 then HsPParen else id) . HsPLit . HsInt . fromIntegral $ x
-
-toJSONInstDecl :: String -> HsDecl
-toJSONInstDecl typeName =
-  instDecl_ (jsonpbName "ToJSON")
-            [ type_ typeName ]
-            [ HsFunBind [ match_ (HsIdent "toJSON") []
-                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonValue"))) []
-                        ]
-            , HsFunBind [ match_ (HsIdent "toEncoding") []
-                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonEncoding"))) []
-                        ]
-            ]
-
-
-fromJSONInstDecl :: String -> HsDecl
-fromJSONInstDecl typeName =
-  instDecl_ (jsonpbName "FromJSON")
-            [ type_ typeName ]
-            [ HsFunBind [match_ (HsIdent "parseJSON") [] (HsUnGuardedRhs (HsVar (jsonpbName "parseJSONPB"))) []
-                        ]
-            ]
-
-toSchemaInstDecl :: String -> HsDecl
-toSchemaInstDecl typeName =
-  instDecl_ (jsonpbName "ToSchema")
-            [ type_ typeName ]
-            [ HsFunBind [match_ (HsIdent "declareNamedSchema") []
-                                (HsUnGuardedRhs (HsVar (jsonpbName "genericDeclareNamedSchemaJSONPB"))) []
-                        ]
-            ]
 
 -- ** Expressions for protobuf-wire types
 

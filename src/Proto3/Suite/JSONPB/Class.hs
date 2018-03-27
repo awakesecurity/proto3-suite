@@ -171,12 +171,15 @@ parseField = A.explicitParseField parseJSONPB
 
 data Options = Options
   { optEmitDefaultValuedFields :: Bool
+  , optEmitInlinedOneof :: Bool
+  -- ^ for compatibility with Go JSONPB.
   } deriving Show
 
 -- | Default options for JSONPB encoding. By default, all options are @False@.
 defaultOptions :: Options
 defaultOptions = Options
   { optEmitDefaultValuedFields = False
+  , optEmitInlinedOneof = False
   }
 
 -- * Helper types and functions
