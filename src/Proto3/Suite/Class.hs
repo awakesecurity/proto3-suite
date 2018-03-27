@@ -479,8 +479,8 @@ instance (Named a, Message a) => MessageField (Nested a) where
   protoType _ = messageField (Prim $ Named (Single (nameOf (Proxy @a)))) Nothing
 
 instance Primitive a => MessageField (UnpackedVec a) where
-  encodeMessageField fn = foldMap (encodePrimitive fn)
-  decodeMessageField = fmap (UnpackedVec . seqToVec) $ repeated decodePrimitive
+  encodeMessageField = foldMap . encodePrimitive
+  decodeMessageField = UnpackedVec . seqToVec <$> repeated decodePrimitive
   protoType _ = messageField (Repeated $ primType (Proxy @a)) (Just DotProto.UnpackedField)
 
 instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
@@ -583,7 +583,7 @@ instance (MessageField e, KnownSymbol comments) => MessageField (e // comments) 
 decodePacked
   :: Parser RawPrimitive [a]
   -> Parser RawField (PackedVec a)
-decodePacked p = Parser $ \fs -> fmap (fromList . join . F.toList) $ TR.sequence $ fmap (runParser p) fs
+decodePacked = Parser . fmap (fromList . join . F.toList) . TR.sequence . fmap . runParser
 
 -- | This class captures those types which correspond to protocol buffer messages.
 class Message a where
@@ -605,7 +605,7 @@ class Message a where
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy a -> DotProtoDefinition
-message pr = DotProtoMessage (Single $ nameOf pr) $ DotProtoMessageField <$> (dotProto pr)
+message = DotProtoMessage <$> (Single . nameOf) <*> (fmap DotProtoMessageField . dotProto)
 
 -- * Generic Instances
 
@@ -639,13 +639,13 @@ instance (KnownNat (GenericFieldCount f), GenericMessage f, GenericMessage g) =>
 instance MessageField c => GenericMessage (K1 i c) where
   type GenericFieldCount (K1 i c) = 1
   genericEncodeMessage num (K1 x) = encodeMessageField num x
-  genericDecodeMessage num = fmap K1 (at decodeMessageField num)
+  genericDecodeMessage num = K1 <$> at decodeMessageField num
   genericDotProto _ = [protoType (Proxy @c)]
 
 instance (Selector s, GenericMessage f) => GenericMessage (M1 S s f) where
   type GenericFieldCount (M1 S s f) = GenericFieldCount f
   genericEncodeMessage num (M1 x) = genericEncodeMessage num x
-  genericDecodeMessage num = fmap M1 $ genericDecodeMessage num
+  genericDecodeMessage num = M1 <$> genericDecodeMessage num
   genericDotProto _ = map applyName $ genericDotProto (Proxy @f)
     where
       applyName :: DotProtoField -> DotProtoField
@@ -659,11 +659,11 @@ instance (Selector s, GenericMessage f) => GenericMessage (M1 S s f) where
 instance GenericMessage f => GenericMessage (M1 C t f) where
   type GenericFieldCount (M1 C t f) = GenericFieldCount f
   genericEncodeMessage num (M1 x) = genericEncodeMessage num x
-  genericDecodeMessage num = fmap M1 $ genericDecodeMessage num
+  genericDecodeMessage num = M1 <$> genericDecodeMessage num
   genericDotProto _ = genericDotProto (Proxy @f)
 
 instance GenericMessage f => GenericMessage (M1 D t f) where
   type GenericFieldCount (M1 D t f) = GenericFieldCount f
   genericEncodeMessage num (M1 x) = genericEncodeMessage num x
-  genericDecodeMessage num = fmap M1 $ genericDecodeMessage num
+  genericDecodeMessage num = M1 <$> genericDecodeMessage num
   genericDotProto _ = genericDotProto (Proxy @f)
