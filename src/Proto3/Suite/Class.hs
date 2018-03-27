@@ -583,7 +583,9 @@ instance (MessageField e, KnownSymbol comments) => MessageField (e // comments) 
 decodePacked
   :: Parser RawPrimitive [a]
   -> Parser RawField (PackedVec a)
-decodePacked = Parser . fmap (fromList . join . F.toList) . TR.sequence . fmap . runParser
+decodePacked = Parser
+             . fmap (fmap (fromList . join . F.toList))
+             . TR.traverse . runParser
 
 -- | This class captures those types which correspond to protocol buffer messages.
 class Message a where
