@@ -733,9 +733,22 @@ toJSONPBOneofInstD _ctxt parentName oneofIdent oneofFields = do
                  []
   let patBinder = onQF (const fieldBinder) (const (oneofSubDisjunctBinder . subfields))
 -- FIXME this is very hacky but there should only be one thing in the list
-  let applyE nm = apply (HsVar (jsonpbName nm)) [ HsList (map mkJsonKVMapping altFlds) ]
+-- generate this:
+-- (liftA3 bool <$> ("MyMessageFooOrBarOrBaz" .=) <*> pure <*> pure optEmitInlinedOneof )) CASEEXPR
+-- (liftA3 (liftA3 bool) ("MyMessageFooOrBarOrBaz" .=) pure (pure optEmitInlinedOneof) )) CASEEXPR
+  let applyE nm = apply (HsVar (jsonpbName nm)) [ HsList (map doChoose altFlds) ]
         where
-          mkJsonKVMapping = HsInfixApp (HsLit (HsString (coerce msgName))) toJSONPBOp
+          doChoose    = HsApp choose . HsParen
+          choose      = HsApp (HsApp (HsApp liftBool noInline) yesInline) inlineOrNot
+          liftBool    = HsParen
+                          (HsApp (HsVar (haskellName "liftA3"))
+                                 (HsParen (HsApp (HsVar (haskellName "liftA3"))
+                                          (HsVar (haskellName "bool")))))
+          noInline    = HsLeftSection (HsLit (HsString (coerce msgName))) toJSONPBOp
+          yesInline   = HsVar (haskellName "pure")
+          inlineOrNot = HsParen
+                          (HsApp (HsVar (haskellName "pure"))
+                                 (HsVar (unqual_ "optEmitInlinedOneof")))
           altFlds = fromMaybe mempty (traverse (onQF ignoreNormals oneofCaseE) qualFields)
 
   let matchE nm appNm = match_ (HsIdent nm)
@@ -1520,6 +1533,8 @@ defaultImports usesGrpc =
   , importDecl_ dataTextM                 True
                 (Just haskellNS) (Just (False, [ importSym "Text" ]))
   , importDecl_ dataByteStringM           True  (Just haskellNS) Nothing
+  , importDecl_ dataBoolM               True  (Just haskellNS)
+                (Just (False, [ importSym "bool" ]))
   , importDecl_ dataStringM               True  (Just haskellNS)
                 (Just (False, [ importSym "fromString" ]))
   , importDecl_ dataVectorM               True  (Just haskellNS)
@@ -1551,6 +1566,7 @@ defaultImports usesGrpc =
         controlApplicativeM       = Module "Control.Applicative"
         controlMonadM             = Module "Control.Monad"
         dataTextM                 = Module "Data.Text.Lazy"
+        dataBoolM                 = Module "Data.Bool"
         dataByteStringM           = Module "Data.ByteString"
         dataStringM               = Module "Data.String"
         dataIntM                  = Module "Data.Int"

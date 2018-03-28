@@ -155,6 +155,7 @@ k .= v = mk
       | otherwise
         = pair k v opts
 
+
 -- | 'Data.Aeson..:' variant for JSONPB; if the given key is missing from the
 -- object, or if it is present but its value is null, we produce the default
 -- protobuf value for the field type
@@ -162,6 +163,12 @@ k .= v = mk
 obj .: key = obj .:? key A..!= def
   where
     (.:?) = A.explicitParseFieldMaybe parseJSONPB
+
+
+--foo :: (HasDefault v, ToJSONPB v) => Text -> v -> Options -> ???
+-- foo :: _
+-- foo k v opts | optEmitInlinedOneof opts = v
+--              | otherwise = (k .= v $ opts :: [A.Pair])
 
 parseField :: FromJSONPB a
            => A.Object -> Text -> A.Parser a
