@@ -744,7 +744,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   --
   -- The interested reader is invited to verify that this transformation is
   -- correct, which should be an enlightening exercise in program calculation.
-  let oneofCaseE retJsonCtor oneofName (OneofField typeName subfields) =
+  let oneofCaseE retJsonCtor (OneofField typeName subfields) =
           apply liftBool [noInline, yesInline, inlineOrNot, caseExpr]
         where
           liftBool = HsParen $
@@ -794,7 +794,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
                      (HsUnGuardedAlt memptyE)
                      []
 
-  let patBinder = onQF (const fieldBinder) (const (oneofSubDisjunctBinder . subfields))
+  let patBinder = onQF (const fieldBinder) (oneofSubDisjunctBinder . subfields)
   let applyE nm = apply (HsVar (jsonpbName nm)) [ HsList (onQF defPairE (oneofCaseE nm) <$> qualFields) ]
 
   let matchE nm appNm = match_ (HsIdent nm)
@@ -825,27 +825,24 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   --   , Just . SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid")
   --   , pure Nothing
   --   ]
-  let oneofParserE oneofName (OneofField oneofType fields) =
-          HsApp (apply (HsVar (jsonpbName "withObject")) [ oneofTyLit, objToParser ])
-                (HsVar (unqual_ "obj"))
+  let oneofParserE (OneofField oneofType fields) = objToParser
         where
           oneofTyLit = HsLit (HsString oneofType)
-          -- TODO fix "obj" name shadowing
           objToParser = HsParen $
               HsLet [ HsFunBind [ match_ (HsIdent bndNameStr) [HsPVar (HsIdent "obj")]
-                                         (HsUnGuardedRhs tryParseDisjunctsE) [] ]
+                                         (HsUnGuardedRhs tryParseDisjunctsE) []
                                 ]
-                    (apply tryParse [parseWrapped, parseUnwrapped])
+                    ]
+                    (HsInfixApp parseWrapped altOp parseUnwrapped)
             where
               bndNameStr = "read" <> oneofType
               bndName    = HsVar (unqual_ bndNameStr)
-              tryParse   = HsParen (HsApp (HsVar (haskellName "liftA2"))
-                                          (HsParen (HsVar (unqual_ "<|>")))) -- no way to do a complete section
-              parseWrapped = HsParen (HsInfixApp (HsRightSection parseJSONPBOp oneofTyLit)
-                                                 kleisliROp
-                                                 bndName
-                                     )
-              parseUnwrapped = HsParen bndName
+              parseWrapped = HsParen $
+                HsInfixApp (HsParen (HsInfixApp (HsVar (unqual_ "obj")) parseJSONPBOp oneofTyLit))
+                                    bindOp
+                                    (apply (HsVar (jsonpbName "withObject")) [ oneofTyLit , bndName ])
+
+              parseUnwrapped = HsParen (HsApp bndName (HsVar (unqual_ "obj")))
 
           tryParseDisjunctsE = HsApp msumE (HsList (map subParserE fields <> fallThruE))
             where
@@ -973,11 +970,11 @@ getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
 
 -- | Project qualified fields, given a projection function per field type.
 onQF :: (FieldName -> FieldNumber -> a) -- ^ projection for normal fields
-     -> (FieldName -> OneofField -> a)  -- ^ projection for oneof fields
+     -> (OneofField -> a)               -- ^ projection for oneof fields
      -> QualifiedField
      -> a
 onQF f _ (QualifiedField _ (FieldNormal fldName fldNum _ _)) = f fldName fldNum
-onQF _ g (QualifiedField fldName (FieldOneOf fld))           = trace ("fieldName is " <> show fldName) $ g fldName fld
+onQF _ g (QualifiedField _ (FieldOneOf fld))                 = g fld
 
 fieldBinder :: FieldNumber -> String
 fieldBinder = ("f" ++) . show
@@ -1449,8 +1446,11 @@ fmapOp  = HsQVarOp (UnQual (HsSymbol "<$>"))
 composeOp :: HsQOp
 composeOp = HsQVarOp (Qual haskellNS (HsSymbol "."))
 
-kleisliROp :: HsQOp
-kleisliROp = HsQVarOp (Qual haskellNS (HsSymbol ">=>"))
+bindOp :: HsQOp
+bindOp = HsQVarOp (Qual haskellNS (HsSymbol ">>="))
+
+altOp :: HsQOp
+altOp = HsQVarOp (UnQual (HsSymbol "<|>"))
 
 toJSONPBOp :: HsQOp
 toJSONPBOp = HsQVarOp (UnQual (HsSymbol ".="))
@@ -1543,6 +1543,7 @@ defaultImports usesGrpc =
                               ]
                       )
                 )
+  , importDecl_ controlApplicativeM       True  (Just haskellNS) Nothing
   , importDecl_ controlMonadM             True  (Just haskellNS) Nothing
   , importDecl_ dataTextM                 True
                 (Just haskellNS) (Just (False, [ importSym "Text" ]))
