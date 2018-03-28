@@ -164,12 +164,6 @@ obj .: key = obj .:? key A..!= def
   where
     (.:?) = A.explicitParseFieldMaybe parseJSONPB
 
-
---foo :: (HasDefault v, ToJSONPB v) => Text -> v -> Options -> ???
--- foo :: _
--- foo k v opts | optEmitInlinedOneof opts = v
---              | otherwise = (k .= v $ opts :: [A.Pair])
-
 parseField :: FromJSONPB a
            => A.Object -> Text -> A.Parser a
 parseField = A.explicitParseField parseJSONPB
