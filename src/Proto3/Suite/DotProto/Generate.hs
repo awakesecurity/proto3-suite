@@ -734,8 +734,14 @@ toJSONPBOneofInstD _ctxt parentName oneofIdent oneofFields = do
   let patBinder = onQF (const fieldBinder) (const (oneofSubDisjunctBinder . subfields))
 -- FIXME this is very hacky but there should only be one thing in the list
 -- generate this:
--- (liftA3 bool <$> ("MyMessageFooOrBarOrBaz" .=) <*> pure <*> pure optEmitInlinedOneof )) CASEEXPR
--- (liftA3 (liftA3 bool) ("MyMessageFooOrBarOrBaz" .=) pure (pure optEmitInlinedOneof) )) CASEEXPR
+-- (liftA3 bool
+--    <$> ((flip ("MyMessageFooOrBarOrBaz" .=) <*>) . PB.object . pure)
+--    <*> id <*> pure optEmitInlinedOneof ) (CASEEXPR :: Option -> JSON)
+-- ==>
+-- (liftA3 (liftA3 bool))
+--    ((flip ("MyMessageFooOrBarOrBaz" .=) <*>) . PB.object . pure)
+--  id (pure optEmitInlinedOneof) ))
+--  CASEEXPR
   let applyE nm = apply (HsVar (jsonpbName nm)) [ HsList (map doChoose altFlds) ]
         where
           altFlds     = fromMaybe mempty (traverse (onQF ignoreNormals oneofCaseE) qualFields)
@@ -745,8 +751,17 @@ toJSONPBOneofInstD _ctxt parentName oneofIdent oneofFields = do
                           (HsApp (HsVar (haskellName "liftA3"))
                                  (HsParen (HsApp (HsVar (haskellName "liftA3"))
                                           (HsVar (haskellName "bool")))))
-          noInline    = HsLeftSection (HsLit (HsString (coerce msgName))) toJSONPBOp
-          yesInline   = HsVar (haskellName "pure")
+          noInline    = HsParen $
+           HsInfixApp
+              (HsInfixApp (HsParen
+                             (HsLeftSection
+                               (HsApp (HsVar (haskellName "flip"))
+                                      (HsLeftSection (HsLit (HsString (coerce msgName))) toJSONPBOp))
+                               apOp))
+                        composeOp (HsVar (jsonpbName nm)))
+                        composeOp (HsVar (haskellName "pure"))
+
+          yesInline   = HsParen (HsVar (haskellName "id"))
           inlineOrNot = HsParen
                           (HsApp (HsVar (haskellName "pure"))
                                  (HsVar (jsonpbName "optEmitInlinedOneof")))
