@@ -738,6 +738,7 @@ toJSONPBOneofInstD _ctxt parentName oneofIdent oneofFields = do
 -- (liftA3 (liftA3 bool) ("MyMessageFooOrBarOrBaz" .=) pure (pure optEmitInlinedOneof) )) CASEEXPR
   let applyE nm = apply (HsVar (jsonpbName nm)) [ HsList (map doChoose altFlds) ]
         where
+          altFlds     = fromMaybe mempty (traverse (onQF ignoreNormals oneofCaseE) qualFields)
           doChoose    = HsApp choose . HsParen
           choose      = HsApp (HsApp (HsApp liftBool noInline) yesInline) inlineOrNot
           liftBool    = HsParen
@@ -749,7 +750,6 @@ toJSONPBOneofInstD _ctxt parentName oneofIdent oneofFields = do
           inlineOrNot = HsParen
                           (HsApp (HsVar (haskellName "pure"))
                                  (HsVar (jsonpbName "optEmitInlinedOneof")))
-          altFlds = fromMaybe mempty (traverse (onQF ignoreNormals oneofCaseE) qualFields)
 
   let matchE nm appNm = match_ (HsIdent nm)
                           [ HsPApp (unqual_ msgName)
@@ -795,10 +795,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   --   Nothing
   --     -> mempty
   let oneofCaseE oneofName (OneofField subfields) =
-        HsInfixApp (HsLit (HsString (coerce oneofName)))
-                   toJSONPBOp
-                   (HsVar (unqual_ (oneofSubDisjunctBinder subfields)))  -- (unqual_ (fieldBinder fldNum)))
---          defPairE oneofName (oneofSubDisjunctBinder subfields)
+        HsVar (unqual_ (oneofSubDisjunctBinder subfields))
 
   let patBinder = onQF (const fieldBinder) (const (oneofSubDisjunctBinder . subfields))
   let applyE nm = apply (HsVar (jsonpbName nm)) [ HsList (onQF defPairE oneofCaseE <$> qualFields) ]
