@@ -864,6 +864,12 @@ fromJSONPBOneofInstD _ctxt parentName oneofIdent oneofFields = do
   msgName <- prefixedConName parentName =<< dpIdentUnqualName oneofIdent
   qualFields <- getQualifiedFieldsOneof parentName oneofIdent oneofFields
   let ignoreNormals _ _ = Nothing
+  -- E.g., for message Something{ oneof name_or_id { string name = _; int32 someid = _; } }:
+  -- Hs.msum
+  --   [ Just . SomethingPickOneName   <$> (HsJSONPB.parseField obj "name")
+  --   , Just . SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid")
+  --   , pure Nothing
+  --   ]
   let oneofParserE oneofName fld =
           Just $ HsApp msumE (HsList ((subParserEs <> fallThruE) fld))
         where
@@ -881,11 +887,9 @@ fromJSONPBOneofInstD _ctxt parentName oneofIdent oneofFields = do
                                 [ HsVar (unqual_ "obj")
                                 , HsLit (HsString (coerce subfieldName))
                                 ])
+
   let parseJSONPBE =
-        apply (HsVar (jsonpbName "withObject"))
-              [ msgNameLit
-              , objToParser
-              ]
+          apply (HsVar (jsonpbName "withObject")) [ msgNameLit, objToParser ]
         where
           msgNameLit = HsLit (HsString msgName)
           objToParser = let bndNameStr = "read" <> msgName
@@ -924,29 +928,7 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   msgName    <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
   qualFields <- getQualifiedFields msgName messageParts
 
-  -- E.g., for message Something{ oneof name_or_id { string name = _; int32 someid = _; } }:
-  -- Hs.msum
-  --   [ Just . SomethingPickOneName   <$> (HsJSONPB.parseField obj "name")
-  --   , Just . SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid")
-  --   , pure Nothing
-  --   ]
-  let oneofParserE oneofName fld =
-        HsApp msumE (HsList ((subParserEs <> fallThruE) fld))
-        where
-          fallThruE OneofField{}
-            = [ HsApp pureE (HsVar (haskellName "Nothing")) ]
-          subParserEs OneofField{subfields}
-            = subParserE <$> subfields
-          subParserE OneofSubfield{subfieldConsName, subfieldName}
-            = HsInfixApp (HsInfixApp
-                            (HsVar (haskellName "Just"))
-                            composeOp
-                            (HsVar (unqual_ subfieldConsName)))
-                         fmapOp
-                         (apply (HsVar (jsonpbName "parseField"))
-                                [ HsVar (unqual_ "obj")
-                                , HsLit (HsString (coerce subfieldName))
-                                ])
+  let oneofParserE _ _ = HsApp (HsVar (unqual_ "parseJSONPB")) (HsVar (unqual_ "obj"))
 
   -- E.g. obj .: "someid"
   let normalParserE fldNm _ =
