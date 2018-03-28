@@ -748,7 +748,7 @@ toJSONPBOneofInstD _ctxt parentName oneofIdent oneofFields = do
           yesInline   = HsVar (haskellName "pure")
           inlineOrNot = HsParen
                           (HsApp (HsVar (haskellName "pure"))
-                                 (HsVar (unqual_ "optEmitInlinedOneof")))
+                                 (HsVar (jsonpbName "optEmitInlinedOneof")))
           altFlds = fromMaybe mempty (traverse (onQF ignoreNormals oneofCaseE) qualFields)
 
   let matchE nm appNm = match_ (HsIdent nm)
