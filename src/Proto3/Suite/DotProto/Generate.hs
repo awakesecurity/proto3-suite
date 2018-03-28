@@ -977,10 +977,6 @@ getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
   _ ->
     pure Nothing
 
-getQualifiedFieldsOneof :: String -> DotProtoIdentifier -> [DotProtoField] -> CompileResult [QualifiedField]
-getQualifiedFieldsOneof msgName oneofIdent fields =
-  getQualifiedFields msgName [DotProtoMessageOneOf oneofIdent fields]
-
 -- | Project qualified fields, given a projection function per field type.
 onQF :: (FieldName -> FieldNumber -> a) -- ^ projection for normal fields
      -> (FieldName -> OneofField -> a)  -- ^ projection for oneof fields
