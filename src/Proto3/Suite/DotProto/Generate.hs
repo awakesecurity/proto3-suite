@@ -30,8 +30,6 @@ module Proto3.Suite.DotProto.Generate
   , typeLikeName
   ) where
 
-import Debug.Trace
-
 import           Control.Applicative
 import           Control.Arrow                  ((&&&), first)
 import           Control.Monad.Except
@@ -718,10 +716,6 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
               [ HsLit (HsString (coerce fldNm))
               , HsVar (unqual_ varNm)
               ]
-
-  let
---    getOneofTyName :: FieldName -> CompileResult String
-    getOneofTyName = prefixedConName msgName <=< dpIdentUnqualName
 
   -- Note: [Generating eta-reduced code]
   -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
