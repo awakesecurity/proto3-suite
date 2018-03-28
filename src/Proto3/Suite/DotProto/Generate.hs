@@ -553,8 +553,11 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                       oneOfCons DotProtoEmptyField =
                           internalError "field type : empty field"
                   cons <- mapM oneOfCons fields
+                  toJSONPBInst <- toJSONPBOneofInstD ctxt' messageName identifier fields
+
                   pure [ dataDecl_ fullName cons defaultMessageDeriving
                        , namedInstD fullName
+                       , toJSONPBInst
                        , toJSONInstDecl fullName
                        , fromJSONInstDecl fullName
                        , toSchemaInstDecl fullName
@@ -692,6 +695,61 @@ messageInstD ctxt parentIdent msgIdent messageParts =
 
 -- *** Generate ToJSONPB/FromJSONPB instances
 
+toJSONPBOneofInstD :: TypeContext
+                   -> String
+                   -> DotProtoIdentifier
+                   -> [DotProtoField]
+                   -> CompileResult HsDecl
+toJSONPBOneofInstD _ctxt parentName oneofIdent oneofFields = do
+  msgName <- prefixedConName parentName =<< dpIdentUnqualName oneofIdent
+  qualFields <- getQualifiedFieldsOneof parentName oneofIdent oneofFields
+  let ignoreNormals _ _ = Nothing
+  -- E.g.
+  -- HsJSONPB.pair "name" f4 -- fails on missing field
+  let pairE fldNm varNm =
+        apply (HsVar (jsonpbName "pair"))
+              [ HsLit (HsString (coerce fldNm))
+              , HsVar (unqual_ varNm)
+              ]
+
+  let oneofCaseE oneofName (OneofField subfields) =
+        Just $ HsCase disjunctName (altEs <> pure fallThruE)
+        where
+          altEs =
+            [ let patVarNm = oneofSubBinder sub in
+              alt_ (HsPApp (haskellName "Just")
+                           [ HsPParen
+                             $ HsPApp (unqual_ conName) [patVar patVarNm]
+                           ]
+                   )
+                   (HsUnGuardedAlt (pairE pbFldNm patVarNm))
+                   []
+            | sub@(OneofSubfield _ conName pbFldNm _ _) <- subfields
+            ]
+          disjunctName = HsVar (unqual_ (oneofSubDisjunctBinder subfields))
+          fallThruE =
+            alt_ (HsPApp (haskellName "Nothing") [])
+                 (HsUnGuardedAlt memptyE)
+                 []
+  let patBinder = onQF (const fieldBinder) (const (oneofSubDisjunctBinder . subfields))
+-- FIXME this is very hacky but there should only be one thing in the list
+  let applyE nm = apply (HsVar (jsonpbName nm)) [ HsList (map mkJsonKVMapping altFlds) ]
+        where
+          mkJsonKVMapping = HsInfixApp (HsLit (HsString (coerce msgName))) toJSONPBOp
+          altFlds = fromMaybe mempty (traverse (onQF ignoreNormals oneofCaseE) qualFields)
+
+  let matchE nm appNm = match_ (HsIdent nm)
+                          [ HsPApp (unqual_ msgName)
+                                   (patVar . patBinder  <$> qualFields) ]
+                          (HsUnGuardedRhs (applyE appNm))
+                          []
+
+  pure (instDecl_ (jsonpbName "ToJSONPB")
+                  [ type_ msgName ]
+                  [ HsFunBind [matchE "toJSONPB" "object"]
+                  , HsFunBind [matchE "toEncodingPB" "pairs"]
+                  ])
+
 toJSONPBMessageInstD :: TypeContext
                      -> DotProtoIdentifier
                      -> DotProtoIdentifier
@@ -724,24 +782,10 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   --   Nothing
   --     -> mempty
   let oneofCaseE oneofName (OneofField subfields) =
-        HsCase disjunctName (altEs <> pure fallThruE)
-        where
-          altEs =
-            [ let patVarNm = oneofSubBinder sub in
-              alt_ (HsPApp (haskellName "Just")
-                           [ HsPParen
-                             $ HsPApp (unqual_ conName) [patVar patVarNm]
-                           ]
-                   )
-                   (HsUnGuardedAlt (pairE pbFldNm patVarNm))
-                   []
-            | sub@(OneofSubfield _ conName pbFldNm _ _) <- subfields
-            ]
-          disjunctName = HsVar (unqual_ (oneofSubDisjunctBinder subfields))
-          fallThruE =
-            alt_ (HsPApp (haskellName "Nothing") [])
-                 (HsUnGuardedAlt memptyE)
-                 []
+        HsInfixApp (HsLit (HsString (coerce oneofName)))
+                   toJSONPBOp
+                   (HsVar (unqual_ (oneofSubDisjunctBinder subfields)))  -- (unqual_ (fieldBinder fldNum)))
+--          defPairE oneofName (oneofSubDisjunctBinder subfields)
 
   let patBinder = onQF (const fieldBinder) (const (oneofSubDisjunctBinder . subfields))
   let applyE nm = apply (HsVar (jsonpbName nm)) [ HsList (onQF defPairE oneofCaseE <$> qualFields) ]
@@ -886,18 +930,22 @@ getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
       QualifiedField (coerce qualName) (FieldNormal (coerce fieldName) fieldNum dpType options)
   DotProtoMessageOneOf _ [] ->
     Left (InternalError "getQualifiedFields: encountered oneof with no oneof fields")
-  DotProtoMessageOneOf fieldIdent fields -> do
-    fieldName  <- dpIdentUnqualName fieldIdent >>= prefixedFieldName msgName
-    consName   <- dpIdentUnqualName fieldIdent >>= prefixedConName msgName
+  DotProtoMessageOneOf oneofIdent fields -> do
+    oneofName  <- dpIdentUnqualName oneofIdent >>= prefixedFieldName msgName
+    consName   <- dpIdentUnqualName oneofIdent >>= prefixedConName msgName
     fieldElems <- sequence
                     [ do s <- dpIdentUnqualName subFieldName
                          c <- prefixedConName consName s
                          pure (OneofSubfield fieldNum c (coerce s) dpType options)
                     | DotProtoField fieldNum dpType subFieldName options _ <- fields
                     ]
-    pure $ Just $ QualifiedField (coerce fieldName) (FieldOneOf (OneofField fieldElems))
+    pure $ Just $ QualifiedField (coerce oneofName) (FieldOneOf (OneofField fieldElems))
   _ ->
     pure Nothing
+
+getQualifiedFieldsOneof :: String -> DotProtoIdentifier -> [DotProtoField] -> CompileResult [QualifiedField]
+getQualifiedFieldsOneof msgName oneofIdent fields =
+  getQualifiedFields msgName [DotProtoMessageOneOf oneofIdent fields]
 
 -- | Project qualified fields, given a projection function per field type.
 onQF :: (FieldName -> FieldNumber -> a) -- ^ projection for normal fields
