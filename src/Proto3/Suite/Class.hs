@@ -612,7 +612,8 @@ class Message a where
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy a -> DotProtoDefinition
-message = DotProtoMessage <$> (Single . nameOf) <*> (fmap DotProtoMessageField . dotProto)
+message proxy = DotProtoMessage (Single $ nameOf proxy)
+                                (DotProtoMessageField <$> dotProto proxy)
 
 -- * Generic Instances
 

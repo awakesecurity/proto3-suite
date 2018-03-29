@@ -717,7 +717,7 @@ messageInstD ctxt parentIdent msgIdent messageParts =
             FieldNormal _fieldName fieldNum dpType options ->
                 do fieldE <- wrapE ctxt dpType options recordFieldName'
                    pure (apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ])
-            FieldOneOf (OneofField _ subfields) ->
+            FieldOneOf OneofField{subfields} ->
                 do -- Create all pattern match & expr for each constructor:
                    --    Constructor y -> encodeMessageField num (Nested (Just y)) -- for embedded messages
                    --    Constructor y -> encodeMessageField num (ForceEmit y)     -- for everything else
