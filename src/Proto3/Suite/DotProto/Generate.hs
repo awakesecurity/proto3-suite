@@ -977,11 +977,10 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
               fallThruE
                 = [ HsApp pureE (HsParen (HsApp pureE (HsVar (haskellName "Nothing")))) ]
               subParserE OneofSubfield{subfieldConsName, subfieldName}
-                = HsApp (HsApp fmapE (HsParen (HsApp fmapE (HsParen (HsInfixApp
-                                                           (HsVar (haskellName "Just"))
-                                                           composeOp
-                                                           (HsVar (unqual_ subfieldConsName)))))))
-
+                = HsApp (HsApp fmapE (HsParen (HsApp fmapE
+                           (HsParen (HsInfixApp (HsVar (haskellName "Just"))
+                                                composeOp
+                                                (HsVar (unqual_ subfieldConsName)))))))
                         (apply (HsVar (haskellName "flip"))
                                [ HsVar (jsonpbName "parseField")
                                , HsLit (HsString (coerce subfieldName))])
