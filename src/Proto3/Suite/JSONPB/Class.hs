@@ -110,7 +110,7 @@ instance ToJSONPB A.Value where
   toEncodingPB v _ = E.value v
 
 instance ToJSONPB A.Encoding where
-  toJSONPB e _ = fromJust . A.decode . Builder.toLazyByteString . E.fromEncoding $ e
+  toJSONPB e _ = fromMaybe A.Null . A.decode . Builder.toLazyByteString . E.fromEncoding $ e
   toEncodingPB e _ = e
 
 -- | 'A.FromJSON' variant for JSONPB decoding from the 'A.Value' IR

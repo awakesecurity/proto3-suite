@@ -584,8 +584,13 @@ decodePacked
   :: Parser RawPrimitive [a]
   -> Parser RawField (PackedVec a)
 decodePacked = Parser
-             . fmap (fmap (fromList . join . F.toList))
-             . TR.traverse . runParser
+             . fmap (fmap pack)
+             . TR.traverse
+             . runParser
+  where
+    pack :: forall a. Seq [a] -> PackedVec a
+    pack = fromList . join . F.toList
+
 
 -- | This class captures those types which correspond to protocol buffer messages.
 class Message a where

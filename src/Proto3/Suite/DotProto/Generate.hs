@@ -945,12 +945,6 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
   let lambdaPVar = patVar "obj"
   let lambdaVar  = HsVar (unqual_ "obj")
-  -- E.g., for message Something{ oneof name_or_id { string name = _; int32 someid = _; } }:
-  -- Hs.msum
-  --   [ Just . SomethingPickOneName   <$> (HsJSONPB.parseField obj "name")
-  --   , Just . SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid")
-  --   , pure Nothing
-  --   ]
   let oneofParserE (OneofField oneofType fields) = objToParser
         where
           oneofTyLit = HsLit (HsString oneofType)
@@ -970,6 +964,14 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
               parseUnwrapped = HsParen (HsApp bndName lambdaVar)
 
+          -- E.g., for message Something{ oneof name_or_id { string name = _; int32 someid = _; } }:
+          -- parseNameOrId =
+          --   fmap Hs.msum
+          --     (Hs.sequence
+          --        [ fmap (Just . SomethingPickOneName) <$> (`HsJSONPB.parseField` "name")
+          --        , fmap (Just . SomethingPickOneSomeid) <$> (`HsJSONPB.parseField` "someid")
+          --        , pure (pure Nothing)
+          --        ])
           tryParseDisjunctsE = HsApp (HsApp fmapE msumE)
                                      (HsParen (HsApp (HsVar (haskellName "sequence"))
                                                      (HsList (map subParserE fields <> fallThruE))))
