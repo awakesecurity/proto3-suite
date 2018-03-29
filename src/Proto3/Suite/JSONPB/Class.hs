@@ -194,7 +194,22 @@ instance HasDefault A.Value where
 data Options = Options
   { optEmitDefaultValuedFields :: Bool
   , optEmitInlinedOneof :: Bool
-  -- ^ for compatibility with Go JSONPB.
+  -- ^ For compatibility with Go JSONPB.
+  --
+  -- If 'True', the following message will be serialized as:
+  --
+  -- > message MyMessage {
+  -- >   oneof Animal {
+  -- >     Cat x = 1;
+  -- >     Dog y = 2;
+  -- >   }
+  -- > }
+  --
+  -- > MyMessage (Animal (Cat "Simba")) => { "cat": "Simba" }
+  --
+  -- instead of
+  --
+  -- > MyMessage (Animal (Cat "Simba")) => { "animal": { "cat": "Simba" } }
   } deriving Show
 
 -- | Default options for JSONPB encoding. By default, all options are @False@.
