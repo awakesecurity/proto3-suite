@@ -1074,9 +1074,9 @@ getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
       QualifiedField (coerce qualName) (FieldNormal (coerce fieldName) fieldNum dpType options)
   DotProtoMessageOneOf _ [] ->
     throwError (InternalError "getQualifiedFields: encountered oneof with no oneof fields")
-  DotProtoMessageOneOf fieldIdent fields -> do
-    fieldName  <- dpIdentUnqualName fieldIdent >>= prefixedFieldName msgName
-    oneofTypeName   <- dpIdentUnqualName fieldIdent >>= prefixedConName msgName
+  DotProtoMessageOneOf oneofIdent fields -> do
+    oneofName  <- dpIdentUnqualName oneofIdent >>= prefixedFieldName msgName
+    oneofTypeName   <- dpIdentUnqualName oneofIdent >>= prefixedConName msgName
     fieldElems <- sequence
                     [ do s <- dpIdentUnqualName subFieldName
                          c <- prefixedConName oneofTypeName s
@@ -1250,8 +1250,8 @@ dotProtoEnumD parentIdent enumIdent enumParts =
                  dpIdentUnqualName enumIdent
 
      enumCons <- sortBy (comparing fst) <$>
-                 sequence [ (i,) <$> (fmap (prefixedEnumFieldName enumName)
-                                      (dpIdentUnqualName conIdent))
+                 sequence [ (i,) . prefixedEnumFieldName enumName
+                               <$> dpIdentUnqualName conIdent
                           | DotProtoEnumField conIdent i _options <- enumParts ]
 
      let enumNameE = HsLit (HsString enumName)
