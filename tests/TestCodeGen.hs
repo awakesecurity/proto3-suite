@@ -15,7 +15,7 @@ import           Proto3.Suite
 import           Proto3.Suite.DotProto.Generate
 import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  ToJSONPB (..), eitherDecode,
-                                                 encode, defaultOptions)
+                                                 encode, defaultOptions, jsonPBOptions)
 import           System.Exit
 import           Test.Tasty
 import           Test.Tasty.HUnit               (testCase, (@?=))
@@ -142,11 +142,11 @@ compileTestDotProtos = do
 -- $setup
 -- >>> import qualified Data.Text.Lazy as TL
 -- >>> import qualified Data.Vector    as V
--- >>> import Proto3.Suite.JSONPB (defaultOptions)
+-- >>> import Proto3.Suite.JSONPB
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XOverloadedLists
--- >>> let omitDefaults = defaultOptions
--- >>> let emitDefaults = defaultOptions{ optEmitDefaultValuedFields = True }
+-- >>> let jsonPB = jsonPBOptions
+-- >>> let json = defaultOptions
 
 -- | Round-trip tests
 -- prop> roundTrip (x :: Trivial)
@@ -166,19 +166,19 @@ compileTestDotProtos = do
 -- prop> roundTrip (x :: WithImported)
 
 -- | Specific encoding tests
--- prop> encodesAs omitDefaults (MultipleFields 0 0 0 0 "" False)                                                         "{}"
--- prop> encodesAs emitDefaults (MultipleFields 0 2.0 0 0 "" True)                                                        "{\"multiFieldDouble\":0.0,\"multiFieldFloat\":2.0,\"multiFieldInt32\":0,\"multiFieldInt64\":\"0\",\"multiFieldString\":\"\",\"multiFieldBool\":true}"
--- prop> encodesAs omitDefaults (SignedInts minBound minBound)                                                            "{\"signed32\":-2147483648,\"signed64\":\"-9223372036854775808\"}"
--- prop> encodesAs omitDefaults (SignedInts maxBound maxBound)                                                            "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}"
--- prop> encodesAs omitDefaults (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))                                    "{}"
+-- prop> encodesAs jsonPB (MultipleFields 0 0 0 0 "" False)                                                         "{}"
+-- prop> encodesAs json   (MultipleFields 0 2.0 0 0 "" True)                                                        "{\"multiFieldDouble\":0.0,\"multiFieldFloat\":2.0,\"multiFieldInt32\":0,\"multiFieldInt64\":\"0\",\"multiFieldString\":\"\",\"multiFieldBool\":true}"
+-- prop> encodesAs jsonPB (SignedInts minBound minBound)                                                            "{\"signed32\":-2147483648,\"signed64\":\"-9223372036854775808\"}"
+-- prop> encodesAs jsonPB (SignedInts maxBound maxBound)                                                            "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}"
+-- prop> encodesAs jsonPB (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))                                    "{}"
 -- prop> encodesAs emitDefaults (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))                                    "{\"enumField\":\"ENUM1\"}"
--- prop> encodesAs omitDefaults (WithEnum (Enumerated (Right WithEnum_TestEnumENUM3)))                                    "{\"enumField\":\"ENUM3\"}"
--- prop> encodesAs omitDefaults (WithNesting $ Just $ WithNesting_Nested "" 0 [1,2] [66,99])                              "{\"nestedMessage\":{\"nestedPacked\":[1,2],\"nestedUnpacked\":[66,99]}}"
--- prop> encodesAs omitDefaults (Something 42 99 (Just (SomethingPickOneName "")))                                        "{\"value\":\"42\",\"another\":99,\"name\":\"\"}"
--- prop> encodesAs omitDefaults (Something 42 99 (Just (SomethingPickOneSomeid 0)))                                       "{\"value\":\"42\",\"another\":99,\"someid\":0}"
--- prop> encodesAs omitDefaults (Something 42 99 (Just (SomethingPickOneDummyMsg1 (DummyMsg 66))))                        "{\"value\":\"42\",\"another\":99,\"dummyMsg1\":{\"dummy\":66}}"
--- prop> encodesAs omitDefaults (Something 42 99 (Just (SomethingPickOneDummyMsg2 (DummyMsg 67))))                        "{\"value\":\"42\",\"another\":99,\"dummyMsg2\":{\"dummy\":67}}"
--- prop> encodesAs omitDefaults (Something 42 99 (Just (SomethingPickOneDummyEnum (Enumerated (Right DummyEnumDUMMY0))))) "{\"value\":\"42\",\"another\":99,\"dummyEnum\":\"DUMMY0\"}"
+-- prop> encodesAs jsonPB (WithEnum (Enumerated (Right WithEnum_TestEnumENUM3)))                                    "{\"enumField\":\"ENUM3\"}"
+-- prop> encodesAs jsonPB (WithNesting $ Just $ WithNesting_Nested "" 0 [1,2] [66,99])                              "{\"nestedMessage\":{\"nestedPacked\":[1,2],\"nestedUnpacked\":[66,99]}}"
+-- prop> encodesAs jsonPB (Something 42 99 (Just (SomethingPickOneName "")))                                        "{\"value\":\"42\",\"another\":99,\"name\":\"\"}"
+-- prop> encodesAs jsonPB (Something 42 99 (Just (SomethingPickOneSomeid 0)))                                       "{\"value\":\"42\",\"another\":99,\"someid\":0}"
+-- prop> encodesAs jsonPB (Something 42 99 (Just (SomethingPickOneDummyMsg1 (DummyMsg 66))))                        "{\"value\":\"42\",\"another\":99,\"dummyMsg1\":{\"dummy\":66}}"
+-- prop> encodesAs jsonPB (Something 42 99 (Just (SomethingPickOneDummyMsg2 (DummyMsg 67))))                        "{\"value\":\"42\",\"another\":99,\"dummyMsg2\":{\"dummy\":67}}"
+-- prop> encodesAs jsonPB (Something 42 99 (Just (SomethingPickOneDummyEnum (Enumerated (Right DummyEnumDUMMY0))))) "{\"value\":\"42\",\"another\":99,\"dummyEnum\":\"DUMMY0\"}"
 
 -- | Specific decoding tests
 -- prop> decodesAs "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}"   (SignedInts 2147483647 9223372036854775807)

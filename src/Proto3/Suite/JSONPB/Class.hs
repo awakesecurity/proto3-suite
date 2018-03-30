@@ -247,11 +247,11 @@ enumFieldEncoding :: forall a. (Named a, Show a) => a -> A.Encoding
 enumFieldEncoding = E.string . dropNamedPrefix (Proxy @a) . show
 
 -- | A 'Data.Aeson' 'A.Value' encoder for values which can be
--- JSONPB-encoded
+-- JSONPB-encoded.
 toAesonValue :: ToJSONPB a => a -> A.Value
 toAesonValue = flip toJSONPB defaultOptions
 
--- | A direct 'A.Encoding' for values which can be JSONPB-encoded
+-- | A direct 'A.Encoding' for values which can be JSONPB-encoded.
 toAesonEncoding :: ToJSONPB a => a -> A.Encoding
 toAesonEncoding = flip toEncodingPB defaultOptions
 

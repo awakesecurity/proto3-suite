@@ -9,6 +9,7 @@ module Proto3.Suite.JSONPB
     --   fields in JSON payloads)
   , Options(..)
   , defaultOptions
+  , jsonPBOptions
     -- * JSONPB codec entry points
   , eitherDecode
   , encode
