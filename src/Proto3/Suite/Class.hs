@@ -441,7 +441,7 @@ messageField ty packing = DotProtoField
     { dotProtoFieldNumber = fieldNumber 1
     , dotProtoFieldType = ty
     , dotProtoFieldName = Anonymous
-    , dotProtoFieldOptions = packingOption packing
+    , dotProtoFieldOptions = packingOption
     , dotProtoFieldComment = Nothing
     }
   where
@@ -451,14 +451,6 @@ messageField ty packing = DotProtoField
 
     isPacked DotProto.PackedField   = True
     isPacked DotProto.UnpackedField = False
-
-
--- [todo] what were these intended for?
--- primDotProto :: DotProtoMessagePart -> DotProtoDefinition
--- primDotProto field = DotProtoMessage generateMessagePartName [ field ]
-
--- generateMessagePartName :: DotProtoIdentifier
--- generateMessagePartName = Single ""
 
 instance MessageField Int32
 instance MessageField Int64
