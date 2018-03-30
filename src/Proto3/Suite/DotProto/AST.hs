@@ -160,8 +160,9 @@ instance Arbitrary DotProtoMeta where
   arbitrary = pure . DotProtoMeta . Path $ []
 
 -- | This data structure represents a .proto file
---   The actual source order of protobuf statements isn't meaningful so statements are sorted by type during parsing
---   A .proto file with more than one package declaration is considered invalid
+--   The actual source order of protobuf statements isn't meaningful so
+--   statements are sorted by type during parsing.
+--   A .proto file with more than one package declaration is considered invalid.
 data DotProto = DotProto
   { protoImports     :: [DotProtoImport]
   , protoOptions     :: [DotProtoOption]
@@ -214,7 +215,8 @@ data DotProtoPrimType
   | Bool
   | Float
   | Double
-  | Named DotProtoIdentifier -- ^ A named type, referring to another message or enum defined in the same file
+  | Named DotProtoIdentifier
+  -- ^ A named type, referring to another message or enum defined in the same file
   deriving (Show, Eq)
 
 instance Arbitrary DotProtoPrimType where
@@ -247,8 +249,9 @@ data Packing
 instance Arbitrary Packing where
   arbitrary = elements [PackedField, UnpackedField]
 
--- | This type is an almagamation of the modifiers used in types
---   It corresponds to a syntax role but not a semantic role, not all modifiers are meaningful in every type context
+-- | This type is an almagamation of the modifiers used in types.
+--   It corresponds to a syntax role but not a semantic role, not all modifiers
+--   are meaningful in every type context.
 data DotProtoType
   = Prim           DotProtoPrimType
   | Optional       DotProtoPrimType
@@ -292,7 +295,10 @@ instance Arbitrary Streaming where
 -- [refactor] add named accessors to ServiceRPC
 --            break this into two types
 data DotProtoServicePart
-  = DotProtoServiceRPC    DotProtoIdentifier (DotProtoIdentifier, Streaming) (DotProtoIdentifier, Streaming) [DotProtoOption]
+  = DotProtoServiceRPC    DotProtoIdentifier
+                          (DotProtoIdentifier, Streaming)
+                          (DotProtoIdentifier, Streaming)
+                          [DotProtoOption]
   | DotProtoServiceOption DotProtoOption
   | DotProtoServiceEmpty
   deriving (Show, Eq)
@@ -322,9 +328,9 @@ instance Arbitrary DotProtoServicePart where
 data DotProtoMessagePart
   = DotProtoMessageField DotProtoField
   | DotProtoMessageOneOf
-  { dotProtoOneOfName   :: DotProtoIdentifier
-  , dotProtoOneOfFields :: [DotProtoField]
-  }
+      { dotProtoOneOfName   :: DotProtoIdentifier
+      , dotProtoOneOfFields :: [DotProtoField]
+      }
   | DotProtoMessageDefinition DotProtoDefinition
   | DotProtoMessageReserved   [DotProtoReservedField]
   deriving (Show, Eq)

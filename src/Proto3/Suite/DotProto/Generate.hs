@@ -945,47 +945,63 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
   let lambdaPVar = patVar "obj"
   let lambdaVar  = HsVar (unqual_ "obj")
-  let oneofParserE (OneofField oneofType fields) = objToParser
+
+  -- E.g., for message
+  --   message Something { oneof name_or_id { string name = _; int32 someid = _; } }
+  --
+  -- ==>
+  --
+  -- (let parseSomethingNameOrId parseSomethingNameOrId_obj = <FUNCTION, see tryParseDisjunctsE>
+  --  in ((obj .: "SomethingNameOrId") Hs.>>=
+  --      (HsJSONPB.withObject "SomethingNameOrId" parseSomethingNameOrId))
+  --     <|>
+  --     (parseSomethingNameOrId obj)
+  -- )
+  let oneofParserE (OneofField oneofType fields) =
+          HsParen $
+            HsLet [ HsFunBind [ match_ (HsIdent letBndStr) [patVar letArgStr ]
+                                       (HsUnGuardedRhs tryParseDisjunctsE) []
+                              ]
+                  ]
+                  (HsInfixApp parseWrapped altOp parseUnwrapped)
         where
           oneofTyLit = HsLit (HsString oneofType)
-          objToParser = HsParen $
-              HsLet [ HsFunBind [ match_ (HsIdent bndNameStr) []
-                                         (HsUnGuardedRhs tryParseDisjunctsE) []
-                                ]
-                    ]
-                    (HsInfixApp parseWrapped altOp parseUnwrapped)
-            where
-              bndNameStr = "parse" <> oneofType
-              bndName    = HsVar (unqual_ bndNameStr)
-              parseWrapped = HsParen $
-                HsInfixApp (HsParen (HsInfixApp lambdaVar parseJSONPBOp oneofTyLit))
-                                    bindOp
-                                    (apply (HsVar (jsonpbName "withObject")) [ oneofTyLit , bndName ])
 
-              parseUnwrapped = HsParen (HsApp bndName lambdaVar)
+          letBndStr  = "parse" <> oneofType
+          letBndName = HsVar (unqual_ letBndStr)
+          letArgStr  = letBndStr <> "_obj"
+          letArgName = HsVar (unqual_ letArgStr)
 
-          -- E.g., for message Something{ oneof name_or_id { string name = _; int32 someid = _; } }:
-          -- parseNameOrId =
-          --   fmap Hs.msum
+          parseWrapped = HsParen $
+            HsInfixApp (HsParen (HsInfixApp lambdaVar parseJSONPBOp oneofTyLit))
+                       bindOp
+                       (apply (HsVar (jsonpbName "withObject")) [ oneofTyLit , letBndName ])
+
+          parseUnwrapped = HsParen (HsApp letBndName lambdaVar)
+
+          -- parseSomethingNameOrId parseSomethingNameOrId_obj =
+          --   Hs.msum
           --     (Hs.sequence
-          --        [ fmap (Just . SomethingPickOneName) <$> (`HsJSONPB.parseField` "name")
-          --        , fmap (Just . SomethingPickOneSomeid) <$> (`HsJSONPB.parseField` "someid")
-          --        , pure (pure Nothing)
+          --        [ (Just . SomethingPickOneName) <$> (HsJSONPB.parseField parseSomethingNameOrId_obj "name")
+          --        , (Just . SomethingPickOneSomeid) <$> (HsJSONPB.parseField parseSomethingNameOrId_obj "someid")
+          --        , pure Nothing
           --        ])
-          tryParseDisjunctsE = HsApp (HsApp fmapE msumE)
-                                     (HsParen (HsApp (HsVar (haskellName "sequence"))
-                                                     (HsList (map subParserE fields <> fallThruE))))
+          tryParseDisjunctsE =
+              HsApp msumE
+                    (HsParen (HsApp (HsVar (haskellName "sequence"))
+                                    (HsList (map subParserE fields <> fallThruE))))
             where
               fallThruE
-                = [ HsApp pureE (HsParen (HsApp pureE (HsVar (haskellName "Nothing")))) ]
+                = [ HsApp pureE (HsVar (haskellName "Nothing")) ]
               subParserE OneofSubfield{subfieldConsName, subfieldName}
-                = HsApp (HsApp fmapE (HsParen (HsApp fmapE
-                           (HsParen (HsInfixApp (HsVar (haskellName "Just"))
-                                                composeOp
-                                                (HsVar (unqual_ subfieldConsName)))))))
-                        (apply (HsVar (haskellName "flip"))
-                               [ HsVar (jsonpbName "parseField")
-                               , HsLit (HsString (coerce subfieldName))])
+                = HsInfixApp
+                    (HsInfixApp (HsVar (haskellName "Just"))
+                                composeOp
+                                (HsVar (unqual_ subfieldConsName)))
+                    fmapOp
+                    (apply (HsVar (jsonpbName "parseField"))
+                           [ letArgName
+                           , HsLit (HsString (coerce subfieldName))])
 
   -- E.g. obj .: "someid"
   let normalParserE fldNm _ =
