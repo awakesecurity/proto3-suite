@@ -842,7 +842,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   -- > toJSONPB (Bar foo more stuff) =
   -- >   HsJSONPB.object
   -- >     [ (\caseExpr option -> if optEmitInlinedOneof option
-  -- >                            then oneofCaseE option
+  -- >                            then caseExpr option
   -- >                            else PB.object ["Foo" .= (PB.object [caseExpr] option)] option
   -- >       ) (<case expr scrutinising foo> :: Options -> Value)
   -- >     , <do more>
