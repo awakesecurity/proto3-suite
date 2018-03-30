@@ -196,7 +196,7 @@ data Options = Options
   , optEmitInlinedOneof :: Bool
   -- ^ For compatibility with Go JSONPB.
   --
-  -- If 'True', the following message will be serialized as:
+  -- If 'True', the following message
   --
   -- > message MyMessage {
   -- >   oneof Animal {
@@ -205,11 +205,14 @@ data Options = Options
   -- >   }
   -- > }
   --
+  -- will be serialized as
+  --
   -- > MyMessage (Animal (Cat "Simba")) => { "cat": "Simba" }
   --
   -- instead of
   --
   -- > MyMessage (Animal (Cat "Simba")) => { "animal": { "cat": "Simba" } }
+  --
   } deriving Show
 
 -- | Default options for JSONPB encoding. By default, all options are @False@.
