@@ -193,10 +193,10 @@ instance HasDefault A.Value where
 
 data Options = Options
   { optEmitDefaultValuedFields :: Bool
-  , optEmitInlinedOneof :: Bool
+  , optEmitNamedOneof :: Bool
   -- ^ For compatibility with Go JSONPB.
   --
-  -- If 'True', the following message
+  -- If 'False', the following message
   --
   -- > message MyMessage {
   -- >   oneof Animal {
@@ -215,11 +215,18 @@ data Options = Options
   --
   } deriving Show
 
--- | Default options for JSONPB encoding. By default, all options are @False@.
+-- | Default options for JSON encoding. By default, all options are @True@.
 defaultOptions :: Options
 defaultOptions = Options
+  { optEmitDefaultValuedFields = True
+  , optEmitNamedOneof = True
+  }
+
+-- | Options for JSONPB encoding.
+jsonPBOptions :: Options
+jsonPBOptions = Options
   { optEmitDefaultValuedFields = False
-  , optEmitInlinedOneof = False
+  , optEmitNamedOneof = False
   }
 
 -- * Helper types and functions

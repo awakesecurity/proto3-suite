@@ -834,61 +834,40 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
               , HsVar (unqual_ varNm)
               ]
 
-  -- Note: [Generating eta-reduced code]
-  -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   -- Suppose we have a sum type Foo, nested inside a message Bar.
   -- We want to generate the following:
   --
   -- > toJSONPB (Bar foo more stuff) =
   -- >   HsJSONPB.object
-  -- >     [ (\caseExpr option -> if optEmitInlinedOneof option
-  -- >                            then caseExpr option
-  -- >                            else PB.object ["Foo" .= (PB.object [caseExpr] option)] option
-  -- >       ) (<case expr scrutinising foo> :: Options -> Value)
+  -- >     [ (let doFoo = (<case expr scrutinising foo> :: Options -> Value)
+  -- >        in \option -> if optEmitNamedOneof option
+  -- >                      then ("Foo" .= (PB.object [doFoo] option)) option
+  -- >                      else doFoo option
+  -- >       )
   -- >     , <do more>
   -- >     , <do stuff>
   -- >     ]
-  --
-  -- To avoid gensymming parameters for the lambda, we will instead generate the
-  -- following pointfree code.
-  --
-  -- > liftA3 bool
-  -- >   <$> ((flip ("Foo" .=) <*>) . PB.object . pure)
-  -- >   <*> id
-  -- >   <*> pure optEmitInlinedOneof
-  --
-  -- ==>
-  --
-  -- > (liftA3 (liftA3 bool))
-  -- >   ((flip ("Foo" .=) <*>) . PB.object . pure)
-  -- >   id
-  -- >   (pure optEmitInlinedOneof)
-  --
-  -- The interested reader is invited to verify that this transformation is
-  -- correct, which should be an enlightening exercise in program calculation.
   let oneofCaseE retJsonCtor (OneofField typeName subfields) =
-          apply liftBool [noInline, yesInline, inlineOrNot, caseExpr]
+          HsParen
+            $ HsLet [ HsFunBind [ match_ (HsIdent caseName) [] (HsUnGuardedRhs caseExpr) [] ] ]
+            $ HsLambda l [patVar optsStr] (HsIf dontInline noInline yesInline)
         where
-          liftBool = HsParen $
-              HsApp (HsVar (haskellName "liftA3"))
-                     (HsParen (HsApp (HsVar (haskellName "liftA3"))
-                              (HsVar (haskellName "bool"))))
+          optsStr = "options"
+          opts    = HsVar (unqual_ optsStr)
 
-          noInline = HsParen $
-              HsInfixApp
-                (HsInfixApp (HsParen
-                               (HsLeftSection
-                                 (HsApp (HsVar (haskellName "flip"))
-                                        (HsLeftSection (HsLit (HsString typeName)) toJSONPBOp))
-                                 apOp))
-                          composeOp (HsVar (jsonpbName retJsonCtor)))
-                          composeOp (HsVar (haskellName "pure"))
+          caseName = "do" <> typeName
+          caseBnd = HsVar (unqual_ caseName)
 
-          yesInline   = HsParen (HsVar (haskellName "id"))
+          dontInline = HsApp (HsVar (jsonpbName "optEmitNamedOneof")) opts
 
-          inlineOrNot = HsParen $
-              HsApp (HsVar (haskellName "pure"))
-                    (HsVar (jsonpbName "optEmitInlinedOneof"))
+          noInline = HsApp (HsParen (HsInfixApp (HsLit (HsString typeName))
+                                                toJSONPBOp
+                                                (apply (HsVar (jsonpbName retJsonCtor)) [ HsList [caseBnd], opts ])))
+                           opts
+
+          yesInline = HsApp caseBnd opts
+
+
           -- E.g.
           -- case f4_or_f9 of
           --   Just (SomethingPickOneName f4)
@@ -1715,8 +1694,6 @@ defaultImports usesGrpc =
   , importDecl_ dataTextM                 True
                 (Just haskellNS) (Just (False, [ importSym "Text" ]))
   , importDecl_ dataByteStringM           True  (Just haskellNS) Nothing
-  , importDecl_ dataBoolM               True  (Just haskellNS)
-                (Just (False, [ importSym "bool" ]))
   , importDecl_ dataStringM               True  (Just haskellNS)
                 (Just (False, [ importSym "fromString" ]))
   , importDecl_ dataVectorM               True  (Just haskellNS)
@@ -1748,7 +1725,6 @@ defaultImports usesGrpc =
         controlApplicativeM       = Module "Control.Applicative"
         controlMonadM             = Module "Control.Monad"
         dataTextM                 = Module "Data.Text.Lazy"
-        dataBoolM                 = Module "Data.Bool"
         dataByteStringM           = Module "Data.ByteString"
         dataStringM               = Module "Data.String"
         dataIntM                  = Module "Data.Int"
