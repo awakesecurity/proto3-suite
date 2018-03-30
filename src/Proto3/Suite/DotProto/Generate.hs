@@ -1628,7 +1628,7 @@ defaultImports usesGrpc =
                (Just (True, [ importSym "serverLoop" ]))
          , importDecl_ networkGrpcHighLevelServerUnregM False (Just grpcNS)
                (Just (False, [ importSym "serverLoop" ]))
-         , importDecl_ networkGrpcLowLevelCallM         False (Just grpcNS) Nothing  ]
+         ]
     else []
   where preludeM                  = Module "Prelude"
         dataProtobufWireDotProtoM = Module "Proto3.Suite.DotProto"
@@ -1650,7 +1650,6 @@ defaultImports usesGrpc =
         networkGrpcHighLevelServerM      = Module "Network.GRPC.HighLevel.Server"
         networkGrpcHighLevelClientM      = Module "Network.GRPC.HighLevel.Client"
         networkGrpcHighLevelServerUnregM = Module "Network.GRPC.HighLevel.Server.Unregistered"
-        networkGrpcLowLevelCallM         = Module "Network.GRPC.LowLevel.Call"
 
         grpcNS                    = Module "HsGRPC"
         jsonpbNS                  = Module "HsJSONPB"
