@@ -981,15 +981,12 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
           -- parseSomethingNameOrId parseSomethingNameOrId_obj =
           --   Hs.msum
-          --     (Hs.sequence
-          --        [ (Just . SomethingPickOneName) <$> (HsJSONPB.parseField parseSomethingNameOrId_obj "name")
-          --        , (Just . SomethingPickOneSomeid) <$> (HsJSONPB.parseField parseSomethingNameOrId_obj "someid")
-          --        , pure Nothing
-          --        ])
+          --     [ (Just . SomethingPickOneName) <$> (HsJSONPB.parseField parseSomethingNameOrId_obj "name")
+          --     , (Just . SomethingPickOneSomeid) <$> (HsJSONPB.parseField parseSomethingNameOrId_obj "someid")
+          --     , pure Nothing
+          --     ]
           tryParseDisjunctsE =
-              HsApp msumE
-                    (HsParen (HsApp (HsVar (haskellName "sequence"))
-                                    (HsList (map subParserE fields <> fallThruE))))
+              HsApp msumE (HsList (map subParserE fields <> fallThruE))
             where
               fallThruE
                 = [ HsApp pureE (HsVar (haskellName "Nothing")) ]
