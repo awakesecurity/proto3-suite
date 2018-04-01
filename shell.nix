@@ -1,1 +1,1 @@
-(import ./release.nix).proto3-suite-boot.env
+(import ./release.nix).proto3-suite.env

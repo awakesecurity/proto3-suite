@@ -171,7 +171,7 @@ compileTestDotProtos = do
 -- prop> encodesAs jsonPB (SignedInts minBound minBound)                                                            "{\"signed32\":-2147483648,\"signed64\":\"-9223372036854775808\"}"
 -- prop> encodesAs jsonPB (SignedInts maxBound maxBound)                                                            "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}"
 -- prop> encodesAs jsonPB (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))                                    "{}"
--- prop> encodesAs emitDefaults (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))                                    "{\"enumField\":\"ENUM1\"}"
+-- prop> encodesAs json   (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))                                    "{\"enumField\":\"ENUM1\"}"
 -- prop> encodesAs jsonPB (WithEnum (Enumerated (Right WithEnum_TestEnumENUM3)))                                    "{\"enumField\":\"ENUM3\"}"
 -- prop> encodesAs jsonPB (WithNesting $ Just $ WithNesting_Nested "" 0 [1,2] [66,99])                              "{\"nestedMessage\":{\"nestedPacked\":[1,2],\"nestedUnpacked\":[66,99]}}"
 -- prop> encodesAs jsonPB (Something 42 99 (Just (SomethingPickOneName "")))                                        "{\"value\":\"42\",\"another\":99,\"name\":\"\"}"
