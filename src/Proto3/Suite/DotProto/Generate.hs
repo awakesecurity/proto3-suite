@@ -931,8 +931,8 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   -- ==>
   --
   -- (let parseSomethingNameOrId parseSomethingNameOrId_obj = <FUNCTION, see tryParseDisjunctsE>
-  --  in ((obj .: "SomethingNameOrId") Hs.>>=
-  --      (HsJSONPB.withObject "SomethingNameOrId" parseSomethingNameOrId))
+  --  in ((obj .: "nameOrId") Hs.>>=
+  --      (HsJSONPB.withObject "nameOrId" parseSomethingNameOrId))
   --     <|>
   --     (parseSomethingNameOrId obj)
   -- )
@@ -944,7 +944,7 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
                   ]
                   (HsInfixApp parseWrapped altOp parseUnwrapped)
         where
-          oneofTyLit = HsLit (HsString oneofType)
+          oneofTyLit = HsLit (HsString oneofType) -- FIXME
 
           letBndStr  = "parse" <> oneofType
           letBndName = HsVar (unqual_ letBndStr)
@@ -1076,15 +1076,16 @@ getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
   DotProtoMessageOneOf _ [] ->
     throwError (InternalError "getQualifiedFields: encountered oneof with no oneof fields")
   DotProtoMessageOneOf oneofIdent fields -> do
-    oneofName  <- dpIdentUnqualName oneofIdent >>= prefixedFieldName msgName
-    oneofTypeName   <- dpIdentUnqualName oneofIdent >>= prefixedConName msgName
+    ident <- dpIdentUnqualName oneofIdent
+    oneofName <- prefixedFieldName msgName ident
+    oneofTypeName <- prefixedConName msgName ident
     fieldElems <- sequence
                     [ do s <- dpIdentUnqualName subFieldName
                          c <- prefixedConName oneofTypeName s
                          pure (OneofSubfield fieldNum c (coerce s) dpType options)
                     | DotProtoField fieldNum dpType subFieldName options _ <- fields
                     ]
-    pure $ Just $ QualifiedField (coerce oneofName) (FieldOneOf (OneofField oneofTypeName fieldElems))
+    pure $ Just $ QualifiedField (coerce oneofName) (FieldOneOf (OneofField ident fieldElems))
   _ ->
     pure Nothing
 
