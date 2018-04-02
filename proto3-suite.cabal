@@ -29,6 +29,7 @@ library
                        attoparsec >= 0.13.0.1,
                        base >=4.8 && <5.0,
                        base64-bytestring >= 1.0.0.1 && < 1.1,
+                       binary >=0.8.3,
                        bytestring >=0.10.6.0 && <0.11.0,
                        deepseq ==1.4.*,
                        cereal >= 0.5.1 && <0.6,

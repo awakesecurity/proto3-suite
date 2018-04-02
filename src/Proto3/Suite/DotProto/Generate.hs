@@ -32,6 +32,7 @@ module Proto3.Suite.DotProto.Generate
 import           Control.Applicative
 import           Control.Arrow                  ((&&&))
 import           Control.Monad.Except
+import           Control.Lens                   ((<&>), ix, over)
 import           Data.Bifunctor                 (first)
 import           Data.Char
 import           Data.Coerce
@@ -664,6 +665,7 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                       oneOfCons DotProtoEmptyField =
                           internalError "field type : empty field"
                   cons <- mapM oneOfCons fields
+
                   pure [ dataDecl_ fullName cons defaultMessageDeriving
                        , namedInstD fullName
                        , toSchemaInstDecl fullName
@@ -696,6 +698,8 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
               ]
               <> nestedOneofs_
               <> nestedDecls_
+
+-- *** Generate Protobuf 'Message' instances
 
 messageInstD
     :: MonadError CompileError m
@@ -769,11 +773,13 @@ messageInstD ctxt parentIdent msgIdent messageParts =
         | QualifiedField _ fieldInfo <- qualifiedFields ]
 
      dotProtoE <- HsList <$> sequence
-         [ dpTypeE dpType >>= \typeE ->
-             pure (apply dotProtoFieldC [ fieldNumberE fieldNum, typeE
-                                        , dpIdentE fieldIdent
-                                        , HsList (map optionE options)
-                                        , maybeE (HsLit . HsString) comments ])
+         [ dpTypeE dpType <&> \typeE ->
+             apply dotProtoFieldC [ fieldNumberE fieldNum
+                                  , typeE
+                                  , dpIdentE fieldIdent
+                                  , HsList (map optionE options)
+                                  , maybeE (HsLit . HsString) comments
+                                  ]
          | DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options comments)
              <- messageParts ]
 
@@ -782,8 +788,8 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                                     (HsUnGuardedRhs encodeMessageE) []
          decodeMessageDecl = match_ (HsIdent "decodeMessage") [ HsPWildCard ]
                                     (HsUnGuardedRhs decodeMessageE) []
-         dotProtoDecl = match_ (HsIdent "dotProto") [HsPWildCard]
-                               (HsUnGuardedRhs dotProtoE) []
+         dotProtoDecl      = match_ (HsIdent "dotProto") [HsPWildCard]
+                                    (HsUnGuardedRhs dotProtoE) []
 
          punnedFieldsP =
              [ HsPFieldPat (unqual_ fieldName) (HsPVar (HsIdent fieldName))
@@ -800,6 +806,8 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                       [ encodeMessageDecl
                       , decodeMessageDecl
                       , dotProtoDecl ]))
+
+-- *** Generate ToJSONPB/FromJSONPB instances
 
 toJSONPBMessageInstD
     :: MonadError CompileError m
@@ -826,48 +834,82 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
               , HsVar (unqual_ varNm)
               ]
 
-  -- E.g.
-  -- case f4_or_f9 of
-  --   Just (SomethingPickOneName f4)
-  --     -> HsJSONPB.pair "name" f4
-  --   Just (SomethingPickOneSomeid f9)
-  --     -> HsJSONPB.pair "someid" f9
-  --   Nothing
-  --     -> mempty
-  let oneofCaseE (OneofField{subfields}) =
-        HsCase disjunctName (altEs <> pure fallThruE)
+  -- Suppose we have a sum type Foo, nested inside a message Bar.
+  -- We want to generate the following:
+  --
+  -- > toJSONPB (Bar foo more stuff) =
+  -- >   HsJSONPB.object
+  -- >     [ (let encodeFoo = (<case expr scrutinising foo> :: Options -> Value)
+  -- >        in \option -> if optEmitNamedOneof option
+  -- >                      then ("Foo" .= (PB.object [encodeFoo] option)) option
+  -- >                      else encodeFoo option
+  -- >       )
+  -- >     , <encode more>
+  -- >     , <encode stuff>
+  -- >     ]
+  let oneofCaseE retJsonCtor (OneofField typeName subfields) =
+          HsParen
+            $ HsLet [ HsFunBind [ match_ (HsIdent caseName) [] (HsUnGuardedRhs caseExpr) [] ] ]
+            $ HsLambda l [patVar optsStr] (HsIf dontInline noInline yesInline)
         where
-          altEs =
-            [ let patVarNm = oneofSubBinder sub in
-              alt_ (HsPApp (haskellName "Just")
-                           [ HsPParen
-                             $ HsPApp (unqual_ conName) [patVar patVarNm]
-                           ]
-                   )
-                   (HsUnGuardedAlt (pairE pbFldNm patVarNm))
-                   []
-            | sub@(OneofSubfield _ conName pbFldNm _ _) <- subfields
-            ]
-          disjunctName = HsVar (unqual_ (oneofSubDisjunctBinder subfields))
-          fallThruE =
-            alt_ (HsPApp (haskellName "Nothing") [])
-                 (HsUnGuardedAlt memptyE)
-                 []
+          optsStr = "options"
+          opts    = HsVar (unqual_ optsStr)
+
+          caseName = "encode" <> over (ix 0) toUpper typeName
+          caseBnd = HsVar (unqual_ caseName)
+
+          dontInline = HsApp (HsVar (jsonpbName "optEmitNamedOneof")) opts
+
+          noInline = HsApp (HsParen (HsInfixApp (HsLit (HsString typeName))
+                                                toJSONPBOp
+                                                (apply (HsVar (jsonpbName retJsonCtor)) [ HsList [caseBnd], opts ])))
+                           opts
+
+          yesInline = HsApp caseBnd opts
+
+
+          -- E.g.
+          -- case f4_or_f9 of
+          --   Just (SomethingPickOneName f4)
+          --     -> HsJSONPB.pair "name" f4
+          --   Just (SomethingPickOneSomeid f9)
+          --     -> HsJSONPB.pair "someid" f9
+          --   Nothing
+          --     -> mempty
+          caseExpr = HsParen $
+              HsCase disjunctName (altEs <> [fallthroughE])
+            where
+              disjunctName = HsVar (unqual_ (oneofSubDisjunctBinder subfields))
+              altEs = do
+                sub@(OneofSubfield _ conName pbFldNm _ _) <- subfields
+                let patVarNm = oneofSubBinder sub
+                pure $ alt_ (HsPApp (haskellName "Just")
+                                    [ HsPParen
+                                      $ HsPApp (unqual_ conName) [patVar patVarNm]
+                                    ]
+                            )
+                            (HsUnGuardedAlt (pairE pbFldNm patVarNm))
+                            []
+              fallthroughE =
+                alt_ (HsPApp (haskellName "Nothing") [])
+                     (HsUnGuardedAlt memptyE)
+                     []
 
   let patBinder = onQF (const fieldBinder) (oneofSubDisjunctBinder . subfields)
-  let applyE nm = apply (HsVar (jsonpbName nm)) [ HsList (onQF defPairE oneofCaseE <$> qualFields) ]
+  let applyE nm = apply (HsVar (jsonpbName nm)) [ HsList (onQF defPairE (oneofCaseE nm) <$> qualFields) ]
 
   let matchE nm appNm = match_ (HsIdent nm)
-                          [ HsPApp (unqual_ msgName)
-                                   (patVar . patBinder  <$> qualFields) ]
-                          (HsUnGuardedRhs (applyE appNm))
-                          []
+                               [ HsPApp (unqual_ msgName)
+                                        (patVar . patBinder <$> qualFields) ]
+                               (HsUnGuardedRhs (applyE appNm))
+                               []
 
-  pure (instDecl_ (jsonpbName "ToJSONPB")
-                  [ type_ msgName ]
-                  [ HsFunBind [matchE "toJSONPB" "object"]
-                  , HsFunBind [matchE "toEncodingPB" "pairs"]
-                  ])
+  pure $ instDecl_ (jsonpbName "ToJSONPB")
+                   [ type_ msgName ]
+                   [ HsFunBind [matchE "toJSONPB" "object"]
+                   , HsFunBind [matchE "toEncodingPB" "pairs"]
+                   ]
+
 
 fromJSONPBMessageInstD
     :: MonadError CompileError m
@@ -880,40 +922,73 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   msgName    <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
   qualFields <- getQualifiedFields msgName messageParts
 
-  -- E.g., for message Something{ oneof name_or_id { string name = _; int32 someid = _; } }:
-  -- Hs.msum
-  --   [ Just . SomethingPickOneName   <$> (HsJSONPB.parseField obj "name")
-  --   , Just . SomethingPickOneSomeid <$> (HsJSONPB.parseField obj "someid")
-  --   , pure Nothing
-  --   ]
-  let oneofParserE fld =
-        HsApp msumE (HsList ((subParserEs <> fallThruE) fld))
+  let lambdaPVar = patVar "obj"
+  let lambdaVar  = HsVar (unqual_ "obj")
+
+  -- E.g., for message
+  --   message Something { oneof name_or_id { string name = _; int32 someid = _; } }
+  --
+  -- ==>
+  --
+  -- (let parseSomethingNameOrId parseObj = <FUNCTION, see tryParseDisjunctsE>
+  --  in ((obj .: "nameOrId") Hs.>>=
+  --      (HsJSONPB.withObject "nameOrId" parseSomethingNameOrId))
+  --     <|>
+  --     (parseSomethingNameOrId obj)
+  -- )
+  let oneofParserE (OneofField oneofType fields) =
+          HsParen $
+            HsLet [ HsFunBind [ match_ (HsIdent letBndStr) [patVar letArgStr ]
+                                       (HsUnGuardedRhs tryParseDisjunctsE) []
+                              ]
+                  ]
+                  (HsInfixApp parseWrapped altOp parseUnwrapped)
         where
-          fallThruE OneofField{}
-            = [ HsApp pureE (HsVar (haskellName "Nothing")) ]
-          subParserEs OneofField{subfields}
-            = subParserE <$> subfields
-          subParserE OneofSubfield{subfieldConsName, subfieldName}
-            = HsInfixApp (HsInfixApp
-                            (HsVar (haskellName "Just"))
-                            composeOp
-                            (HsVar (unqual_ subfieldConsName)))
-                         fmapOp
-                         (apply (HsVar (jsonpbName "parseField"))
-                                [ HsVar (unqual_ "obj")
-                                , HsLit (HsString (coerce subfieldName))
-                                ])
+          oneofTyLit = HsLit (HsString oneofType) -- FIXME
+
+          letBndStr  = "parse" <> over (ix 0) toUpper oneofType
+          letBndName = HsVar (unqual_ letBndStr)
+          letArgStr  = "parseObj"
+          letArgName = HsVar (unqual_ letArgStr)
+
+          parseWrapped = HsParen $
+            HsInfixApp (HsParen (HsInfixApp lambdaVar parseJSONPBOp oneofTyLit))
+                       bindOp
+                       (apply (HsVar (jsonpbName "withObject")) [ oneofTyLit , letBndName ])
+
+          parseUnwrapped = HsParen (HsApp letBndName lambdaVar)
+
+          -- parseSomethingNameOrId parseObj =
+          --   Hs.msum
+          --     [ (Just . SomethingPickOneName) <$> (HsJSONPB.parseField parseObj "name")
+          --     , (Just . SomethingPickOneSomeid) <$> (HsJSONPB.parseField parseObj "someid")
+          --     , pure Nothing
+          --     ]
+          tryParseDisjunctsE =
+              HsApp msumE (HsList (map subParserE fields <> fallThruE))
+            where
+              fallThruE
+                = [ HsApp pureE (HsVar (haskellName "Nothing")) ]
+              subParserE OneofSubfield{subfieldConsName, subfieldName}
+                = HsInfixApp
+                    (HsInfixApp (HsVar (haskellName "Just"))
+                                composeOp
+                                (HsVar (unqual_ subfieldConsName)))
+                    fmapOp
+                    (apply (HsVar (jsonpbName "parseField"))
+                           [ letArgName
+                           , HsLit (HsString (coerce subfieldName))])
 
   -- E.g. obj .: "someid"
   let normalParserE fldNm _ =
-        HsInfixApp (HsVar (unqual_ "obj"))
+        HsInfixApp lambdaVar
                    parseJSONPBOp
                    (HsLit (HsString (coerce fldNm)))
 
   let parseJSONPBE =
         apply (HsVar (jsonpbName "withObject"))
               [ HsLit (HsString msgName)
-              , HsParen (HsLambda l [patVar "obj"] fieldAps)
+              , HsParen (HsLambda l [lambdaPVar] fieldAps)
               ]
         where
           fieldAps = foldl (\f -> HsInfixApp f apOp)
@@ -926,6 +1001,39 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   pure (instDecl_ (jsonpbName "FromJSONPB")
                  [ type_ msgName ]
                  [ HsFunBind [ parseJSONPBDecl ] ])
+
+-- *** Generate default Aeson To/FromJSON and Swagger ToSchema instances
+-- (These are defined in terms of ToJSONPB)
+
+toJSONInstDecl :: String -> HsDecl
+toJSONInstDecl typeName =
+  instDecl_ (jsonpbName "ToJSON")
+            [ type_ typeName ]
+            [ HsFunBind [ match_ (HsIdent "toJSON") []
+                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonValue"))) []
+                        ]
+            , HsFunBind [ match_ (HsIdent "toEncoding") []
+                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonEncoding"))) []
+                        ]
+            ]
+
+fromJSONInstDecl :: String -> HsDecl
+fromJSONInstDecl typeName =
+  instDecl_ (jsonpbName "FromJSON")
+            [ type_ typeName ]
+            [ HsFunBind [match_ (HsIdent "parseJSON") [] (HsUnGuardedRhs (HsVar (jsonpbName "parseJSONPB"))) []
+                        ]
+            ]
+
+toSchemaInstDecl :: String -> HsDecl
+toSchemaInstDecl typeName =
+  instDecl_ (jsonpbName "ToSchema")
+            [ type_ typeName ]
+            [ HsFunBind [match_ (HsIdent "declareNamedSchema") []
+                                (HsUnGuardedRhs (HsVar (jsonpbName "genericDeclareNamedSchemaJSONPB"))) []
+                        ]
+            ]
+
 
 -- ** Codegen bookkeeping helpers
 
@@ -943,7 +1051,8 @@ data FieldInfo
 
 -- | Bookkeeping for oneof fields
 data OneofField = OneofField
-  { subfields :: [OneofSubfield]
+  { oneofType :: String
+  , subfields :: [OneofSubfield]
   } deriving Show
 
 -- | Bookkeeping for oneof subfields
@@ -966,16 +1075,17 @@ getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
       QualifiedField (coerce qualName) (FieldNormal (coerce fieldName) fieldNum dpType options)
   DotProtoMessageOneOf _ [] ->
     throwError (InternalError "getQualifiedFields: encountered oneof with no oneof fields")
-  DotProtoMessageOneOf fieldIdent fields -> do
-    fieldName  <- dpIdentUnqualName fieldIdent >>= prefixedFieldName msgName
-    consName   <- dpIdentUnqualName fieldIdent >>= prefixedConName msgName
+  DotProtoMessageOneOf oneofIdent fields -> do
+    ident <- dpIdentUnqualName oneofIdent
+    oneofName <- prefixedFieldName msgName ident
+    oneofTypeName <- prefixedConName msgName ident
     fieldElems <- sequence
                     [ do s <- dpIdentUnqualName subFieldName
-                         c <- prefixedConName consName s
+                         c <- prefixedConName oneofTypeName s
                          pure (OneofSubfield fieldNum c (coerce s) dpType options)
                     | DotProtoField fieldNum dpType subFieldName options _ <- fields
                     ]
-    pure $ Just $ QualifiedField (coerce fieldName) (FieldOneOf (OneofField fieldElems))
+    pure $ Just $ QualifiedField (coerce oneofName) (FieldOneOf (OneofField ident fieldElems))
   _ ->
     pure Nothing
 
@@ -1142,8 +1252,8 @@ dotProtoEnumD parentIdent enumIdent enumParts =
                  dpIdentUnqualName enumIdent
 
      enumCons <- sortBy (comparing fst) <$>
-                 sequence [ (i,) <$> (fmap (prefixedEnumFieldName enumName)
-                                      (dpIdentUnqualName conIdent))
+                 sequence [ (i,) . prefixedEnumFieldName enumName
+                               <$> dpIdentUnqualName conIdent
                           | DotProtoEnumField conIdent i _options <- enumParts ]
 
      let enumNameE = HsLit (HsString enumName)
@@ -1483,6 +1593,12 @@ fmapOp  = HsQVarOp (UnQual (HsSymbol "<$>"))
 composeOp :: HsQOp
 composeOp = HsQVarOp (Qual haskellNS (HsSymbol "."))
 
+bindOp :: HsQOp
+bindOp = HsQVarOp (Qual haskellNS (HsSymbol ">>="))
+
+altOp :: HsQOp
+altOp = HsQVarOp (UnQual (HsSymbol "<|>"))
+
 toJSONPBOp :: HsQOp
 toJSONPBOp = HsQVarOp (UnQual (HsSymbol ".="))
 
@@ -1494,36 +1610,6 @@ intE x = (if x < 0 then HsParen else id) . HsLit . HsInt . fromIntegral $ x
 
 intP :: Integral a => a -> HsPat
 intP x = (if x < 0 then HsPParen else id) . HsPLit . HsInt . fromIntegral $ x
-
-toJSONInstDecl :: String -> HsDecl
-toJSONInstDecl typeName =
-  instDecl_ (jsonpbName "ToJSON")
-            [ type_ typeName ]
-            [ HsFunBind [ match_ (HsIdent "toJSON") []
-                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonValue"))) []
-                        ]
-            , HsFunBind [ match_ (HsIdent "toEncoding") []
-                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonEncoding"))) []
-                        ]
-            ]
-
-
-fromJSONInstDecl :: String -> HsDecl
-fromJSONInstDecl typeName =
-  instDecl_ (jsonpbName "FromJSON")
-            [ type_ typeName ]
-            [ HsFunBind [match_ (HsIdent "parseJSON") [] (HsUnGuardedRhs (HsVar (jsonpbName "parseJSONPB"))) []
-                        ]
-            ]
-
-toSchemaInstDecl :: String -> HsDecl
-toSchemaInstDecl typeName =
-  instDecl_ (jsonpbName "ToSchema")
-            [ type_ typeName ]
-            [ HsFunBind [match_ (HsIdent "declareNamedSchema") []
-                                (HsUnGuardedRhs (HsVar (jsonpbName "genericDeclareNamedSchemaJSONPB"))) []
-                        ]
-            ]
 
 -- ** Expressions for protobuf-wire types
 
@@ -1604,6 +1690,7 @@ defaultImports usesGrpc =
                               ]
                       )
                 )
+  , importDecl_ controlApplicativeM       True  (Just haskellNS) Nothing
   , importDecl_ controlMonadM             True  (Just haskellNS) Nothing
   , importDecl_ dataTextM                 True
                 (Just haskellNS) (Just (False, [ importSym "Text" ]))

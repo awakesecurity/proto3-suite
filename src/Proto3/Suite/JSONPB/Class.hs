@@ -5,6 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Support for the "JSONPB" canonical JSON encoding described at
 -- https://developers.google.com/protocol-buffers/docs/proto3#json.
@@ -61,7 +62,7 @@ import qualified Data.Aeson                       as A (Encoding, FromJSON (..),
                                                         FromJSONKey (..),
                                                         FromJSONKeyFunction (..),
                                                         ToJSON (..), Value (..),
-                                                        eitherDecode, json,
+                                                        decode, eitherDecode, json,
                                                         (.!=))
 import qualified Data.Aeson.Encoding              as E
 import qualified Data.Aeson.Internal              as A (formatError, iparse)
@@ -73,10 +74,12 @@ import qualified Data.Aeson.Types                 as A (Object, Pair, Parser,
                                                         object, typeMismatch)
 import qualified Data.Attoparsec.ByteString       as Atto (skipWhile)
 import qualified Data.Attoparsec.ByteString.Char8 as Atto (Parser, endOfInput)
+import qualified Data.Binary.Builder              as Builder
 import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Base64           as B64
 import qualified Data.ByteString.Lazy             as LBS
 import           Data.Coerce
+import           Data.Maybe
 import           Data.Proxy
 import           Data.Text                        (Text)
 import qualified Data.Text                        as T
@@ -103,10 +106,21 @@ class ToJSONPB a where
   toEncodingPB :: a -> Options -> A.Encoding
   toEncodingPB x = A.toEncoding . toJSONPB x
 
+instance ToJSONPB A.Value where
+  toJSONPB v _ = v
+  toEncodingPB v _ = E.value v
+
+instance ToJSONPB A.Encoding where
+  toJSONPB e _ = fromMaybe A.Null . A.decode . Builder.toLazyByteString . E.fromEncoding $ e
+  toEncodingPB e _ = e
+
 -- | 'A.FromJSON' variant for JSONPB decoding from the 'A.Value' IR
 class FromJSONPB a where
   -- | 'A.parseJSON' variant for JSONPB decoders.
   parseJSONPB :: A.Value -> A.Parser a
+
+instance FromJSONPB A.Value where
+  parseJSONPB = pure
 
 -- * JSONPB codec entry points
 
@@ -155,6 +169,7 @@ k .= v = mk
       | otherwise
         = pair k v opts
 
+
 -- | 'Data.Aeson..:' variant for JSONPB; if the given key is missing from the
 -- object, or if it is present but its value is null, we produce the default
 -- protobuf value for the field type
@@ -167,16 +182,52 @@ parseField :: FromJSONPB a
            => A.Object -> Text -> A.Parser a
 parseField = A.explicitParseField parseJSONPB
 
+instance HasDefault E.Encoding where
+  def       = E.pairs mempty
+  isDefault = E.nullEncoding
+
+instance HasDefault A.Value where
+  def       = A.Null
+  isDefault = (== A.Null)
+
 -- * JSONPB rendering and parsing options
 
 data Options = Options
   { optEmitDefaultValuedFields :: Bool
+  , optEmitNamedOneof :: Bool
+  -- ^ For compatibility with Go JSONPB.
+  --
+  -- If 'False', the following message
+  --
+  -- > message MyMessage {
+  -- >   oneof Animal {
+  -- >     Cat x = 1;
+  -- >     Dog y = 2;
+  -- >   }
+  -- > }
+  --
+  -- will be serialized as
+  --
+  -- > MyMessage (Animal (Cat "Simba")) => { "cat": "Simba" }
+  --
+  -- instead of
+  --
+  -- > MyMessage (Animal (Cat "Simba")) => { "animal": { "cat": "Simba" } }
+  --
   } deriving Show
 
--- | Default options for JSONPB encoding. By default, all options are @False@.
+-- | Default options for JSON encoding. By default, all options are @True@.
 defaultOptions :: Options
 defaultOptions = Options
+  { optEmitDefaultValuedFields = True
+  , optEmitNamedOneof = True
+  }
+
+-- | Options for JSONPB encoding.
+jsonPBOptions :: Options
+jsonPBOptions = Options
   { optEmitDefaultValuedFields = False
+  , optEmitNamedOneof = False
   }
 
 -- * Helper types and functions
@@ -197,11 +248,11 @@ enumFieldEncoding :: forall a. (Named a, Show a) => a -> A.Encoding
 enumFieldEncoding = E.string . dropNamedPrefix (Proxy @a) . show
 
 -- | A 'Data.Aeson' 'A.Value' encoder for values which can be
--- JSONPB-encoded
+-- JSONPB-encoded.
 toAesonValue :: ToJSONPB a => a -> A.Value
 toAesonValue = flip toJSONPB defaultOptions
 
--- | A direct 'A.Encoding' for values which can be JSONPB-encoded
+-- | A direct 'A.Encoding' for values which can be JSONPB-encoded.
 toAesonEncoding :: ToJSONPB a => a -> A.Encoding
 toAesonEncoding = flip toEncodingPB defaultOptions
 
