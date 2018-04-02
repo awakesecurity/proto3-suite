@@ -948,7 +948,7 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
           letBndStr  = "parse" <> over (ix 0) toUpper oneofType
           letBndName = HsVar (unqual_ letBndStr)
-          letArgStr  = letBndStr <> "_obj"
+          letArgStr  = "parseObj"
           letArgName = HsVar (unqual_ letArgStr)
 
           parseWrapped = HsParen $
