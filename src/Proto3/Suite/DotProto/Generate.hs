@@ -32,7 +32,7 @@ module Proto3.Suite.DotProto.Generate
 import           Control.Applicative
 import           Control.Arrow                  ((&&&))
 import           Control.Monad.Except
-import           Control.Lens                   ((<&>))
+import           Control.Lens                   ((<&>), ix, over)
 import           Data.Bifunctor                 (first)
 import           Data.Char
 import           Data.Coerce
@@ -839,10 +839,10 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   --
   -- > toJSONPB (Bar foo more stuff) =
   -- >   HsJSONPB.object
-  -- >     [ (let doFoo = (<case expr scrutinising foo> :: Options -> Value)
+  -- >     [ (let encodeFoo = (<case expr scrutinising foo> :: Options -> Value)
   -- >        in \option -> if optEmitNamedOneof option
-  -- >                      then ("Foo" .= (PB.object [doFoo] option)) option
-  -- >                      else doFoo option
+  -- >                      then ("Foo" .= (PB.object [encodeFoo] option)) option
+  -- >                      else encodeFoo option
   -- >       )
   -- >     , <do more>
   -- >     , <do stuff>
@@ -855,7 +855,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
           optsStr = "options"
           opts    = HsVar (unqual_ optsStr)
 
-          caseName = "do" <> typeName
+          caseName = "encode" <> over (ix 0) toUpper typeName
           caseBnd = HsVar (unqual_ caseName)
 
           dontInline = HsApp (HsVar (jsonpbName "optEmitNamedOneof")) opts
@@ -946,7 +946,7 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
         where
           oneofTyLit = HsLit (HsString oneofType) -- FIXME
 
-          letBndStr  = "parse" <> oneofType
+          letBndStr  = "parse" <> over (ix 0) toUpper oneofType
           letBndName = HsVar (unqual_ letBndStr)
           letArgStr  = letBndStr <> "_obj"
           letArgName = HsVar (unqual_ letArgStr)
