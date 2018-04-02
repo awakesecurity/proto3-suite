@@ -195,14 +195,14 @@ instance HasDefault A.Value where
 data Options = Options
   { optEmitDefaultValuedFields :: Bool
   , optEmitNamedOneof :: Bool
-  -- ^ For compatibility with Go JSONPB.
+  -- ^ For compatibility with the Go JSONPB implementation.
   --
   -- If 'False', the following message
   --
   -- > message MyMessage {
-  -- >   oneof Animal {
-  -- >     Cat x = 1;
-  -- >     Dog y = 2;
+  -- >   oneof animal {
+  -- >     Cat cat = 1;
+  -- >     Dog dog = 2;
   -- >   }
   -- > }
   --
