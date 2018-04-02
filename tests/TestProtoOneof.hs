@@ -184,7 +184,7 @@ instance HsJSONPB.ToJSONPB Something where
         toJSONPB (Something f1 f2 f4_or_f9_or_f10_or_f11_or_f12)
           = (HsJSONPB.object
                ["value" .= f1, "another" .= f2,
-                (let dopickOne
+                (let encodePickOne
                        = (case f4_or_f9_or_f10_or_f11_or_f12 of
                               Hs.Just (SomethingPickOneName f4) -> (HsJSONPB.pair "name" f4)
                               Hs.Just (SomethingPickOneSomeid f9) -> (HsJSONPB.pair "someid" f9)
@@ -198,12 +198,12 @@ instance HsJSONPB.ToJSONPB Something where
                    in
                    \ options ->
                      if HsJSONPB.optEmitNamedOneof options then
-                       ("pickOne" .= (HsJSONPB.object [dopickOne] options)) options else
-                       dopickOne options)])
+                       ("pickOne" .= (HsJSONPB.object [encodePickOne] options)) options
+                       else encodePickOne options)])
         toEncodingPB (Something f1 f2 f4_or_f9_or_f10_or_f11_or_f12)
           = (HsJSONPB.pairs
                ["value" .= f1, "another" .= f2,
-                (let dopickOne
+                (let encodePickOne
                        = (case f4_or_f9_or_f10_or_f11_or_f12 of
                               Hs.Just (SomethingPickOneName f4) -> (HsJSONPB.pair "name" f4)
                               Hs.Just (SomethingPickOneSomeid f9) -> (HsJSONPB.pair "someid" f9)
@@ -217,31 +217,31 @@ instance HsJSONPB.ToJSONPB Something where
                    in
                    \ options ->
                      if HsJSONPB.optEmitNamedOneof options then
-                       ("pickOne" .= (HsJSONPB.pairs [dopickOne] options)) options else
-                       dopickOne options)])
+                       ("pickOne" .= (HsJSONPB.pairs [encodePickOne] options)) options
+                       else encodePickOne options)])
  
 instance HsJSONPB.FromJSONPB Something where
         parseJSONPB
           = (HsJSONPB.withObject "Something"
                (\ obj ->
                   (Hs.pure Something) <*> obj .: "value" <*> obj .: "another" <*>
-                    (let parsepickOne parsepickOne_obj
+                    (let parsePickOne parseObj
                            = Hs.msum
                                [Hs.Just Hs.. SomethingPickOneName <$>
-                                  (HsJSONPB.parseField parsepickOne_obj "name"),
+                                  (HsJSONPB.parseField parseObj "name"),
                                 Hs.Just Hs.. SomethingPickOneSomeid <$>
-                                  (HsJSONPB.parseField parsepickOne_obj "someid"),
+                                  (HsJSONPB.parseField parseObj "someid"),
                                 Hs.Just Hs.. SomethingPickOneDummyMsg1 <$>
-                                  (HsJSONPB.parseField parsepickOne_obj "dummyMsg1"),
+                                  (HsJSONPB.parseField parseObj "dummyMsg1"),
                                 Hs.Just Hs.. SomethingPickOneDummyMsg2 <$>
-                                  (HsJSONPB.parseField parsepickOne_obj "dummyMsg2"),
+                                  (HsJSONPB.parseField parseObj "dummyMsg2"),
                                 Hs.Just Hs.. SomethingPickOneDummyEnum <$>
-                                  (HsJSONPB.parseField parsepickOne_obj "dummyEnum"),
+                                  (HsJSONPB.parseField parseObj "dummyEnum"),
                                 Hs.pure Hs.Nothing]
                        in
                        ((obj .: "pickOne") Hs.>>=
-                          (HsJSONPB.withObject "pickOne" parsepickOne))
-                         <|> (parsepickOne obj))))
+                          (HsJSONPB.withObject "pickOne" parsePickOne))
+                         <|> (parsePickOne obj))))
  
 instance HsJSONPB.ToJSON Something where
         toJSON = HsJSONPB.toAesonValue
@@ -314,7 +314,7 @@ instance HsProtobuf.Message OneofFirst where
 instance HsJSONPB.ToJSONPB OneofFirst where
         toJSONPB (OneofFirst f1_or_f2 f3)
           = (HsJSONPB.object
-               [(let dofirst
+               [(let encodeFirst
                        = (case f1_or_f2 of
                               Hs.Just (OneofFirstFirstChoice1 f1) -> (HsJSONPB.pair "choice1" f1)
                               Hs.Just (OneofFirstFirstChoice2 f2) -> (HsJSONPB.pair "choice2" f2)
@@ -322,12 +322,12 @@ instance HsJSONPB.ToJSONPB OneofFirst where
                    in
                    \ options ->
                      if HsJSONPB.optEmitNamedOneof options then
-                       ("first" .= (HsJSONPB.object [dofirst] options)) options else
-                       dofirst options),
+                       ("first" .= (HsJSONPB.object [encodeFirst] options)) options else
+                       encodeFirst options),
                 "last" .= f3])
         toEncodingPB (OneofFirst f1_or_f2 f3)
           = (HsJSONPB.pairs
-               [(let dofirst
+               [(let encodeFirst
                        = (case f1_or_f2 of
                               Hs.Just (OneofFirstFirstChoice1 f1) -> (HsJSONPB.pair "choice1" f1)
                               Hs.Just (OneofFirstFirstChoice2 f2) -> (HsJSONPB.pair "choice2" f2)
@@ -335,8 +335,8 @@ instance HsJSONPB.ToJSONPB OneofFirst where
                    in
                    \ options ->
                      if HsJSONPB.optEmitNamedOneof options then
-                       ("first" .= (HsJSONPB.pairs [dofirst] options)) options else
-                       dofirst options),
+                       ("first" .= (HsJSONPB.pairs [encodeFirst] options)) options else
+                       encodeFirst options),
                 "last" .= f3])
  
 instance HsJSONPB.FromJSONPB OneofFirst where
@@ -344,16 +344,16 @@ instance HsJSONPB.FromJSONPB OneofFirst where
           = (HsJSONPB.withObject "OneofFirst"
                (\ obj ->
                   (Hs.pure OneofFirst) <*>
-                    (let parsefirst parsefirst_obj
+                    (let parseFirst parseObj
                            = Hs.msum
                                [Hs.Just Hs.. OneofFirstFirstChoice1 <$>
-                                  (HsJSONPB.parseField parsefirst_obj "choice1"),
+                                  (HsJSONPB.parseField parseObj "choice1"),
                                 Hs.Just Hs.. OneofFirstFirstChoice2 <$>
-                                  (HsJSONPB.parseField parsefirst_obj "choice2"),
+                                  (HsJSONPB.parseField parseObj "choice2"),
                                 Hs.pure Hs.Nothing]
                        in
-                       ((obj .: "first") Hs.>>= (HsJSONPB.withObject "first" parsefirst))
-                         <|> (parsefirst obj))
+                       ((obj .: "first") Hs.>>= (HsJSONPB.withObject "first" parseFirst))
+                         <|> (parseFirst obj))
                     <*> obj .: "last"))
  
 instance HsJSONPB.ToJSON OneofFirst where
@@ -435,7 +435,7 @@ instance HsJSONPB.ToJSONPB OneofMiddle where
         toJSONPB (OneofMiddle f1 f2_or_f3 f4)
           = (HsJSONPB.object
                ["first" .= f1,
-                (let domiddle
+                (let encodeMiddle
                        = (case f2_or_f3 of
                               Hs.Just (OneofMiddleMiddleChoice1 f2)
                                 -> (HsJSONPB.pair "choice1" f2)
@@ -445,13 +445,13 @@ instance HsJSONPB.ToJSONPB OneofMiddle where
                    in
                    \ options ->
                      if HsJSONPB.optEmitNamedOneof options then
-                       ("middle" .= (HsJSONPB.object [domiddle] options)) options else
-                       domiddle options),
+                       ("middle" .= (HsJSONPB.object [encodeMiddle] options)) options else
+                       encodeMiddle options),
                 "last" .= f4])
         toEncodingPB (OneofMiddle f1 f2_or_f3 f4)
           = (HsJSONPB.pairs
                ["first" .= f1,
-                (let domiddle
+                (let encodeMiddle
                        = (case f2_or_f3 of
                               Hs.Just (OneofMiddleMiddleChoice1 f2)
                                 -> (HsJSONPB.pair "choice1" f2)
@@ -461,8 +461,8 @@ instance HsJSONPB.ToJSONPB OneofMiddle where
                    in
                    \ options ->
                      if HsJSONPB.optEmitNamedOneof options then
-                       ("middle" .= (HsJSONPB.pairs [domiddle] options)) options else
-                       domiddle options),
+                       ("middle" .= (HsJSONPB.pairs [encodeMiddle] options)) options else
+                       encodeMiddle options),
                 "last" .= f4])
  
 instance HsJSONPB.FromJSONPB OneofMiddle where
@@ -470,17 +470,17 @@ instance HsJSONPB.FromJSONPB OneofMiddle where
           = (HsJSONPB.withObject "OneofMiddle"
                (\ obj ->
                   (Hs.pure OneofMiddle) <*> obj .: "first" <*>
-                    (let parsemiddle parsemiddle_obj
+                    (let parseMiddle parseObj
                            = Hs.msum
                                [Hs.Just Hs.. OneofMiddleMiddleChoice1 <$>
-                                  (HsJSONPB.parseField parsemiddle_obj "choice1"),
+                                  (HsJSONPB.parseField parseObj "choice1"),
                                 Hs.Just Hs.. OneofMiddleMiddleChoice2 <$>
-                                  (HsJSONPB.parseField parsemiddle_obj "choice2"),
+                                  (HsJSONPB.parseField parseObj "choice2"),
                                 Hs.pure Hs.Nothing]
                        in
                        ((obj .: "middle") Hs.>>=
-                          (HsJSONPB.withObject "middle" parsemiddle))
-                         <|> (parsemiddle obj))
+                          (HsJSONPB.withObject "middle" parseMiddle))
+                         <|> (parseMiddle obj))
                     <*> obj .: "last"))
  
 instance HsJSONPB.ToJSON OneofMiddle where
@@ -538,7 +538,7 @@ instance HsProtobuf.Message WithImported where
 instance HsJSONPB.ToJSONPB WithImported where
         toJSONPB (WithImported f1_or_f2)
           = (HsJSONPB.object
-               [(let dopickOne
+               [(let encodePickOne
                        = (case f1_or_f2 of
                               Hs.Just (WithImportedPickOneDummyMsg1 f1)
                                 -> (HsJSONPB.pair "dummyMsg1" f1)
@@ -548,11 +548,11 @@ instance HsJSONPB.ToJSONPB WithImported where
                    in
                    \ options ->
                      if HsJSONPB.optEmitNamedOneof options then
-                       ("pickOne" .= (HsJSONPB.object [dopickOne] options)) options else
-                       dopickOne options)])
+                       ("pickOne" .= (HsJSONPB.object [encodePickOne] options)) options
+                       else encodePickOne options)])
         toEncodingPB (WithImported f1_or_f2)
           = (HsJSONPB.pairs
-               [(let dopickOne
+               [(let encodePickOne
                        = (case f1_or_f2 of
                               Hs.Just (WithImportedPickOneDummyMsg1 f1)
                                 -> (HsJSONPB.pair "dummyMsg1" f1)
@@ -562,25 +562,25 @@ instance HsJSONPB.ToJSONPB WithImported where
                    in
                    \ options ->
                      if HsJSONPB.optEmitNamedOneof options then
-                       ("pickOne" .= (HsJSONPB.pairs [dopickOne] options)) options else
-                       dopickOne options)])
+                       ("pickOne" .= (HsJSONPB.pairs [encodePickOne] options)) options
+                       else encodePickOne options)])
  
 instance HsJSONPB.FromJSONPB WithImported where
         parseJSONPB
           = (HsJSONPB.withObject "WithImported"
                (\ obj ->
                   (Hs.pure WithImported) <*>
-                    (let parsepickOne parsepickOne_obj
+                    (let parsePickOne parseObj
                            = Hs.msum
                                [Hs.Just Hs.. WithImportedPickOneDummyMsg1 <$>
-                                  (HsJSONPB.parseField parsepickOne_obj "dummyMsg1"),
+                                  (HsJSONPB.parseField parseObj "dummyMsg1"),
                                 Hs.Just Hs.. WithImportedPickOneWithOneof <$>
-                                  (HsJSONPB.parseField parsepickOne_obj "withOneof"),
+                                  (HsJSONPB.parseField parseObj "withOneof"),
                                 Hs.pure Hs.Nothing]
                        in
                        ((obj .: "pickOne") Hs.>>=
-                          (HsJSONPB.withObject "pickOne" parsepickOne))
-                         <|> (parsepickOne obj))))
+                          (HsJSONPB.withObject "pickOne" parsePickOne))
+                         <|> (parsePickOne obj))))
  
 instance HsJSONPB.ToJSON WithImported where
         toJSON = HsJSONPB.toAesonValue
