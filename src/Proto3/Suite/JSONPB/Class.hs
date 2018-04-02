@@ -200,9 +200,9 @@ data Options = Options
   -- If 'False', the following message
   --
   -- > message MyMessage {
-  -- >   oneof Animal {
-  -- >     Cat x = 1;
-  -- >     Dog y = 2;
+  -- >   oneof animal {
+  -- >     Cat cat = 1;
+  -- >     Dog dog = 2;
   -- >   }
   -- > }
   --
