@@ -844,8 +844,8 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   -- >                      then ("Foo" .= (PB.object [encodeFoo] option)) option
   -- >                      else encodeFoo option
   -- >       )
-  -- >     , <do more>
-  -- >     , <do stuff>
+  -- >     , <encode more>
+  -- >     , <encode stuff>
   -- >     ]
   let oneofCaseE retJsonCtor (OneofField typeName subfields) =
           HsParen
@@ -930,7 +930,7 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   --
   -- ==>
   --
-  -- (let parseSomethingNameOrId parseSomethingNameOrId_obj = <FUNCTION, see tryParseDisjunctsE>
+  -- (let parseSomethingNameOrId parseObj = <FUNCTION, see tryParseDisjunctsE>
   --  in ((obj .: "nameOrId") Hs.>>=
   --      (HsJSONPB.withObject "nameOrId" parseSomethingNameOrId))
   --     <|>
@@ -958,10 +958,10 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
           parseUnwrapped = HsParen (HsApp letBndName lambdaVar)
 
-          -- parseSomethingNameOrId parseSomethingNameOrId_obj =
+          -- parseSomethingNameOrId parseObj =
           --   Hs.msum
-          --     [ (Just . SomethingPickOneName) <$> (HsJSONPB.parseField parseSomethingNameOrId_obj "name")
-          --     , (Just . SomethingPickOneSomeid) <$> (HsJSONPB.parseField parseSomethingNameOrId_obj "someid")
+          --     [ (Just . SomethingPickOneName) <$> (HsJSONPB.parseField parseObj "name")
+          --     , (Just . SomethingPickOneSomeid) <$> (HsJSONPB.parseField parseObj "someid")
           --     , pure Nothing
           --     ]
           tryParseDisjunctsE =
