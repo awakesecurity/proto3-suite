@@ -5,6 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Support for the "JSONPB" canonical JSON encoding described at
 -- https://developers.google.com/protocol-buffers/docs/proto3#json.
