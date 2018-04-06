@@ -1,5 +1,4 @@
--- | This module provides functions to generate Haskell declarations for proto buf messages
-
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MultiWayIf        #-}
@@ -9,6 +8,10 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE ViewPatterns      #-}
+
+{-| This module provides functions to generate Haskell declarations for protobuf
+    messages
+-}
 
 module Proto3.Suite.DotProto.Generate
   ( CompileError(..)
@@ -76,11 +79,13 @@ data CompileError
   | Unimplemented           String
     deriving (Show, Eq)
 
+#if !(MIN_VERSION_mtl(2,2,2))
 liftEither :: MonadError e m => Either e a -> m a
 liftEither x =
     case x of
         Left  e -> throwError e
         Right a -> return a
+#endif
 
 -- | Generate a Haskell module corresponding to a @.proto@ file
 compileDotProtoFile
