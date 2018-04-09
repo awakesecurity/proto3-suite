@@ -49,10 +49,11 @@ genericDeclareNamedSchemaJSONPB :: forall a proxy.
 genericDeclareNamedSchemaJSONPB proxy =
   over schema (set required []) <$> genericDeclareNamedSchema opts proxy
   where
-    opts = defaultSchemaOptions{
-             fieldLabelModifier = over _head toLower
-                                . drop (T.length (nameOf (Proxy @a)))
-           }
+    dropTypeName = over _head toLower . drop (T.length (nameOf (Proxy @a)))
+    opts = defaultSchemaOptions
+             { fieldLabelModifier = dropTypeName
+             , constructorTagModifier = dropTypeName
+             }
 
 -- | Pretty-prints a schema. Useful when playing around with schemas in the
 -- REPL.
