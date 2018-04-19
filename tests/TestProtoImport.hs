@@ -24,7 +24,6 @@ import qualified Data.String as Hs (fromString)
 import qualified Data.Vector as Hs (Vector)
 import qualified Data.Int as Hs (Int16, Int32, Int64)
 import qualified Data.Word as Hs (Word16, Word32, Word64)
-import qualified Data.HashMap.Strict.InsOrd as InsOrd
 import qualified Data.Proxy as Proxy
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
@@ -107,7 +106,7 @@ instance HsJSONPB.ToSchema WithNesting where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("nestedMessage1", nestedMessage1),
                                                         ("nestedMessage2", nestedMessage2)]}})
  
@@ -185,6 +184,6 @@ instance HsJSONPB.ToSchema WithNesting_Nested where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("nestedField1", nestedField1),
                                                         ("nestedField2", nestedField2)]}})

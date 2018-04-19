@@ -24,7 +24,6 @@ import qualified Data.String as Hs (fromString)
 import qualified Data.Vector as Hs (Vector)
 import qualified Data.Int as Hs (Int16, Int32, Int64)
 import qualified Data.Word as Hs (Word16, Word32, Word64)
-import qualified Data.HashMap.Strict.InsOrd as InsOrd
 import qualified Data.Proxy as Proxy
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
@@ -81,7 +80,7 @@ instance HsJSONPB.ToSchema DummyMsg where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList [("dummy", dummy)]}})
+                                                     HsJSONPB.insOrdFromList [("dummy", dummy)]}})
  
 data DummyEnum = DummyEnumDUMMY0
                | DummyEnumDUMMY1
@@ -283,7 +282,7 @@ instance HsJSONPB.ToSchema Something where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("value", value), ("another", another),
                                                         ("pickOne", pickOne)]}})
  
@@ -328,7 +327,7 @@ instance HsJSONPB.ToSchema SomethingPickOne where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("name", name), ("someid", someid),
                                                         ("dummyMsg1", dummyMsg1),
                                                         ("dummyMsg2", dummyMsg2),
@@ -446,7 +445,7 @@ instance HsJSONPB.ToSchema OneofFirst where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("last", last), ("first", first)]}})
  
 data OneofFirstFirst = OneofFirstFirstChoice1 Hs.Text
@@ -474,7 +473,7 @@ instance HsJSONPB.ToSchema OneofFirstFirst where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("choice1", choice1),
                                                         ("choice2", choice2)]}})
  
@@ -611,7 +610,7 @@ instance HsJSONPB.ToSchema OneofMiddle where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("first", first), ("last", last),
                                                         ("middle", middle)]}})
  
@@ -640,7 +639,7 @@ instance HsJSONPB.ToSchema OneofMiddleMiddle where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("choice1", choice1),
                                                         ("choice2", choice2)]}})
  
@@ -743,7 +742,8 @@ instance HsJSONPB.ToSchema WithImported where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList [("pickOne", pickOne)]}})
+                                                     HsJSONPB.insOrdFromList
+                                                       [("pickOne", pickOne)]}})
  
 data WithImportedPickOne = WithImportedPickOneDummyMsg1 TestProtoOneof.DummyMsg
                          | WithImportedPickOneWithOneof TestProtoOneofImport.WithOneof
@@ -770,6 +770,6 @@ instance HsJSONPB.ToSchema WithImportedPickOne where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("dummyMsg1", dummyMsg1),
                                                         ("withOneof", withOneof)]}})

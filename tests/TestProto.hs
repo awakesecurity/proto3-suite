@@ -24,7 +24,6 @@ import qualified Data.String as Hs (fromString)
 import qualified Data.Vector as Hs (Vector)
 import qualified Data.Int as Hs (Int16, Int32, Int64)
 import qualified Data.Word as Hs (Word16, Word32, Word64)
-import qualified Data.HashMap.Strict.InsOrd as InsOrd
 import qualified Data.Proxy as Proxy
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
@@ -81,7 +80,7 @@ instance HsJSONPB.ToSchema Trivial where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("trivialField", trivialField)]}})
  
 data MultipleFields = MultipleFields{multipleFieldsMultiFieldDouble
@@ -228,7 +227,7 @@ instance HsJSONPB.ToSchema MultipleFields where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("multiFieldDouble", multiFieldDouble),
                                                         ("multiFieldFloat", multiFieldFloat),
                                                         ("multiFieldInt32", multiFieldInt32),
@@ -308,7 +307,7 @@ instance HsJSONPB.ToSchema SignedInts where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("signed32", signed32),
                                                         ("signed64", signed64)]}})
  
@@ -364,7 +363,8 @@ instance HsJSONPB.ToSchema WithEnum where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList [("enumField", enumField)]}})
+                                                     HsJSONPB.insOrdFromList
+                                                       [("enumField", enumField)]}})
  
 data WithEnum_TestEnum = WithEnum_TestEnumENUM1
                        | WithEnum_TestEnumENUM2
@@ -468,7 +468,7 @@ instance HsJSONPB.ToSchema WithNesting where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("nestedMessage", nestedMessage)]}})
  
 data WithNesting_Nested = WithNesting_Nested{withNesting_NestedNestedField1
@@ -586,7 +586,7 @@ instance HsJSONPB.ToSchema WithNesting_Nested where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("nestedField1", nestedField1),
                                                         ("nestedField2", nestedField2),
                                                         ("nestedPacked", nestedPacked),
@@ -652,7 +652,7 @@ instance HsJSONPB.ToSchema WithNestingRepeated where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("nestedMessages", nestedMessages)]}})
  
 data WithNestingRepeated_Nested = WithNestingRepeated_Nested{withNestingRepeated_NestedNestedField1
@@ -776,7 +776,7 @@ instance HsJSONPB.ToSchema WithNestingRepeated_Nested where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("nestedField1", nestedField1),
                                                         ("nestedField2", nestedField2),
                                                         ("nestedPacked", nestedPacked),
@@ -853,7 +853,7 @@ instance HsJSONPB.ToSchema NestedInts where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("nestedInt1", nestedInt1),
                                                         ("nestedInt2", nestedInt2)]}})
  
@@ -917,7 +917,8 @@ instance HsJSONPB.ToSchema WithNestingRepeatedInts where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList [("nestedInts", nestedInts)]}})
+                                                     HsJSONPB.insOrdFromList
+                                                       [("nestedInts", nestedInts)]}})
  
 data WithNestingInts = WithNestingInts{withNestingIntsNestedInts ::
                                        Hs.Maybe TestProto.NestedInts}
@@ -978,7 +979,8 @@ instance HsJSONPB.ToSchema WithNestingInts where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList [("nestedInts", nestedInts)]}})
+                                                     HsJSONPB.insOrdFromList
+                                                       [("nestedInts", nestedInts)]}})
  
 data WithRepetition = WithRepetition{withRepetitionRepeatedField1
                                      :: Hs.Vector Hs.Int32}
@@ -1038,7 +1040,7 @@ instance HsJSONPB.ToSchema WithRepetition where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("repeatedField1", repeatedField1)]}})
  
 data WithFixed = WithFixed{withFixedFixed1 ::
@@ -1148,7 +1150,7 @@ instance HsJSONPB.ToSchema WithFixed where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("fixed1", fixed1), ("fixed2", fixed2),
                                                         ("fixed3", fixed3), ("fixed4", fixed4)]}})
  
@@ -1223,7 +1225,7 @@ instance HsJSONPB.ToSchema WithBytes where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("bytes1", bytes1), ("bytes2", bytes2)]}})
  
 data WithPacking = WithPacking{withPackingPacking1 ::
@@ -1301,7 +1303,7 @@ instance HsJSONPB.ToSchema WithPacking where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("packing1", packing1),
                                                         ("packing2", packing2)]}})
  
@@ -1639,7 +1641,7 @@ instance HsJSONPB.ToSchema AllPackedTypes where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("packedWord32", packedWord32),
                                                         ("packedWord64", packedWord64),
                                                         ("packedInt32", packedInt32),
@@ -1765,7 +1767,7 @@ instance HsJSONPB.ToSchema OutOfOrderFields where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("field1", field1), ("field2", field2),
                                                         ("field3", field3), ("field4", field4)]}})
  
@@ -1840,7 +1842,7 @@ instance HsJSONPB.ToSchema ShadowedMessage where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("name", name), ("value", value)]}})
  
 data MessageShadower = MessageShadower{messageShadowerShadowedMessage
@@ -1919,7 +1921,7 @@ instance HsJSONPB.ToSchema MessageShadower where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("shadowed_message", shadowed_message),
                                                         ("name", name)]}})
  
@@ -1999,7 +2001,7 @@ instance HsJSONPB.ToSchema MessageShadower_ShadowedMessage where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("name", name), ("value", value)]}})
  
 data WithQualifiedName = WithQualifiedName{withQualifiedNameQname1
@@ -2083,7 +2085,7 @@ instance HsJSONPB.ToSchema WithQualifiedName where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("qname1", qname1), ("qname2", qname2)]}})
  
 data UsingImported = UsingImported{usingImportedImportedNesting ::
@@ -2168,7 +2170,7 @@ instance HsJSONPB.ToSchema UsingImported where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList
+                                                     HsJSONPB.insOrdFromList
                                                        [("importedNesting", importedNesting),
                                                         ("localNesting", localNesting)]}})
  
@@ -2225,7 +2227,8 @@ instance HsJSONPB.ToSchema Wrapped where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     InsOrd.fromList [("wrapped", wrapped)]}})
+                                                     HsJSONPB.insOrdFromList
+                                                       [("wrapped", wrapped)]}})
  
 data EnumAnnots = EnumAnnotsFOO
                 | EnumAnnotsBAR

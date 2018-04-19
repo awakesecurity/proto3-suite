@@ -522,13 +522,12 @@ nestedTypeName (Dots (Path parents)) nm =
     (<> ("_" <> nm)) <$> (intercalate "_" <$> mapM typeLikeName parents)
 nestedTypeName (Qualified {})  _  = internalError "nestedTypeName: Qualified"
 
-haskellName,  jsonpbName, grpcName, protobufName, insOrdName, proxyName
+haskellName,  jsonpbName, grpcName, protobufName, proxyName
     :: String -> HsQName
 haskellName  name = Qual (Module "Hs") (HsIdent name)
 jsonpbName   name = Qual (Module "HsJSONPB") (HsIdent name)
 grpcName     name = Qual (Module "HsGRPC") (HsIdent name)
 protobufName name = Qual (Module "HsProtobuf") (HsIdent name)
-insOrdName   name = Qual (Module "InsOrd") (HsIdent name)
 proxyName    name = Qual (Module "Proxy") (HsIdent name)
 
 camelCased :: String -> String
@@ -1092,7 +1091,7 @@ toSchemaInstanceDeclaration messageName fieldNames maybeConstructors =
       return (HsTuple [ string, variable ])
 
     _schemaPropertiesExpression =
-      HsApp (HsVar (insOrdName "fromList")) properties
+      HsApp (HsVar (jsonpbName "insOrdFromList")) properties
 
     -- { _schemaParamSchema = ...
     -- , _schemaProperties  = ...
@@ -1910,7 +1909,6 @@ defaultImports usesGrpc =
   , importDecl_ dataWordM                 True  (Just haskellNS)
                 (Just (False, [ importSym "Word16", importSym "Word32"
                               , importSym "Word64" ]))
-  , importDecl_ dataHashMapStrictInsOrdM  True (Just insOrdNS)  Nothing
   , importDecl_ dataProxy                 True (Just proxyNS)   Nothing
   , importDecl_ ghcGenericsM              True (Just haskellNS) Nothing
   , importDecl_ ghcEnumM                  True (Just haskellNS) Nothing
@@ -1938,7 +1936,6 @@ defaultImports usesGrpc =
         dataIntM                  = Module "Data.Int"
         dataVectorM               = Module "Data.Vector"
         dataWordM                 = Module "Data.Word"
-        dataHashMapStrictInsOrdM  = Module "Data.HashMap.Strict.InsOrd"
         dataProxy                 = Module "Data.Proxy"
         ghcGenericsM              = Module "GHC.Generics"
         ghcEnumM                  = Module "GHC.Enum"
@@ -1950,7 +1947,6 @@ defaultImports usesGrpc =
         grpcNS                    = Module "HsGRPC"
         jsonpbNS                  = Module "HsJSONPB"
         protobufNS                = Module "HsProtobuf"
-        insOrdNS                  = Module "InsOrd"
         proxyNS                   = Module "Proxy"
 
         importSym = HsIAbs . HsIdent

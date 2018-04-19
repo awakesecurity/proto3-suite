@@ -12,6 +12,7 @@ module Proto3.Suite.DotProto.Generate.Swagger
   ( ppSchema
   , OverrideToSchema(..)
   , asProxy
+  , insOrdFromList
   )
 where
 
@@ -20,6 +21,9 @@ import           Data.Aeson                      (Value (String))
 import           Data.Aeson.Encode.Pretty        (encodePretty)
 import           Data.ByteString                 (ByteString)
 import qualified Data.ByteString.Lazy.Char8      as LC8
+import           Data.Hashable                   (Hashable)
+import           Data.HashMap.Strict.InsOrd      (InsOrdHashMap)
+import qualified Data.HashMap.Strict.InsOrd
 import           Data.Swagger
 import qualified Data.Text                       as T
 import           Data.Proxy
@@ -28,6 +32,11 @@ import           GHC.Int
 import           GHC.Word
 import           Proto3.Suite                    (Enumerated (..), Finite (..),
                                                   Fixed (..), Named (..), enumerate)
+
+-- | Convenience re-export so that users of generated code don't have to add
+--   an explicit dependency on @insert-ordered-containers@
+insOrdFromList :: (Eq k, Hashable k) => [(k, v)] -> InsOrdHashMap k v
+insOrdFromList = Data.HashMap.Strict.InsOrd.fromList
 
 {-| This is a hack to work around the `swagger2` library forbidding `ToSchema`
     instances for `ByteString`s
