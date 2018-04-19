@@ -522,11 +522,14 @@ nestedTypeName (Dots (Path parents)) nm =
     (<> ("_" <> nm)) <$> (intercalate "_" <$> mapM typeLikeName parents)
 nestedTypeName (Qualified {})  _  = internalError "nestedTypeName: Qualified"
 
-haskellName, jsonpbName, grpcName, protobufName :: String -> HsQName
+haskellName,  jsonpbName, grpcName, protobufName, insOrdName, proxyName
+    :: String -> HsQName
 haskellName  name = Qual (Module "Hs") (HsIdent name)
 jsonpbName   name = Qual (Module "HsJSONPB") (HsIdent name)
 grpcName     name = Qual (Module "HsGRPC") (HsIdent name)
 protobufName name = Qual (Module "HsProtobuf") (HsIdent name)
+insOrdName   name = Qual (Module "InsOrd") (HsIdent name)
+proxyName    name = Qual (Module "Proxy") (HsIdent name)
 
 camelCased :: String -> String
 camelCased s = do (prev, cur) <- zip (Nothing:map Just s) (map Just s ++ [Nothing])
@@ -666,14 +669,18 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                                     hsTypeFromDotProtoPrim ctxt' msg
                              _   -> hsTypeFromDotProto ctxt' ty
                            consName <- prefixedConName fullName =<< dpIdentUnqualName fieldName
-                           pure $ conDecl_ (HsIdent consName) [HsUnBangedTy consTy]
+                           let ident = HsIdent consName
+                           pure (conDecl_ ident [HsUnBangedTy consTy], ident)
                       oneOfCons DotProtoEmptyField =
                           internalError "field type : empty field"
-                  cons <- mapM oneOfCons fields
+
+                  (cons, idents) <- fmap unzip (mapM oneOfCons fields)
+
+                  fieldNames <- mapM (dpIdentUnqualName . dotProtoFieldName) fields
 
                   pure [ dataDecl_ fullName cons defaultMessageDeriving
                        , namedInstD fullName
-                       , toSchemaInstDecl fullName
+                       , toSchemaInstanceDeclaration fullName fieldNames (Just idents)
                        ]
 
        conDecl <- recDecl_ (HsIdent messageName) . mconcat <$>
@@ -690,6 +697,17 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
        toJSONPBInst   <- toJSONPBMessageInstD   ctxt' parentIdent messageIdent message
        fromJSONPBInst <- fromJSONPBMessageInstD ctxt' parentIdent messageIdent message
 
+       normalFieldNames <- sequence $ do
+           DotProtoMessageField dotProtoField <- message
+           let dotProtoIdentifier = dotProtoFieldName dotProtoField
+           return (dpIdentUnqualName dotProtoIdentifier)
+
+       oneOfFieldNames <- sequence $ do
+           DotProtoMessageOneOf dotProtoIdentifier _ <- message
+           return (dpIdentUnqualName dotProtoIdentifier)
+
+       let fieldNames = normalFieldNames ++ oneOfFieldNames
+
        pure $ [ dataDecl_ messageName [ conDecl ] defaultMessageDeriving
               , namedInstD messageName
               , messageInst
@@ -699,7 +717,7 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
               , toJSONInstDecl messageName
               , fromJSONInstDecl messageName
               -- And the Swagger ToSchema instance corresponding to JSONPB encodings
-              , toSchemaInstDecl messageName
+              , toSchemaInstanceDeclaration messageName fieldNames Nothing
               ]
               <> nestedOneofs_
               <> nestedDecls_
@@ -1030,15 +1048,196 @@ fromJSONInstDecl typeName =
                         ]
             ]
 
-toSchemaInstDecl :: String -> HsDecl
-toSchemaInstDecl typeName =
-  instDecl_ (jsonpbName "ToSchema")
-            [ type_ typeName ]
-            [ HsFunBind [match_ (HsIdent "declareNamedSchema") []
-                                (HsUnGuardedRhs (HsVar (jsonpbName "genericDeclareNamedSchemaJSONPB"))) []
-                        ]
-            ]
 
+-- ** `ToSchema` instance code-generation
+
+toSchemaInstanceDeclaration
+    :: String
+    -- ^ Name of the message type to create an instance for
+    -> [String]
+    -- ^ Field names
+    -> Maybe [HsName]
+    -- ^ Oneof constructors
+    -> HsDecl
+toSchemaInstanceDeclaration messageName fieldNames maybeConstructors =
+  instanceDeclaration
+  where
+    messageConstructor = HsCon (UnQual (HsIdent messageName))
+
+    _namedSchemaNameExpression = HsApp justC (HsLit (HsString messageName))
+
+    -- { _paramSchemaType = HsJSONPB.SwaggerObject
+    -- }
+    paramSchemaUpdates =
+      [ HsFieldUpdate _paramSchemaType _paramSchemaTypeExpression
+      ]
+      where
+        _paramSchemaType = jsonpbName "_paramSchemaType"
+
+        _paramSchemaTypeExpression = HsVar (jsonpbName "SwaggerObject")
+
+    _schemaParamSchemaExpression = HsRecUpdate memptyE paramSchemaUpdates
+
+    -- [ ("fieldName0", fieldName0)
+    -- , ("fieldName1", fieldName1)
+    -- ...
+    -- ]
+    properties = HsList $ do
+      fieldName <- fieldNames
+
+      let string = HsLit (HsString fieldName)
+
+      let variable = HsVar (UnQual (HsIdent fieldName))
+
+      return (HsTuple [ string, variable ])
+
+    _schemaPropertiesExpression =
+      HsApp (HsVar (insOrdName "fromList")) properties
+
+    -- { _schemaParamSchema = ...
+    -- , _schemaProperties  = ...
+    -- }
+    schemaUpdates =
+      [ HsFieldUpdate _schemaParamSchema _schemaParamSchemaExpression
+      , HsFieldUpdate _schemaProperties  _schemaPropertiesExpression
+      ]
+      where
+        _schemaParamSchema = jsonpbName "_schemaParamSchema"
+        _schemaProperties  = jsonpbName "_schemaProperties"
+
+    _namedSchemaSchemaExpression = HsRecUpdate memptyE schemaUpdates
+
+    -- { _namedSchemaName   = ...
+    -- , _namedSchemaSchema = ...
+    -- }
+    namedSchemaUpdates =
+      [ HsFieldUpdate _namedSchemaName   _namedSchemaNameExpression
+      , HsFieldUpdate _namedSchemaSchema _namedSchemaSchemaExpression
+      ]
+      where
+        _namedSchemaName   = jsonpbName "_namedSchemaName"
+        _namedSchemaSchema = jsonpbName "_namedSchemaSchema"
+
+    namedSchema = HsRecConstr (jsonpbName "NamedSchema") namedSchemaUpdates
+
+    toDeclareName fieldName = "declare_" ++ fieldName
+
+    toArgument fieldName = HsApp asProxy declare
+      where
+        declare = HsVar (UnQual (HsIdent (toDeclareName fieldName)))
+
+        asProxy = HsVar (jsonpbName "asProxy")
+
+    -- do let declare_fieldName0 = HsJSONPB.declareSchemaRef
+    --    fieldName0 <- declare_fieldName0 Proxy.Proxy
+    --    let declare_fieldName1 = HsJSONPB.declareSchemaRef
+    --    fieldName1 <- declare_fieldName1 Proxy.Proxy
+    --    ...
+    --    let _ = pure MessageName <*> HsJSONPB.asProxy declare_fieldName0 <*> HsJSONPB.asProxy declare_fieldName1 <*> ...
+    --    return (...)
+    expressionForMessage =
+      HsDo (bindingStatements ++ [ typeInferenceStatement, returnStatement ])
+      where
+        bindingStatements = do
+          fieldName <- fieldNames
+
+          let declareIdentifier = HsIdent (toDeclareName fieldName)
+
+          let rightHandSide0 =
+                  HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))
+
+          let match = HsMatch l declareIdentifier [] rightHandSide0 []
+
+          let statement0 = HsLetStmt [ HsFunBind [ match ] ]
+
+          let declareVariable = HsVar (UnQual declareIdentifier)
+
+          let proxy = HsCon (proxyName "Proxy")
+
+          let rightHandSide1 = HsApp declareVariable proxy
+
+          let pattern = HsPVar (HsIdent fieldName)
+
+          let statement1 = HsGenerator l pattern rightHandSide1
+
+          [ statement0, statement1 ]
+
+
+        typeInferenceStatement = HsLetStmt [ patternBind ]
+          where
+            arguments = map toArgument fieldNames
+
+            rightHandSide =
+              HsUnGuardedRhs (applicativeApply messageConstructor arguments)
+
+            patternBind = HsPatBind l HsPWildCard rightHandSide []
+
+        returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
+
+    -- do let declare_fieldName0 = HsJSONPB.declareSchemaRef
+    --    let _ = pure ConstructorName0 <*> HsJSONPB.asProxy declare_fieldName0
+    --    fieldName0 <- declare_fieldName0 Proxy.Proxy
+    --    let declare_fieldName1 = HsJSONPB.declareSchemaRef
+    --    let _ = pure ConstructorName1 <*> HsJSONPB.asProxy declare_fieldName1
+    --    fieldName1 <- declare_fieldName1 Proxy.Proxy
+    --    ...
+    --    return (...)
+    expressionForOneOf constructors =
+      HsDo (bindingStatements ++ [ returnStatement ])
+      where
+        bindingStatements = do
+          (fieldName, constructor) <- zip fieldNames constructors
+
+          let declareIdentifier = HsIdent (toDeclareName fieldName)
+
+          let rightHandSide0 =
+                  HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))
+
+          let match = HsMatch l declareIdentifier [] rightHandSide0 []
+
+          let statement0 = HsLetStmt [ HsFunBind [ match ] ]
+
+          let declareVariable = HsVar (UnQual declareIdentifier)
+
+          let proxy = HsCon (proxyName "Proxy")
+
+          let rightHandSide1 = HsApp declareVariable proxy
+
+          let pattern = HsPVar (HsIdent fieldName)
+
+          let statement1 = HsGenerator l pattern rightHandSide1
+
+          let typeInferenceStatement = HsLetStmt [ patternBind ]
+                where
+                  arguments = [ toArgument fieldName ]
+
+                  rightHandSide =
+                    HsUnGuardedRhs (applicativeApply (HsCon (UnQual constructor)) arguments)
+
+                  patternBind = HsPatBind l HsPWildCard rightHandSide []
+
+          [ statement0, statement1, typeInferenceStatement ]
+
+        returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
+
+    instanceDeclaration =
+      instDecl_ className [ classArgument ] [ classDeclaration ]
+      where
+        className = jsonpbName "ToSchema"
+
+        classArgument = HsTyCon (UnQual (HsIdent messageName))
+
+        classDeclaration = HsFunBind [ match ]
+          where
+            match = match_ matchName [ HsPWildCard ] rightHandSide []
+              where
+                expression = case maybeConstructors of
+                    Nothing           -> expressionForMessage
+                    Just constructors -> expressionForOneOf constructors
+
+                rightHandSide = HsUnGuardedRhs expression
+
+                matchName = HsIdent "declareNamedSchema"
 
 -- ** Codegen bookkeeping helpers
 
@@ -1517,7 +1716,7 @@ dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC,
   identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC,
   unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
   methodNameC, nothingC, justC, forceEmitC, mconcatE, encodeMessageFieldE,
-  fromStringE, decodeMessageFieldE, pureE, memptyE, msumE, atE, oneofE,
+  fromStringE, decodeMessageFieldE, pureE, returnE, memptyE, msumE, atE, oneofE,
   succErrorE, predErrorE, toEnumErrorE, fmapE, defaultOptionsE, serverLoopE,
   convertServerHandlerE, convertServerReaderHandlerE, convertServerWriterHandlerE,
   convertServerRWHandlerE, clientRegisterMethodE, clientRequestE :: HsExp
@@ -1558,6 +1757,7 @@ oneofE                      = HsVar (protobufName "oneof")
 mconcatE                    = HsVar (haskellName "mconcat")
 fromStringE                 = HsVar (haskellName "fromString")
 pureE                       = HsVar (haskellName "pure")
+returnE                     = HsVar (haskellName "return")
 memptyE                     = HsVar (haskellName "mempty")
 msumE                       = HsVar (haskellName "msum")
 succErrorE                  = HsVar (haskellName "succError")
@@ -1710,6 +1910,8 @@ defaultImports usesGrpc =
   , importDecl_ dataWordM                 True  (Just haskellNS)
                 (Just (False, [ importSym "Word16", importSym "Word32"
                               , importSym "Word64" ]))
+  , importDecl_ dataHashMapStrictInsOrdM  True (Just insOrdNS)  Nothing
+  , importDecl_ dataProxy                 True (Just proxyNS)   Nothing
   , importDecl_ ghcGenericsM              True (Just haskellNS) Nothing
   , importDecl_ ghcEnumM                  True (Just haskellNS) Nothing
   ] <>
@@ -1736,6 +1938,8 @@ defaultImports usesGrpc =
         dataIntM                  = Module "Data.Int"
         dataVectorM               = Module "Data.Vector"
         dataWordM                 = Module "Data.Word"
+        dataHashMapStrictInsOrdM  = Module "Data.HashMap.Strict.InsOrd"
+        dataProxy                 = Module "Data.Proxy"
         ghcGenericsM              = Module "GHC.Generics"
         ghcEnumM                  = Module "GHC.Enum"
         networkGrpcHighLevelGeneratedM   = Module "Network.GRPC.HighLevel.Generated"
@@ -1746,6 +1950,8 @@ defaultImports usesGrpc =
         grpcNS                    = Module "HsGRPC"
         jsonpbNS                  = Module "HsJSONPB"
         protobufNS                = Module "HsProtobuf"
+        insOrdNS                  = Module "InsOrd"
+        proxyNS                   = Module "Proxy"
 
         importSym = HsIAbs . HsIdent
 
@@ -1767,6 +1973,13 @@ defaultServiceDeriving = map haskellName [ "Generic" ]
 
 apply :: HsExp -> [HsExp] -> HsExp
 apply f = HsParen . foldl HsApp f
+
+applicativeApply :: HsExp -> [HsExp] -> HsExp
+applicativeApply f = foldl snoc nil
+  where
+    nil = HsApp pureE f
+
+    snoc g x = HsInfixApp g apOp x
 
 tyApp :: HsType -> [HsType] -> HsType
 tyApp = foldl HsTyApp
