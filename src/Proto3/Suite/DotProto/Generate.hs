@@ -1155,7 +1155,7 @@ toSchemaInstanceDeclaration messageName fieldNames maybeConstructors = do
       --    let _ = pure MessageName <*> HsJSONPB.asProxy declare_fieldName0 <*> HsJSONPB.asProxy declare_fieldName1 <*> ...
       --    return (...)
   let expressionForMessage =
-        HsDo (bindingStatements ++ [ typeInferenceStatement, returnStatement ])
+        HsDo (bindingStatements ++ inferenceStatements ++ [ returnStatement ])
         where
           bindingStatements = do
             (fieldName, qualifiedFieldName) <- zip fieldNames qualifiedFieldNames
@@ -1182,7 +1182,8 @@ toSchemaInstanceDeclaration messageName fieldNames maybeConstructors = do
             [ statement0, statement1 ]
 
 
-          typeInferenceStatement = HsLetStmt [ patternBind ]
+          inferenceStatements =
+              if null fieldNames then [] else [ HsLetStmt [ patternBind ] ]
             where
               arguments = map toArgument fieldNames
 
@@ -1226,7 +1227,8 @@ toSchemaInstanceDeclaration messageName fieldNames maybeConstructors = do
 
             let statement1 = HsGenerator l pattern rightHandSide1
 
-            let typeInferenceStatement = HsLetStmt [ patternBind ]
+            let inferenceStatements =
+                  if null fieldNames then [] else [ HsLetStmt [ patternBind ] ]
                   where
                     arguments = [ toArgument fieldName ]
 
@@ -1235,7 +1237,7 @@ toSchemaInstanceDeclaration messageName fieldNames maybeConstructors = do
 
                     patternBind = HsPatBind l HsPWildCard rightHandSide []
 
-            [ statement0, statement1, typeInferenceStatement ]
+            [ statement0, statement1 ] ++ inferenceStatements
 
           returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
 
