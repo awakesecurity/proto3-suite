@@ -112,7 +112,7 @@ instance HsJSONPB.FromJSON WithOneof where
 instance HsJSONPB.ToSchema WithOneof where
         declareNamedSchema _
           = do let declare_pickOne = HsJSONPB.declareSchemaRef
-               pickOne <- declare_pickOne Proxy.Proxy
+               withOneofPickOne <- declare_pickOne Proxy.Proxy
                let _ = Hs.pure WithOneof <*> HsJSONPB.asProxy declare_pickOne
                Hs.return
                  (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
@@ -123,7 +123,7 @@ instance HsJSONPB.ToSchema WithOneof where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("pickOne", pickOne)]}})
+                                                       [("pickOne", withOneofPickOne)]}})
  
 data WithOneofPickOne = WithOneofPickOneA Hs.Text
                       | WithOneofPickOneB Hs.Int32
@@ -135,10 +135,10 @@ instance HsProtobuf.Named WithOneofPickOne where
 instance HsJSONPB.ToSchema WithOneofPickOne where
         declareNamedSchema _
           = do let declare_a = HsJSONPB.declareSchemaRef
-               a <- declare_a Proxy.Proxy
+               withOneofPickOneA <- declare_a Proxy.Proxy
                let _ = Hs.pure WithOneofPickOneA <*> HsJSONPB.asProxy declare_a
                let declare_b = HsJSONPB.declareSchemaRef
-               b <- declare_b Proxy.Proxy
+               withOneofPickOneB <- declare_b Proxy.Proxy
                let _ = Hs.pure WithOneofPickOneB <*> HsJSONPB.asProxy declare_b
                Hs.return
                  (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
@@ -148,6 +148,8 @@ instance HsJSONPB.ToSchema WithOneofPickOne where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     HsJSONPB.insOrdFromList [("a", a), ("b", b)],
+                                                     HsJSONPB.insOrdFromList
+                                                       [("a", withOneofPickOneA),
+                                                        ("b", withOneofPickOneB)],
                                                    HsJSONPB._schemaMinProperties = Hs.Just 1,
                                                    HsJSONPB._schemaMaxProperties = Hs.Just 1}})

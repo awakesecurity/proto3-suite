@@ -92,9 +92,9 @@ instance HsJSONPB.FromJSON WithNesting where
 instance HsJSONPB.ToSchema WithNesting where
         declareNamedSchema _
           = do let declare_nestedMessage1 = HsJSONPB.declareSchemaRef
-               nestedMessage1 <- declare_nestedMessage1 Proxy.Proxy
+               withNestingNestedMessage1 <- declare_nestedMessage1 Proxy.Proxy
                let declare_nestedMessage2 = HsJSONPB.declareSchemaRef
-               nestedMessage2 <- declare_nestedMessage2 Proxy.Proxy
+               withNestingNestedMessage2 <- declare_nestedMessage2 Proxy.Proxy
                let _ = Hs.pure WithNesting <*>
                          HsJSONPB.asProxy declare_nestedMessage1
                          <*> HsJSONPB.asProxy declare_nestedMessage2
@@ -107,8 +107,10 @@ instance HsJSONPB.ToSchema WithNesting where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("nestedMessage1", nestedMessage1),
-                                                        ("nestedMessage2", nestedMessage2)]}})
+                                                       [("nestedMessage1",
+                                                         withNestingNestedMessage1),
+                                                        ("nestedMessage2",
+                                                         withNestingNestedMessage2)]}})
  
 data WithNesting_Nested = WithNesting_Nested{withNesting_NestedNestedField1
                                              :: Hs.Int32,
@@ -170,9 +172,9 @@ instance HsJSONPB.FromJSON WithNesting_Nested where
 instance HsJSONPB.ToSchema WithNesting_Nested where
         declareNamedSchema _
           = do let declare_nestedField1 = HsJSONPB.declareSchemaRef
-               nestedField1 <- declare_nestedField1 Proxy.Proxy
+               withNesting_NestedNestedField1 <- declare_nestedField1 Proxy.Proxy
                let declare_nestedField2 = HsJSONPB.declareSchemaRef
-               nestedField2 <- declare_nestedField2 Proxy.Proxy
+               withNesting_NestedNestedField2 <- declare_nestedField2 Proxy.Proxy
                let _ = Hs.pure WithNesting_Nested <*>
                          HsJSONPB.asProxy declare_nestedField1
                          <*> HsJSONPB.asProxy declare_nestedField2
@@ -185,5 +187,7 @@ instance HsJSONPB.ToSchema WithNesting_Nested where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("nestedField1", nestedField1),
-                                                        ("nestedField2", nestedField2)]}})
+                                                       [("nestedField1",
+                                                         withNesting_NestedNestedField1),
+                                                        ("nestedField2",
+                                                         withNesting_NestedNestedField2)]}})

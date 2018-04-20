@@ -70,7 +70,7 @@ instance HsJSONPB.FromJSON Trivial where
 instance HsJSONPB.ToSchema Trivial where
         declareNamedSchema _
           = do let declare_trivialField = HsJSONPB.declareSchemaRef
-               trivialField <- declare_trivialField Proxy.Proxy
+               trivialTrivialField <- declare_trivialField Proxy.Proxy
                let _ = Hs.pure Trivial <*> HsJSONPB.asProxy declare_trivialField
                Hs.return
                  (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
@@ -81,7 +81,7 @@ instance HsJSONPB.ToSchema Trivial where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("trivialField", trivialField)]}})
+                                                       [("trivialField", trivialTrivialField)]}})
  
 data MultipleFields = MultipleFields{multipleFieldsMultiFieldDouble
                                      :: Hs.Double,
@@ -201,17 +201,22 @@ instance HsJSONPB.FromJSON MultipleFields where
 instance HsJSONPB.ToSchema MultipleFields where
         declareNamedSchema _
           = do let declare_multiFieldDouble = HsJSONPB.declareSchemaRef
-               multiFieldDouble <- declare_multiFieldDouble Proxy.Proxy
+               multipleFieldsMultiFieldDouble <- declare_multiFieldDouble
+                                                   Proxy.Proxy
                let declare_multiFieldFloat = HsJSONPB.declareSchemaRef
-               multiFieldFloat <- declare_multiFieldFloat Proxy.Proxy
+               multipleFieldsMultiFieldFloat <- declare_multiFieldFloat
+                                                  Proxy.Proxy
                let declare_multiFieldInt32 = HsJSONPB.declareSchemaRef
-               multiFieldInt32 <- declare_multiFieldInt32 Proxy.Proxy
+               multipleFieldsMultiFieldInt32 <- declare_multiFieldInt32
+                                                  Proxy.Proxy
                let declare_multiFieldInt64 = HsJSONPB.declareSchemaRef
-               multiFieldInt64 <- declare_multiFieldInt64 Proxy.Proxy
+               multipleFieldsMultiFieldInt64 <- declare_multiFieldInt64
+                                                  Proxy.Proxy
                let declare_multiFieldString = HsJSONPB.declareSchemaRef
-               multiFieldString <- declare_multiFieldString Proxy.Proxy
+               multipleFieldsMultiFieldString <- declare_multiFieldString
+                                                   Proxy.Proxy
                let declare_multiFieldBool = HsJSONPB.declareSchemaRef
-               multiFieldBool <- declare_multiFieldBool Proxy.Proxy
+               multipleFieldsMultiFieldBool <- declare_multiFieldBool Proxy.Proxy
                let _ = Hs.pure MultipleFields <*>
                          HsJSONPB.asProxy declare_multiFieldDouble
                          <*> HsJSONPB.asProxy declare_multiFieldFloat
@@ -228,12 +233,18 @@ instance HsJSONPB.ToSchema MultipleFields where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("multiFieldDouble", multiFieldDouble),
-                                                        ("multiFieldFloat", multiFieldFloat),
-                                                        ("multiFieldInt32", multiFieldInt32),
-                                                        ("multiFieldInt64", multiFieldInt64),
-                                                        ("multiFieldString", multiFieldString),
-                                                        ("multiFieldBool", multiFieldBool)]}})
+                                                       [("multiFieldDouble",
+                                                         multipleFieldsMultiFieldDouble),
+                                                        ("multiFieldFloat",
+                                                         multipleFieldsMultiFieldFloat),
+                                                        ("multiFieldInt32",
+                                                         multipleFieldsMultiFieldInt32),
+                                                        ("multiFieldInt64",
+                                                         multipleFieldsMultiFieldInt64),
+                                                        ("multiFieldString",
+                                                         multipleFieldsMultiFieldString),
+                                                        ("multiFieldBool",
+                                                         multipleFieldsMultiFieldBool)]}})
  
 data SignedInts = SignedInts{signedIntsSigned32 :: Hs.Int32,
                              signedIntsSigned64 :: Hs.Int64}
@@ -294,9 +305,9 @@ instance HsJSONPB.FromJSON SignedInts where
 instance HsJSONPB.ToSchema SignedInts where
         declareNamedSchema _
           = do let declare_signed32 = HsJSONPB.declareSchemaRef
-               signed32 <- declare_signed32 Proxy.Proxy
+               signedIntsSigned32 <- declare_signed32 Proxy.Proxy
                let declare_signed64 = HsJSONPB.declareSchemaRef
-               signed64 <- declare_signed64 Proxy.Proxy
+               signedIntsSigned64 <- declare_signed64 Proxy.Proxy
                let _ = Hs.pure SignedInts <*> HsJSONPB.asProxy declare_signed32
                          <*> HsJSONPB.asProxy declare_signed64
                Hs.return
@@ -308,8 +319,8 @@ instance HsJSONPB.ToSchema SignedInts where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("signed32", signed32),
-                                                        ("signed64", signed64)]}})
+                                                       [("signed32", signedIntsSigned32),
+                                                        ("signed64", signedIntsSigned64)]}})
  
 data WithEnum = WithEnum{withEnumEnumField ::
                          HsProtobuf.Enumerated TestProto.WithEnum_TestEnum}
@@ -353,7 +364,7 @@ instance HsJSONPB.FromJSON WithEnum where
 instance HsJSONPB.ToSchema WithEnum where
         declareNamedSchema _
           = do let declare_enumField = HsJSONPB.declareSchemaRef
-               enumField <- declare_enumField Proxy.Proxy
+               withEnumEnumField <- declare_enumField Proxy.Proxy
                let _ = Hs.pure WithEnum <*> HsJSONPB.asProxy declare_enumField
                Hs.return
                  (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
@@ -364,7 +375,7 @@ instance HsJSONPB.ToSchema WithEnum where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("enumField", enumField)]}})
+                                                       [("enumField", withEnumEnumField)]}})
  
 data WithEnum_TestEnum = WithEnum_TestEnumENUM1
                        | WithEnum_TestEnumENUM2
@@ -457,7 +468,7 @@ instance HsJSONPB.FromJSON WithNesting where
 instance HsJSONPB.ToSchema WithNesting where
         declareNamedSchema _
           = do let declare_nestedMessage = HsJSONPB.declareSchemaRef
-               nestedMessage <- declare_nestedMessage Proxy.Proxy
+               withNestingNestedMessage <- declare_nestedMessage Proxy.Proxy
                let _ = Hs.pure WithNesting <*>
                          HsJSONPB.asProxy declare_nestedMessage
                Hs.return
@@ -469,7 +480,8 @@ instance HsJSONPB.ToSchema WithNesting where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("nestedMessage", nestedMessage)]}})
+                                                       [("nestedMessage",
+                                                         withNestingNestedMessage)]}})
  
 data WithNesting_Nested = WithNesting_Nested{withNesting_NestedNestedField1
                                              :: Hs.Text,
@@ -566,13 +578,14 @@ instance HsJSONPB.FromJSON WithNesting_Nested where
 instance HsJSONPB.ToSchema WithNesting_Nested where
         declareNamedSchema _
           = do let declare_nestedField1 = HsJSONPB.declareSchemaRef
-               nestedField1 <- declare_nestedField1 Proxy.Proxy
+               withNesting_NestedNestedField1 <- declare_nestedField1 Proxy.Proxy
                let declare_nestedField2 = HsJSONPB.declareSchemaRef
-               nestedField2 <- declare_nestedField2 Proxy.Proxy
+               withNesting_NestedNestedField2 <- declare_nestedField2 Proxy.Proxy
                let declare_nestedPacked = HsJSONPB.declareSchemaRef
-               nestedPacked <- declare_nestedPacked Proxy.Proxy
+               withNesting_NestedNestedPacked <- declare_nestedPacked Proxy.Proxy
                let declare_nestedUnpacked = HsJSONPB.declareSchemaRef
-               nestedUnpacked <- declare_nestedUnpacked Proxy.Proxy
+               withNesting_NestedNestedUnpacked <- declare_nestedUnpacked
+                                                     Proxy.Proxy
                let _ = Hs.pure WithNesting_Nested <*>
                          HsJSONPB.asProxy declare_nestedField1
                          <*> HsJSONPB.asProxy declare_nestedField2
@@ -587,10 +600,14 @@ instance HsJSONPB.ToSchema WithNesting_Nested where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("nestedField1", nestedField1),
-                                                        ("nestedField2", nestedField2),
-                                                        ("nestedPacked", nestedPacked),
-                                                        ("nestedUnpacked", nestedUnpacked)]}})
+                                                       [("nestedField1",
+                                                         withNesting_NestedNestedField1),
+                                                        ("nestedField2",
+                                                         withNesting_NestedNestedField2),
+                                                        ("nestedPacked",
+                                                         withNesting_NestedNestedPacked),
+                                                        ("nestedUnpacked",
+                                                         withNesting_NestedNestedUnpacked)]}})
  
 data WithNestingRepeated = WithNestingRepeated{withNestingRepeatedNestedMessages
                                                :: Hs.Vector TestProto.WithNestingRepeated_Nested}
@@ -641,7 +658,8 @@ instance HsJSONPB.FromJSON WithNestingRepeated where
 instance HsJSONPB.ToSchema WithNestingRepeated where
         declareNamedSchema _
           = do let declare_nestedMessages = HsJSONPB.declareSchemaRef
-               nestedMessages <- declare_nestedMessages Proxy.Proxy
+               withNestingRepeatedNestedMessages <- declare_nestedMessages
+                                                      Proxy.Proxy
                let _ = Hs.pure WithNestingRepeated <*>
                          HsJSONPB.asProxy declare_nestedMessages
                Hs.return
@@ -653,7 +671,8 @@ instance HsJSONPB.ToSchema WithNestingRepeated where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("nestedMessages", nestedMessages)]}})
+                                                       [("nestedMessages",
+                                                         withNestingRepeatedNestedMessages)]}})
  
 data WithNestingRepeated_Nested = WithNestingRepeated_Nested{withNestingRepeated_NestedNestedField1
                                                              :: Hs.Text,
@@ -756,13 +775,17 @@ instance HsJSONPB.FromJSON WithNestingRepeated_Nested where
 instance HsJSONPB.ToSchema WithNestingRepeated_Nested where
         declareNamedSchema _
           = do let declare_nestedField1 = HsJSONPB.declareSchemaRef
-               nestedField1 <- declare_nestedField1 Proxy.Proxy
+               withNestingRepeated_NestedNestedField1 <- declare_nestedField1
+                                                           Proxy.Proxy
                let declare_nestedField2 = HsJSONPB.declareSchemaRef
-               nestedField2 <- declare_nestedField2 Proxy.Proxy
+               withNestingRepeated_NestedNestedField2 <- declare_nestedField2
+                                                           Proxy.Proxy
                let declare_nestedPacked = HsJSONPB.declareSchemaRef
-               nestedPacked <- declare_nestedPacked Proxy.Proxy
+               withNestingRepeated_NestedNestedPacked <- declare_nestedPacked
+                                                           Proxy.Proxy
                let declare_nestedUnpacked = HsJSONPB.declareSchemaRef
-               nestedUnpacked <- declare_nestedUnpacked Proxy.Proxy
+               withNestingRepeated_NestedNestedUnpacked <- declare_nestedUnpacked
+                                                             Proxy.Proxy
                let _ = Hs.pure WithNestingRepeated_Nested <*>
                          HsJSONPB.asProxy declare_nestedField1
                          <*> HsJSONPB.asProxy declare_nestedField2
@@ -777,10 +800,14 @@ instance HsJSONPB.ToSchema WithNestingRepeated_Nested where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("nestedField1", nestedField1),
-                                                        ("nestedField2", nestedField2),
-                                                        ("nestedPacked", nestedPacked),
-                                                        ("nestedUnpacked", nestedUnpacked)]}})
+                                                       [("nestedField1",
+                                                         withNestingRepeated_NestedNestedField1),
+                                                        ("nestedField2",
+                                                         withNestingRepeated_NestedNestedField2),
+                                                        ("nestedPacked",
+                                                         withNestingRepeated_NestedNestedPacked),
+                                                        ("nestedUnpacked",
+                                                         withNestingRepeated_NestedNestedUnpacked)]}})
  
 data NestedInts = NestedInts{nestedIntsNestedInt1 :: Hs.Int32,
                              nestedIntsNestedInt2 :: Hs.Int32}
@@ -840,9 +867,9 @@ instance HsJSONPB.FromJSON NestedInts where
 instance HsJSONPB.ToSchema NestedInts where
         declareNamedSchema _
           = do let declare_nestedInt1 = HsJSONPB.declareSchemaRef
-               nestedInt1 <- declare_nestedInt1 Proxy.Proxy
+               nestedIntsNestedInt1 <- declare_nestedInt1 Proxy.Proxy
                let declare_nestedInt2 = HsJSONPB.declareSchemaRef
-               nestedInt2 <- declare_nestedInt2 Proxy.Proxy
+               nestedIntsNestedInt2 <- declare_nestedInt2 Proxy.Proxy
                let _ = Hs.pure NestedInts <*> HsJSONPB.asProxy declare_nestedInt1
                          <*> HsJSONPB.asProxy declare_nestedInt2
                Hs.return
@@ -854,8 +881,8 @@ instance HsJSONPB.ToSchema NestedInts where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("nestedInt1", nestedInt1),
-                                                        ("nestedInt2", nestedInt2)]}})
+                                                       [("nestedInt1", nestedIntsNestedInt1),
+                                                        ("nestedInt2", nestedIntsNestedInt2)]}})
  
 data WithNestingRepeatedInts = WithNestingRepeatedInts{withNestingRepeatedIntsNestedInts
                                                        :: Hs.Vector TestProto.NestedInts}
@@ -906,7 +933,7 @@ instance HsJSONPB.FromJSON WithNestingRepeatedInts where
 instance HsJSONPB.ToSchema WithNestingRepeatedInts where
         declareNamedSchema _
           = do let declare_nestedInts = HsJSONPB.declareSchemaRef
-               nestedInts <- declare_nestedInts Proxy.Proxy
+               withNestingRepeatedIntsNestedInts <- declare_nestedInts Proxy.Proxy
                let _ = Hs.pure WithNestingRepeatedInts <*>
                          HsJSONPB.asProxy declare_nestedInts
                Hs.return
@@ -918,7 +945,8 @@ instance HsJSONPB.ToSchema WithNestingRepeatedInts where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("nestedInts", nestedInts)]}})
+                                                       [("nestedInts",
+                                                         withNestingRepeatedIntsNestedInts)]}})
  
 data WithNestingInts = WithNestingInts{withNestingIntsNestedInts ::
                                        Hs.Maybe TestProto.NestedInts}
@@ -968,7 +996,7 @@ instance HsJSONPB.FromJSON WithNestingInts where
 instance HsJSONPB.ToSchema WithNestingInts where
         declareNamedSchema _
           = do let declare_nestedInts = HsJSONPB.declareSchemaRef
-               nestedInts <- declare_nestedInts Proxy.Proxy
+               withNestingIntsNestedInts <- declare_nestedInts Proxy.Proxy
                let _ = Hs.pure WithNestingInts <*>
                          HsJSONPB.asProxy declare_nestedInts
                Hs.return
@@ -980,7 +1008,8 @@ instance HsJSONPB.ToSchema WithNestingInts where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("nestedInts", nestedInts)]}})
+                                                       [("nestedInts",
+                                                         withNestingIntsNestedInts)]}})
  
 data WithRepetition = WithRepetition{withRepetitionRepeatedField1
                                      :: Hs.Vector Hs.Int32}
@@ -1029,7 +1058,7 @@ instance HsJSONPB.FromJSON WithRepetition where
 instance HsJSONPB.ToSchema WithRepetition where
         declareNamedSchema _
           = do let declare_repeatedField1 = HsJSONPB.declareSchemaRef
-               repeatedField1 <- declare_repeatedField1 Proxy.Proxy
+               withRepetitionRepeatedField1 <- declare_repeatedField1 Proxy.Proxy
                let _ = Hs.pure WithRepetition <*>
                          HsJSONPB.asProxy declare_repeatedField1
                Hs.return
@@ -1041,7 +1070,8 @@ instance HsJSONPB.ToSchema WithRepetition where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("repeatedField1", repeatedField1)]}})
+                                                       [("repeatedField1",
+                                                         withRepetitionRepeatedField1)]}})
  
 data WithFixed = WithFixed{withFixedFixed1 ::
                            HsProtobuf.Fixed Hs.Word32,
@@ -1131,13 +1161,13 @@ instance HsJSONPB.FromJSON WithFixed where
 instance HsJSONPB.ToSchema WithFixed where
         declareNamedSchema _
           = do let declare_fixed1 = HsJSONPB.declareSchemaRef
-               fixed1 <- declare_fixed1 Proxy.Proxy
+               withFixedFixed1 <- declare_fixed1 Proxy.Proxy
                let declare_fixed2 = HsJSONPB.declareSchemaRef
-               fixed2 <- declare_fixed2 Proxy.Proxy
+               withFixedFixed2 <- declare_fixed2 Proxy.Proxy
                let declare_fixed3 = HsJSONPB.declareSchemaRef
-               fixed3 <- declare_fixed3 Proxy.Proxy
+               withFixedFixed3 <- declare_fixed3 Proxy.Proxy
                let declare_fixed4 = HsJSONPB.declareSchemaRef
-               fixed4 <- declare_fixed4 Proxy.Proxy
+               withFixedFixed4 <- declare_fixed4 Proxy.Proxy
                let _ = Hs.pure WithFixed <*> HsJSONPB.asProxy declare_fixed1 <*>
                          HsJSONPB.asProxy declare_fixed2
                          <*> HsJSONPB.asProxy declare_fixed3
@@ -1151,8 +1181,10 @@ instance HsJSONPB.ToSchema WithFixed where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("fixed1", fixed1), ("fixed2", fixed2),
-                                                        ("fixed3", fixed3), ("fixed4", fixed4)]}})
+                                                       [("fixed1", withFixedFixed1),
+                                                        ("fixed2", withFixedFixed2),
+                                                        ("fixed3", withFixedFixed3),
+                                                        ("fixed4", withFixedFixed4)]}})
  
 data WithBytes = WithBytes{withBytesBytes1 :: Hs.ByteString,
                            withBytesBytes2 :: Hs.Vector Hs.ByteString}
@@ -1212,9 +1244,9 @@ instance HsJSONPB.FromJSON WithBytes where
 instance HsJSONPB.ToSchema WithBytes where
         declareNamedSchema _
           = do let declare_bytes1 = HsJSONPB.declareSchemaRef
-               bytes1 <- declare_bytes1 Proxy.Proxy
+               withBytesBytes1 <- declare_bytes1 Proxy.Proxy
                let declare_bytes2 = HsJSONPB.declareSchemaRef
-               bytes2 <- declare_bytes2 Proxy.Proxy
+               withBytesBytes2 <- declare_bytes2 Proxy.Proxy
                let _ = Hs.pure WithBytes <*> HsJSONPB.asProxy declare_bytes1 <*>
                          HsJSONPB.asProxy declare_bytes2
                Hs.return
@@ -1226,7 +1258,8 @@ instance HsJSONPB.ToSchema WithBytes where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("bytes1", bytes1), ("bytes2", bytes2)]}})
+                                                       [("bytes1", withBytesBytes1),
+                                                        ("bytes2", withBytesBytes2)]}})
  
 data WithPacking = WithPacking{withPackingPacking1 ::
                                Hs.Vector Hs.Int32,
@@ -1290,9 +1323,9 @@ instance HsJSONPB.FromJSON WithPacking where
 instance HsJSONPB.ToSchema WithPacking where
         declareNamedSchema _
           = do let declare_packing1 = HsJSONPB.declareSchemaRef
-               packing1 <- declare_packing1 Proxy.Proxy
+               withPackingPacking1 <- declare_packing1 Proxy.Proxy
                let declare_packing2 = HsJSONPB.declareSchemaRef
-               packing2 <- declare_packing2 Proxy.Proxy
+               withPackingPacking2 <- declare_packing2 Proxy.Proxy
                let _ = Hs.pure WithPacking <*> HsJSONPB.asProxy declare_packing1
                          <*> HsJSONPB.asProxy declare_packing2
                Hs.return
@@ -1304,8 +1337,8 @@ instance HsJSONPB.ToSchema WithPacking where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("packing1", packing1),
-                                                        ("packing2", packing2)]}})
+                                                       [("packing1", withPackingPacking1),
+                                                        ("packing2", withPackingPacking2)]}})
  
 data E = EFLD0
        | EFLD1
@@ -1594,31 +1627,31 @@ instance HsJSONPB.FromJSON AllPackedTypes where
 instance HsJSONPB.ToSchema AllPackedTypes where
         declareNamedSchema _
           = do let declare_packedWord32 = HsJSONPB.declareSchemaRef
-               packedWord32 <- declare_packedWord32 Proxy.Proxy
+               allPackedTypesPackedWord32 <- declare_packedWord32 Proxy.Proxy
                let declare_packedWord64 = HsJSONPB.declareSchemaRef
-               packedWord64 <- declare_packedWord64 Proxy.Proxy
+               allPackedTypesPackedWord64 <- declare_packedWord64 Proxy.Proxy
                let declare_packedInt32 = HsJSONPB.declareSchemaRef
-               packedInt32 <- declare_packedInt32 Proxy.Proxy
+               allPackedTypesPackedInt32 <- declare_packedInt32 Proxy.Proxy
                let declare_packedInt64 = HsJSONPB.declareSchemaRef
-               packedInt64 <- declare_packedInt64 Proxy.Proxy
+               allPackedTypesPackedInt64 <- declare_packedInt64 Proxy.Proxy
                let declare_packedFixed32 = HsJSONPB.declareSchemaRef
-               packedFixed32 <- declare_packedFixed32 Proxy.Proxy
+               allPackedTypesPackedFixed32 <- declare_packedFixed32 Proxy.Proxy
                let declare_packedFixed64 = HsJSONPB.declareSchemaRef
-               packedFixed64 <- declare_packedFixed64 Proxy.Proxy
+               allPackedTypesPackedFixed64 <- declare_packedFixed64 Proxy.Proxy
                let declare_packedFloat = HsJSONPB.declareSchemaRef
-               packedFloat <- declare_packedFloat Proxy.Proxy
+               allPackedTypesPackedFloat <- declare_packedFloat Proxy.Proxy
                let declare_packedDouble = HsJSONPB.declareSchemaRef
-               packedDouble <- declare_packedDouble Proxy.Proxy
+               allPackedTypesPackedDouble <- declare_packedDouble Proxy.Proxy
                let declare_packedSFixed32 = HsJSONPB.declareSchemaRef
-               packedSFixed32 <- declare_packedSFixed32 Proxy.Proxy
+               allPackedTypesPackedSFixed32 <- declare_packedSFixed32 Proxy.Proxy
                let declare_packedSFixed64 = HsJSONPB.declareSchemaRef
-               packedSFixed64 <- declare_packedSFixed64 Proxy.Proxy
+               allPackedTypesPackedSFixed64 <- declare_packedSFixed64 Proxy.Proxy
                let declare_packedBool = HsJSONPB.declareSchemaRef
-               packedBool <- declare_packedBool Proxy.Proxy
+               allPackedTypesPackedBool <- declare_packedBool Proxy.Proxy
                let declare_packedEnum = HsJSONPB.declareSchemaRef
-               packedEnum <- declare_packedEnum Proxy.Proxy
+               allPackedTypesPackedEnum <- declare_packedEnum Proxy.Proxy
                let declare_unpackedEnum = HsJSONPB.declareSchemaRef
-               unpackedEnum <- declare_unpackedEnum Proxy.Proxy
+               allPackedTypesUnpackedEnum <- declare_unpackedEnum Proxy.Proxy
                let _ = Hs.pure AllPackedTypes <*>
                          HsJSONPB.asProxy declare_packedWord32
                          <*> HsJSONPB.asProxy declare_packedWord64
@@ -1642,19 +1675,27 @@ instance HsJSONPB.ToSchema AllPackedTypes where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("packedWord32", packedWord32),
-                                                        ("packedWord64", packedWord64),
-                                                        ("packedInt32", packedInt32),
-                                                        ("packedInt64", packedInt64),
-                                                        ("packedFixed32", packedFixed32),
-                                                        ("packedFixed64", packedFixed64),
-                                                        ("packedFloat", packedFloat),
-                                                        ("packedDouble", packedDouble),
-                                                        ("packedSFixed32", packedSFixed32),
-                                                        ("packedSFixed64", packedSFixed64),
-                                                        ("packedBool", packedBool),
-                                                        ("packedEnum", packedEnum),
-                                                        ("unpackedEnum", unpackedEnum)]}})
+                                                       [("packedWord32",
+                                                         allPackedTypesPackedWord32),
+                                                        ("packedWord64",
+                                                         allPackedTypesPackedWord64),
+                                                        ("packedInt32", allPackedTypesPackedInt32),
+                                                        ("packedInt64", allPackedTypesPackedInt64),
+                                                        ("packedFixed32",
+                                                         allPackedTypesPackedFixed32),
+                                                        ("packedFixed64",
+                                                         allPackedTypesPackedFixed64),
+                                                        ("packedFloat", allPackedTypesPackedFloat),
+                                                        ("packedDouble",
+                                                         allPackedTypesPackedDouble),
+                                                        ("packedSFixed32",
+                                                         allPackedTypesPackedSFixed32),
+                                                        ("packedSFixed64",
+                                                         allPackedTypesPackedSFixed64),
+                                                        ("packedBool", allPackedTypesPackedBool),
+                                                        ("packedEnum", allPackedTypesPackedEnum),
+                                                        ("unpackedEnum",
+                                                         allPackedTypesUnpackedEnum)]}})
  
 data OutOfOrderFields = OutOfOrderFields{outOfOrderFieldsField1 ::
                                          Hs.Vector Hs.Word32,
@@ -1747,13 +1788,13 @@ instance HsJSONPB.FromJSON OutOfOrderFields where
 instance HsJSONPB.ToSchema OutOfOrderFields where
         declareNamedSchema _
           = do let declare_field1 = HsJSONPB.declareSchemaRef
-               field1 <- declare_field1 Proxy.Proxy
+               outOfOrderFieldsField1 <- declare_field1 Proxy.Proxy
                let declare_field2 = HsJSONPB.declareSchemaRef
-               field2 <- declare_field2 Proxy.Proxy
+               outOfOrderFieldsField2 <- declare_field2 Proxy.Proxy
                let declare_field3 = HsJSONPB.declareSchemaRef
-               field3 <- declare_field3 Proxy.Proxy
+               outOfOrderFieldsField3 <- declare_field3 Proxy.Proxy
                let declare_field4 = HsJSONPB.declareSchemaRef
-               field4 <- declare_field4 Proxy.Proxy
+               outOfOrderFieldsField4 <- declare_field4 Proxy.Proxy
                let _ = Hs.pure OutOfOrderFields <*>
                          HsJSONPB.asProxy declare_field1
                          <*> HsJSONPB.asProxy declare_field2
@@ -1768,8 +1809,10 @@ instance HsJSONPB.ToSchema OutOfOrderFields where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("field1", field1), ("field2", field2),
-                                                        ("field3", field3), ("field4", field4)]}})
+                                                       [("field1", outOfOrderFieldsField1),
+                                                        ("field2", outOfOrderFieldsField2),
+                                                        ("field3", outOfOrderFieldsField3),
+                                                        ("field4", outOfOrderFieldsField4)]}})
  
 data ShadowedMessage = ShadowedMessage{shadowedMessageName ::
                                        Hs.Text,
@@ -1829,9 +1872,9 @@ instance HsJSONPB.FromJSON ShadowedMessage where
 instance HsJSONPB.ToSchema ShadowedMessage where
         declareNamedSchema _
           = do let declare_name = HsJSONPB.declareSchemaRef
-               name <- declare_name Proxy.Proxy
+               shadowedMessageName <- declare_name Proxy.Proxy
                let declare_value = HsJSONPB.declareSchemaRef
-               value <- declare_value Proxy.Proxy
+               shadowedMessageValue <- declare_value Proxy.Proxy
                let _ = Hs.pure ShadowedMessage <*> HsJSONPB.asProxy declare_name
                          <*> HsJSONPB.asProxy declare_value
                Hs.return
@@ -1843,7 +1886,8 @@ instance HsJSONPB.ToSchema ShadowedMessage where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("name", name), ("value", value)]}})
+                                                       [("name", shadowedMessageName),
+                                                        ("value", shadowedMessageValue)]}})
  
 data MessageShadower = MessageShadower{messageShadowerShadowedMessage
                                        :: Hs.Maybe TestProto.MessageShadower_ShadowedMessage,
@@ -1907,9 +1951,10 @@ instance HsJSONPB.FromJSON MessageShadower where
 instance HsJSONPB.ToSchema MessageShadower where
         declareNamedSchema _
           = do let declare_shadowed_message = HsJSONPB.declareSchemaRef
-               shadowed_message <- declare_shadowed_message Proxy.Proxy
+               messageShadowerShadowedMessage <- declare_shadowed_message
+                                                   Proxy.Proxy
                let declare_name = HsJSONPB.declareSchemaRef
-               name <- declare_name Proxy.Proxy
+               messageShadowerName <- declare_name Proxy.Proxy
                let _ = Hs.pure MessageShadower <*>
                          HsJSONPB.asProxy declare_shadowed_message
                          <*> HsJSONPB.asProxy declare_name
@@ -1922,8 +1967,9 @@ instance HsJSONPB.ToSchema MessageShadower where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("shadowed_message", shadowed_message),
-                                                        ("name", name)]}})
+                                                       [("shadowed_message",
+                                                         messageShadowerShadowedMessage),
+                                                        ("name", messageShadowerName)]}})
  
 data MessageShadower_ShadowedMessage = MessageShadower_ShadowedMessage{messageShadower_ShadowedMessageName
                                                                        :: Hs.Text,
@@ -1987,9 +2033,9 @@ instance HsJSONPB.FromJSON MessageShadower_ShadowedMessage where
 instance HsJSONPB.ToSchema MessageShadower_ShadowedMessage where
         declareNamedSchema _
           = do let declare_name = HsJSONPB.declareSchemaRef
-               name <- declare_name Proxy.Proxy
+               messageShadower_ShadowedMessageName <- declare_name Proxy.Proxy
                let declare_value = HsJSONPB.declareSchemaRef
-               value <- declare_value Proxy.Proxy
+               messageShadower_ShadowedMessageValue <- declare_value Proxy.Proxy
                let _ = Hs.pure MessageShadower_ShadowedMessage <*>
                          HsJSONPB.asProxy declare_name
                          <*> HsJSONPB.asProxy declare_value
@@ -2002,7 +2048,10 @@ instance HsJSONPB.ToSchema MessageShadower_ShadowedMessage where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("name", name), ("value", value)]}})
+                                                       [("name",
+                                                         messageShadower_ShadowedMessageName),
+                                                        ("value",
+                                                         messageShadower_ShadowedMessageValue)]}})
  
 data WithQualifiedName = WithQualifiedName{withQualifiedNameQname1
                                            :: Hs.Maybe TestProto.ShadowedMessage,
@@ -2071,9 +2120,9 @@ instance HsJSONPB.FromJSON WithQualifiedName where
 instance HsJSONPB.ToSchema WithQualifiedName where
         declareNamedSchema _
           = do let declare_qname1 = HsJSONPB.declareSchemaRef
-               qname1 <- declare_qname1 Proxy.Proxy
+               withQualifiedNameQname1 <- declare_qname1 Proxy.Proxy
                let declare_qname2 = HsJSONPB.declareSchemaRef
-               qname2 <- declare_qname2 Proxy.Proxy
+               withQualifiedNameQname2 <- declare_qname2 Proxy.Proxy
                let _ = Hs.pure WithQualifiedName <*>
                          HsJSONPB.asProxy declare_qname1
                          <*> HsJSONPB.asProxy declare_qname2
@@ -2086,7 +2135,8 @@ instance HsJSONPB.ToSchema WithQualifiedName where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("qname1", qname1), ("qname2", qname2)]}})
+                                                       [("qname1", withQualifiedNameQname1),
+                                                        ("qname2", withQualifiedNameQname2)]}})
  
 data UsingImported = UsingImported{usingImportedImportedNesting ::
                                    Hs.Maybe TestProtoImport.WithNesting,
@@ -2156,9 +2206,9 @@ instance HsJSONPB.FromJSON UsingImported where
 instance HsJSONPB.ToSchema UsingImported where
         declareNamedSchema _
           = do let declare_importedNesting = HsJSONPB.declareSchemaRef
-               importedNesting <- declare_importedNesting Proxy.Proxy
+               usingImportedImportedNesting <- declare_importedNesting Proxy.Proxy
                let declare_localNesting = HsJSONPB.declareSchemaRef
-               localNesting <- declare_localNesting Proxy.Proxy
+               usingImportedLocalNesting <- declare_localNesting Proxy.Proxy
                let _ = Hs.pure UsingImported <*>
                          HsJSONPB.asProxy declare_importedNesting
                          <*> HsJSONPB.asProxy declare_localNesting
@@ -2171,8 +2221,10 @@ instance HsJSONPB.ToSchema UsingImported where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("importedNesting", importedNesting),
-                                                        ("localNesting", localNesting)]}})
+                                                       [("importedNesting",
+                                                         usingImportedImportedNesting),
+                                                        ("localNesting",
+                                                         usingImportedLocalNesting)]}})
  
 data Wrapped = Wrapped{wrappedWrapped ::
                        Hs.Maybe TestProto.Wrapped}
@@ -2217,7 +2269,7 @@ instance HsJSONPB.FromJSON Wrapped where
 instance HsJSONPB.ToSchema Wrapped where
         declareNamedSchema _
           = do let declare_wrapped = HsJSONPB.declareSchemaRef
-               wrapped <- declare_wrapped Proxy.Proxy
+               wrappedWrapped <- declare_wrapped Proxy.Proxy
                let _ = Hs.pure Wrapped <*> HsJSONPB.asProxy declare_wrapped
                Hs.return
                  (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
@@ -2228,7 +2280,7 @@ instance HsJSONPB.ToSchema Wrapped where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("wrapped", wrapped)]}})
+                                                       [("wrapped", wrappedWrapped)]}})
  
 data EnumAnnots = EnumAnnotsFOO
                 | EnumAnnotsBAR

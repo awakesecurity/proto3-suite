@@ -677,9 +677,11 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
 
                   fieldNames <- mapM (dpIdentUnqualName . dotProtoFieldName) fields
 
+                  toSchemaInstance <- toSchemaInstanceDeclaration fullName fieldNames (Just idents)
+
                   pure [ dataDecl_ fullName cons defaultMessageDeriving
                        , namedInstD fullName
-                       , toSchemaInstanceDeclaration fullName fieldNames (Just idents)
+                       , toSchemaInstance
                        ]
 
        conDecl <- recDecl_ (HsIdent messageName) . mconcat <$>
@@ -707,6 +709,8 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
 
        let fieldNames = normalFieldNames ++ oneOfFieldNames
 
+       toSchemaInstance <- toSchemaInstanceDeclaration messageName fieldNames Nothing
+
        pure $ [ dataDecl_ messageName [ conDecl ] defaultMessageDeriving
               , namedInstD messageName
               , messageInst
@@ -716,7 +720,7 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
               , toJSONInstDecl messageName
               , fromJSONInstDecl messageName
               -- And the Swagger ToSchema instance corresponding to JSONPB encodings
-              , toSchemaInstanceDeclaration messageName fieldNames Nothing
+              , toSchemaInstance
               ]
               <> nestedOneofs_
               <> nestedDecls_
@@ -1051,208 +1055,209 @@ fromJSONInstDecl typeName =
 -- ** `ToSchema` instance code-generation
 
 toSchemaInstanceDeclaration
-    :: String
+    :: MonadError CompileError m
+    => String
     -- ^ Name of the message type to create an instance for
     -> [String]
     -- ^ Field names
     -> Maybe [HsName]
     -- ^ Oneof constructors
-    -> HsDecl
-toSchemaInstanceDeclaration messageName fieldNames maybeConstructors =
-  instanceDeclaration
-  where
-    messageConstructor = HsCon (UnQual (HsIdent messageName))
+    -> m HsDecl
+toSchemaInstanceDeclaration messageName fieldNames maybeConstructors = do
+  qualifiedFieldNames <- mapM (prefixedFieldName messageName) fieldNames
+  let messageConstructor = HsCon (UnQual (HsIdent messageName))
 
-    _namedSchemaNameExpression = HsApp justC (HsLit (HsString messageName))
+  let _namedSchemaNameExpression = HsApp justC (HsLit (HsString messageName))
 
-    -- { _paramSchemaType = HsJSONPB.SwaggerObject
-    -- }
-    paramSchemaUpdates =
-      [ HsFieldUpdate _paramSchemaType _paramSchemaTypeExpression
-      ]
-      where
-        _paramSchemaType = jsonpbName "_paramSchemaType"
+      -- { _paramSchemaType = HsJSONPB.SwaggerObject
+      -- }
+  let paramSchemaUpdates =
+        [ HsFieldUpdate _paramSchemaType _paramSchemaTypeExpression
+        ]
+        where
+          _paramSchemaType = jsonpbName "_paramSchemaType"
 
-        _paramSchemaTypeExpression = HsVar (jsonpbName "SwaggerObject")
+          _paramSchemaTypeExpression = HsVar (jsonpbName "SwaggerObject")
 
-    _schemaParamSchemaExpression = HsRecUpdate memptyE paramSchemaUpdates
+  let _schemaParamSchemaExpression = HsRecUpdate memptyE paramSchemaUpdates
 
-    -- [ ("fieldName0", fieldName0)
-    -- , ("fieldName1", fieldName1)
-    -- ...
-    -- ]
-    properties = HsList $ do
-      fieldName <- fieldNames
+      -- [ ("fieldName0", qualifiedFieldName0)
+      -- , ("fieldName1", qualifiedFieldName1)
+      -- ...
+      -- ]
+  let properties = HsList $ do
+        (fieldName, qualifiedFieldName) <- zip fieldNames qualifiedFieldNames
 
-      let string = HsLit (HsString fieldName)
+        let string = HsLit (HsString fieldName)
 
-      let variable = HsVar (UnQual (HsIdent fieldName))
+        let variable = HsVar (UnQual (HsIdent qualifiedFieldName))
 
-      return (HsTuple [ string, variable ])
+        return (HsTuple [ string, variable ])
 
-    _schemaPropertiesExpression =
-      HsApp (HsVar (jsonpbName "insOrdFromList")) properties
+  let _schemaPropertiesExpression =
+        HsApp (HsVar (jsonpbName "insOrdFromList")) properties
 
-    -- { _schemaParamSchema = ...
-    -- , _schemaProperties  = ...
-    -- , ...
-    -- }
-    schemaUpdates = normalUpdates ++ extraUpdates
-      where
-        normalUpdates =
-          [ HsFieldUpdate _schemaParamSchema _schemaParamSchemaExpression
-          , HsFieldUpdate _schemaProperties  _schemaPropertiesExpression
-          ]
+      -- { _schemaParamSchema = ...
+      -- , _schemaProperties  = ...
+      -- , ...
+      -- }
+  let schemaUpdates = normalUpdates ++ extraUpdates
+        where
+          normalUpdates =
+            [ HsFieldUpdate _schemaParamSchema _schemaParamSchemaExpression
+            , HsFieldUpdate _schemaProperties  _schemaPropertiesExpression
+            ]
 
-        extraUpdates =
-          case maybeConstructors of
-              Just _ ->
-                [ HsFieldUpdate _schemaMinProperties justOne
-                , HsFieldUpdate _schemaMaxProperties justOne
-                ]
-              Nothing ->
-                []
+          extraUpdates =
+            case maybeConstructors of
+                Just _ ->
+                  [ HsFieldUpdate _schemaMinProperties justOne
+                  , HsFieldUpdate _schemaMaxProperties justOne
+                  ]
+                Nothing ->
+                  []
 
-        _schemaParamSchema    = jsonpbName "_schemaParamSchema"
-        _schemaProperties     = jsonpbName "_schemaProperties"
-        _schemaMinProperties  = jsonpbName "_schemaMinProperties"
-        _schemaMaxProperties  = jsonpbName "_schemaMaxProperties"
+          _schemaParamSchema    = jsonpbName "_schemaParamSchema"
+          _schemaProperties     = jsonpbName "_schemaProperties"
+          _schemaMinProperties  = jsonpbName "_schemaMinProperties"
+          _schemaMaxProperties  = jsonpbName "_schemaMaxProperties"
 
-        justOne = HsApp justC (HsLit (HsInt 1))
+          justOne = HsApp justC (HsLit (HsInt 1))
 
-    _namedSchemaSchemaExpression = HsRecUpdate memptyE schemaUpdates
+  let _namedSchemaSchemaExpression = HsRecUpdate memptyE schemaUpdates
 
-    -- { _namedSchemaName   = ...
-    -- , _namedSchemaSchema = ...
-    -- }
-    namedSchemaUpdates =
-      [ HsFieldUpdate _namedSchemaName   _namedSchemaNameExpression
-      , HsFieldUpdate _namedSchemaSchema _namedSchemaSchemaExpression
-      ]
-      where
-        _namedSchemaName   = jsonpbName "_namedSchemaName"
-        _namedSchemaSchema = jsonpbName "_namedSchemaSchema"
+      -- { _namedSchemaName   = ...
+      -- , _namedSchemaSchema = ...
+      -- }
+  let namedSchemaUpdates =
+        [ HsFieldUpdate _namedSchemaName   _namedSchemaNameExpression
+        , HsFieldUpdate _namedSchemaSchema _namedSchemaSchemaExpression
+        ]
+        where
+          _namedSchemaName   = jsonpbName "_namedSchemaName"
+          _namedSchemaSchema = jsonpbName "_namedSchemaSchema"
 
-    namedSchema = HsRecConstr (jsonpbName "NamedSchema") namedSchemaUpdates
+  let namedSchema = HsRecConstr (jsonpbName "NamedSchema") namedSchemaUpdates
 
-    toDeclareName fieldName = "declare_" ++ fieldName
+  let toDeclareName fieldName = "declare_" ++ fieldName
 
-    toArgument fieldName = HsApp asProxy declare
-      where
-        declare = HsVar (UnQual (HsIdent (toDeclareName fieldName)))
+  let toArgument fieldName = HsApp asProxy declare
+        where
+          declare = HsVar (UnQual (HsIdent (toDeclareName fieldName)))
 
-        asProxy = HsVar (jsonpbName "asProxy")
+          asProxy = HsVar (jsonpbName "asProxy")
 
-    -- do let declare_fieldName0 = HsJSONPB.declareSchemaRef
-    --    fieldName0 <- declare_fieldName0 Proxy.Proxy
-    --    let declare_fieldName1 = HsJSONPB.declareSchemaRef
-    --    fieldName1 <- declare_fieldName1 Proxy.Proxy
-    --    ...
-    --    let _ = pure MessageName <*> HsJSONPB.asProxy declare_fieldName0 <*> HsJSONPB.asProxy declare_fieldName1 <*> ...
-    --    return (...)
-    expressionForMessage =
-      HsDo (bindingStatements ++ [ typeInferenceStatement, returnStatement ])
-      where
-        bindingStatements = do
-          fieldName <- fieldNames
+      -- do let declare_fieldName0 = HsJSONPB.declareSchemaRef
+      --    qualifiedFieldName0 <- declare_fieldName0 Proxy.Proxy
+      --    let declare_fieldName1 = HsJSONPB.declareSchemaRef
+      --    qualifiedFieldName1 <- declare_fieldName1 Proxy.Proxy
+      --    ...
+      --    let _ = pure MessageName <*> HsJSONPB.asProxy declare_fieldName0 <*> HsJSONPB.asProxy declare_fieldName1 <*> ...
+      --    return (...)
+  let expressionForMessage =
+        HsDo (bindingStatements ++ [ typeInferenceStatement, returnStatement ])
+        where
+          bindingStatements = do
+            (fieldName, qualifiedFieldName) <- zip fieldNames qualifiedFieldNames
 
-          let declareIdentifier = HsIdent (toDeclareName fieldName)
+            let declareIdentifier = HsIdent (toDeclareName fieldName)
 
-          let rightHandSide0 =
-                  HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))
+            let rightHandSide0 =
+                    HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))
 
-          let match = HsMatch l declareIdentifier [] rightHandSide0 []
+            let match = HsMatch l declareIdentifier [] rightHandSide0 []
 
-          let statement0 = HsLetStmt [ HsFunBind [ match ] ]
+            let statement0 = HsLetStmt [ HsFunBind [ match ] ]
 
-          let declareVariable = HsVar (UnQual declareIdentifier)
+            let declareVariable = HsVar (UnQual declareIdentifier)
 
-          let proxy = HsCon (proxyName "Proxy")
+            let proxy = HsCon (proxyName "Proxy")
 
-          let rightHandSide1 = HsApp declareVariable proxy
+            let rightHandSide1 = HsApp declareVariable proxy
 
-          let pattern = HsPVar (HsIdent fieldName)
+            let pattern = HsPVar (HsIdent qualifiedFieldName)
 
-          let statement1 = HsGenerator l pattern rightHandSide1
+            let statement1 = HsGenerator l pattern rightHandSide1
 
-          [ statement0, statement1 ]
+            [ statement0, statement1 ]
 
 
-        typeInferenceStatement = HsLetStmt [ patternBind ]
-          where
-            arguments = map toArgument fieldNames
+          typeInferenceStatement = HsLetStmt [ patternBind ]
+            where
+              arguments = map toArgument fieldNames
 
-            rightHandSide =
-              HsUnGuardedRhs (applicativeApply messageConstructor arguments)
+              rightHandSide =
+                HsUnGuardedRhs (applicativeApply messageConstructor arguments)
 
-            patternBind = HsPatBind l HsPWildCard rightHandSide []
+              patternBind = HsPatBind l HsPWildCard rightHandSide []
 
-        returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
+          returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
 
-    -- do let declare_fieldName0 = HsJSONPB.declareSchemaRef
-    --    let _ = pure ConstructorName0 <*> HsJSONPB.asProxy declare_fieldName0
-    --    fieldName0 <- declare_fieldName0 Proxy.Proxy
-    --    let declare_fieldName1 = HsJSONPB.declareSchemaRef
-    --    let _ = pure ConstructorName1 <*> HsJSONPB.asProxy declare_fieldName1
-    --    fieldName1 <- declare_fieldName1 Proxy.Proxy
-    --    ...
-    --    return (...)
-    expressionForOneOf constructors =
-      HsDo (bindingStatements ++ [ returnStatement ])
-      where
-        bindingStatements = do
-          (fieldName, constructor) <- zip fieldNames constructors
+      -- do let declare_fieldName0 = HsJSONPB.declareSchemaRef
+      --    let _ = pure ConstructorName0 <*> HsJSONPB.asProxy declare_fieldName0
+      --    qualifiedFieldName0 <- declare_fieldName0 Proxy.Proxy
+      --    let declare_fieldName1 = HsJSONPB.declareSchemaRef
+      --    let _ = pure ConstructorName1 <*> HsJSONPB.asProxy declare_fieldName1
+      --    qualifiedFieldName1 <- declare_fieldName1 Proxy.Proxy
+      --    ...
+      --    return (...)
+  let expressionForOneOf constructors =
+        HsDo (bindingStatements ++ [ returnStatement ])
+        where
+          bindingStatements = do
+            (fieldName, qualifiedFieldName, constructor) <- zip3 fieldNames qualifiedFieldNames constructors
 
-          let declareIdentifier = HsIdent (toDeclareName fieldName)
+            let declareIdentifier = HsIdent (toDeclareName fieldName)
 
-          let rightHandSide0 =
-                  HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))
+            let rightHandSide0 =
+                    HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))
 
-          let match = HsMatch l declareIdentifier [] rightHandSide0 []
+            let match = HsMatch l declareIdentifier [] rightHandSide0 []
 
-          let statement0 = HsLetStmt [ HsFunBind [ match ] ]
+            let statement0 = HsLetStmt [ HsFunBind [ match ] ]
 
-          let declareVariable = HsVar (UnQual declareIdentifier)
+            let declareVariable = HsVar (UnQual declareIdentifier)
 
-          let proxy = HsCon (proxyName "Proxy")
+            let proxy = HsCon (proxyName "Proxy")
 
-          let rightHandSide1 = HsApp declareVariable proxy
+            let rightHandSide1 = HsApp declareVariable proxy
 
-          let pattern = HsPVar (HsIdent fieldName)
+            let pattern = HsPVar (HsIdent qualifiedFieldName)
 
-          let statement1 = HsGenerator l pattern rightHandSide1
+            let statement1 = HsGenerator l pattern rightHandSide1
 
-          let typeInferenceStatement = HsLetStmt [ patternBind ]
+            let typeInferenceStatement = HsLetStmt [ patternBind ]
+                  where
+                    arguments = [ toArgument fieldName ]
+
+                    rightHandSide =
+                      HsUnGuardedRhs (applicativeApply (HsCon (UnQual constructor)) arguments)
+
+                    patternBind = HsPatBind l HsPWildCard rightHandSide []
+
+            [ statement0, statement1, typeInferenceStatement ]
+
+          returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
+
+  let instanceDeclaration =
+        instDecl_ className [ classArgument ] [ classDeclaration ]
+        where
+          className = jsonpbName "ToSchema"
+
+          classArgument = HsTyCon (UnQual (HsIdent messageName))
+
+          classDeclaration = HsFunBind [ match ]
+            where
+              match = match_ matchName [ HsPWildCard ] rightHandSide []
                 where
-                  arguments = [ toArgument fieldName ]
+                  expression = case maybeConstructors of
+                      Nothing           -> expressionForMessage
+                      Just constructors -> expressionForOneOf constructors
 
-                  rightHandSide =
-                    HsUnGuardedRhs (applicativeApply (HsCon (UnQual constructor)) arguments)
+                  rightHandSide = HsUnGuardedRhs expression
 
-                  patternBind = HsPatBind l HsPWildCard rightHandSide []
-
-          [ statement0, statement1, typeInferenceStatement ]
-
-        returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
-
-    instanceDeclaration =
-      instDecl_ className [ classArgument ] [ classDeclaration ]
-      where
-        className = jsonpbName "ToSchema"
-
-        classArgument = HsTyCon (UnQual (HsIdent messageName))
-
-        classDeclaration = HsFunBind [ match ]
-          where
-            match = match_ matchName [ HsPWildCard ] rightHandSide []
-              where
-                expression = case maybeConstructors of
-                    Nothing           -> expressionForMessage
-                    Just constructors -> expressionForOneOf constructors
-
-                rightHandSide = HsUnGuardedRhs expression
-
-                matchName = HsIdent "declareNamedSchema"
+                  matchName = HsIdent "declareNamedSchema"
+  return instanceDeclaration
 
 -- ** Codegen bookkeeping helpers
 
