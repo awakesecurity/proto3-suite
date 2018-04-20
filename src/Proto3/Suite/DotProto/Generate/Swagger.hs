@@ -9,76 +9,63 @@
 -- | This module provides helper functions to generate Swagger schemas that
 -- describe JSONPB encodings for protobuf types.
 module Proto3.Suite.DotProto.Generate.Swagger
-  ( ToSchema(..)
-  , genericDeclareNamedSchemaJSONPB
-  , ppSchema
+  ( ppSchema
+  , OverrideToSchema(..)
+  , asProxy
+  , insOrdFromList
   )
 where
 
-import           Control.Lens                    (over, set, (&), (.~), (?~))
-import           Control.Lens.Cons               (_head)
+import           Control.Lens                    ((&), (.~), (?~))
 import           Data.Aeson                      (Value (String))
 import           Data.Aeson.Encode.Pretty        (encodePretty)
-import qualified Data.ByteString                 as BS
+import           Data.ByteString                 (ByteString)
 import qualified Data.ByteString.Lazy.Char8      as LC8
-import           Data.Char                       (toLower)
-import           Data.Functor.Identity           (Identity)
+import           Data.Hashable                   (Hashable)
+import           Data.HashMap.Strict.InsOrd      (InsOrdHashMap)
+import qualified Data.HashMap.Strict.InsOrd
 import           Data.Swagger
-import qualified Data.Swagger.Declare            as Swagger
-import qualified Data.Swagger.Internal.Schema    as Swagger.Internal
-import qualified Data.Swagger.Internal.TypeShape as Swagger.Internal
 import qualified Data.Text                       as T
 import           Data.Proxy
 import qualified Data.Vector                     as V
-import           GHC.Generics
 import           GHC.Int
 import           GHC.Word
 import           Proto3.Suite                    (Enumerated (..), Finite (..),
                                                   Fixed (..), Named (..), enumerate)
 
-genericDeclareNamedSchemaJSONPB :: forall a proxy.
-                                   ( Generic a
-                                   , Named a
-                                   , Swagger.Internal.GenericHasSimpleShape a
-                                       "genericDeclareNamedSchemaUnrestricted"
-                                       (Swagger.Internal.GenericShape (Rep a))
-                                   , Swagger.Internal.GToSchema (Rep a)
-                                   )
-                                => proxy a
-                                -> Swagger.DeclareT (Definitions Schema) Identity NamedSchema
-genericDeclareNamedSchemaJSONPB proxy =
-  over schema (set required []) <$> genericDeclareNamedSchema opts proxy
-  where
-    dropTypeName = over _head toLower . drop (T.length (nameOf (Proxy @a)))
-    opts = defaultSchemaOptions
-             { fieldLabelModifier = dropTypeName
-             , constructorTagModifier = dropTypeName
-             }
+-- | Convenience re-export so that users of generated code don't have to add
+--   an explicit dependency on @insert-ordered-containers@
+insOrdFromList :: (Eq k, Hashable k) => [(k, v)] -> InsOrdHashMap k v
+insOrdFromList = Data.HashMap.Strict.InsOrd.fromList
+
+{-| This is a hack to work around the `swagger2` library forbidding `ToSchema`
+    instances for `ByteString`s
+-}
+newtype OverrideToSchema a = OverrideToSchema a
+
+instance {-# OVERLAPPABLE #-} ToSchema a => ToSchema (OverrideToSchema a) where
+  declareNamedSchema _ = declareNamedSchema (Proxy :: Proxy a)
+
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema ByteString) where
+  declareNamedSchema _ = return (NamedSchema Nothing byteSchema)
+
+instance {-# OVERLAPPABLE #-} ToSchema (OverrideToSchema (V.Vector ByteString)) where
+  declareNamedSchema _ = return (NamedSchema Nothing schema_)
+    where
+      schema_ = mempty
+        & type_ .~ SwaggerArray
+        & items ?~ SwaggerItemsObject (Inline byteSchema)
+
+{-| This is a convenience function that uses type inference to select the
+    correct instance of `ToSchema` to use for fields of a message
+-}
+asProxy :: (Proxy (OverrideToSchema a) -> b) -> Proxy a
+asProxy _ = Proxy
 
 -- | Pretty-prints a schema. Useful when playing around with schemas in the
 -- REPL.
 ppSchema :: ToSchema a => proxy a -> IO ()
 ppSchema = LC8.putStrLn . encodePretty . toSchema
-
--- | This orphan instance prevents Generic-based deriving mechanism from
--- throwing error on 'ToSchema' for 'ByteString' and instead defaults to
--- 'byteSchema'. It is a damn dirty hack, but very handy, as per:
--- https://github.com/GetShopTV/swagger2/issues/51
-instance Swagger.Internal.GToSchema (K1 i BS.ByteString) where
-  gdeclareNamedSchema _ _ _ = pure
-                            $ NamedSchema Nothing
-                            $ byteSchema
-
--- | This orphan instance prevents Generic-based deriving mechanism from
--- throwing error on 'ToSchema' for 'V.Vector ByteString' and instead defaults
--- to (an array of) 'byteSchema'. It is a damn dirty hack, but very handy, as
--- per: https://github.com/GetShopTV/swagger2/issues/51
-instance Swagger.Internal.GToSchema (K1 i (V.Vector BS.ByteString)) where
-  gdeclareNamedSchema _ _ _ = pure
-                            $ NamedSchema Nothing
-                            $ mempty
-                                & type_ .~ SwaggerArray
-                                & items ?~ SwaggerItemsObject (Inline byteSchema)
 
 -- | JSONPB schemas for protobuf enumerations
 instance (Finite e, Named e) => ToSchema (Enumerated e) where
