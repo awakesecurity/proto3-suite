@@ -436,12 +436,12 @@ instance HsJSONPB.FromJSON OneofFirst where
  
 instance HsJSONPB.ToSchema OneofFirst where
         declareNamedSchema _
-          = do let declare_last = HsJSONPB.declareSchemaRef
-               oneofFirstLast <- declare_last Proxy.Proxy
-               let declare_first = HsJSONPB.declareSchemaRef
+          = do let declare_first = HsJSONPB.declareSchemaRef
                oneofFirstFirst <- declare_first Proxy.Proxy
-               let _ = Hs.pure OneofFirst <*> HsJSONPB.asProxy declare_last <*>
-                         HsJSONPB.asProxy declare_first
+               let declare_last = HsJSONPB.declareSchemaRef
+               oneofFirstLast <- declare_last Proxy.Proxy
+               let _ = Hs.pure OneofFirst <*> HsJSONPB.asProxy declare_first <*>
+                         HsJSONPB.asProxy declare_last
                Hs.return
                  (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
                                          Hs.Just "OneofFirst",
@@ -451,8 +451,8 @@ instance HsJSONPB.ToSchema OneofFirst where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("last", oneofFirstLast),
-                                                        ("first", oneofFirstFirst)]}})
+                                                       [("first", oneofFirstFirst),
+                                                        ("last", oneofFirstLast)]}})
  
 data OneofFirstFirst = OneofFirstFirstChoice1 Hs.Text
                      | OneofFirstFirstChoice2 Hs.Text
@@ -603,13 +603,13 @@ instance HsJSONPB.ToSchema OneofMiddle where
         declareNamedSchema _
           = do let declare_first = HsJSONPB.declareSchemaRef
                oneofMiddleFirst <- declare_first Proxy.Proxy
-               let declare_last = HsJSONPB.declareSchemaRef
-               oneofMiddleLast <- declare_last Proxy.Proxy
                let declare_middle = HsJSONPB.declareSchemaRef
                oneofMiddleMiddle <- declare_middle Proxy.Proxy
+               let declare_last = HsJSONPB.declareSchemaRef
+               oneofMiddleLast <- declare_last Proxy.Proxy
                let _ = Hs.pure OneofMiddle <*> HsJSONPB.asProxy declare_first <*>
-                         HsJSONPB.asProxy declare_last
-                         <*> HsJSONPB.asProxy declare_middle
+                         HsJSONPB.asProxy declare_middle
+                         <*> HsJSONPB.asProxy declare_last
                Hs.return
                  (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
                                          Hs.Just "OneofMiddle",
@@ -620,8 +620,8 @@ instance HsJSONPB.ToSchema OneofMiddle where
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
                                                        [("first", oneofMiddleFirst),
-                                                        ("last", oneofMiddleLast),
-                                                        ("middle", oneofMiddleMiddle)]}})
+                                                        ("middle", oneofMiddleMiddle),
+                                                        ("last", oneofMiddleLast)]}})
  
 data OneofMiddleMiddle = OneofMiddleMiddleChoice1 Hs.Text
                        | OneofMiddleMiddleChoice2 Hs.Text

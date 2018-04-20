@@ -698,16 +698,15 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
        toJSONPBInst   <- toJSONPBMessageInstD   ctxt' parentIdent messageIdent message
        fromJSONPBInst <- fromJSONPBMessageInstD ctxt' parentIdent messageIdent message
 
-       normalFieldNames <- sequence $ do
-           DotProtoMessageField dotProtoField <- message
-           let dotProtoIdentifier = dotProtoFieldName dotProtoField
+       fieldNames <- sequence $ do
+           messagePart <- message
+           dotProtoIdentifier <- case messagePart of
+                 DotProtoMessageField dotProtoField ->
+                   return (dotProtoFieldName dotProtoField)
+                 DotProtoMessageOneOf dotProtoIdentifier _ ->
+                   return dotProtoIdentifier
+                 _ -> empty
            return (dpIdentUnqualName dotProtoIdentifier)
-
-       oneOfFieldNames <- sequence $ do
-           DotProtoMessageOneOf dotProtoIdentifier _ <- message
-           return (dpIdentUnqualName dotProtoIdentifier)
-
-       let fieldNames = normalFieldNames ++ oneOfFieldNames
 
        toSchemaInstance <- toSchemaInstanceDeclaration messageName fieldNames Nothing
 
