@@ -331,7 +331,9 @@ instance HsJSONPB.ToSchema SomethingPickOne where
                                                        [("name", name), ("someid", someid),
                                                         ("dummyMsg1", dummyMsg1),
                                                         ("dummyMsg2", dummyMsg2),
-                                                        ("dummyEnum", dummyEnum)]}})
+                                                        ("dummyEnum", dummyEnum)],
+                                                   HsJSONPB._schemaMinProperties = Hs.Just 1,
+                                                   HsJSONPB._schemaMaxProperties = Hs.Just 1}})
  
 data OneofFirst = OneofFirst{oneofFirstFirst ::
                              Hs.Maybe OneofFirstFirst,
@@ -474,8 +476,9 @@ instance HsJSONPB.ToSchema OneofFirstFirst where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("choice1", choice1),
-                                                        ("choice2", choice2)]}})
+                                                       [("choice1", choice1), ("choice2", choice2)],
+                                                   HsJSONPB._schemaMinProperties = Hs.Just 1,
+                                                   HsJSONPB._schemaMaxProperties = Hs.Just 1}})
  
 data OneofMiddle = OneofMiddle{oneofMiddleFirst :: Hs.Int32,
                                oneofMiddleMiddle :: Hs.Maybe OneofMiddleMiddle,
@@ -640,8 +643,9 @@ instance HsJSONPB.ToSchema OneofMiddleMiddle where
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
-                                                       [("choice1", choice1),
-                                                        ("choice2", choice2)]}})
+                                                       [("choice1", choice1), ("choice2", choice2)],
+                                                   HsJSONPB._schemaMinProperties = Hs.Just 1,
+                                                   HsJSONPB._schemaMaxProperties = Hs.Just 1}})
  
 data WithImported = WithImported{withImportedPickOne ::
                                  Hs.Maybe WithImportedPickOne}
@@ -772,4 +776,6 @@ instance HsJSONPB.ToSchema WithImportedPickOne where
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
                                                        [("dummyMsg1", dummyMsg1),
-                                                        ("withOneof", withOneof)]}})
+                                                        ("withOneof", withOneof)],
+                                                   HsJSONPB._schemaMinProperties = Hs.Just 1,
+                                                   HsJSONPB._schemaMaxProperties = Hs.Just 1}})

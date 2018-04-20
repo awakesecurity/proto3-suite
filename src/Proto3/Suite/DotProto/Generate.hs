@@ -1095,14 +1095,30 @@ toSchemaInstanceDeclaration messageName fieldNames maybeConstructors =
 
     -- { _schemaParamSchema = ...
     -- , _schemaProperties  = ...
+    -- , ...
     -- }
-    schemaUpdates =
-      [ HsFieldUpdate _schemaParamSchema _schemaParamSchemaExpression
-      , HsFieldUpdate _schemaProperties  _schemaPropertiesExpression
-      ]
+    schemaUpdates = normalUpdates ++ extraUpdates
       where
-        _schemaParamSchema = jsonpbName "_schemaParamSchema"
-        _schemaProperties  = jsonpbName "_schemaProperties"
+        normalUpdates =
+          [ HsFieldUpdate _schemaParamSchema _schemaParamSchemaExpression
+          , HsFieldUpdate _schemaProperties  _schemaPropertiesExpression
+          ]
+
+        extraUpdates =
+          case maybeConstructors of
+              Just _ ->
+                [ HsFieldUpdate _schemaMinProperties justOne
+                , HsFieldUpdate _schemaMaxProperties justOne
+                ]
+              Nothing ->
+                []
+
+        _schemaParamSchema    = jsonpbName "_schemaParamSchema"
+        _schemaProperties     = jsonpbName "_schemaProperties"
+        _schemaMinProperties  = jsonpbName "_schemaMinProperties"
+        _schemaMaxProperties  = jsonpbName "_schemaMaxProperties"
+
+        justOne = HsApp justC (HsLit (HsInt 1))
 
     _namedSchemaSchemaExpression = HsRecUpdate memptyE schemaUpdates
 

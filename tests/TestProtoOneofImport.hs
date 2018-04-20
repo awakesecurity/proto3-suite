@@ -148,4 +148,6 @@ instance HsJSONPB.ToSchema WithOneofPickOne where
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
                                                                  HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
-                                                     HsJSONPB.insOrdFromList [("a", a), ("b", b)]}})
+                                                     HsJSONPB.insOrdFromList [("a", a), ("b", b)],
+                                                   HsJSONPB._schemaMinProperties = Hs.Just 1,
+                                                   HsJSONPB._schemaMaxProperties = Hs.Just 1}})
