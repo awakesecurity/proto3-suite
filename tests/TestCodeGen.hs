@@ -1,16 +1,25 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module TestCodeGen where
 
 import           ArbitraryGeneratedTestTypes    ()
 import           Control.Applicative
 import           Control.Monad
+import qualified Data.Aeson
 import qualified Data.ByteString.Lazy           as LBS
+import qualified Data.ByteString.Lazy.Char8     as LBS8
 import           Data.Monoid                    ((<>))
+import           Data.Proxy                     (Proxy(..))
 import           Data.String                    (IsString)
+import           Data.Swagger                   (ToSchema)
+import qualified Data.Swagger
 import qualified Data.Text                      as T
 import           Prelude                        hiding (FilePath)
+import qualified Prelude
 import           Proto3.Suite
 import           Proto3.Suite.DotProto.Generate
 import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
@@ -145,6 +154,7 @@ compileTestDotProtos = do
 -- >>> import Proto3.Suite.JSONPB
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XOverloadedLists
+-- >>> :set -XTypeApplications
 -- >>> let jsonPB = jsonPBOptions
 -- >>> let json = defaultOptions
 
@@ -211,6 +221,17 @@ compileTestDotProtos = do
 -- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyMsg2\":{\"dummy\":67}}}"  (Something 42 99 (Just (SomethingPickOneDummyMsg2 (DummyMsg 67))))
 -- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyEnum\":\"DUMMY0\"}}"      (Something 42 99 (Just (SomethingPickOneDummyEnum (Enumerated (Right DummyEnumDUMMY0)))))
 -- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{}}"                              (Something 42 99 Nothing)
+--
+-- Swagger
+--
+-- >>> schemaOf @Something
+-- {"properties":{"value":{"maximum":9223372036854775807,"format":"int64","minimum":-9223372036854775808,"type":"integer"},"another":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"},"pickOne":{"$ref":"#/definitions/SomethingPickOne"}},"type":"object"}
+-- >>> schemaOf @SomethingPickOne
+-- {"properties":{"name":{"type":"string"},"someid":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"},"dummyMsg1":{"$ref":"#/definitions/DummyMsg"},"dummyMsg2":{"$ref":"#/definitions/DummyMsg"},"dummyEnum":{"$ref":"#/definitions/DummyEnum"}},"type":"object"}
+-- >>> schemaOf @DummyMsg
+-- {"properties":{"dummy":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"}},"type":"object"}
+-- >>> schemaOf @(Enumerated DummyEnum)
+-- {"type":"string","enum":["DUMMY0","DUMMY1"]}
 
 -- * Helper quickcheck props
 
@@ -230,3 +251,6 @@ encodesAs opts x bs = encode opts x == bs
 decodesAs :: (Eq a, FromJSONPB a)
           => LBS.ByteString -> a -> Bool
 decodesAs bs x = eitherDecode bs == Right x
+
+schemaOf :: forall a . ToSchema a => IO ()
+schemaOf = LBS8.putStrLn (Data.Aeson.encode (Data.Swagger.toSchema (Proxy @a)))
