@@ -49,7 +49,7 @@ instance {-# OVERLAPPABLE #-} ToSchema a => ToSchema (OverrideToSchema a) where
 instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema ByteString) where
   declareNamedSchema _ = return (NamedSchema Nothing byteSchema)
 
-instance {-# OVERLAPPABLE #-} ToSchema (OverrideToSchema (V.Vector ByteString)) where
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (V.Vector ByteString)) where
   declareNamedSchema _ = return (NamedSchema Nothing schema_)
     where
       schema_ = mempty
