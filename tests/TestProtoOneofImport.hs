@@ -24,6 +24,7 @@ import qualified Data.String as Hs (fromString)
 import qualified Data.Vector as Hs (Vector)
 import qualified Data.Int as Hs (Int16, Int32, Int64)
 import qualified Data.Word as Hs (Word16, Word32, Word64)
+import qualified Data.Proxy as Proxy
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
  
@@ -109,7 +110,20 @@ instance HsJSONPB.FromJSON WithOneof where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithOneof where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_pickOne = HsJSONPB.declareSchemaRef
+               withOneofPickOne <- declare_pickOne Proxy.Proxy
+               let _ = Hs.pure WithOneof <*> HsJSONPB.asProxy declare_pickOne
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithOneof",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("pickOne", withOneofPickOne)]}})
  
 data WithOneofPickOne = WithOneofPickOneA Hs.Text
                       | WithOneofPickOneB Hs.Int32
@@ -119,4 +133,23 @@ instance HsProtobuf.Named WithOneofPickOne where
         nameOf _ = (Hs.fromString "WithOneofPickOne")
  
 instance HsJSONPB.ToSchema WithOneofPickOne where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_a = HsJSONPB.declareSchemaRef
+               withOneofPickOneA <- declare_a Proxy.Proxy
+               let _ = Hs.pure WithOneofPickOneA <*> HsJSONPB.asProxy declare_a
+               let declare_b = HsJSONPB.declareSchemaRef
+               withOneofPickOneB <- declare_b Proxy.Proxy
+               let _ = Hs.pure WithOneofPickOneB <*> HsJSONPB.asProxy declare_b
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithOneofPickOne",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("a", withOneofPickOneA),
+                                                        ("b", withOneofPickOneB)],
+                                                   HsJSONPB._schemaMinProperties = Hs.Just 1,
+                                                   HsJSONPB._schemaMaxProperties = Hs.Just 1}})

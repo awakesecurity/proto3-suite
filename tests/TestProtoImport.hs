@@ -24,6 +24,7 @@ import qualified Data.String as Hs (fromString)
 import qualified Data.Vector as Hs (Vector)
 import qualified Data.Int as Hs (Int16, Int32, Int64)
 import qualified Data.Word as Hs (Word16, Word32, Word64)
+import qualified Data.Proxy as Proxy
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
  
@@ -89,7 +90,27 @@ instance HsJSONPB.FromJSON WithNesting where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithNesting where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_nestedMessage1 = HsJSONPB.declareSchemaRef
+               withNestingNestedMessage1 <- declare_nestedMessage1 Proxy.Proxy
+               let declare_nestedMessage2 = HsJSONPB.declareSchemaRef
+               withNestingNestedMessage2 <- declare_nestedMessage2 Proxy.Proxy
+               let _ = Hs.pure WithNesting <*>
+                         HsJSONPB.asProxy declare_nestedMessage1
+                         <*> HsJSONPB.asProxy declare_nestedMessage2
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithNesting",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("nestedMessage1",
+                                                         withNestingNestedMessage1),
+                                                        ("nestedMessage2",
+                                                         withNestingNestedMessage2)]}})
  
 data WithNesting_Nested = WithNesting_Nested{withNesting_NestedNestedField1
                                              :: Hs.Int32,
@@ -149,4 +170,24 @@ instance HsJSONPB.FromJSON WithNesting_Nested where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithNesting_Nested where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_nestedField1 = HsJSONPB.declareSchemaRef
+               withNesting_NestedNestedField1 <- declare_nestedField1 Proxy.Proxy
+               let declare_nestedField2 = HsJSONPB.declareSchemaRef
+               withNesting_NestedNestedField2 <- declare_nestedField2 Proxy.Proxy
+               let _ = Hs.pure WithNesting_Nested <*>
+                         HsJSONPB.asProxy declare_nestedField1
+                         <*> HsJSONPB.asProxy declare_nestedField2
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithNesting_Nested",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("nestedField1",
+                                                         withNesting_NestedNestedField1),
+                                                        ("nestedField2",
+                                                         withNesting_NestedNestedField2)]}})

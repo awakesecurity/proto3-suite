@@ -24,6 +24,7 @@ import qualified Data.String as Hs (fromString)
 import qualified Data.Vector as Hs (Vector)
 import qualified Data.Int as Hs (Int16, Int32, Int64)
 import qualified Data.Word as Hs (Word16, Word32, Word64)
+import qualified Data.Proxy as Proxy
 import qualified GHC.Generics as Hs
 import qualified GHC.Enum as Hs
 import qualified TestProtoImport
@@ -67,7 +68,20 @@ instance HsJSONPB.FromJSON Trivial where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema Trivial where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_trivialField = HsJSONPB.declareSchemaRef
+               trivialTrivialField <- declare_trivialField Proxy.Proxy
+               let _ = Hs.pure Trivial <*> HsJSONPB.asProxy declare_trivialField
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "Trivial",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("trivialField", trivialTrivialField)]}})
  
 data MultipleFields = MultipleFields{multipleFieldsMultiFieldDouble
                                      :: Hs.Double,
@@ -185,7 +199,52 @@ instance HsJSONPB.FromJSON MultipleFields where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema MultipleFields where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_multiFieldDouble = HsJSONPB.declareSchemaRef
+               multipleFieldsMultiFieldDouble <- declare_multiFieldDouble
+                                                   Proxy.Proxy
+               let declare_multiFieldFloat = HsJSONPB.declareSchemaRef
+               multipleFieldsMultiFieldFloat <- declare_multiFieldFloat
+                                                  Proxy.Proxy
+               let declare_multiFieldInt32 = HsJSONPB.declareSchemaRef
+               multipleFieldsMultiFieldInt32 <- declare_multiFieldInt32
+                                                  Proxy.Proxy
+               let declare_multiFieldInt64 = HsJSONPB.declareSchemaRef
+               multipleFieldsMultiFieldInt64 <- declare_multiFieldInt64
+                                                  Proxy.Proxy
+               let declare_multiFieldString = HsJSONPB.declareSchemaRef
+               multipleFieldsMultiFieldString <- declare_multiFieldString
+                                                   Proxy.Proxy
+               let declare_multiFieldBool = HsJSONPB.declareSchemaRef
+               multipleFieldsMultiFieldBool <- declare_multiFieldBool Proxy.Proxy
+               let _ = Hs.pure MultipleFields <*>
+                         HsJSONPB.asProxy declare_multiFieldDouble
+                         <*> HsJSONPB.asProxy declare_multiFieldFloat
+                         <*> HsJSONPB.asProxy declare_multiFieldInt32
+                         <*> HsJSONPB.asProxy declare_multiFieldInt64
+                         <*> HsJSONPB.asProxy declare_multiFieldString
+                         <*> HsJSONPB.asProxy declare_multiFieldBool
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "MultipleFields",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("multiFieldDouble",
+                                                         multipleFieldsMultiFieldDouble),
+                                                        ("multiFieldFloat",
+                                                         multipleFieldsMultiFieldFloat),
+                                                        ("multiFieldInt32",
+                                                         multipleFieldsMultiFieldInt32),
+                                                        ("multiFieldInt64",
+                                                         multipleFieldsMultiFieldInt64),
+                                                        ("multiFieldString",
+                                                         multipleFieldsMultiFieldString),
+                                                        ("multiFieldBool",
+                                                         multipleFieldsMultiFieldBool)]}})
  
 data SignedInts = SignedInts{signedIntsSigned32 :: Hs.Int32,
                              signedIntsSigned64 :: Hs.Int64}
@@ -244,7 +303,24 @@ instance HsJSONPB.FromJSON SignedInts where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema SignedInts where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_signed32 = HsJSONPB.declareSchemaRef
+               signedIntsSigned32 <- declare_signed32 Proxy.Proxy
+               let declare_signed64 = HsJSONPB.declareSchemaRef
+               signedIntsSigned64 <- declare_signed64 Proxy.Proxy
+               let _ = Hs.pure SignedInts <*> HsJSONPB.asProxy declare_signed32
+                         <*> HsJSONPB.asProxy declare_signed64
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "SignedInts",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("signed32", signedIntsSigned32),
+                                                        ("signed64", signedIntsSigned64)]}})
  
 data WithEnum = WithEnum{withEnumEnumField ::
                          HsProtobuf.Enumerated TestProto.WithEnum_TestEnum}
@@ -286,7 +362,20 @@ instance HsJSONPB.FromJSON WithEnum where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithEnum where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_enumField = HsJSONPB.declareSchemaRef
+               withEnumEnumField <- declare_enumField Proxy.Proxy
+               let _ = Hs.pure WithEnum <*> HsJSONPB.asProxy declare_enumField
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithEnum",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("enumField", withEnumEnumField)]}})
  
 data WithEnum_TestEnum = WithEnum_TestEnumENUM1
                        | WithEnum_TestEnumENUM2
@@ -377,7 +466,22 @@ instance HsJSONPB.FromJSON WithNesting where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithNesting where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_nestedMessage = HsJSONPB.declareSchemaRef
+               withNestingNestedMessage <- declare_nestedMessage Proxy.Proxy
+               let _ = Hs.pure WithNesting <*>
+                         HsJSONPB.asProxy declare_nestedMessage
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithNesting",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("nestedMessage",
+                                                         withNestingNestedMessage)]}})
  
 data WithNesting_Nested = WithNesting_Nested{withNesting_NestedNestedField1
                                              :: Hs.Text,
@@ -472,7 +576,38 @@ instance HsJSONPB.FromJSON WithNesting_Nested where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithNesting_Nested where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_nestedField1 = HsJSONPB.declareSchemaRef
+               withNesting_NestedNestedField1 <- declare_nestedField1 Proxy.Proxy
+               let declare_nestedField2 = HsJSONPB.declareSchemaRef
+               withNesting_NestedNestedField2 <- declare_nestedField2 Proxy.Proxy
+               let declare_nestedPacked = HsJSONPB.declareSchemaRef
+               withNesting_NestedNestedPacked <- declare_nestedPacked Proxy.Proxy
+               let declare_nestedUnpacked = HsJSONPB.declareSchemaRef
+               withNesting_NestedNestedUnpacked <- declare_nestedUnpacked
+                                                     Proxy.Proxy
+               let _ = Hs.pure WithNesting_Nested <*>
+                         HsJSONPB.asProxy declare_nestedField1
+                         <*> HsJSONPB.asProxy declare_nestedField2
+                         <*> HsJSONPB.asProxy declare_nestedPacked
+                         <*> HsJSONPB.asProxy declare_nestedUnpacked
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithNesting_Nested",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("nestedField1",
+                                                         withNesting_NestedNestedField1),
+                                                        ("nestedField2",
+                                                         withNesting_NestedNestedField2),
+                                                        ("nestedPacked",
+                                                         withNesting_NestedNestedPacked),
+                                                        ("nestedUnpacked",
+                                                         withNesting_NestedNestedUnpacked)]}})
  
 data WithNestingRepeated = WithNestingRepeated{withNestingRepeatedNestedMessages
                                                :: Hs.Vector TestProto.WithNestingRepeated_Nested}
@@ -521,7 +656,23 @@ instance HsJSONPB.FromJSON WithNestingRepeated where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithNestingRepeated where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_nestedMessages = HsJSONPB.declareSchemaRef
+               withNestingRepeatedNestedMessages <- declare_nestedMessages
+                                                      Proxy.Proxy
+               let _ = Hs.pure WithNestingRepeated <*>
+                         HsJSONPB.asProxy declare_nestedMessages
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithNestingRepeated",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("nestedMessages",
+                                                         withNestingRepeatedNestedMessages)]}})
  
 data WithNestingRepeated_Nested = WithNestingRepeated_Nested{withNestingRepeated_NestedNestedField1
                                                              :: Hs.Text,
@@ -622,7 +773,41 @@ instance HsJSONPB.FromJSON WithNestingRepeated_Nested where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithNestingRepeated_Nested where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_nestedField1 = HsJSONPB.declareSchemaRef
+               withNestingRepeated_NestedNestedField1 <- declare_nestedField1
+                                                           Proxy.Proxy
+               let declare_nestedField2 = HsJSONPB.declareSchemaRef
+               withNestingRepeated_NestedNestedField2 <- declare_nestedField2
+                                                           Proxy.Proxy
+               let declare_nestedPacked = HsJSONPB.declareSchemaRef
+               withNestingRepeated_NestedNestedPacked <- declare_nestedPacked
+                                                           Proxy.Proxy
+               let declare_nestedUnpacked = HsJSONPB.declareSchemaRef
+               withNestingRepeated_NestedNestedUnpacked <- declare_nestedUnpacked
+                                                             Proxy.Proxy
+               let _ = Hs.pure WithNestingRepeated_Nested <*>
+                         HsJSONPB.asProxy declare_nestedField1
+                         <*> HsJSONPB.asProxy declare_nestedField2
+                         <*> HsJSONPB.asProxy declare_nestedPacked
+                         <*> HsJSONPB.asProxy declare_nestedUnpacked
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithNestingRepeated_Nested",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("nestedField1",
+                                                         withNestingRepeated_NestedNestedField1),
+                                                        ("nestedField2",
+                                                         withNestingRepeated_NestedNestedField2),
+                                                        ("nestedPacked",
+                                                         withNestingRepeated_NestedNestedPacked),
+                                                        ("nestedUnpacked",
+                                                         withNestingRepeated_NestedNestedUnpacked)]}})
  
 data NestedInts = NestedInts{nestedIntsNestedInt1 :: Hs.Int32,
                              nestedIntsNestedInt2 :: Hs.Int32}
@@ -680,7 +865,24 @@ instance HsJSONPB.FromJSON NestedInts where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema NestedInts where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_nestedInt1 = HsJSONPB.declareSchemaRef
+               nestedIntsNestedInt1 <- declare_nestedInt1 Proxy.Proxy
+               let declare_nestedInt2 = HsJSONPB.declareSchemaRef
+               nestedIntsNestedInt2 <- declare_nestedInt2 Proxy.Proxy
+               let _ = Hs.pure NestedInts <*> HsJSONPB.asProxy declare_nestedInt1
+                         <*> HsJSONPB.asProxy declare_nestedInt2
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "NestedInts",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("nestedInt1", nestedIntsNestedInt1),
+                                                        ("nestedInt2", nestedIntsNestedInt2)]}})
  
 data WithNestingRepeatedInts = WithNestingRepeatedInts{withNestingRepeatedIntsNestedInts
                                                        :: Hs.Vector TestProto.NestedInts}
@@ -729,7 +931,22 @@ instance HsJSONPB.FromJSON WithNestingRepeatedInts where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithNestingRepeatedInts where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_nestedInts = HsJSONPB.declareSchemaRef
+               withNestingRepeatedIntsNestedInts <- declare_nestedInts Proxy.Proxy
+               let _ = Hs.pure WithNestingRepeatedInts <*>
+                         HsJSONPB.asProxy declare_nestedInts
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithNestingRepeatedInts",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("nestedInts",
+                                                         withNestingRepeatedIntsNestedInts)]}})
  
 data WithNestingInts = WithNestingInts{withNestingIntsNestedInts ::
                                        Hs.Maybe TestProto.NestedInts}
@@ -777,7 +994,22 @@ instance HsJSONPB.FromJSON WithNestingInts where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithNestingInts where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_nestedInts = HsJSONPB.declareSchemaRef
+               withNestingIntsNestedInts <- declare_nestedInts Proxy.Proxy
+               let _ = Hs.pure WithNestingInts <*>
+                         HsJSONPB.asProxy declare_nestedInts
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithNestingInts",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("nestedInts",
+                                                         withNestingIntsNestedInts)]}})
  
 data WithRepetition = WithRepetition{withRepetitionRepeatedField1
                                      :: Hs.Vector Hs.Int32}
@@ -824,7 +1056,22 @@ instance HsJSONPB.FromJSON WithRepetition where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithRepetition where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_repeatedField1 = HsJSONPB.declareSchemaRef
+               withRepetitionRepeatedField1 <- declare_repeatedField1 Proxy.Proxy
+               let _ = Hs.pure WithRepetition <*>
+                         HsJSONPB.asProxy declare_repeatedField1
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithRepetition",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("repeatedField1",
+                                                         withRepetitionRepeatedField1)]}})
  
 data WithFixed = WithFixed{withFixedFixed1 ::
                            HsProtobuf.Fixed Hs.Word32,
@@ -912,7 +1159,32 @@ instance HsJSONPB.FromJSON WithFixed where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithFixed where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_fixed1 = HsJSONPB.declareSchemaRef
+               withFixedFixed1 <- declare_fixed1 Proxy.Proxy
+               let declare_fixed2 = HsJSONPB.declareSchemaRef
+               withFixedFixed2 <- declare_fixed2 Proxy.Proxy
+               let declare_fixed3 = HsJSONPB.declareSchemaRef
+               withFixedFixed3 <- declare_fixed3 Proxy.Proxy
+               let declare_fixed4 = HsJSONPB.declareSchemaRef
+               withFixedFixed4 <- declare_fixed4 Proxy.Proxy
+               let _ = Hs.pure WithFixed <*> HsJSONPB.asProxy declare_fixed1 <*>
+                         HsJSONPB.asProxy declare_fixed2
+                         <*> HsJSONPB.asProxy declare_fixed3
+                         <*> HsJSONPB.asProxy declare_fixed4
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithFixed",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("fixed1", withFixedFixed1),
+                                                        ("fixed2", withFixedFixed2),
+                                                        ("fixed3", withFixedFixed3),
+                                                        ("fixed4", withFixedFixed4)]}})
  
 data WithBytes = WithBytes{withBytesBytes1 :: Hs.ByteString,
                            withBytesBytes2 :: Hs.Vector Hs.ByteString}
@@ -970,7 +1242,24 @@ instance HsJSONPB.FromJSON WithBytes where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithBytes where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_bytes1 = HsJSONPB.declareSchemaRef
+               withBytesBytes1 <- declare_bytes1 Proxy.Proxy
+               let declare_bytes2 = HsJSONPB.declareSchemaRef
+               withBytesBytes2 <- declare_bytes2 Proxy.Proxy
+               let _ = Hs.pure WithBytes <*> HsJSONPB.asProxy declare_bytes1 <*>
+                         HsJSONPB.asProxy declare_bytes2
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithBytes",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("bytes1", withBytesBytes1),
+                                                        ("bytes2", withBytesBytes2)]}})
  
 data WithPacking = WithPacking{withPackingPacking1 ::
                                Hs.Vector Hs.Int32,
@@ -1032,7 +1321,24 @@ instance HsJSONPB.FromJSON WithPacking where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithPacking where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_packing1 = HsJSONPB.declareSchemaRef
+               withPackingPacking1 <- declare_packing1 Proxy.Proxy
+               let declare_packing2 = HsJSONPB.declareSchemaRef
+               withPackingPacking2 <- declare_packing2 Proxy.Proxy
+               let _ = Hs.pure WithPacking <*> HsJSONPB.asProxy declare_packing1
+                         <*> HsJSONPB.asProxy declare_packing2
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithPacking",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("packing1", withPackingPacking1),
+                                                        ("packing2", withPackingPacking2)]}})
  
 data E = EFLD0
        | EFLD1
@@ -1319,7 +1625,77 @@ instance HsJSONPB.FromJSON AllPackedTypes where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema AllPackedTypes where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_packedWord32 = HsJSONPB.declareSchemaRef
+               allPackedTypesPackedWord32 <- declare_packedWord32 Proxy.Proxy
+               let declare_packedWord64 = HsJSONPB.declareSchemaRef
+               allPackedTypesPackedWord64 <- declare_packedWord64 Proxy.Proxy
+               let declare_packedInt32 = HsJSONPB.declareSchemaRef
+               allPackedTypesPackedInt32 <- declare_packedInt32 Proxy.Proxy
+               let declare_packedInt64 = HsJSONPB.declareSchemaRef
+               allPackedTypesPackedInt64 <- declare_packedInt64 Proxy.Proxy
+               let declare_packedFixed32 = HsJSONPB.declareSchemaRef
+               allPackedTypesPackedFixed32 <- declare_packedFixed32 Proxy.Proxy
+               let declare_packedFixed64 = HsJSONPB.declareSchemaRef
+               allPackedTypesPackedFixed64 <- declare_packedFixed64 Proxy.Proxy
+               let declare_packedFloat = HsJSONPB.declareSchemaRef
+               allPackedTypesPackedFloat <- declare_packedFloat Proxy.Proxy
+               let declare_packedDouble = HsJSONPB.declareSchemaRef
+               allPackedTypesPackedDouble <- declare_packedDouble Proxy.Proxy
+               let declare_packedSFixed32 = HsJSONPB.declareSchemaRef
+               allPackedTypesPackedSFixed32 <- declare_packedSFixed32 Proxy.Proxy
+               let declare_packedSFixed64 = HsJSONPB.declareSchemaRef
+               allPackedTypesPackedSFixed64 <- declare_packedSFixed64 Proxy.Proxy
+               let declare_packedBool = HsJSONPB.declareSchemaRef
+               allPackedTypesPackedBool <- declare_packedBool Proxy.Proxy
+               let declare_packedEnum = HsJSONPB.declareSchemaRef
+               allPackedTypesPackedEnum <- declare_packedEnum Proxy.Proxy
+               let declare_unpackedEnum = HsJSONPB.declareSchemaRef
+               allPackedTypesUnpackedEnum <- declare_unpackedEnum Proxy.Proxy
+               let _ = Hs.pure AllPackedTypes <*>
+                         HsJSONPB.asProxy declare_packedWord32
+                         <*> HsJSONPB.asProxy declare_packedWord64
+                         <*> HsJSONPB.asProxy declare_packedInt32
+                         <*> HsJSONPB.asProxy declare_packedInt64
+                         <*> HsJSONPB.asProxy declare_packedFixed32
+                         <*> HsJSONPB.asProxy declare_packedFixed64
+                         <*> HsJSONPB.asProxy declare_packedFloat
+                         <*> HsJSONPB.asProxy declare_packedDouble
+                         <*> HsJSONPB.asProxy declare_packedSFixed32
+                         <*> HsJSONPB.asProxy declare_packedSFixed64
+                         <*> HsJSONPB.asProxy declare_packedBool
+                         <*> HsJSONPB.asProxy declare_packedEnum
+                         <*> HsJSONPB.asProxy declare_unpackedEnum
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "AllPackedTypes",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("packedWord32",
+                                                         allPackedTypesPackedWord32),
+                                                        ("packedWord64",
+                                                         allPackedTypesPackedWord64),
+                                                        ("packedInt32", allPackedTypesPackedInt32),
+                                                        ("packedInt64", allPackedTypesPackedInt64),
+                                                        ("packedFixed32",
+                                                         allPackedTypesPackedFixed32),
+                                                        ("packedFixed64",
+                                                         allPackedTypesPackedFixed64),
+                                                        ("packedFloat", allPackedTypesPackedFloat),
+                                                        ("packedDouble",
+                                                         allPackedTypesPackedDouble),
+                                                        ("packedSFixed32",
+                                                         allPackedTypesPackedSFixed32),
+                                                        ("packedSFixed64",
+                                                         allPackedTypesPackedSFixed64),
+                                                        ("packedBool", allPackedTypesPackedBool),
+                                                        ("packedEnum", allPackedTypesPackedEnum),
+                                                        ("unpackedEnum",
+                                                         allPackedTypesUnpackedEnum)]}})
  
 data OutOfOrderFields = OutOfOrderFields{outOfOrderFieldsField1 ::
                                          Hs.Vector Hs.Word32,
@@ -1410,7 +1786,33 @@ instance HsJSONPB.FromJSON OutOfOrderFields where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema OutOfOrderFields where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_field1 = HsJSONPB.declareSchemaRef
+               outOfOrderFieldsField1 <- declare_field1 Proxy.Proxy
+               let declare_field2 = HsJSONPB.declareSchemaRef
+               outOfOrderFieldsField2 <- declare_field2 Proxy.Proxy
+               let declare_field3 = HsJSONPB.declareSchemaRef
+               outOfOrderFieldsField3 <- declare_field3 Proxy.Proxy
+               let declare_field4 = HsJSONPB.declareSchemaRef
+               outOfOrderFieldsField4 <- declare_field4 Proxy.Proxy
+               let _ = Hs.pure OutOfOrderFields <*>
+                         HsJSONPB.asProxy declare_field1
+                         <*> HsJSONPB.asProxy declare_field2
+                         <*> HsJSONPB.asProxy declare_field3
+                         <*> HsJSONPB.asProxy declare_field4
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "OutOfOrderFields",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("field1", outOfOrderFieldsField1),
+                                                        ("field2", outOfOrderFieldsField2),
+                                                        ("field3", outOfOrderFieldsField3),
+                                                        ("field4", outOfOrderFieldsField4)]}})
  
 data ShadowedMessage = ShadowedMessage{shadowedMessageName ::
                                        Hs.Text,
@@ -1468,7 +1870,24 @@ instance HsJSONPB.FromJSON ShadowedMessage where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema ShadowedMessage where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_name = HsJSONPB.declareSchemaRef
+               shadowedMessageName <- declare_name Proxy.Proxy
+               let declare_value = HsJSONPB.declareSchemaRef
+               shadowedMessageValue <- declare_value Proxy.Proxy
+               let _ = Hs.pure ShadowedMessage <*> HsJSONPB.asProxy declare_name
+                         <*> HsJSONPB.asProxy declare_value
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "ShadowedMessage",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("name", shadowedMessageName),
+                                                        ("value", shadowedMessageValue)]}})
  
 data MessageShadower = MessageShadower{messageShadowerShadowedMessage
                                        :: Hs.Maybe TestProto.MessageShadower_ShadowedMessage,
@@ -1530,7 +1949,27 @@ instance HsJSONPB.FromJSON MessageShadower where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema MessageShadower where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_shadowed_message = HsJSONPB.declareSchemaRef
+               messageShadowerShadowedMessage <- declare_shadowed_message
+                                                   Proxy.Proxy
+               let declare_name = HsJSONPB.declareSchemaRef
+               messageShadowerName <- declare_name Proxy.Proxy
+               let _ = Hs.pure MessageShadower <*>
+                         HsJSONPB.asProxy declare_shadowed_message
+                         <*> HsJSONPB.asProxy declare_name
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "MessageShadower",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("shadowed_message",
+                                                         messageShadowerShadowedMessage),
+                                                        ("name", messageShadowerName)]}})
  
 data MessageShadower_ShadowedMessage = MessageShadower_ShadowedMessage{messageShadower_ShadowedMessageName
                                                                        :: Hs.Text,
@@ -1592,7 +2031,27 @@ instance HsJSONPB.FromJSON MessageShadower_ShadowedMessage where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema MessageShadower_ShadowedMessage where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_name = HsJSONPB.declareSchemaRef
+               messageShadower_ShadowedMessageName <- declare_name Proxy.Proxy
+               let declare_value = HsJSONPB.declareSchemaRef
+               messageShadower_ShadowedMessageValue <- declare_value Proxy.Proxy
+               let _ = Hs.pure MessageShadower_ShadowedMessage <*>
+                         HsJSONPB.asProxy declare_name
+                         <*> HsJSONPB.asProxy declare_value
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "MessageShadower_ShadowedMessage",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("name",
+                                                         messageShadower_ShadowedMessageName),
+                                                        ("value",
+                                                         messageShadower_ShadowedMessageValue)]}})
  
 data WithQualifiedName = WithQualifiedName{withQualifiedNameQname1
                                            :: Hs.Maybe TestProto.ShadowedMessage,
@@ -1659,7 +2118,25 @@ instance HsJSONPB.FromJSON WithQualifiedName where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema WithQualifiedName where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_qname1 = HsJSONPB.declareSchemaRef
+               withQualifiedNameQname1 <- declare_qname1 Proxy.Proxy
+               let declare_qname2 = HsJSONPB.declareSchemaRef
+               withQualifiedNameQname2 <- declare_qname2 Proxy.Proxy
+               let _ = Hs.pure WithQualifiedName <*>
+                         HsJSONPB.asProxy declare_qname1
+                         <*> HsJSONPB.asProxy declare_qname2
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "WithQualifiedName",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("qname1", withQualifiedNameQname1),
+                                                        ("qname2", withQualifiedNameQname2)]}})
  
 data UsingImported = UsingImported{usingImportedImportedNesting ::
                                    Hs.Maybe TestProtoImport.WithNesting,
@@ -1727,7 +2204,27 @@ instance HsJSONPB.FromJSON UsingImported where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema UsingImported where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_importedNesting = HsJSONPB.declareSchemaRef
+               usingImportedImportedNesting <- declare_importedNesting Proxy.Proxy
+               let declare_localNesting = HsJSONPB.declareSchemaRef
+               usingImportedLocalNesting <- declare_localNesting Proxy.Proxy
+               let _ = Hs.pure UsingImported <*>
+                         HsJSONPB.asProxy declare_importedNesting
+                         <*> HsJSONPB.asProxy declare_localNesting
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "UsingImported",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("importedNesting",
+                                                         usingImportedImportedNesting),
+                                                        ("localNesting",
+                                                         usingImportedLocalNesting)]}})
  
 data Wrapped = Wrapped{wrappedWrapped ::
                        Hs.Maybe TestProto.Wrapped}
@@ -1770,7 +2267,20 @@ instance HsJSONPB.FromJSON Wrapped where
         parseJSON = HsJSONPB.parseJSONPB
  
 instance HsJSONPB.ToSchema Wrapped where
-        declareNamedSchema = HsJSONPB.genericDeclareNamedSchemaJSONPB
+        declareNamedSchema _
+          = do let declare_wrapped = HsJSONPB.declareSchemaRef
+               wrappedWrapped <- declare_wrapped Proxy.Proxy
+               let _ = Hs.pure Wrapped <*> HsJSONPB.asProxy declare_wrapped
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "Wrapped",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("wrapped", wrappedWrapped)]}})
  
 data EnumAnnots = EnumAnnotsFOO
                 | EnumAnnotsBAR

@@ -30,12 +30,19 @@ module Proto3.Suite.JSONPB
   , A.withObject
     -- * Swagger schema helpers
   , Swagger.ToSchema(..)
-  , Swagger.genericDeclareNamedSchemaJSONPB
-  ,
+  , Swagger.NamedSchema(..)
+  , Swagger.Schema(..)
+  , Swagger.ParamSchema(..)
+  , Swagger.SwaggerType(..)
+  , Swagger.declareSchemaRef
+  , Proto3.Suite.DotProto.Generate.Swagger.OverrideToSchema(..)
+  , Proto3.Suite.DotProto.Generate.Swagger.asProxy
+  , Proto3.Suite.DotProto.Generate.Swagger.insOrdFromList
   )
 where
 
 import qualified Data.Aeson                             as A
 import qualified Data.Aeson.Types                       as A
-import qualified Proto3.Suite.DotProto.Generate.Swagger as Swagger
+import qualified Data.Swagger                           as Swagger
+import           Proto3.Suite.DotProto.Generate.Swagger
 import           Proto3.Suite.JSONPB.Class
