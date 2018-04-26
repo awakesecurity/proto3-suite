@@ -71,6 +71,15 @@ let
           proto3-wire =
             self.callPackage ./nix/proto3-wire.nix { };
 
+          dhall =
+            self.callPackage ./nix/dhall.nix { };
+
+          formatting =
+            self.callPackage ./nix/formatting.nix { };
+
+          prettyprinter =
+            self.callPackage ./nix/prettyprinter.nix { };
+
           swagger2 =
             pkgs.haskell.lib.dontCheck
               (pkgs.haskell.lib.dontHaddock

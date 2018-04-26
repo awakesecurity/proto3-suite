@@ -522,10 +522,11 @@ nestedTypeName (Dots (Path parents)) nm =
     (<> ("_" <> nm)) <$> (intercalate "_" <$> mapM typeLikeName parents)
 nestedTypeName (Qualified {})  _  = internalError "nestedTypeName: Qualified"
 
-haskellName,  jsonpbName, grpcName, protobufName, proxyName
+haskellName,  jsonpbName, grpcName, protobufName, proxyName, dhallName
     :: String -> HsQName
 haskellName  name = Qual (Module "Hs") (HsIdent name)
 jsonpbName   name = Qual (Module "HsJSONPB") (HsIdent name)
+dhallName    name = Qual (Module "HsDhall") (HsIdent name)
 grpcName     name = Qual (Module "HsGRPC") (HsIdent name)
 protobufName name = Qual (Module "HsProtobuf") (HsIdent name)
 proxyName    name = Qual (Module "Proxy") (HsIdent name)
@@ -720,6 +721,8 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
               , fromJSONInstDecl messageName
               -- And the Swagger ToSchema instance corresponding to JSONPB encodings
               , toSchemaInstance
+              -- Generate Dhall Interpret instance
+              , dhallInterpretInstDecl messageName
               ]
               <> nestedOneofs_
               <> nestedDecls_
@@ -1026,6 +1029,14 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   pure (instDecl_ (jsonpbName "FromJSONPB")
                  [ type_ msgName ]
                  [ HsFunBind [ parseJSONPBDecl ] ])
+
+-- *** Generate a Dhall Interpret instance
+
+dhallInterpretInstDecl :: String -> HsDecl
+dhallInterpretInstDecl typeName =
+  instDecl_ (dhallName "Interpret")
+            [ type_ typeName ]
+            [ ]
 
 -- *** Generate default Aeson To/FromJSON and Swagger ToSchema instances
 -- (These are defined in terms of ToJSONPB)
@@ -1900,7 +1911,8 @@ dpPrimTypeE ty            =
 
 defaultImports :: Bool -> [HsImportDecl]
 defaultImports usesGrpc =
-  [ importDecl_ preludeM                  True  (Just haskellNS) Nothing
+  [ importDecl_ preludeM                  True  (Just haskellNS)  Nothing
+  , importDecl_ dhallM                    True  (Just dhallNS)    Nothing
   , importDecl_ dataProtobufWireDotProtoM True  (Just protobufNS) Nothing
   , importDecl_ dataProtobufWireTypesM    True  (Just protobufNS) Nothing
   , importDecl_ dataProtobufWireClassM    True  (Just protobufNS) Nothing
@@ -1965,6 +1977,10 @@ defaultImports usesGrpc =
         networkGrpcHighLevelServerM      = Module "Network.GRPC.HighLevel.Server"
         networkGrpcHighLevelClientM      = Module "Network.GRPC.HighLevel.Client"
         networkGrpcHighLevelServerUnregM = Module "Network.GRPC.HighLevel.Server.Unregistered"
+
+        -- TODO: conditionally include Dhall with CPP
+        dhallM                    = Module "Dhall"
+        dhallNS                   = Module "HsDhall"
 
         grpcNS                    = Module "HsGRPC"
         jsonpbNS                  = Module "HsJSONPB"
