@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package awake.queryTranslation;
+
+message QueryTranslationRequest {
+
+  string frontendQuery = 1;
+
+  int32  oneInt        = 2;
+
+  int64  twoInt        = 3;
+
+  sint32 threeInt      = 4;
+
+  float  oneFloat      = 5;
+}
+
+message QueryTranslationResponse {
+
+  BackendQuery backendQuery = 1;
+
+}
+
+message BackendQuery {
+  string value = 1;
+}

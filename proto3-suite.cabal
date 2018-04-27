@@ -19,6 +19,7 @@ library
                        Proto3.Suite.DotProto.Parsing
                        Proto3.Suite.DotProto.Rendering
                        Proto3.Suite.JSONPB
+                       Proto3.Suite.DhallPB
                        Proto3.Suite.Tutorial
                        Proto3.Suite.Types
   other-modules:       Proto3.Suite.DotProto.Internal

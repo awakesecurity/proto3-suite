@@ -1583,6 +1583,10 @@ dotProtoEnumD parentIdent enumIdent enumParts =
           -- Generate Aeson instances in terms of JSONPB instances
           , toJSONInstDecl enumName
           , fromJSONInstDecl enumName
+
+          -- Generate Dhall Interpret instance
+          , dhallInterpretInstDecl enumName
+
           -- And the Finite instance, used to infer a Swagger ToSchema instance
           -- for this enumerated type.
           , instDecl_ (protobufName "Finite") [ type_ enumName ] []
@@ -1916,6 +1920,7 @@ defaultImports usesGrpc =
   , importDecl_ dataProtobufWireDotProtoM True  (Just protobufNS) Nothing
   , importDecl_ dataProtobufWireTypesM    True  (Just protobufNS) Nothing
   , importDecl_ dataProtobufWireClassM    True  (Just protobufNS) Nothing
+  , importDecl_ proto3SuiteDhallPBM       True  (Just dhallpbNS) Nothing
   , importDecl_ proto3SuiteJSONPBM        True  (Just jsonpbNS) Nothing
   , importDecl_ proto3SuiteJSONPBM        False  Nothing
                 (Just (False, [ HsIAbs (HsSymbol ".=")
@@ -1961,6 +1966,7 @@ defaultImports usesGrpc =
         dataProtobufWireClassM    = Module "Proto3.Suite.Class"
         dataProtobufWireTypesM    = Module "Proto3.Suite.Types"
         proto3SuiteJSONPBM        = Module "Proto3.Suite.JSONPB"
+        proto3SuiteDhallPBM       = Module "Proto3.Suite.DhallPB"
         proto3WireM               = Module "Proto3.Wire"
         controlApplicativeM       = Module "Control.Applicative"
         controlMonadM             = Module "Control.Monad"
@@ -1981,6 +1987,7 @@ defaultImports usesGrpc =
         -- TODO: conditionally include Dhall with CPP
         dhallM                    = Module "Dhall"
         dhallNS                   = Module "HsDhall"
+        dhallpbNS                 = Module "HsDhallPB"
 
         grpcNS                    = Module "HsGRPC"
         jsonpbNS                  = Module "HsJSONPB"
