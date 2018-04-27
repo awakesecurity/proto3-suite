@@ -723,6 +723,8 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
               , toSchemaInstance
               -- Generate Dhall Interpret instance
               , dhallInterpretInstDecl messageName
+              -- Generate Dhall Inject instance
+              , dhallInjectInstDecl messageName
               ]
               <> nestedOneofs_
               <> nestedDecls_
@@ -1030,11 +1032,17 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
                  [ type_ msgName ]
                  [ HsFunBind [ parseJSONPBDecl ] ])
 
--- *** Generate a Dhall Interpret instance
+-- *** Generate a Dhall Interpret and Inject instances
 
 dhallInterpretInstDecl :: String -> HsDecl
 dhallInterpretInstDecl typeName =
   instDecl_ (dhallName "Interpret")
+            [ type_ typeName ]
+            [ ]
+
+dhallInjectInstDecl :: String -> HsDecl
+dhallInjectInstDecl typeName =
+  instDecl_ (dhallName "Inject")
             [ type_ typeName ]
             [ ]
 

@@ -36,6 +36,7 @@ library
                        dhall ==1.12.*,
                        cereal >= 0.5.1 && <0.6,
                        containers ==0.5.*,
+                       contravariant ==1.4.*,
                        foldl,
                        hashable,
                        haskell-src ==1.0.*,
