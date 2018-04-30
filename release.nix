@@ -80,6 +80,9 @@ let
           prettyprinter =
             self.callPackage ./nix/prettyprinter.nix { };
 
+          megaparsec =
+            self.callPackage ./nix/megaparsec.nix { };
+
           swagger2 =
             pkgs.haskell.lib.dontCheck
               (pkgs.haskell.lib.dontHaddock

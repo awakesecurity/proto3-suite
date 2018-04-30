@@ -26,9 +26,9 @@ mkDerivation {
     system-filepath text turtle
   ];
   testHaskellDepends = [
-    aeson attoparsec base base64-bytestring bytestring cereal doctest
-    pretty-show proto3-wire QuickCheck semigroups swagger2 tasty
-    tasty-hunit tasty-quickcheck text transformers turtle vector
+    aeson attoparsec base base64-bytestring bytestring cereal dhall
+    doctest pretty-show proto3-wire QuickCheck semigroups swagger2
+    tasty tasty-hunit tasty-quickcheck text transformers turtle vector
   ];
   description = "A low level library for writing out data in the Protocol Buffers wire format";
   license = stdenv.lib.licenses.asl20;

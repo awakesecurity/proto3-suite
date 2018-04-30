@@ -35,6 +35,7 @@ import           Test.Tasty.HUnit            (Assertion, assertBool, testCase,
                                               (@=?), (@?=))
 import           Test.Tasty.QuickCheck       (testProperty, (===))
 import           TestCodeGen
+import           TestDhall
 import qualified TestProto                   as TP
 
 main :: IO ()
@@ -49,6 +50,7 @@ tests = testGroup "Tests"
   , parserUnitTests
   , dotProtoUnitTests
   , codeGenTests
+  , dhallTests
   ]
 
 --------------------------------------------------------------------------------

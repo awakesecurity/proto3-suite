@@ -683,6 +683,8 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                   pure [ dataDecl_ fullName cons defaultMessageDeriving
                        , namedInstD fullName
                        , toSchemaInstance
+                       , dhallInterpretInstDecl fullName
+                       , dhallInjectInstDecl fullName
                        ]
 
        conDecl <- recDecl_ (HsIdent messageName) . mconcat <$>
@@ -721,9 +723,9 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
               , fromJSONInstDecl messageName
               -- And the Swagger ToSchema instance corresponding to JSONPB encodings
               , toSchemaInstance
-              -- Generate Dhall Interpret instance
+
+              -- Generate Dhall instances
               , dhallInterpretInstDecl messageName
-              -- Generate Dhall Inject instance
               , dhallInjectInstDecl messageName
               ]
               <> nestedOneofs_
@@ -1032,7 +1034,7 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
                  [ type_ msgName ]
                  [ HsFunBind [ parseJSONPBDecl ] ])
 
--- *** Generate a Dhall Interpret and Inject instances
+-- *** Generate Dhall Interpret and Inject generic instances
 
 dhallInterpretInstDecl :: String -> HsDecl
 dhallInterpretInstDecl typeName =
@@ -1592,8 +1594,9 @@ dotProtoEnumD parentIdent enumIdent enumParts =
           , toJSONInstDecl enumName
           , fromJSONInstDecl enumName
 
-          -- Generate Dhall Interpret instance
+          -- Generate Dhall instances
           , dhallInterpretInstDecl enumName
+          , dhallInjectInstDecl enumName
 
           -- And the Finite instance, used to infer a Swagger ToSchema instance
           -- for this enumerated type.
