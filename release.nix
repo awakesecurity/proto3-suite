@@ -76,19 +76,10 @@ let
                           export PATH=${newHaskellPkgs.cabal-install}/bin:${ghc}/bin:${python}/bin''${PATH:+:}$PATH
                         '');
 
-                     # We need to add dhall as a dependency because
-                     # cabal2nix won't add it in the generated Nix
-                     # code because we guard the dhall dependency with
-                     # a cabal configure flag
-                     buildDepends = (oldArgs.libraryHaskellDepends or []) ++ [
-                       newHaskellPkgs.dhall
-                     ];
-
                      testHaskellDepends = (oldArgs.testHaskellDepends or []) ++ [
                        newPkgs.ghc
                        proto3-suite-boot
                        python
-                       newHaskellPkgs.dhall
                      ];
                    }
               );
