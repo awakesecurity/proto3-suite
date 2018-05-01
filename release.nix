@@ -22,9 +22,9 @@ let
 
          let
 
-           mk-proto3-suite = proto3-suite-boot:
+           mk-proto3-suite = pkgpath: proto3-suite-boot:
              newPkgs.haskell.lib.overrideCabal
-                (newHaskellPkgs.callPackage ./default.nix { })
+                (newHaskellPkgs.callPackage pkgpath { })
                 (oldArgs:
                   let
                     python = newPkgs.python.withPackages (pkgs: [ pkgs.protobuf3_0 ]);
@@ -110,14 +110,8 @@ let
           # Finally, we make `cabal` available in the `nix-shell`, intentionally
           # occluding any globally-installed versions of the tool.
 
-          proto3-suite = mk-proto3-suite proto3-suite-boot;
-
-          proto3-suite-dhall =
-            newPkgs.haskell.lib.overrideCabal
-              (mk-proto3-suite proto3-suite-dhall-boot)
-              (oldArgs: {
-                configureFlags = (oldArgs.configureFlags or []) ++ [ "-fdhall" ];
-              });
+          proto3-suite       = mk-proto3-suite ./default.nix       proto3-suite-boot;
+          proto3-suite-dhall = mk-proto3-suite ./default-dhall.nix proto3-suite-dhall-boot;
 
           # A proto3-suite sans tests, for bootstrapping
           proto3-suite-boot =
@@ -127,39 +121,15 @@ let
                  configureFlags = (oldArgs.configureFlags or []) ++ [ "--disable-optimization" ];
                  doCheck        = false;
                  doHaddock      = false;
-
-                 # We need to add dhall as a dependency because
-                 # cabal2nix won't add it in the generated Nix code
-                 # because we guard the dhall dependency with a cabal
-                 # configure flag
-                 buildDepends = (oldArgs.libraryHaskellDepends or []) ++ [
-                   newHaskellPkgs.dhall
-                 ];
-
-                 testHaskellDepends = (oldArgs.testHaskellDepends or []) ++ [
-                   newHaskellPkgs.dhall
-                 ];
                });
 
           proto3-suite-dhall-boot =
             newPkgs.haskell.lib.overrideCabal
-              (newHaskellPkgs.callPackage ./default.nix { })
+              (newHaskellPkgs.callPackage ./default-dhall.nix { })
               (oldArgs: {
-                 configureFlags = (oldArgs.configureFlags or []) ++ [ "--disable-optimization" "-fdhall" ];
+                 configureFlags = (oldArgs.configureFlags or []) ++ [ "--disable-optimization" ];
                  doCheck        = false;
                  doHaddock      = false;
-
-                 # We need to add dhall as a dependency because
-                 # cabal2nix won't add it in the generated Nix code
-                 # because we guard the dhall dependency with a cabal
-                 # configure flag
-                 buildDepends = (oldArgs.libraryHaskellDepends or []) ++ [
-                   newHaskellPkgs.dhall
-                 ];
-
-                 testHaskellDepends = (oldArgs.testHaskellDepends or []) ++ [
-                   newHaskellPkgs.dhall
-                 ];
                });
 
           proto3-wire =
