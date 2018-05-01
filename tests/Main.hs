@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP               #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -35,8 +36,11 @@ import           Test.Tasty.HUnit            (Assertion, assertBool, testCase,
                                               (@=?), (@?=))
 import           Test.Tasty.QuickCheck       (testProperty, (===))
 import           TestCodeGen
-import           TestDhall
 import qualified TestProto                   as TP
+
+#ifdef DHALL
+import           TestDhall
+#endif
 
 main :: IO ()
 main = defaultMain tests
@@ -50,7 +54,11 @@ tests = testGroup "Tests"
   , parserUnitTests
   , dotProtoUnitTests
   , codeGenTests
+
+#ifdef DHALL
   , dhallTests
+#endif
+
   ]
 
 --------------------------------------------------------------------------------
@@ -62,6 +70,7 @@ docTests = testCase "doctests" $ do
   Test.DocTest.doctest
     [ "-isrc"
     , "-itests"
+    , "-igen"
     , "src/Proto3/Suite/DotProto/Internal.hs"
     , "tests/TestCodeGen.hs"
     ]
