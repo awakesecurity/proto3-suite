@@ -10,7 +10,18 @@ build-type:          Simple
 cabal-version:       >=1.10
 data-files:          test-files/*.bin tests/encode.sh tests/decode.sh
 
+Flag dhall
+  Description:   Turn on Dhall interpret and inject codegen
+  Default:       False
+  Manual:        True
+
 library
+
+  if flag(dhall)
+    exposed-modules:   Proto3.Suite.DhallPB
+    build-depends:     dhall ==1.13.*
+    cpp-options:       -DDHALL
+
   exposed-modules:     Proto3.Suite
                        Proto3.Suite.Class
                        Proto3.Suite.DotProto
@@ -21,6 +32,7 @@ library
                        Proto3.Suite.JSONPB
                        Proto3.Suite.Tutorial
                        Proto3.Suite.Types
+
   other-modules:       Proto3.Suite.DotProto.Internal
                        Proto3.Suite.DotProto.Generate.Swagger
                        Proto3.Suite.JSONPB.Class
@@ -34,6 +46,7 @@ library
                        deepseq ==1.4.*,
                        cereal >= 0.5.1 && <0.6,
                        containers ==0.5.*,
+                       contravariant ==1.4.*,
                        foldl,
                        hashable,
                        haskell-src ==1.0.*,
@@ -63,9 +76,15 @@ library
 test-suite tests
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
+
+  if flag(dhall)
+    other-modules:     TestDhall
+    build-depends:     dhall ==1.13.*
+    cpp-options:       -DDHALL
+
   other-modules:       TestProto
                        TestCodeGen
-  hs-source-dirs:      tests
+  hs-source-dirs:      tests gen
   default-language:    Haskell2010
   build-depends:       base >=4.8 && <5.0,
                        QuickCheck >=2.8 && <2.10,

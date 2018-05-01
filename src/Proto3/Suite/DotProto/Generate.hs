@@ -530,6 +530,11 @@ grpcName     name = Qual (Module "HsGRPC") (HsIdent name)
 protobufName name = Qual (Module "HsProtobuf") (HsIdent name)
 proxyName    name = Qual (Module "Proxy") (HsIdent name)
 
+#ifdef DHALL
+dhallName :: String -> HsQName
+dhallName    name = Qual (Module "HsDhall") (HsIdent name)
+#endif
+
 camelCased :: String -> String
 camelCased s = do (prev, cur) <- zip (Nothing:map Just s) (map Just s ++ [Nothing])
                   case (prev, cur) of
@@ -682,6 +687,11 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                   pure [ dataDecl_ fullName cons defaultMessageDeriving
                        , namedInstD fullName
                        , toSchemaInstance
+
+#ifdef DHALL
+                       , dhallInterpretInstDecl fullName
+                       , dhallInjectInstDecl fullName
+#endif
                        ]
 
        conDecl <- recDecl_ (HsIdent messageName) . mconcat <$>
@@ -720,6 +730,12 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
               , fromJSONInstDecl messageName
               -- And the Swagger ToSchema instance corresponding to JSONPB encodings
               , toSchemaInstance
+
+#ifdef DHALL
+              -- Generate Dhall instances
+              , dhallInterpretInstDecl messageName
+              , dhallInjectInstDecl messageName
+#endif
               ]
               <> nestedOneofs_
               <> nestedDecls_
@@ -1026,6 +1042,22 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   pure (instDecl_ (jsonpbName "FromJSONPB")
                  [ type_ msgName ]
                  [ HsFunBind [ parseJSONPBDecl ] ])
+
+#ifdef DHALL
+-- *** Generate Dhall Interpret and Inject generic instances
+
+dhallInterpretInstDecl :: String -> HsDecl
+dhallInterpretInstDecl typeName =
+  instDecl_ (dhallName "Interpret")
+            [ type_ typeName ]
+            [ ]
+
+dhallInjectInstDecl :: String -> HsDecl
+dhallInjectInstDecl typeName =
+  instDecl_ (dhallName "Inject")
+            [ type_ typeName ]
+            [ ]
+#endif
 
 -- *** Generate default Aeson To/FromJSON and Swagger ToSchema instances
 -- (These are defined in terms of ToJSONPB)
@@ -1572,6 +1604,13 @@ dotProtoEnumD parentIdent enumIdent enumParts =
           -- Generate Aeson instances in terms of JSONPB instances
           , toJSONInstDecl enumName
           , fromJSONInstDecl enumName
+
+#ifdef DHALL
+          -- Generate Dhall instances
+          , dhallInterpretInstDecl enumName
+          , dhallInjectInstDecl enumName
+#endif
+
           -- And the Finite instance, used to infer a Swagger ToSchema instance
           -- for this enumerated type.
           , instDecl_ (protobufName "Finite") [ type_ enumName ] []
@@ -1900,7 +1939,13 @@ dpPrimTypeE ty            =
 
 defaultImports :: Bool -> [HsImportDecl]
 defaultImports usesGrpc =
-  [ importDecl_ preludeM                  True  (Just haskellNS) Nothing
+  [ importDecl_ preludeM                  True  (Just haskellNS)  Nothing
+
+#ifdef DHALL
+  , importDecl_ dhallM                    True  (Just dhallNS)    Nothing
+  , importDecl_ proto3SuiteDhallPBM       True  (Just dhallpbNS) Nothing
+#endif
+
   , importDecl_ dataProtobufWireDotProtoM True  (Just protobufNS) Nothing
   , importDecl_ dataProtobufWireTypesM    True  (Just protobufNS) Nothing
   , importDecl_ dataProtobufWireClassM    True  (Just protobufNS) Nothing
@@ -1965,6 +2010,14 @@ defaultImports usesGrpc =
         networkGrpcHighLevelServerM      = Module "Network.GRPC.HighLevel.Server"
         networkGrpcHighLevelClientM      = Module "Network.GRPC.HighLevel.Client"
         networkGrpcHighLevelServerUnregM = Module "Network.GRPC.HighLevel.Server.Unregistered"
+
+#ifdef DHALL
+        proto3SuiteDhallPBM       = Module "Proto3.Suite.DhallPB"
+
+        dhallM                    = Module "Dhall"
+        dhallNS                   = Module "HsDhall"
+        dhallpbNS                 = Module "HsDhallPB"
+#endif
 
         grpcNS                    = Module "HsGRPC"
         jsonpbNS                  = Module "HsJSONPB"

@@ -1,6 +1,6 @@
 { mkDerivation, aeson, aeson-pretty, attoparsec, base
 , base64-bytestring, binary, bytestring, cereal, containers
-, deepseq, doctest, foldl, hashable, haskell-src
+, contravariant, deepseq, doctest, foldl, hashable, haskell-src
 , insert-ordered-containers, lens, mtl, neat-interpolation
 , optparse-generic, parsec, parsers, pretty, pretty-show
 , proto3-wire, QuickCheck, range-set-list, safe, semigroups, stdenv
@@ -13,13 +13,12 @@ mkDerivation {
   src = ./.;
   isLibrary = true;
   isExecutable = true;
-  enableSeparateDataOutput = true;
   libraryHaskellDepends = [
     aeson aeson-pretty attoparsec base base64-bytestring binary
-    bytestring cereal containers deepseq foldl hashable haskell-src
-    insert-ordered-containers lens mtl neat-interpolation parsec
-    parsers pretty pretty-show proto3-wire QuickCheck safe semigroups
-    swagger2 system-filepath text transformers turtle vector
+    bytestring cereal containers contravariant deepseq foldl hashable
+    haskell-src insert-ordered-containers lens mtl neat-interpolation
+    parsec parsers pretty pretty-show proto3-wire QuickCheck safe
+    semigroups swagger2 system-filepath text transformers turtle vector
   ];
   executableHaskellDepends = [
     base containers optparse-generic proto3-wire range-set-list
