@@ -13,6 +13,7 @@ data-files:          test-files/*.bin tests/encode.sh tests/decode.sh
 Flag dhall
   Description:   Turn on Dhall interpret and inject codegen
   Default:       False
+  Manual:        True
 
 library
 
