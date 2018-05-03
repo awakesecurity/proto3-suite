@@ -531,8 +531,11 @@ protobufName name = Qual (Module "HsProtobuf") (HsIdent name)
 proxyName    name = Qual (Module "Proxy") (HsIdent name)
 
 #ifdef DHALL
-dhallName :: String -> HsQName
-dhallName    name = Qual (Module "HsDhall") (HsIdent name)
+hsDhallPB :: String
+hsDhallPB = "HsDhallPb"
+
+dhallPBName :: String -> HsQName
+dhallPBName name = Qual (Module hsDhallPB) (HsIdent name)
 #endif
 
 camelCased :: String -> String
@@ -1048,13 +1051,13 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
 dhallInterpretInstDecl :: String -> HsDecl
 dhallInterpretInstDecl typeName =
-  instDecl_ (dhallName "Interpret")
+  instDecl_ (dhallPBName "Interpret")
             [ type_ typeName ]
             [ ]
 
 dhallInjectInstDecl :: String -> HsDecl
 dhallInjectInstDecl typeName =
-  instDecl_ (dhallName "Inject")
+  instDecl_ (dhallPBName "Inject")
             [ type_ typeName ]
             [ ]
 #endif
@@ -1942,8 +1945,7 @@ defaultImports usesGrpc =
   [ importDecl_ preludeM                  True  (Just haskellNS)  Nothing
 
 #ifdef DHALL
-  , importDecl_ dhallM                    True  (Just dhallNS)    Nothing
-  , importDecl_ proto3SuiteDhallPBM       True  (Just dhallpbNS) Nothing
+  , importDecl_ proto3SuiteDhallPBM       True  (Just (Module hsDhallPB)) Nothing
 #endif
 
   , importDecl_ dataProtobufWireDotProtoM True  (Just protobufNS) Nothing
@@ -2013,10 +2015,6 @@ defaultImports usesGrpc =
 
 #ifdef DHALL
         proto3SuiteDhallPBM       = Module "Proto3.Suite.DhallPB"
-
-        dhallM                    = Module "Dhall"
-        dhallNS                   = Module "HsDhall"
-        dhallpbNS                 = Module "HsDhallPB"
 #endif
 
         grpcNS                    = Module "HsGRPC"

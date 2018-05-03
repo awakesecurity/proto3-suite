@@ -3,17 +3,21 @@
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Proto3.Suite.DhallPB where
+module Proto3.Suite.DhallPB
+  ( -- * Modules
+    module Dhall
+  )
+where
+import           Data.Functor.Contravariant  (contramap)
+import           Data.Int                    (Int32, Int64)
+import           Data.Word                   (Word32, Word64)
+import           Dhall                       (Inject (..), Interpret (..))
+import           GHC.Float                   (double2Float, float2Double)
+import           Proto3.Suite.Types          (Enumerated (..), Fixed (..))
 
-import           Data.Functor.Contravariant (contramap)
-import           Data.Int                   (Int32, Int64)
-import           Data.Word                  (Word32, Word64)
-import           GHC.Float                  (double2Float, float2Double)
-import           Proto3.Suite.Types         (Enumerated (..), Fixed (..))
-
+import qualified Data.ByteString
 import qualified Data.ByteString.Base64
 import qualified Data.ByteString.Base64.Lazy
-import qualified Data.ByteString
 import qualified Data.ByteString.Lazy
 import qualified Data.Text.Encoding
 import qualified Data.Text.Lazy.Encoding
