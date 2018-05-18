@@ -1303,7 +1303,7 @@ predErrorE                  = HsVar (haskellName "predError")
 toEnumErrorE                = HsVar (haskellName "toEnumError")
 fmapE                       = HsVar (haskellName "fmap")
 defaultOptionsE             = HsVar (grpcName "defaultOptions")
-serverLoopE                 = HsVar (grpcName "serverLoop")
+serverLoopE                 = HsVar (grpcName "asyncServerLoop")
 convertServerHandlerE       = HsVar (grpcName "convertGeneratedServerHandler")
 convertServerReaderHandlerE = HsVar (grpcName "convertGeneratedServerReaderHandler")
 convertServerWriterHandlerE = HsVar (grpcName "convertGeneratedServerWriterHandler")
@@ -1478,9 +1478,9 @@ defaultImports usesGrpc =
     then [ importDecl_ networkGrpcHighLevelGeneratedM   False (Just grpcNS) Nothing
          , importDecl_ networkGrpcHighLevelClientM      False (Just grpcNS) Nothing
          , importDecl_ networkGrpcHighLevelServerM      False (Just grpcNS)
-               (Just (True, [ importSym "serverLoop" ]))
+               (Just (True, [ importSym "asyncServerLoop" ]))
          , importDecl_ networkGrpcHighLevelServerUnregM False (Just grpcNS)
-               (Just (False, [ importSym "serverLoop" ]))
+               (Just (False, [ importSym "asyncServerLoop" ]))
          , importDecl_ networkGrpcLowLevelCallM         False (Just grpcNS) Nothing  ]
     else []
   where preludeM                  = Module "Prelude"
