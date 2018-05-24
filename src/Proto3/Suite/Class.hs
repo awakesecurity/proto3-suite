@@ -661,13 +661,11 @@ instance GenericMessage1 f => GenericMessage1 (M1 C c f) where
   genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
   genericLiftDecodeMessage decodeMessage fieldNumber = fmap M1 $ genericLiftDecodeMessage decodeMessage fieldNumber
   genericLiftDotProto dotProto _ = genericLiftDotProto dotProto (Proxy @f)
-  -- genericDecodeMessage _ _ _ =  _
 
 instance (Selector s, GenericMessage1 f) => GenericMessage1 (M1 S s f) where
   type GenericFieldCount1 (M1 S s f) = GenericFieldCount1 f
   genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
   genericLiftDecodeMessage decodeMessage fieldNumber = fmap M1 $ genericLiftDecodeMessage decodeMessage fieldNumber
-  -- genericDecodeMessage num = fmap M1 $ genericDecodeMessage num
   genericLiftDotProto dotProto _ = map applyName $ genericLiftDotProto dotProto (Proxy @f)
     where
       applyName :: DotProtoField -> DotProtoField
