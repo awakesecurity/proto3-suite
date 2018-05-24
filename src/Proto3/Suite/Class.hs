@@ -71,6 +71,7 @@ module Proto3.Suite.Class
   ( Primitive(..)
   , MessageField(..)
   , Message(..)
+  , Message1(..)
 
   -- * Encoding
   , toLazyByteString
@@ -88,6 +89,7 @@ module Proto3.Suite.Class
 
   -- * Generic Classes
   , GenericMessage(..)
+  , GenericMessage1(..)
   ) where
 
 import           Control.Monad
@@ -483,11 +485,6 @@ instance (Named a, Message a) => MessageField (Nested a) where
   decodeMessageField = fmap Nested (Decode.embedded (decodeMessage (fieldNumber 1)))
   protoType _ = messageField (Prim $ Named (Single (nameOf (Proxy @a)))) Nothing
 
-instance Primitive a => MessageField [a] where
-  encodeMessageField fn = foldMap (encodePrimitive fn)
-  decodeMessageField = fmap F.toList $ repeated decodePrimitive
-  protoType _ = messageField (Repeated $ primType (Proxy @a)) (Just DotProto.UnpackedField)
-
 instance Primitive a => MessageField (UnpackedVec a) where
   encodeMessageField fn = foldMap (encodePrimitive fn)
   decodeMessageField = fmap (UnpackedVec . seqToVec) $ repeated decodePrimitive
@@ -498,6 +495,14 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
                           . nestedvec
   decodeMessageField = fmap (NestedVec . seqToVec)
                             (repeated (Decode.embedded' oneMsg))
+    where
+      oneMsg :: Parser RawMessage a
+      oneMsg = decodeMessage (fieldNumber 1)
+  protoType _ = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
+
+instance (Named a, Message a) => MessageField [a] where
+  encodeMessageField fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
+  decodeMessageField = fmap F.toList (repeated (Decode.embedded' oneMsg))
     where
       oneMsg :: Parser RawMessage a
       oneMsg = decodeMessage (fieldNumber 1)
@@ -612,6 +617,34 @@ class Message a where
 
   default dotProto :: GenericMessage (Rep a) => Proxy a -> [DotProtoField]
   dotProto _ = genericDotProto (Proxy @(Rep a))
+
+class Message1 f where
+  liftEncodeMessage :: (FieldNumber -> a -> Encode.MessageBuilder) -> FieldNumber -> f a -> Encode.MessageBuilder
+  default liftEncodeMessage :: (Generic1 f, GenericMessage1 (Rep1 f)) => (FieldNumber -> a -> Encode.MessageBuilder) -> FieldNumber -> f a -> Encode.MessageBuilder
+  liftEncodeMessage encodeMessage fieldNumber = genericLiftEncodeMessage encodeMessage fieldNumber . from1
+
+class GenericMessage1 f where
+  type GenericFieldCount1 f :: Nat
+  genericLiftEncodeMessage :: (FieldNumber -> a -> Encode.MessageBuilder) -> FieldNumber -> f a -> Encode.MessageBuilder
+
+instance GenericMessage1 U1 where
+  type GenericFieldCount1 U1 = 0
+  genericLiftEncodeMessage _ _ _ = mempty
+
+instance GenericMessage1 f => GenericMessage1 (M1 D c f) where
+  type GenericFieldCount1 (M1 D c f) = GenericFieldCount1 f
+  genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
+
+instance GenericMessage1 f => GenericMessage1 (M1 C c f) where
+  type GenericFieldCount1 (M1 C c f) = GenericFieldCount1 f
+  genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
+
+instance GenericMessage1 Par1 where
+  type GenericFieldCount1 Par1 = 1
+  genericLiftEncodeMessage encodeMessage fieldNumber (Par1 x) = encodeMessage fieldNumber x
+
+  -- genericDecodeMessage _ = return U1
+  -- genericDotProto _      = mempty
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy a -> DotProtoDefinition
