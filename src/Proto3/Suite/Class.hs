@@ -623,34 +623,84 @@ class Message1 f where
   default liftEncodeMessage :: (Generic1 f, GenericMessage1 (Rep1 f)) => (FieldNumber -> a -> Encode.MessageBuilder) -> FieldNumber -> f a -> Encode.MessageBuilder
   liftEncodeMessage encodeMessage fieldNumber = genericLiftEncodeMessage encodeMessage fieldNumber . from1
 
-class GenericMessage1 f where
-  type GenericFieldCount1 f :: Nat
-  genericLiftEncodeMessage :: (FieldNumber -> a -> Encode.MessageBuilder) -> FieldNumber -> f a -> Encode.MessageBuilder
+  liftDecodeMessage :: (FieldNumber -> Parser RawMessage a) -> FieldNumber -> Parser RawMessage (f a)
+  default liftDecodeMessage :: (Generic1 f, GenericMessage1 (Rep1 f)) => (FieldNumber -> Parser RawMessage a) -> FieldNumber -> Parser RawMessage (f a)
+  liftDecodeMessage decodeMessage fieldNumber = fmap to1 $ genericLiftDecodeMessage decodeMessage fieldNumber
 
-instance GenericMessage1 U1 where
-  type GenericFieldCount1 U1 = 0
-  genericLiftEncodeMessage _ _ _ = mempty
-
-instance GenericMessage1 f => GenericMessage1 (M1 D c f) where
-  type GenericFieldCount1 (M1 D c f) = GenericFieldCount1 f
-  genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
-
-instance GenericMessage1 f => GenericMessage1 (M1 C c f) where
-  type GenericFieldCount1 (M1 C c f) = GenericFieldCount1 f
-  genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
-
-instance GenericMessage1 Par1 where
-  type GenericFieldCount1 Par1 = 1
-  genericLiftEncodeMessage encodeMessage fieldNumber (Par1 x) = encodeMessage fieldNumber x
-
-  -- genericDecodeMessage _ = return U1
-  -- genericDotProto _      = mempty
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy a -> DotProtoDefinition
 message pr = DotProtoMessage (Single $ nameOf pr) $ DotProtoMessageField <$> (dotProto pr)
 
 -- * Generic Instances
+
+class GenericMessage1 f where
+  type GenericFieldCount1 f :: Nat
+  genericLiftEncodeMessage :: (FieldNumber -> a -> Encode.MessageBuilder) -> FieldNumber -> f a -> Encode.MessageBuilder
+  genericLiftDecodeMessage :: (FieldNumber -> Parser RawMessage a) -> FieldNumber -> Parser RawMessage (f a)
+
+instance GenericMessage1 U1 where
+  type GenericFieldCount1 U1 = 0
+  genericLiftEncodeMessage _ _ _ = mempty
+  genericLiftDecodeMessage _ _ = pure U1
+  -- genericDecodeMessage _ = return U1
+  -- genericDotProto _      = mempty
+
+instance GenericMessage1 f => GenericMessage1 (M1 D c f) where
+  type GenericFieldCount1 (M1 D c f) = GenericFieldCount1 f
+  genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
+  genericLiftDecodeMessage decodeMessage fieldNumber = fmap M1 $ genericLiftDecodeMessage decodeMessage fieldNumber
+  -- genericDecodeMessage _ _ _ =  _
+  -- genericDotProto _ _ _      = _
+
+instance GenericMessage1 f => GenericMessage1 (M1 C c f) where
+  type GenericFieldCount1 (M1 C c f) = GenericFieldCount1 f
+  genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
+  genericLiftDecodeMessage decodeMessage fieldNumber = fmap M1 $ genericLiftDecodeMessage decodeMessage fieldNumber
+  -- genericDecodeMessage _ _ _ =  _
+  -- genericDotProto _ _ _      = _
+
+instance (Selector s, GenericMessage1 f) => GenericMessage1 (M1 S s f) where
+  type GenericFieldCount1 (M1 S s f) = GenericFieldCount1 f
+  genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
+  genericLiftDecodeMessage decodeMessage fieldNumber = fmap M1 $ genericLiftDecodeMessage decodeMessage fieldNumber
+  -- genericDecodeMessage num = fmap M1 $ genericDecodeMessage num
+  -- genericDotProto _ = map applyName $ genericDotProto (Proxy @f)
+  --   where
+  --     applyName :: DotProtoField -> DotProtoField
+  --     applyName mp = mp { dotProtoFieldName = fromMaybe Anonymous newName} -- [issue] this probably doesn't match the intended name generating semantics
+  --
+  --     newName :: Maybe DotProtoIdentifier
+  --     newName = guard (not (null name)) $> Single name
+  --       where
+  --         name = selName (undefined :: S1 s f ())
+
+instance GenericMessage1 Par1 where
+  type GenericFieldCount1 Par1 = 1
+  genericLiftEncodeMessage encodeMessage fieldNumber (Par1 x) = encodeMessage fieldNumber x
+  genericLiftDecodeMessage decodeMessage fieldNumber = fmap Par1 $ decodeMessage fieldNumber
+  -- genericDecodeMessage _ _ _ =  _
+  -- genericDotProto _ _ _      = _
+
+instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g) => GenericMessage1 (f :*: g) where
+  type GenericFieldCount1 (f :*: g) = GenericFieldCount1 f + GenericFieldCount1 g
+  genericLiftEncodeMessage encodeMessage num (x :*: y) = genericLiftEncodeMessage  encodeMessage num x <> genericLiftEncodeMessage encodeMessage (FieldNumber (getFieldNumber num + offset)) y
+    where
+      offset = fromIntegral $ natVal (Proxy @(GenericFieldCount1 f))
+  genericLiftDecodeMessage decodeMessage num = liftM2 (:*:) (genericLiftDecodeMessage decodeMessage num) (genericLiftDecodeMessage decodeMessage num2)
+    where num2 = FieldNumber $ getFieldNumber num + offset
+          offset = fromIntegral $ natVal (Proxy @(GenericFieldCount1 f))
+  -- genericDotProto _ = genericDotProto (Proxy @f) <> adjust (genericDotProto (Proxy @g))
+    -- where
+    --   offset = fromIntegral $ natVal (Proxy @(GenericFieldCount f))
+    --   adjust = map adjustPart
+      -- adjustPart part = part { dotProtoFieldNumber = (FieldNumber . (offset +) . getFieldNumber . dotProtoFieldNumber) part }
+
+instance MessageField c => GenericMessage1 (K1 i c) where
+  type GenericFieldCount1 (K1 i c) = 1
+  genericLiftEncodeMessage encodeMessage num (K1 x) = encodeMessageField num x
+  genericLiftDecodeMessage decodeMessage num = fmap K1 (at decodeMessageField num)
+  -- genericDotProto _ = [protoType (Proxy @c)]
 
 class GenericMessage (f :: * -> *) where
   type GenericFieldCount f :: Nat
