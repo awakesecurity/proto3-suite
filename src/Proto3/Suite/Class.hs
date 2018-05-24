@@ -465,6 +465,7 @@ instance MessageField T.Text
 instance MessageField TL.Text
 instance MessageField B.ByteString
 instance MessageField BL.ByteString
+instance Primitive a => MessageField (Maybe a)
 instance (Bounded e, Named e, Enum e) => MessageField (Enumerated e)
 
 instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
@@ -477,6 +478,11 @@ instance (Named a, Message a) => MessageField (Nested a) where
   encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . nested
   decodeMessageField = fmap Nested (Decode.embedded (decodeMessage (fieldNumber 1)))
   protoType _ = messageField (Prim $ Named (Single (nameOf (Proxy @a)))) Nothing
+
+instance Primitive a => MessageField [a] where
+  encodeMessageField fn = foldMap (encodePrimitive fn)
+  decodeMessageField = fmap F.toList $ repeated decodePrimitive
+  protoType _ = messageField (Repeated $ primType (Proxy @a)) (Just DotProto.UnpackedField)
 
 instance Primitive a => MessageField (UnpackedVec a) where
   encodeMessageField fn = foldMap (encodePrimitive fn)
