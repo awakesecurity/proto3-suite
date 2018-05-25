@@ -82,6 +82,7 @@ module Proto3.Suite.Class
   , fromB64
 
   -- * Documentation
+  , GenericNamed(..)
   , Named(..)
   , Finite(..)
   , message
@@ -242,6 +243,10 @@ class GenericNamed (f :: * -> *) where
 
 instance Datatype d => GenericNamed (M1 D d f) where
   genericNameOf _ = fromString (datatypeName (undefined :: M1 D d f ()))
+
+instance {-# OVERLAPS #-} (Generic1 f, Rep1 f ~ D1 c f, Datatype c) => GenericNamed f where
+  genericNameOf _ = fromString (datatypeName (undefined :: t c f a))
+
 
 -- | Enumerable types with finitely many values.
 --
