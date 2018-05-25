@@ -627,7 +627,7 @@ class Message1 f where
   default liftDecodeMessage :: (Generic1 f, GenericMessage1 (Rep1 f)) => (FieldNumber -> Parser RawMessage a) -> FieldNumber -> Parser RawMessage (f a)
   liftDecodeMessage decodeMessage fieldNumber = fmap to1 $ genericLiftDecodeMessage decodeMessage fieldNumber
 
-  liftDotProto :: (Proxy (a :: *) -> [DotProtoMessagePart]) -> Proxy f -> [DotProtoMessagePart]
+  liftDotProto :: (Proxy a -> [DotProtoMessagePart]) -> Proxy f -> [DotProtoMessagePart]
   default liftDotProto :: GenericMessage1 (Rep1 f) => (Proxy a -> [DotProtoMessagePart]) -> Proxy f -> [DotProtoMessagePart]
   liftDotProto dotProto _ = genericLiftDotProto dotProto (Proxy @(Rep1 f))
 
