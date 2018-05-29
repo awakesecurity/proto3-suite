@@ -431,14 +431,14 @@ class MessageField1 f where
   liftEncodeMessageField :: (FieldNumber -> a -> Encode.MessageBuilder) -> FieldNumber -> f a -> Encode.MessageBuilder
   -- | Decode a message field
   liftDecodeMessageField :: (FieldNumber -> Parser RawMessage a) -> Parser RawField (f a)
-  liftProtoType :: (Proxy a -> [DotProtoMessagePart]) -> Proxy (f a) -> DotProtoField
+  liftProtoType :: Named a => (Proxy a -> [DotProtoMessagePart]) -> Proxy (f a) -> DotProtoField
 
 instance MessageField1 [] where
   liftEncodeMessageField encodeMessage fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
   liftDecodeMessageField decodeMessage = fmap F.toList (repeated (Decode.embedded' oneMsg))
     where
       oneMsg = decodeMessage (fieldNumber 1)
-  liftProtoType protoType _ = undefined -- messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
+  liftProtoType protoType (_ :: Proxy [a]) = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
 
 -- | This class captures those types which can appear as message fields in
 -- the protocol buffers specification, i.e. 'Primitive' types, or lists of
@@ -516,7 +516,7 @@ instance Primitive a => MessageField (UnpackedVec a) where
   decodeMessageField = fmap (UnpackedVec . seqToVec) $ repeated decodePrimitive
   protoType _ = messageField (Repeated $ primType (Proxy @a)) (Just DotProto.UnpackedField)
 
-instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
+instance (Named a, Message a) => MessageField (NestedVec a) where
   encodeMessageField fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
                           . nestedvec
   decodeMessageField = fmap (NestedVec . seqToVec)
@@ -654,9 +654,9 @@ class Message1 f where
   liftDecodeMessage decodeMessage fieldNumber = fmap to1 $ genericLiftDecodeMessage decodeMessage fieldNumber
 
   -- TODO: Take Proxy (f a) instead of Proxy f to pattern match on a
-  liftDotProto :: (Proxy a -> [DotProtoMessagePart]) -> Proxy (f a) -> [DotProtoMessagePart]
-  default liftDotProto :: forall a. GenericMessage1 (Rep1 f) => (Proxy a -> [DotProtoMessagePart]) -> Proxy (f a) -> [DotProtoMessagePart]
-  liftDotProto dotProto _ = genericLiftDotProto dotProto (Proxy @(Rep1 f a))
+  liftDotProto :: Named a => (Proxy a -> [DotProtoMessagePart]) -> Proxy (f a) -> [DotProtoMessagePart]
+  default liftDotProto :: (Named a, GenericMessage1 (Rep1 f)) => (Proxy a -> [DotProtoMessagePart]) -> Proxy (f a) -> [DotProtoMessagePart]
+  liftDotProto dotProto (_ :: Proxy (f a)) = genericLiftDotProto dotProto (Proxy @(Rep1 f a))
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy a -> DotProtoDefinition
@@ -671,7 +671,7 @@ class GenericMessage1 (f :: * -> *) where
   type GenericFieldCount1 f :: Nat
   genericLiftEncodeMessage :: (FieldNumber -> a -> Encode.MessageBuilder) -> FieldNumber -> f a -> Encode.MessageBuilder
   genericLiftDecodeMessage :: (FieldNumber -> Parser RawMessage a) -> FieldNumber -> Parser RawMessage (f a)
-  genericLiftDotProto :: (Proxy a -> [DotProtoMessagePart]) -> Proxy (f a) -> [DotProtoMessagePart]
+  genericLiftDotProto :: Named a => (Proxy a -> [DotProtoMessagePart]) -> Proxy (f a) -> [DotProtoMessagePart]
 
 instance GenericMessage1 U1 where
   type GenericFieldCount1 U1 = 0
