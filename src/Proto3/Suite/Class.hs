@@ -419,6 +419,26 @@ instance (Primitive a) => Primitive (ForceEmit a) where
   decodePrimitive     = fmap ForceEmit decodePrimitive
   primType _          = primType (Proxy @a)
 
+instance MessageField1 f => GenericMessage1 (Rec1 f) where
+  type GenericFieldCount1 (Rec1 f) = 1
+  genericLiftEncodeMessage encodeMessage fieldNumber (Rec1 x) = liftEncodeMessageField encodeMessage fieldNumber x
+  genericLiftDecodeMessage decodeMessage fieldNumber = fmap Rec1 $ at (liftDecodeMessageField decodeMessage) fieldNumber
+  genericLiftDotProto dotProto (_ :: Proxy (Rec1 f a)) = [ DotProtoMessageField $ liftProtoType dotProto (Proxy @(f a)) ]
+
+
+class MessageField1 f where
+  liftEncodeMessageField :: (FieldNumber -> a -> Encode.MessageBuilder) -> FieldNumber -> f a -> Encode.MessageBuilder
+  -- | Decode a message field
+  liftDecodeMessageField :: (FieldNumber -> Parser RawMessage a) -> Parser RawField (f a)
+  liftProtoType :: (Proxy a -> [DotProtoMessagePart]) -> Proxy (f a) -> DotProtoField
+
+instance MessageField1 [] where
+  liftEncodeMessageField encodeMessage fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
+  liftDecodeMessageField decodeMessage = fmap F.toList (repeated (Decode.embedded' oneMsg))
+    where
+      oneMsg = decodeMessage (fieldNumber 1)
+  liftProtoType protoType _ = undefined -- messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
+
 -- | This class captures those types which can appear as message fields in
 -- the protocol buffers specification, i.e. 'Primitive' types, or lists of
 -- 'Primitive' types
