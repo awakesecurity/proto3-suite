@@ -86,6 +86,7 @@ module Proto3.Suite.Class
   , Named(..)
   , Finite(..)
   , message
+  , message1
   , Proto3.Suite.Class.enum
 
   -- * Generic Classes
@@ -661,8 +662,8 @@ class Message1 f where
 message :: (Message a, Named a) => Proxy a -> DotProtoDefinition
 message pr = DotProtoMessage (Single $ nameOf pr) (dotProto pr)
 
-message1 :: (Message1 f, Named a, Message a) => Proxy (f a) -> DotProtoDefinition
-message1 pr = DotProtoMessage (Single $ nameOf (Proxy :: Proxy a)) (liftDotProto dotProto pr)
+message1 :: (Named (f a), Named a, Message1 f, Message a) => Proxy (f a) -> DotProtoDefinition
+message1 pr = DotProtoMessage (Single $ nameOf pr) (liftDotProto dotProto pr)
 
 -- * Generic Instances
 
