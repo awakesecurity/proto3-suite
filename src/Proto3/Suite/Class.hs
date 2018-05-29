@@ -724,7 +724,7 @@ instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g)
   genericLiftDecodeMessage decodeMessage num = liftM2 (:*:) (genericLiftDecodeMessage decodeMessage num) (genericLiftDecodeMessage decodeMessage num2)
     where num2 = FieldNumber $ getFieldNumber num + offset
           offset = fromIntegral $ natVal (Proxy @(GenericFieldCount1 f))
-  genericLiftDotProto dotProto _ = genericLiftDotProto dotProto (Proxy @f) <> adjust (genericLiftDotProto dotProto (Proxy @g))
+  genericLiftDotProto dotProto (_ :: Proxy ((f :*: g) a)) = genericLiftDotProto dotProto (Proxy @(f a)) <> adjust (genericLiftDotProto dotProto (Proxy @(g a)))
     where
       offset = fromIntegral $ natVal (Proxy @(GenericFieldCount1 f))
       adjust = map adjustPart
