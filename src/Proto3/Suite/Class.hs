@@ -716,12 +716,6 @@ instance GenericMessage1 Par1 where
   genericLiftDecodeMessage decodeMessage fieldNumber = fmap Par1 $ decodeMessage fieldNumber
   genericLiftDotProto dotProto _ = dotProto Proxy
 
-instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f) => GenericMessage1 (Rec1 f) where
-  type GenericFieldCount1 (Rec1 f) = GenericFieldCount1 f
-  genericLiftEncodeMessage encodeMessage fieldNumber (Rec1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
-  genericLiftDecodeMessage decodeMessage fieldNumber = fmap Rec1 $ genericLiftDecodeMessage decodeMessage fieldNumber
-  genericLiftDotProto dotProto _ = dotProto Proxy
-
 instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g) => GenericMessage1 (f :*: g) where
   type GenericFieldCount1 (f :*: g) = GenericFieldCount1 f + GenericFieldCount1 g
   genericLiftEncodeMessage encodeMessage num (x :*: y) = genericLiftEncodeMessage  encodeMessage num x <> genericLiftEncodeMessage encodeMessage (FieldNumber (getFieldNumber num + offset)) y
