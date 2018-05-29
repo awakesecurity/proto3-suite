@@ -237,17 +237,19 @@ class Named a where
   nameOf :: IsString string => Proxy a -> string
 
   default nameOf :: (IsString string, GenericNamed (Rep a)) => Proxy a -> string
-  nameOf _ = genericNameOf (Proxy @(Rep a))
+  nameOf _ = genericNameOf (Proxy :: Proxy (Rep a))
+
+class Named1 f where
+  nameOf1 :: IsString string => Proxy f -> string
+
+  default nameOf1 :: (IsString string, GenericNamed (Rep1 f)) => Proxy f -> string
+  nameOf1 _ = genericNameOf (Proxy :: Proxy (Rep1 f))
 
 class GenericNamed (f :: * -> *) where
   genericNameOf :: IsString string => Proxy f -> string
 
 instance Datatype d => GenericNamed (M1 D d f) where
   genericNameOf _ = fromString (datatypeName (undefined :: M1 D d f ()))
-
-instance {-# OVERLAPS #-} (Generic1 f, Rep1 f ~ D1 c f', Datatype c) => GenericNamed f where
-  genericNameOf _ = fromString (datatypeName (undefined :: t c f a))
-
 
 -- | Enumerable types with finitely many values.
 --
