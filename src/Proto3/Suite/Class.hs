@@ -82,7 +82,7 @@ module Proto3.Suite.Class
   , fromB64
 
   -- * Documentation
-  , GenericNamed(..)
+  , Named1(..)
   , Named(..)
   , Finite(..)
   , message
