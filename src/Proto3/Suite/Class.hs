@@ -657,10 +657,17 @@ class Message1 f where
   default liftDotProto :: forall a. GenericMessage1 (Rep1 f) => (Proxy a -> [DotProtoMessagePart]) -> Proxy (f a) -> [DotProtoMessagePart]
   liftDotProto dotProto _ = genericLiftDotProto dotProto (Proxy @(Rep1 f a))
 
+-- instance Message1 [] where
+--   liftEncodeMessage encodeMessage fieldNumber = foldMap (encodeMessage fieldNumber)
+--   liftDecodeMessage decodeMessage fieldNumber = fmap toList $ repeated (decodeMessage fieldNumber)
+--   liftDotProto dotProto _ = [ DotProtoMessageDefinition (DotProtoMessage (Single "list") (dotProto _)) ]
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy a -> DotProtoDefinition
 message pr = DotProtoMessage (Single $ nameOf pr) (dotProto pr)
+
+message1 :: (Message1 f, Named a, Message a) => Proxy (f a) -> DotProtoDefinition
+message1 pr = DotProtoMessage (Single $ nameOf (Proxy :: Proxy a)) (liftDotProto dotProto pr)
 
 -- * Generic Instances
 
@@ -668,7 +675,7 @@ class GenericMessage1 (f :: * -> *) where
   type GenericFieldCount1 f :: Nat
   genericLiftEncodeMessage :: (FieldNumber -> a -> Encode.MessageBuilder) -> FieldNumber -> f a -> Encode.MessageBuilder
   genericLiftDecodeMessage :: (FieldNumber -> Parser RawMessage a) -> FieldNumber -> Parser RawMessage (f a)
-  genericLiftDotProto :: (Proxy a -> [DotProtoMessagePart]) -> Proxy f -> [DotProtoMessagePart]
+  genericLiftDotProto :: (Proxy a -> [DotProtoMessagePart]) -> Proxy (f a) -> [DotProtoMessagePart]
 
 instance GenericMessage1 U1 where
   type GenericFieldCount1 U1 = 0
@@ -680,19 +687,19 @@ instance GenericMessage1 f => GenericMessage1 (M1 D c f) where
   type GenericFieldCount1 (M1 D c f) = GenericFieldCount1 f
   genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
   genericLiftDecodeMessage decodeMessage fieldNumber = fmap M1 $ genericLiftDecodeMessage decodeMessage fieldNumber
-  genericLiftDotProto dotProto _ = genericLiftDotProto dotProto (Proxy @f)
+  genericLiftDotProto dotProto (_ :: Proxy (M1 D c f a)) = genericLiftDotProto dotProto (Proxy @(f a))
 
 instance GenericMessage1 f => GenericMessage1 (M1 C c f) where
   type GenericFieldCount1 (M1 C c f) = GenericFieldCount1 f
   genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
   genericLiftDecodeMessage decodeMessage fieldNumber = fmap M1 $ genericLiftDecodeMessage decodeMessage fieldNumber
-  genericLiftDotProto dotProto _ = genericLiftDotProto dotProto (Proxy @f)
+  genericLiftDotProto dotProto (_ :: Proxy (M1 C c f a)) = genericLiftDotProto dotProto (Proxy @(f a))
 
 instance (Selector s, GenericMessage1 f) => GenericMessage1 (M1 S s f) where
   type GenericFieldCount1 (M1 S s f) = GenericFieldCount1 f
   genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
   genericLiftDecodeMessage decodeMessage fieldNumber = fmap M1 $ genericLiftDecodeMessage decodeMessage fieldNumber
-  genericLiftDotProto dotProto _ = map applyName $ genericLiftDotProto dotProto (Proxy @f)
+  genericLiftDotProto dotProto (_ :: Proxy (M1 S s f a)) = map applyName $ genericLiftDotProto dotProto (Proxy @(f a))
     where
       applyName :: DotProtoMessagePart -> DotProtoMessagePart
       applyName (DotProtoMessageField mp) = DotProtoMessageField $ mp { dotProtoFieldName = fromMaybe Anonymous newName} -- [issue] this probably doesn't match the intended name generating semantics
