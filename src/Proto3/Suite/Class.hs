@@ -657,11 +657,6 @@ class Message1 f where
   default liftDotProto :: forall a. GenericMessage1 (Rep1 f) => (Proxy a -> [DotProtoMessagePart]) -> Proxy (f a) -> [DotProtoMessagePart]
   liftDotProto dotProto _ = genericLiftDotProto dotProto (Proxy @(Rep1 f a))
 
--- instance Message1 [] where
---   liftEncodeMessage encodeMessage fieldNumber = foldMap (encodeMessage fieldNumber)
---   liftDecodeMessage decodeMessage fieldNumber = fmap toList $ repeated (decodeMessage fieldNumber)
---   liftDotProto dotProto _ = [ DotProtoMessageDefinition (DotProtoMessage (Single "list") (dotProto _)) ]
-
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy a -> DotProtoDefinition
 message pr = DotProtoMessage (Single $ nameOf pr) (dotProto pr)
