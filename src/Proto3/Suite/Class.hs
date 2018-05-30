@@ -95,6 +95,7 @@ module Proto3.Suite.Class
   , GenericMessage1(..)
   ) where
 
+import Control.Applicative
 import           Control.Monad
 import qualified Data.ByteString        as B
 import qualified Data.ByteString.Base64 as B64
@@ -123,6 +124,7 @@ import           Proto3.Wire.Decode     (ParseError, Parser (..), RawField,
 import qualified Proto3.Wire.Decode     as Decode
 import qualified Proto3.Wire.Encode     as Encode
 import           Safe                   (toEnumMay)
+import GHC.TypeLits.Extra
 
 -- | A class for types with default values per the protocol buffers spec.
 class HasDefault a where
@@ -784,7 +786,7 @@ instance (KnownNat (GenericFieldCount f), GenericMessage f, GenericMessage g) =>
       adjustPart part = part -- Don't adjust other message types?
 
 instance (GenericMessage f, GenericMessage g) => GenericMessage (f :+: g) where
-  type GenericFieldCount (f :+: g) = GenericFieldCount f `max` GenericFieldCount g
+  type GenericFieldCount (f :+: g) = GenericFieldCount f `Max` GenericFieldCount g
   genericEncodeMessage num (L1 x) = genericEncodeMessage num x
   genericEncodeMessage num (R1 y) = genericEncodeMessage num y
   genericDecodeMessage num = L1 <$> genericDecodeMessage num <|> R1 <$> genericDecodeMessage num
