@@ -89,6 +89,7 @@ module Proto3.Suite.Class
   , message
   , message1
   , Proto3.Suite.Class.enum
+  , messageField
 
   -- * Generic Classes
   , GenericMessage(..)
@@ -150,6 +151,7 @@ omittingDefault f p
   | isDefault p = mempty
   | otherwise = f p
 
+instance HasDefault Int
 instance HasDefault Int32
 instance HasDefault Int64
 instance HasDefault Word32
@@ -340,6 +342,11 @@ fromByteString = Decode.parse (decodeMessage (fieldNumber 1))
 fromB64 :: Message a => B.ByteString -> Either ParseError a
 fromB64 = fromByteString . B64.decodeLenient
 
+instance Primitive Int where
+  encodePrimitive = Encode.int
+  decodePrimitive = Decode.int
+  primType _ = Int64
+
 instance Primitive Int32 where
   encodePrimitive = Encode.int32
   decodePrimitive = Decode.int32
@@ -504,6 +511,7 @@ messageField ty packing = DotProtoField (fieldNumber 1) ty Anonymous
 -- generateMessagePartName :: DotProtoIdentifier
 -- generateMessagePartName = Single ""
 
+instance MessageField Int
 instance MessageField Int32
 instance MessageField Int64
 instance MessageField Word32
