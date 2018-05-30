@@ -783,23 +783,12 @@ instance (KnownNat (GenericFieldCount f), GenericMessage f, GenericMessage g) =>
         DotProtoMessageField part { dotProtoFieldNumber = (FieldNumber . (offset +) . getFieldNumber . dotProtoFieldNumber) part }
       adjustPart part = part -- Don't adjust other message types?
 
-instance (KnownNat (GenericFieldCount f), GenericMessage f, GenericMessage g) => GenericMessage (f :+: g) where
-  type GenericFieldCount (f :+: g) = GenericFieldCount f + GenericFieldCount g
+instance (GenericMessage f, GenericMessage g) => GenericMessage (f :+: g) where
+  type GenericFieldCount (f :+: g) = GenericFieldCount f `max` GenericFieldCount g
   genericEncodeMessage num (L1 x) = genericEncodeMessage num x
-  genericEncodeMessage num (R1 y) = genericEncodeMessage (FieldNumber $ getFieldNumber num + offset) y
-    where
-      offset = fromIntegral $ natVal (Proxy @(GenericFieldCount f))
-  genericDecodeMessage num = (genericDecodeMessage num)
-    where
-      num2 = FieldNumber $ getFieldNumber num + offset
-      offset = fromIntegral $ natVal (Proxy @(GenericFieldCount f))
-  genericDotProto _ = genericDotProto (Proxy @f) <> adjust (genericDotProto (Proxy @g))
-    where
-      offset = fromIntegral $ natVal (Proxy @(GenericFieldCount f))
-      adjust = map adjustPart
-      adjustPart (DotProtoMessageField part) =
-        DotProtoMessageField part { dotProtoFieldNumber = (FieldNumber . (offset +) . getFieldNumber . dotProtoFieldNumber) part }
-      adjustPart part = part -- Don't adjust other message types?
+  genericEncodeMessage num (R1 y) = genericEncodeMessage num y
+  genericDecodeMessage num = L1 <$> genericDecodeMessage num <|> R1 <$> genericDecodeMessage num
+  genericDotProto _ = error "No genericDotProto instance for f :+: g"
 
 instance MessageField c => GenericMessage (K1 i c) where
   type GenericFieldCount (K1 i c) = 1
