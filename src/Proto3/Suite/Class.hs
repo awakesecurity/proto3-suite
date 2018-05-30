@@ -163,6 +163,9 @@ instance HasDefault Double
 instance HasDefault Bool where
   def = False
 
+instance HasDefault String where
+  def = mempty
+
 instance HasDefault T.Text where
   def = mempty
 
@@ -403,6 +406,11 @@ instance Primitive B.ByteString where
   decodePrimitive = Decode.byteString
   primType _ = Bytes
 
+instance Primitive String where
+  encodePrimitive num = Encode.text num . TL.pack
+  decodePrimitive = fmap TL.unpack Decode.text
+  primType _ = String
+
 instance Primitive BL.ByteString where
   encodePrimitive = Encode.lazyByteString
   decodePrimitive = Decode.lazyByteString
@@ -495,6 +503,7 @@ instance MessageField (Signed (Fixed Int64))
 instance MessageField Bool
 instance MessageField Float
 instance MessageField Double
+instance {-# OVERLAPPING #-} MessageField String
 instance MessageField T.Text
 instance MessageField TL.Text
 instance MessageField B.ByteString
@@ -532,7 +541,7 @@ instance (Named a, Message a) => MessageField (NestedVec a) where
       oneMsg = decodeMessage (fieldNumber 1)
   protoType _ = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
 
-instance (Named a, Message a) => MessageField [a] where
+instance {-# OVERLAPPABLE #-} (Named a, Message a) => MessageField [a] where
   encodeMessageField fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
   decodeMessageField = fmap F.toList (repeated (Decode.embedded' oneMsg))
     where
