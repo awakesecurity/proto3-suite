@@ -34,6 +34,7 @@ module Proto3.Suite
   , enum
   , RenderingOptions(..)
   , Named(..)
+  , Named1(..)
   , Finite(..)
 
   -- * Wire Formats
