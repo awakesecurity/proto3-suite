@@ -653,10 +653,10 @@ messageInstD ctxt parentIdent msgIdent messageParts =
 
      dotProtoE <- HsList <$> sequence
          [ dpTypeE dpType >>= \typeE ->
-             pure (apply dotProtoFieldC [ fieldNumberE fieldNum, typeE
+             pure . apply dotProtoMessageFieldC . pure $ apply dotProtoFieldC [ fieldNumberE fieldNum, typeE
                                         , dpIdentE fieldIdent
                                         , HsList (map optionE options)
-                                        , maybeE (HsLit . HsString) comments ])
+                                        , maybeE (HsLit . HsString) comments ]
          | DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options comments)
              <- messageParts ]
 
@@ -1260,6 +1260,7 @@ dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC,
   convertServerHandlerE, convertServerReaderHandlerE, convertServerWriterHandlerE,
   convertServerRWHandlerE, clientRegisterMethodE, clientRequestE :: HsExp
 
+dotProtoMessageFieldC       = HsVar (protobufName "DotProtoMessageField")
 dotProtoFieldC       = HsVar (protobufName "DotProtoField")
 primC                = HsVar (protobufName "Prim")
 optionalC            = HsVar (protobufName "Optional")
