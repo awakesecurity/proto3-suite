@@ -573,13 +573,6 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
        pure $ [ dataDecl_ messageName [ conDecl ] defaultMessageDeriving
               , namedInstD messageName
               , messageInst
-              -- , toJSONPBInst
-              -- , fromJSONPBInst
-                -- Generate Aeson instances in terms of JSONPB instances
-              -- , toJSONInstDecl messageName
-              -- , fromJSONInstDecl messageName
-              -- And the Swagger ToSchema instance corresponding to JSONPB encodings
-              -- , toSchemaInstDecl messageName
               ]
               <> nestedOneofs_
               <> nestedDecls_
