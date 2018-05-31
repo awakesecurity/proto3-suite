@@ -31,9 +31,11 @@ module Proto3.Suite
   -- * Documentation
   , message
   , message1
+  , messageField
   , enum
   , RenderingOptions(..)
   , Named(..)
+  , Named1(..)
   , Finite(..)
 
   -- * Wire Formats
