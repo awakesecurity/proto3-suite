@@ -4,7 +4,7 @@ packages:
 - .
 - location:
     git: https://github.com/joshvera/proto3-wire.git
-    commit: 4621daf8798173c96b859aa2bb7e598947f88fb3
+    commit: c8792bc33154e849239b1c91ffe06af2e765d734
   extra-dep: true
 
 extra-deps: [ aeson-pretty-0.8.5

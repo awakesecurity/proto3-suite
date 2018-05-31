@@ -573,13 +573,6 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
        pure $ [ dataDecl_ messageName [ conDecl ] defaultMessageDeriving
               , namedInstD messageName
               , messageInst
-              , toJSONPBInst
-              , fromJSONPBInst
-                -- Generate Aeson instances in terms of JSONPB instances
-              , toJSONInstDecl messageName
-              , fromJSONInstDecl messageName
-              -- And the Swagger ToSchema instance corresponding to JSONPB encodings
-              , toSchemaInstDecl messageName
               ]
               <> nestedOneofs_
               <> nestedDecls_
@@ -653,10 +646,10 @@ messageInstD ctxt parentIdent msgIdent messageParts =
 
      dotProtoE <- HsList <$> sequence
          [ dpTypeE dpType >>= \typeE ->
-             pure (apply dotProtoFieldC [ fieldNumberE fieldNum, typeE
+             pure . apply dotProtoMessageFieldC . pure $ apply dotProtoFieldC [ fieldNumberE fieldNum, typeE
                                         , dpIdentE fieldIdent
                                         , HsList (map optionE options)
-                                        , maybeE (HsLit . HsString) comments ])
+                                        , maybeE (HsLit . HsString) comments ]
          | DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options comments)
              <- messageParts ]
 
@@ -1260,6 +1253,7 @@ dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC,
   convertServerHandlerE, convertServerReaderHandlerE, convertServerWriterHandlerE,
   convertServerRWHandlerE, clientRegisterMethodE, clientRequestE :: HsExp
 
+dotProtoMessageFieldC       = HsVar (protobufName "DotProtoMessageField")
 dotProtoFieldC       = HsVar (protobufName "DotProtoField")
 primC                = HsVar (protobufName "Prim")
 optionalC            = HsVar (protobufName "Optional")
@@ -1516,7 +1510,7 @@ haskellNS = Module "Hs"
 
 defaultMessageDeriving, defaultEnumDeriving, defaultServiceDeriving :: [HsQName]
 defaultMessageDeriving = map haskellName [ "Show"
-                                         , "Eq",   "Ord"
+                                         , "Eq"
                                          , "Generic" ]
 
 defaultEnumDeriving = map haskellName [ "Show", "Bounded"

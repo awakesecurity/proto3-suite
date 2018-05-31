@@ -66,7 +66,6 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE UndecidableInstances       #-}
-{-# LANGUAGE ConstrainedClassMethods    #-}
 
 module Proto3.Suite.Class
   ( Primitive(..)
@@ -264,9 +263,6 @@ class GenericNamed1 (f :: * -> *) where
 
 instance Datatype d => GenericNamed1 (M1 D d f) where
   genericNameOf1 _ = fromString (datatypeName (undefined :: M1 D d f ()))
---
--- instance (Generic1 f, Rep1 f ~ D1 c f, Datatype c) => GenericNamed1 f where
---   genericNameOf1 _ = fromString (datatypeName (undefined :: t c f a))
 
 -- | Enumerable types with finitely many values.
 --
@@ -449,7 +445,7 @@ instance (Primitive a) => Primitive (ForceEmit a) where
   decodePrimitive     = fmap ForceEmit decodePrimitive
   primType _          = primType (Proxy @a)
 
-instance (MessageField1 f) => GenericMessage1 (Rec1 f) where
+instance MessageField1 f => GenericMessage1 (Rec1 f) where
   type GenericFieldCount1 (Rec1 f) = 1
   genericLiftEncodeMessage encodeMessage fieldNumber (Rec1 x) = liftEncodeMessageField encodeMessage fieldNumber x
   genericLiftDecodeMessage decodeMessage fieldNumber = fmap Rec1 $ at (liftDecodeMessageField decodeMessage) fieldNumber
@@ -715,7 +711,7 @@ instance GenericMessage1 U1 where
   genericLiftDecodeMessage _ _ = pure U1
   genericLiftDotProto _      = mempty
 
-instance (GenericMessage1 f) => GenericMessage1 (M1 D c f) where
+instance GenericMessage1 f => GenericMessage1 (M1 D c f) where
   type GenericFieldCount1 (M1 D c f) = GenericFieldCount1 f
   genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
   genericLiftDecodeMessage decodeMessage fieldNumber = fmap M1 $ genericLiftDecodeMessage decodeMessage fieldNumber
