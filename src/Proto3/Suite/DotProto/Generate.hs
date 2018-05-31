@@ -1517,7 +1517,7 @@ haskellNS = Module "Hs"
 
 defaultMessageDeriving, defaultEnumDeriving, defaultServiceDeriving :: [HsQName]
 defaultMessageDeriving = map haskellName [ "Show"
-                                         , "Eq",   "Ord"
+                                         , "Eq"
                                          , "Generic" ]
 
 defaultEnumDeriving = map haskellName [ "Show", "Bounded"
