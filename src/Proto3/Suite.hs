@@ -30,6 +30,7 @@ module Proto3.Suite
 
   -- * Documentation
   , message
+  , message1
   , enum
   , RenderingOptions(..)
   , Named(..)
