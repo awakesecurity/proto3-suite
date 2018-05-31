@@ -125,6 +125,8 @@ import qualified Proto3.Wire.Decode     as Decode
 import qualified Proto3.Wire.Encode     as Encode
 import           Safe                   (toEnumMay)
 import GHC.TypeLits.Extra
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
 
 -- | A class for types with default values per the protocol buffers spec.
 class HasDefault a where
@@ -471,6 +473,13 @@ instance MessageField1 [] where
       oneMsg = decodeMessage (fieldNumber 1)
   liftProtoType (_ :: Proxy [a]) = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
 
+instance MessageField1 NonEmpty where
+  liftEncodeMessageField encodeMessage fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
+  liftDecodeMessageField decodeMessage = fmap (NonEmpty.fromList . F.toList) (repeated (Decode.embedded' oneMsg))
+    where
+      oneMsg = decodeMessage (fieldNumber 1)
+  liftProtoType (_ :: Proxy (NonEmpty a)) = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
+
 -- | This class captures those types which can appear as message fields in
 -- the protocol buffers specification, i.e. 'Primitive' types, or lists of
 -- 'Primitive' types
@@ -562,6 +571,14 @@ instance (Named a, Message a) => MessageField (NestedVec a) where
 instance {-# OVERLAPPABLE #-} (Named a, Message a) => MessageField [a] where
   encodeMessageField fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
   decodeMessageField = fmap F.toList (repeated (Decode.embedded' oneMsg))
+    where
+      oneMsg :: Parser RawMessage a
+      oneMsg = decodeMessage (fieldNumber 1)
+  protoType _ = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
+
+instance (Named a, Message a) => MessageField (NonEmpty a) where
+  encodeMessageField fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
+  decodeMessageField = fmap (NonEmpty.fromList . F.toList) (repeated (Decode.embedded' oneMsg))
     where
       oneMsg :: Parser RawMessage a
       oneMsg = decodeMessage (fieldNumber 1)
