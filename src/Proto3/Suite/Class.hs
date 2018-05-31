@@ -576,9 +576,9 @@ instance {-# OVERLAPPABLE #-} (Named a, Message a) => MessageField [a] where
       oneMsg = decodeMessage (fieldNumber 1)
   protoType _ = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
 
-instance (Named a, Message a) => MessageField (NonEmpty a) where
+instance (Named a, Message a, HasDefault a) => MessageField (NonEmpty a) where
   encodeMessageField fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
-  decodeMessageField = fmap (NonEmpty.fromList . F.toList) (repeated (Decode.embedded' oneMsg))
+  decodeMessageField = fmap (fromMaybe (pure def) . NonEmpty.nonEmpty . F.toList) (repeated (Decode.embedded' oneMsg))
     where
       oneMsg :: Parser RawMessage a
       oneMsg = decodeMessage (fieldNumber 1)
