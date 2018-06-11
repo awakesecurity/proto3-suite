@@ -75,10 +75,12 @@ module Proto3.Suite.Class
 
   -- * Encoding
   , toLazyByteString
+  , toLazyByteString1
 
   -- * Decoding
   , HasDefault(..)
   , fromByteString
+  , fromByteString1
   , fromB64
 
   -- * Documentation
@@ -335,6 +337,12 @@ toLazyByteString = Encode.toLazyByteString . encodeMessage (fieldNumber 1)
 -- | Parse any message that can be decoded.
 fromByteString :: Message a => B.ByteString -> Either ParseError a
 fromByteString = Decode.parse (decodeMessage (fieldNumber 1))
+
+fromByteString1 :: (Message1 f, Message a) => B.ByteString -> Either ParseError (f a)
+fromByteString1 = Decode.parse (liftDecodeMessage decodeMessage (fieldNumber 1))
+
+toLazyByteString1 :: (Message1 f, Message a) => f a -> BL.ByteString
+toLazyByteString1 = Encode.toLazyByteString . liftEncodeMessage encodeMessage (fieldNumber 1)
 
 -- | As 'fromByteString', except the input bytestring is base64-encoded.
 fromB64 :: Message a => B.ByteString -> Either ParseError a
