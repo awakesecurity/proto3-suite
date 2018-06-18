@@ -105,7 +105,7 @@ import qualified Data.ByteString.Lazy   as BL
 import qualified Data.Foldable          as F
 import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
-import           Data.Maybe             (fromMaybe, isNothing)
+import           Data.Maybe             (fromMaybe, isNothing, listToMaybe)
 import           Data.Monoid            ((<>))
 import           Data.Proxy             (Proxy (..))
 import           Data.Sequence          (Seq)
@@ -487,6 +487,13 @@ instance MessageField1 NonEmpty where
     where
       oneMsg = decodeMessage (fieldNumber 1)
   liftProtoType (_ :: Proxy (NonEmpty a)) = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
+
+instance MessageField1 Maybe where
+  liftEncodeMessageField encodeMessage fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
+  liftDecodeMessageField decodeMessage = fmap (listToMaybe . F.toList) (repeated (Decode.embedded' oneMsg))
+    where
+      oneMsg = decodeMessage (fieldNumber 1)
+  liftProtoType (_ :: Proxy (Maybe a)) = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
 
 -- | This class captures those types which can appear as message fields in
 -- the protocol buffers specification, i.e. 'Primitive' types, or lists of
