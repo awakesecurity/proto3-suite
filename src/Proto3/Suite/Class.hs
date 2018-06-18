@@ -105,7 +105,7 @@ import qualified Data.ByteString.Lazy   as BL
 import qualified Data.Foldable          as F
 import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
-import           Data.Maybe             (fromMaybe, isNothing)
+import           Data.Maybe             (fromMaybe, isNothing, listToMaybe)
 import           Data.Monoid            ((<>))
 import           Data.Proxy             (Proxy (..))
 import           Data.Sequence          (Seq)
@@ -488,6 +488,13 @@ instance MessageField1 NonEmpty where
       oneMsg = decodeMessage (fieldNumber 1)
   liftProtoType (_ :: Proxy (NonEmpty a)) = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
 
+instance MessageField1 Maybe where
+  liftEncodeMessageField encodeMessage fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
+  liftDecodeMessageField decodeMessage = fmap (listToMaybe . F.toList) (repeated (Decode.embedded' oneMsg))
+    where
+      oneMsg = decodeMessage (fieldNumber 1)
+  liftProtoType (_ :: Proxy (Maybe a)) = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
+
 -- | This class captures those types which can appear as message fields in
 -- the protocol buffers specification, i.e. 'Primitive' types, or lists of
 -- 'Primitive' types
@@ -762,6 +769,14 @@ instance (Selector s, GenericMessage1 f) => GenericMessage1 (M1 S s f) where
       newName = guard (not (null name)) $> Single name
         where
           name = selName (undefined :: S1 s f ())
+
+instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g) => GenericMessage1 (f :+: g) where
+  type GenericFieldCount1 (f :+: g) = GenericFieldCount1 f + GenericFieldCount1 g
+  genericLiftEncodeMessage encodeMessage num (L1 l) = genericLiftEncodeMessage encodeMessage num l
+  genericLiftEncodeMessage encodeMessage num (R1 r) = genericLiftEncodeMessage encodeMessage num r
+  -- FIXME: Implement these
+  genericLiftDecodeMessage decodeMessage num = undefined
+  genericLiftDotProto (_ :: Proxy ((f :+: g) a)) = undefined
 
 instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g) => GenericMessage1 (f :*: g) where
   type GenericFieldCount1 (f :*: g) = GenericFieldCount1 f + GenericFieldCount1 g
