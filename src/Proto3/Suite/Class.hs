@@ -775,8 +775,8 @@ instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g)
   genericLiftEncodeMessage encodeMessage num (L1 l) = genericLiftEncodeMessage encodeMessage num l
   genericLiftEncodeMessage encodeMessage num (R1 r) = genericLiftEncodeMessage encodeMessage num r
   -- FIXME: Implement these
-  genericLiftDecodeMessage decodeMessage num = undefined
-  genericLiftDotProto (_ :: Proxy ((f :+: g) a)) = undefined
+  genericLiftDecodeMessage decodeMessage num = L1 <$> genericLiftDecodeMessage decodeMessage num <|> R1 <$> genericLiftDecodeMessage decodeMessage num
+  genericLiftDotProto _ = error "No genericLiftDotProto instance for f :+: g"
 
 instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g) => GenericMessage1 (f :*: g) where
   type GenericFieldCount1 (f :*: g) = GenericFieldCount1 f + GenericFieldCount1 g
