@@ -770,6 +770,14 @@ instance (Selector s, GenericMessage1 f) => GenericMessage1 (M1 S s f) where
         where
           name = selName (undefined :: S1 s f ())
 
+instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g) => GenericMessage1 (f :+: g) where
+  type GenericFieldCount1 (f :+: g) = GenericFieldCount1 f + GenericFieldCount1 g
+  genericLiftEncodeMessage encodeMessage num (L1 l) = genericLiftEncodeMessage encodeMessage num l
+  genericLiftEncodeMessage encodeMessage num (R1 r) = genericLiftEncodeMessage encodeMessage num r
+  -- FIXME: Implement these
+  genericLiftDecodeMessage decodeMessage num = undefined
+  genericLiftDotProto (_ :: Proxy ((f :+: g) a)) = undefined
+
 instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g) => GenericMessage1 (f :*: g) where
   type GenericFieldCount1 (f :*: g) = GenericFieldCount1 f + GenericFieldCount1 g
   genericLiftEncodeMessage encodeMessage num (x :*: y) = genericLiftEncodeMessage encodeMessage num x <> genericLiftEncodeMessage encodeMessage (FieldNumber (getFieldNumber num + offset)) y
