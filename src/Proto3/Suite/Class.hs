@@ -75,10 +75,12 @@ module Proto3.Suite.Class
 
   -- * Encoding
   , toLazyByteString
+  , toLazyByteString1
 
   -- * Decoding
   , HasDefault(..)
   , fromByteString
+  , fromByteString1
   , fromB64
 
   -- * Documentation
@@ -103,7 +105,7 @@ import qualified Data.ByteString.Lazy   as BL
 import qualified Data.Foldable          as F
 import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
-import           Data.Maybe             (fromMaybe, isNothing)
+import           Data.Maybe             (fromMaybe, isNothing, listToMaybe)
 import           Data.Monoid            ((<>))
 import           Data.Proxy             (Proxy (..))
 import           Data.Sequence          (Seq)
@@ -336,6 +338,12 @@ toLazyByteString = Encode.toLazyByteString . encodeMessage (fieldNumber 1)
 fromByteString :: Message a => B.ByteString -> Either ParseError a
 fromByteString = Decode.parse (decodeMessage (fieldNumber 1))
 
+fromByteString1 :: (Message1 f, Message a) => B.ByteString -> Either ParseError (f a)
+fromByteString1 = Decode.parse (liftDecodeMessage decodeMessage (fieldNumber 1))
+
+toLazyByteString1 :: (Message1 f, Message a) => f a -> BL.ByteString
+toLazyByteString1 = Encode.toLazyByteString . liftEncodeMessage encodeMessage (fieldNumber 1)
+
 -- | As 'fromByteString', except the input bytestring is base64-encoded.
 fromB64 :: Message a => B.ByteString -> Either ParseError a
 fromB64 = fromByteString . B64.decodeLenient
@@ -456,7 +464,7 @@ instance MessageField1 f => GenericMessage1 (Rec1 f) where
 instance GenericMessage1 Par1 where
   type GenericFieldCount1 Par1 = 1
   genericLiftEncodeMessage encodeMessage fieldNumber (Par1 x) = encodeMessage fieldNumber x
-  genericLiftDecodeMessage decodeMessage fieldNumber = fmap Par1 $ decodeMessage fieldNumber
+  genericLiftDecodeMessage decodeMessage fieldNumber = Par1 <$> decodeMessage fieldNumber
   genericLiftDotProto (_ :: Proxy (Par1 a)) = [ DotProtoMessageField $ messageField (Prim (Named (Single (nameOf (Proxy @a))))) Nothing ]
 
 
@@ -479,6 +487,13 @@ instance MessageField1 NonEmpty where
     where
       oneMsg = decodeMessage (fieldNumber 1)
   liftProtoType (_ :: Proxy (NonEmpty a)) = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
+
+instance MessageField1 Maybe where
+  liftEncodeMessageField encodeMessage fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
+  liftDecodeMessageField decodeMessage = fmap (listToMaybe . F.toList) (repeated (Decode.embedded' oneMsg))
+    where
+      oneMsg = decodeMessage (fieldNumber 1)
+  liftProtoType (_ :: Proxy (Maybe a)) = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
 
 -- | This class captures those types which can appear as message fields in
 -- the protocol buffers specification, i.e. 'Primitive' types, or lists of
@@ -755,6 +770,14 @@ instance (Selector s, GenericMessage1 f) => GenericMessage1 (M1 S s f) where
         where
           name = selName (undefined :: S1 s f ())
 
+instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g) => GenericMessage1 (f :+: g) where
+  type GenericFieldCount1 (f :+: g) = GenericFieldCount1 f + GenericFieldCount1 g
+  genericLiftEncodeMessage encodeMessage num (L1 l) = genericLiftEncodeMessage encodeMessage num l
+  genericLiftEncodeMessage encodeMessage num (R1 r) = genericLiftEncodeMessage encodeMessage num r
+  -- FIXME: Implement these
+  genericLiftDecodeMessage decodeMessage num = L1 <$> genericLiftDecodeMessage decodeMessage num <|> R1 <$> genericLiftDecodeMessage decodeMessage num
+  genericLiftDotProto _ = error "No genericLiftDotProto instance for f :+: g"
+
 instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g) => GenericMessage1 (f :*: g) where
   type GenericFieldCount1 (f :*: g) = GenericFieldCount1 f + GenericFieldCount1 g
   genericLiftEncodeMessage encodeMessage num (x :*: y) = genericLiftEncodeMessage encodeMessage num x <> genericLiftEncodeMessage encodeMessage (FieldNumber (getFieldNumber num + offset)) y
@@ -774,7 +797,7 @@ instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g)
 instance MessageField c => GenericMessage1 (K1 i c) where
   type GenericFieldCount1 (K1 i c) = 1
   genericLiftEncodeMessage _ num (K1 x) = encodeMessageField num x
-  genericLiftDecodeMessage _ num = fmap K1 (at decodeMessageField num)
+  genericLiftDecodeMessage _ num = K1 <$> decodeMessageField `at` num
   genericLiftDotProto _ = [ DotProtoMessageField $ protoType (Proxy @c) ]
 
 class GenericMessage (f :: * -> *) where
