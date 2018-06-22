@@ -14,9 +14,6 @@ import qualified TestProtoImport
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
 
-instance Arbitrary a => Arbitrary (V.Vector a) where
-  arbitrary = V.fromList <$> listOf arbitrary
-
 instance Arbitrary Trivial where
   arbitrary = Trivial <$> arbitrary
 
@@ -55,9 +52,6 @@ instance Arbitrary WithFixed where
 
 instance Arbitrary WithBytes where
   arbitrary = WithBytes <$> arbitrary <*> arbitrary
-
-instance Arbitrary BS.ByteString where
-  arbitrary = BS.pack <$> arbitrary
 
 instance Arbitrary AllPackedTypes where
   arbitrary = do

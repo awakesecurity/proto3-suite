@@ -1,163 +1,141 @@
 # To develop iteratively within this repository, open a Nix shell via:
 #
-#     $ nix-shell -A proto3-suite.env release.nix
+#     $ nix-shell
 #
 # ... and then use `cabal` to build and test:
 #
 #     [nix-shell]$ cabal configure --enable-tests
-#     [nix-shell]$ cabal build
 #     [nix-shell]$ cabal test
 
-let
-  nixpkgs = import ./nixpkgs/17_09.nix;
+{ compiler ? "ghc822", enableDhall ? false }:
 
-  config = { allowUnfree = true; };
+let
+  fetchNixpkgs = import ./nix/fetchNixpkgs.nix;
+
+  nixpkgs = fetchNixpkgs {
+    rev          = "e942479be49c3d1b586201be7488d7190ff46255";
+    sha256       = "0q4jdlvx0i1bhxy7xk85mflv7fchlap28sis9qn4p3naz2l46mbw";
+    outputSha256 = "0n424nkkjzvvsk0bcvb4lhyjl4k88nc5dzayjvscsqxssh1g06yh";
+  };
+
+  config = { };
 
   overlays = [
-    (newPkgs: oldPkgs: {
-      haskellPackages = oldPkgs.haskellPackages.override {
-        overrides = newPkgs.lib.fold newPkgs.lib.composeExtensions (_: _: {}) [
-        
-        (newHaskellPkgs: oldHaskellPkgs: 
+    (pkgsNew: pkgsOld: {
+      haskell = pkgsOld.haskell // {
+        packages = pkgsOld.haskell.packages // {
+          "${compiler}" = pkgsOld.haskell.packages."${compiler}".override {
+            overrides =
+              haskellPackagesNew: haskellPackagesOld:
+                rec {
+                  dhall =
+                    haskellPackagesNew.callPackage ./nix/dhall.nix { };
 
-         let
+                  formatting =
+                    haskellPackagesNew.callPackage ./nix/formatting.nix { };
 
-           mk-proto3-suite = pkgpath: proto3-suite-boot:
-             newPkgs.haskell.lib.overrideCabal
-                (newHaskellPkgs.callPackage pkgpath { })
-                (oldArgs:
-                  let
-                    python = newPkgs.python.withPackages (pkgs: [ pkgs.protobuf3_0 ]);
+                  prettyprinter =
+                    pkgsNew.haskell.lib.dontCheck
+                      (haskellPackagesNew.callPackage ./nix/prettyprinter.nix { });
 
-                    test-files = ./test-files;
+                  proto3-suite-base =
+                    if enableDhall
+                    then haskellPackagesNew.callPackage ./nix/proto3-suite-dhall.nix {}
+                    else haskellPackagesNew.callPackage ./nix/proto3-suite.nix {};
+                  proto3-suite-boot =
+                    pkgsNew.haskell.lib.overrideCabal
+                      proto3-suite-base
+                      (oldArgs: {
+                         configureFlags = (oldArgs.configureFlags or [])
+                           ++ [ "--disable-optimization" ]
+                           ++ (if enableDhall then [ "-fdhall" ] else []);
+                         doCheck        = false;
+                         doHaddock      = false;
+                        }
+                      );
 
-                    cg-artifacts = newPkgs.runCommand "proto3-suite-test-cg-artifacts" {} ''
-                      mkdir -p $out/protos
+                  proto3-wire =
+                    haskellPackagesNew.callPackage ./nix/proto3-wire.nix { };
 
-                      cp -r ${test-files}/. $out/protos/.
+                  proto3-suite =
+                    pkgsNew.haskell.lib.overrideCabal
+                      proto3-suite-base
+                      (oldArgs:
+                        let
+                          python = pkgsNew.python.withPackages (pkgs: [ pkgs.protobuf3_1 ]);
 
-                      cd $out
+                          ghc =
+                            haskellPackagesNew.ghcWithPackages
+                              (pkgs: oldArgs.testHaskellDepends ++ [ proto3-suite-boot ]);
 
-                      build () {
-                        echo "[proto3-suite-test-cg-artifacts] Compiling proto-file/$1"
-                        ${proto3-suite-boot}/bin/compile-proto-file \
-                          --out $out \
-                          --includeDir "$2" \
-                          --proto "$1"
-                      }
+                          test-files = ./test-files;
 
-                      for proto in $(find ${test-files} -name 'test_*.proto'); do
-                        build ''${proto#${test-files}/} ${test-files}
-                      done
+                          cg-artifacts = pkgsNew.runCommand "proto3-suite-test-cg-artifacts" {} ''
+                            mkdir -p $out/protos
 
-                      echo "[proto3-suite-test-cg-artifacts] Protobuf CG complete"
-                    '';
+                            cp -r ${test-files}/. $out/protos/.
 
-                  in rec {
+                            cd $out
 
-                     postPatch = (oldArgs.preCheck or "") + ''
-                       echo "Copying CG  artifacts from ${cg-artifacts} into ./gen/"
-                       mkdir -p gen
-                       ${newPkgs.rsync}/bin/rsync \
-                         --recursive \
-                         --checksum \
-                         ${cg-artifacts}/ gen
-                       chmod -R u+w gen
-                     '';
+                            build () {
+                              echo "[proto3-suite-test-cg-artifacts] Compiling proto-file/$1"
+                              ${proto3-suite-boot}/bin/compile-proto-file \
+                                --out $out \
+                                --includeDir "$2" \
+                                --proto "$1"
+                            }
 
-                     shellHook = (oldArgs.shellHook or "") +
-                       (let
-                          ghc = newHaskellPkgs.ghcWithPackages (pkgs:
-                            oldArgs.testHaskellDepends ++ [ proto3-suite-boot ]
-                          );
-                        in ''
-                          ${postPatch}
+                            for proto in $(find ${test-files} -name 'test_*.proto'); do
+                              build ''${proto#${test-files}/} ${test-files}
+                            done
 
-                          export PATH=${newHaskellPkgs.cabal-install}/bin:${ghc}/bin:${python}/bin''${PATH:+:}$PATH
-                        '');
+                            echo "[proto3-suite-test-cg-artifacts] Protobuf CG complete"
+                          '';
 
-                     testHaskellDepends = (oldArgs.testHaskellDepends or []) ++ [
-                       newPkgs.ghc
-                       proto3-suite-boot
-                       python
-                     ];
-                   }
-              );
+                          copyGeneratedCode = ''
+                            echo "Copying CG  artifacts from ${cg-artifacts} into ./gen/"
+                            mkdir -p gen
+                            ${pkgsNew.rsync}/bin/rsync \
+                              --recursive \
+                              --checksum \
+                              ${cg-artifacts}/ gen
+                            chmod -R u+w gen
+                          '';
 
-         in rec {
+                        in rec {
+                           configureFlags = (oldArgs.configureFlags or [])
+                             ++ (if enableDhall then [ "-fdhall" ] else []);
 
-          # The test suite for proto3-suite requires:
-          #
-          #   - a GHC with `proto3-suite` installed, since our code generation
-          #     tests compile and run generated code; since this custom GHC is
-          #     also used inside the nix-shell environment for iterative
-          #     development, we ensure that it is available on $PATH and that
-          #     all test suite deps are available to it
-          #
-          #   - a Python interpreter with a protobuf package installed, which we
-          #     use as a reference implementation; we also put expose this on
-          #     the `nix-shell` $PATH
-          #
-          # Finally, we make `cabal` available in the `nix-shell`, intentionally
-          # occluding any globally-installed versions of the tool.
+                           postPatch = (oldArgs.postPatch or "") + copyGeneratedCode;
 
-          proto3-suite       = mk-proto3-suite ./default.nix       proto3-suite-boot;
-          proto3-suite-dhall = mk-proto3-suite ./default-dhall.nix proto3-suite-dhall-boot;
+                           testHaskellDepends = (oldArgs.testHaskellDepends or []) ++ [
+                             pkgsNew.ghc
+                             pkgsNew.protobuf3_1
+                             proto3-suite-boot
+                             python
+                           ];
 
-          # A proto3-suite sans tests, for bootstrapping
-          proto3-suite-boot =
-            newPkgs.haskell.lib.overrideCabal
-              (newHaskellPkgs.callPackage ./default.nix { })
-              (oldArgs: {
-                 configureFlags = (oldArgs.configureFlags or []) ++ [ "--disable-optimization" ];
-                 doCheck        = false;
-                 doHaddock      = false;
-               });
+                           shellHook = (oldArgs.shellHook or "") + ''
+                             ${copyGeneratedCode}
 
-          proto3-suite-dhall-boot =
-            newPkgs.haskell.lib.overrideCabal
-              (newHaskellPkgs.callPackage ./default-dhall.nix { })
-              (oldArgs: {
-                 configureFlags = (oldArgs.configureFlags or []) ++ [ "--disable-optimization" ];
-                 doCheck        = false;
-                 doHaddock      = false;
-               });
+                             export PATH=${haskellPackagesNew.cabal-install}/bin:${ghc}/bin:${python}/bin''${PATH:+:}$PATH
+                           '';
+                         }
+                      );
+                };
+          };
+        };
+      };
+    })
+  ];
 
-          proto3-wire =
-            newHaskellPkgs.callPackage ./nix/proto3-wire.nix { };
-
-          dhall =
-            newHaskellPkgs.callPackage ./nix/dhall.nix { };
-
-          formatting =
-            newHaskellPkgs.callPackage ./nix/formatting.nix { };
-
-          prettyprinter =
-            newHaskellPkgs.callPackage ./nix/prettyprinter.nix { };
-
-          megaparsec =
-            newHaskellPkgs.callPackage ./nix/megaparsec.nix { };
-
-          swagger2 =
-            newPkgs.haskell.lib.dontCheck
-              (newPkgs.haskell.lib.dontHaddock
-                (newHaskellPkgs.callPackage ./nix/swagger2.nix { }));
-        })
-      ];
-    };
-  }) ];
-in
-
-let
    linuxPkgs = import nixpkgs { inherit config overlays; system = "x86_64-linux" ; };
   darwinPkgs = import nixpkgs { inherit config overlays; system = "x86_64-darwin"; };
         pkgs = import nixpkgs { inherit config overlays; };
-in
-  { proto3-suite-linux  =  linuxPkgs.haskellPackages.proto3-suite;
-    proto3-suite-darwin = darwinPkgs.haskellPackages.proto3-suite;
-    proto3-suite        =       pkgs.haskellPackages.proto3-suite;
-    proto3-suite-boot   =       pkgs.haskellPackages.proto3-suite-boot;
 
-    proto3-suite-dhall      =       pkgs.haskellPackages.proto3-suite-dhall;
-    proto3-suite-dhall-boot =       pkgs.haskellPackages.proto3-suite-dhall-boot;
+in
+  { proto3-suite-linux  =  linuxPkgs.haskell.packages."${compiler}".proto3-suite;
+    proto3-suite-darwin = darwinPkgs.haskell.packages."${compiler}".proto3-suite;
+
+    inherit (pkgs.haskell.packages."${compiler}") proto3-suite-boot proto3-suite;
   }
