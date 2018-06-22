@@ -36,6 +36,7 @@ import           Numeric.Natural
 import           Prelude                   hiding (FilePath)
 import           Proto3.Wire.Types         (FieldNumber (..))
 import           Test.QuickCheck
+import           Test.QuickCheck.Instances ()
 import           Turtle                    (FilePath)
 
 -- | The name of a message
