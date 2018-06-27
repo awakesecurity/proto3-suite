@@ -11,7 +11,10 @@ module Proto3.Suite.DotProto.Rendering
   , defRenderingOptions
   , defSelectorName
   , defEnumMemberName
+  , javaPackageOption
+  , goPackageOption
   , packageFromDefs
+  , packageFromDefsWithOptions
   , toProtoFile
   , toProtoFileDef
   , RenderingOptions(..)
@@ -212,5 +215,14 @@ toProtoFileDef :: DotProto -> String
 toProtoFileDef = toProtoFile defRenderingOptions
 
 packageFromDefs :: String -> [DotProtoDefinition] -> DotProto
-packageFromDefs package defs =
-  DotProto [] [] (DotProtoPackageSpec $ Single package) defs (DotProtoMeta $ Path [])
+packageFromDefs package = packageFromDefsWithOptions package []
+
+packageFromDefsWithOptions :: String -> [DotProtoOption] -> [DotProtoDefinition] -> DotProto
+packageFromDefsWithOptions package opts defs =
+  DotProto [] opts (DotProtoPackageSpec $ Single package) defs (DotProtoMeta $ Path [])
+
+javaPackageOption :: String -> DotProtoOption
+javaPackageOption p = DotProtoOption (Single "java_package") (StringLit p)
+
+goPackageOption :: String -> DotProtoOption
+goPackageOption p = DotProtoOption (Single "go_package") (StringLit p)
