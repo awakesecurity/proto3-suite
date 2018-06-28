@@ -1471,8 +1471,7 @@ defaultImports usesGrpc =
   if usesGrpc
     then [ importDecl_ networkGrpcHighLevelGeneratedM   False (Just grpcNS) Nothing
          , importDecl_ networkGrpcHighLevelClientM      False (Just grpcNS) Nothing
-         , importDecl_ networkGrpcHighLevelServerM      False (Just grpcNS)
-               (Just (True, [ importSym "asyncServerLoop" ]))
+         , importDecl_ networkGrpcHighLevelServerM      False (Just grpcNS) Nothing
          , importDecl_ networkGrpcHighLevelServerUnregM False (Just grpcNS)
                (Just (False, [ importSym "asyncServerLoop" ]))
          , importDecl_ networkGrpcLowLevelCallM         False (Just grpcNS) Nothing  ]
