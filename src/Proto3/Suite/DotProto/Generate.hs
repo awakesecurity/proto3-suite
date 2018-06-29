@@ -553,7 +553,6 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                   cons <- mapM oneOfCons fields
                   pure [ dataDecl_ fullName cons defaultMessageDeriving
                        , namedInstD fullName
-                       , toSchemaInstDecl fullName
                        ]
 
        conDecl <- recDecl_ (HsIdent messageName) . mconcat <$>
