@@ -151,7 +151,7 @@ eitherDecode = eitherFormatError . A.eitherDecodeWith jsonEOF (A.iparse parseJSO
 {-# INLINE eitherDecode #-}
 
 encodeText :: ToJSONPB a => Options -> a -> TL.Text
-encodeText opts x = E.encodeToLazyText (toEncodingPB x opts)
+encodeText opts x = A.encodeToLazyText (toEncodingPB x opts)
 {-# INLINE encodeText #-}
 
 eitherDecodeText :: FromJSONPB a => TL.Text -> Either String a
