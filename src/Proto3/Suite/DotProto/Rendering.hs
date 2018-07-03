@@ -215,11 +215,11 @@ toProtoFileDef :: DotProto -> String
 toProtoFileDef = toProtoFile defRenderingOptions
 
 packageFromDefs :: String -> [DotProtoDefinition] -> DotProto
-packageFromDefs package = packageFromDefsWithOptions package []
+packageFromDefs package = packageFromDefsWithOptions package mempty []
 
-packageFromDefsWithOptions :: String -> [DotProtoOption] -> [DotProtoDefinition] -> DotProto
-packageFromDefsWithOptions package opts defs =
-  DotProto [] opts (DotProtoPackageSpec $ Single package) defs (DotProtoMeta $ Path [])
+packageFromDefsWithOptions :: String -> [DotProtoImport] -> [DotProtoOption] -> [DotProtoDefinition] -> DotProto
+packageFromDefsWithOptions package imports opts defs =
+  DotProto imports opts (DotProtoPackageSpec $ Single package) defs (DotProtoMeta $ Path [])
 
 javaPackageOption :: String -> DotProtoOption
 javaPackageOption p = DotProtoOption (Single "java_package") (StringLit p)
