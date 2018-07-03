@@ -13,6 +13,8 @@ module Proto3.Suite.JSONPB
     -- * JSONPB codec entry points
   , eitherDecode
   , encode
+  , eitherDecodeText
+  , encodeText
     -- * Helper functions
   , enumFieldEncoding
   , enumFieldString
