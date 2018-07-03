@@ -57,16 +57,18 @@ defEnumMemberName = const pretty
 -- | Traverses a DotProto AST and generates a .proto file from it
 renderDotProto :: RenderingOptions -> DotProto -> PP.Doc
 renderDotProto opts DotProto{..}
-  = PP.text "syntax = \"proto3\";" <> PP.linebreak
- <$$> pretty protoPackage <> PP.linebreak
- <>   pList pretty protoImports
- <>   pList topOption protoOptions
- <$$> (PP.vcat . PP.punctuate PP.linebreak $ (prettyPrintProtoDefinition opts) <$> protoDefinitions)
- <$$> PP.linebreak
- where pList _ [] = PP.empty
-       pList f xs =  PP.linebreak
-                  <> PP.vcat (f <$> xs)
-                  <> PP.linebreak
+  = PP.text "syntax = \"proto3\";"
+  <>   PP.linebreak
+  <$$> pretty protoPackage
+  <>   PP.linebreak
+  <>   pList pretty protoImports
+  <>   pList topOption protoOptions
+  <$$> (PP.vcat . PP.punctuate PP.linebreak $ (prettyPrintProtoDefinition opts) <$> protoDefinitions)
+  <>   PP.linebreak
+  where pList _ [] = PP.empty
+        pList f xs =  PP.linebreak
+                   <> PP.vcat (f <$> xs)
+                   <> PP.linebreak
 
 instance Pretty DotProtoPackageSpec where
   pretty (DotProtoPackageSpec p) = PP.text "package" <+> pretty p <> PP.semi
