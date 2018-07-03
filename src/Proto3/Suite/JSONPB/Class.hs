@@ -67,7 +67,6 @@ import qualified Data.Aeson                       as A (Encoding, FromJSON (..),
 import qualified Data.Aeson.Encoding              as E
 import qualified Data.Aeson.Internal              as A (formatError, iparse)
 import qualified Data.Aeson.Parser                as A (eitherDecodeWith)
-import qualified Data.Aeson.Text                  as A (encodeToLazyText)
 import qualified Data.Aeson.Types                 as A (Object, Pair, Parser,
                                                         Series,
                                                         explicitParseField,
@@ -149,14 +148,6 @@ eitherDecode = eitherFormatError . A.eitherDecodeWith jsonEOF (A.iparse parseJSO
         skipSpace = Atto.skipWhile $ \w -> w == 0x20 || w == 0x0a || w == 0x0d || w == 0x09
         {-# INLINE skipSpace #-}
 {-# INLINE eitherDecode #-}
-
-encodeText :: ToJSONPB a => Options -> a -> TL.Text
-encodeText opts x = A.encodeToLazyText (toEncodingPB x opts)
-{-# INLINE encodeText #-}
-
-eitherDecodeText :: FromJSONPB a => TL.Text -> Either String a
-eitherDecodeText = eitherDecode . TL.decodeUtf8
-{-# INLINE eitherDecodeText #-}
 
 -- * Operator definitions
 
