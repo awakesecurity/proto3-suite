@@ -63,7 +63,7 @@ renderDotProto opts DotProto{..}
  <>   pList topOption protoOptions
  <$$> (PP.vcat . PP.punctuate PP.linebreak $ (prettyPrintProtoDefinition opts) <$> protoDefinitions)
  <$$> PP.linebreak
- where pList f [] = PP.empty
+ where pList _ [] = PP.empty
        pList f xs =  PP.linebreak
                   <> PP.vcat (f <$> xs)
                   <> PP.linebreak
