@@ -734,7 +734,7 @@ dotProtoDefinitionD lang pkgIdent ctxt = \case
   (DotProtoEnum messageName dotProtoEnum) ->
     dotProtoEnumD lang Anonymous messageName dotProtoEnum
   (DotProtoService serviceName dotProtoService) ->
-    dotProtoServiceD pkgIdent ctxt serviceName dotProtoService
+    dotProtoServiceD lang pkgIdent ctxt serviceName dotProtoService
 
 -- -- IMPROVE: By convention, the first HsDecl generated is the data type.
 -- -- The `dotProto*D` functions should be refactored to separate out the datatype
@@ -1776,12 +1776,13 @@ dotProtoEnumD lang parentIdent enumIdent enumParts =
 
 dotProtoServiceD
     :: MonadError CompileError m
-    => DotProtoIdentifier
+    => TargetLanguage -> DotProtoIdentifier
     -> TypeContext
     -> DotProtoIdentifier
     -> [DotProtoServicePart]
     -> m [HsDecl]
-dotProtoServiceD pkgIdent ctxt serviceIdent service =
+dotProtoServiceD Purescript _ _ _ _ = pure [] -- Not implemented.
+dotProtoServiceD _ pkgIdent ctxt serviceIdent service =
   do serviceNameUnqual <- dpIdentUnqualName serviceIdent
      packageName <- dpIdentQualName pkgIdent
 
