@@ -130,7 +130,7 @@ compileTestDotProtos = do
   Turtle.mktree hsTmpDir
   Turtle.mktree pyTmpDir
   forM_ protoFiles $ \protoFile -> do
-    compileDotProtoFileOrDie [] hsTmpDir ["test-files"] protoFile
+    compileDotProtoFileOrDie [Haskell] [] hsTmpDir ["test-files"] protoFile
     (@?= ExitSuccess) =<< Turtle.shell (T.concat [ "protoc --python_out="
                                                  , pyTmpDir
                                                  , " --proto_path=test-files"
