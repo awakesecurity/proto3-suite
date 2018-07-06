@@ -15,6 +15,7 @@
 
 module Proto3.Suite.DotProto.Generate
   ( CompileError(..)
+  , TargetLanguage(..)
   , TypeContext
 
   , compileDotProtoFile
@@ -40,7 +41,7 @@ import           Data.Bifunctor                 (first)
 import           Data.Char
 import           Data.Coerce
 import           Data.List                      (find, intercalate, nub, sortBy,
-                                                 stripPrefix)
+                                                 stripPrefix, take)
 import qualified Data.Map                       as M
 import           Data.Maybe                     (catMaybes, fromMaybe)
 import           Data.Monoid
@@ -54,6 +55,7 @@ import           Language.Haskell.Pretty
 import           Language.Haskell.Syntax
 import           Language.Haskell.Parser        (ParseResult(..), parseModule)
 import qualified NeatInterpolation              as Neat
+import           Options.Generic                (ParseField(..))
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.Internal
@@ -79,6 +81,12 @@ data CompileError
   | Unimplemented           String
     deriving (Show, Eq)
 
+data TargetLanguage
+  = Haskell
+  | Purescript
+    deriving (Show, Read, Eq)
+instance ParseField TargetLanguage
+
 #if !(MIN_VERSION_mtl(2,2,2))
 liftEither :: MonadError e m => Either e a -> m a
 liftEither x =
@@ -87,9 +95,17 @@ liftEither x =
         Right a -> return a
 #endif
 
+ensureMetaModulePath :: MonadError CompileError m => DotProto -> m ()
+ensureMetaModulePath
+   DotProto { protoMeta = DotProtoMeta { metaModulePath = Path [] } }
+    = throwError InternalEmptyModulePath
+ensureMetaModulePath _ = pure ()
+
 -- | Generate a Haskell module corresponding to a @.proto@ file
 compileDotProtoFile
-    :: [FilePath]
+    :: [TargetLanguage]
+    -- ^ Set of languages to generate sources for.
+    -> [FilePath]
     -- ^ Haskell modules containing instances used to override default generated
     -- instances
     -> FilePath
@@ -100,6 +116,7 @@ compileDotProtoFile
     -- ^ Path to @.proto@ file (relative to search path)
     -> IO (Either CompileError ())
 compileDotProtoFile
+  targetLanguages
   extraInstanceFiles
   outputDirectory
   searchPaths
@@ -115,24 +132,26 @@ compileDotProtoFile
 
     typeLikeComponents <- traverse typeLikeName components
 
-    let relativePath = FP.concat (map fromString typeLikeComponents) <.> "hs"
+    let relativePath = FP.concat (map fromString typeLikeComponents)
     let modulePath   = outputDirectory </> relativePath
 
     Turtle.mktree (Turtle.directory modulePath)
 
-    listOfExtraInstances <- traverse getExtraInstances extraInstanceFiles
+    when (Haskell `elem` targetLanguages) $ do
+      extraInstances <- mconcat <$> traverse getExtraInstances extraInstanceFiles
+      haskellModule <- renderHsModuleForDotProto extraInstances dotProto importTypeContext
+      liftIO (writeFile (FP.encodeString (modulePath <.> "hs")) haskellModule)
 
-    let extraInstances = mconcat listOfExtraInstances
-
-    haskellModule <- do
-      renderHsModuleForDotProto extraInstances dotProto importTypeContext
-
-    liftIO (writeFile (FP.encodeString modulePath) haskellModule)
+    when (Purescript `elem` targetLanguages) $ do
+      purescriptModule <- renderPsModuleForDotProto dotProto importTypeContext
+      liftIO (writeFile (FP.encodeString (modulePath <.> "purs")) purescriptModule)
 
 -- | As 'compileDotProtoFile', except terminates the program with an error
 -- message on failure.
 compileDotProtoFileOrDie
-    :: [FilePath]
+    :: [TargetLanguage]
+    -- ^ Set of languages to generate sources for.
+    -> [FilePath]
     -- ^ Haskell modules containing instances used to override default generated
     -- instances
     -> FilePath
@@ -143,12 +162,14 @@ compileDotProtoFileOrDie
     -- ^ Path to @.proto@ file (relative to search path)
     -> IO ()
 compileDotProtoFileOrDie
+  targetLanguages
   extraInstanceFiles
   outputDirectory
   searchPaths
   dotProtoPath = do
   compileResult <- do
     compileDotProtoFile
+      targetLanguages
       extraInstanceFiles
       outputDirectory
       searchPaths
@@ -166,33 +187,7 @@ compileDotProtoFileOrDie
       |]
     _ -> pure ()
 
-getExtraInstances
-    :: (MonadIO m, MonadError CompileError m)
-    => FilePath -> m ([HsImportDecl], [HsDecl])
-getExtraInstances extraInstanceFile = do
-  let extraInstanceFileString = FP.encodeString extraInstanceFile
-
-  parseRes <- parseModule <$> liftIO (readFile extraInstanceFileString)
-
-  case parseRes of
-    ParseOk (HsModule _srcloc _mod _es idecls decls) -> do
-      let isInstDecl HsInstDecl{} = True
-          isInstDecl _            = False
-
-      return (idecls, filter isInstDecl decls) --TODO give compile result
-
-    ParseFailed srcLoc err -> do
-      let srcLocText = Turtle.format Turtle.w srcLoc
-
-      let errText = T.pack err
-
-      let message = [Neat.text|
-            Error: Failed to parse instance file
-
-            ${srcLocText}: ${errText}
-          |]
-
-      internalError (T.unpack message)
+-- ** Compiling to Haskell
 
 -- | Compile a 'DotProto' AST into a 'String' representing the Haskell
 --   source of a module implementing types and instances for the .proto
@@ -228,11 +223,6 @@ hsModuleForDotProto
     -- ^
     -> m HsModule
 hsModuleForDotProto
-    _
-    DotProto { protoMeta = DotProtoMeta { metaModulePath = Path [] } }
-    _ =
-    throwError InternalEmptyModulePath
-hsModuleForDotProto
   (extraImports, extraInstances)
   dotProto@DotProto
     { protoPackage     = DotProtoPackageSpec packageIdentifier
@@ -240,6 +230,8 @@ hsModuleForDotProto
     , protoDefinitions
     }
   importTypeContext = do
+    _ <- ensureMetaModulePath dotProto
+
     moduleName <- modulePathModName modulePath
 
     typeContextImports <- ctxtImports importTypeContext
@@ -266,6 +258,51 @@ hsModuleForDotProto
 hsModuleForDotProto _ _ _ =
   throwError NoPackageDeclaration
 
+-- ** Compiling to Purescript
+
+-- | Compile a 'DotProto' AST into a 'String' representing the Purescript
+--   source of a module implementing types and instances for the .proto
+--   messages and enums.
+renderPsModuleForDotProto
+    :: MonadError CompileError m
+    => DotProto -> TypeContext -> m String
+renderPsModuleForDotProto dotProto importCtxt = do
+    (header <>) . prettyPrint <$> psModuleForDotProto dotProto importCtxt
+  where
+    header = T.unpack [Neat.text|
+      -- | Generated by Haskell protocol buffer compiler. DO NOT EDIT!
+    |]
+
+psModuleForDotProto :: MonadError CompileError m => DotProto -> TypeContext -> m HsModule
+psModuleForDotProto
+  dotProto@DotProto
+    { protoPackage     = DotProtoPackageSpec packageIdentifier
+    , protoMeta        = DotProtoMeta { metaModulePath = modulePath }
+    , protoDefinitions
+    }
+  importTypeContext = do
+    _ <- ensureMetaModulePath dotProto
+
+    moduleName <- modulePathModName modulePath
+
+--    typeContextImports <- ctxtImports importTypeContext
+
+    -- let importDeclarations =
+    --       concat [ defaultImports hasService, extraImports, typeContextImports ]
+
+    typeContext <- dotProtoTypeContext dotProto
+
+    let compileToPs = dotProtoDefinitionToPs packageIdentifier (typeContext <> importTypeContext)
+
+    declarations <- mconcat <$> traverse compileToPs protoDefinitions
+
+    return (module_ moduleName Nothing defaultImportsPs declarations)
+
+psModuleForDotProto _ _ =
+  throwError NoPackageDeclaration
+
+--------------------------------------------------------------------------------
+
 -- This very specific function will only work for the qualification on the very first type
 -- in the object of an instance declaration. Those are the only sort of instance declarations
 -- generated within this code, so it suffices.
@@ -275,6 +312,34 @@ instancesForModule m = foldr go []
              HsInstDecl a b c (HsTyCon (Qual tm  i):ts) d ->
                         if m == tm then HsInstDecl a b c (HsTyCon (UnQual i):ts) d:xs else xs
              _ -> xs
+
+getExtraInstances
+    :: (MonadIO m, MonadError CompileError m)
+    => FilePath -> m ([HsImportDecl], [HsDecl])
+getExtraInstances extraInstanceFile = do
+  let extraInstanceFileString = FP.encodeString extraInstanceFile
+
+  parseRes <- parseModule <$> liftIO (readFile extraInstanceFileString)
+
+  case parseRes of
+    ParseOk (HsModule _srcloc _mod _es idecls decls) -> do
+      let isInstDecl HsInstDecl{} = True
+          isInstDecl _            = False
+
+      return (idecls, filter isInstDecl decls) --TODO give compile result
+
+    ParseFailed srcLoc err -> do
+      let srcLocText = Turtle.format Turtle.w srcLoc
+
+      let errText = T.pack err
+
+      let message = [Neat.text|
+            Error: Failed to parse instance file
+
+            ${srcLocText}: ${errText}
+          |]
+
+      internalError (T.unpack message)
 
 -- | For each thing in @base@ replaces it if it finds a matching @override@
 replaceHsInstDecls :: [HsDecl] -> [HsDecl] -> [HsDecl]
@@ -344,7 +409,7 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
                              , dotProtoTypeInfoModulePath = metaModulePath . protoMeta $ import_
                              }
                     qualifiedTypeContext = M.fromList <$>
-                        mapM (\(nm, tyInfo) -> (,tyInfo) <$> concatDotProtoIdentifier importPkg nm)
+                        mapM (\(nm, tyInfo) -> (, tyInfo) <$> concatDotProtoIdentifier importPkg nm)
                             (M.assocs importTypeContext')
 
                 importTypeContext'' <- (importTypeContext' <>) <$> qualifiedTypeContext
@@ -509,8 +574,7 @@ msgTypeFromDpTypeInfo
                    }
   ident
   = HsTyCon <$> do Qual <$> modulePathModName modulePath
-                        <*> do HsIdent <$> do
-                                 nestedTypeName p =<< dpIdentUnqualName ident
+                        <*> do HsIdent <$> dotProtoDefnName p ident
 
 -- | Given a 'DotProtoIdentifier' for the parent type and the unqualified name of this type, generate the corresponding Haskell name
 nestedTypeName
@@ -598,17 +662,36 @@ _pkgIdentModName (Single s)          = Module <$> typeLikeName s
 _pkgIdentModName (Dots (Path paths)) = Module <$> (intercalate "." <$> mapM typeLikeName paths)
 _pkgIdentModName _                   = internalError "pkgIdentModName: Malformed package name"
 
+dotProtoDefnName :: MonadError CompileError m => DotProtoIdentifier -> DotProtoIdentifier -> m String
+dotProtoDefnName parentIdent ident =
+  nestedTypeName parentIdent =<< dpIdentUnqualName ident
+
 -- * Generate instances for a 'DotProto' package
 
 dotProtoDefinitionD
     :: MonadError CompileError m
     => DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
-dotProtoDefinitionD _ ctxt (DotProtoMessage messageName dotProtoMessage) =
-  dotProtoMessageD ctxt Anonymous messageName dotProtoMessage
-dotProtoDefinitionD _ _ (DotProtoEnum messageName dotProtoEnum) =
-  dotProtoEnumD Anonymous messageName dotProtoEnum
-dotProtoDefinitionD pkgIdent ctxt (DotProtoService serviceName dotProtoService) =
-  dotProtoServiceD pkgIdent ctxt serviceName dotProtoService
+dotProtoDefinitionD pkgIdent ctxt = \case
+  (DotProtoMessage messageName dotProtoMessage) ->
+    dotProtoMessageD ctxt Anonymous messageName dotProtoMessage
+  (DotProtoEnum messageName dotProtoEnum) ->
+    dotProtoEnumD Anonymous messageName dotProtoEnum
+  (DotProtoService serviceName dotProtoService) ->
+    dotProtoServiceD pkgIdent ctxt serviceName dotProtoService
+
+-- IMPROVE: By convention, the first HsDecl generated is the data type.
+-- The `dotProto*D` functions should be refactored to separate out the datatype
+-- generating functions for use here.
+dotProtoDefinitionToPs
+  :: MonadError CompileError m
+  => DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
+dotProtoDefinitionToPs _pkgIdent ctxt = \case
+  (DotProtoMessage messageName dotProtoMessage) ->
+    take 1 <$> dotProtoMessageD ctxt Anonymous messageName dotProtoMessage
+  (DotProtoEnum messageName dotProtoEnum) ->
+    take 1 <$> dotProtoEnumD Anonymous messageName dotProtoEnum
+  (DotProtoService _ _) ->
+    throwError (Unimplemented "Cannot generate a gRPC service definition for Purescript")
 
 -- | Generate 'Named' instance for a type in this package
 namedInstD :: String -> HsDecl
@@ -634,8 +717,7 @@ dotProtoMessageD
     -> [DotProtoMessagePart]
     -> m [HsDecl]
 dotProtoMessageD ctxt parentIdent messageIdent message =
-    do messageName <- nestedTypeName parentIdent =<<
-                      dpIdentUnqualName messageIdent
+    do messageName <- dotProtoDefnName parentIdent messageIdent
 
        let ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup messageIdent ctxt) <>
                    ctxt
@@ -753,8 +835,7 @@ messageInstD
     -> [DotProtoMessagePart]
     -> m HsDecl
 messageInstD ctxt parentIdent msgIdent messageParts =
-  do msgName <- nestedTypeName parentIdent =<<
-                dpIdentUnqualName msgIdent
+  do msgName <- dotProtoDefnName parentIdent msgIdent
      qualifiedFields <- getQualifiedFields msgName messageParts
      encodeMessagePartEs <- forM qualifiedFields $ \QualifiedField{recordFieldName, fieldInfo} ->
         let recordFieldName' = HsVar (unqual_ (coerce recordFieldName)) in
@@ -862,7 +943,7 @@ toJSONPBMessageInstD
     -> [DotProtoMessagePart]
     -> m HsDecl
 toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
-  msgName    <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+  msgName    <- dotProtoDefnName parentIdent msgIdent
   qualFields <- getQualifiedFields msgName messageParts
 
   -- E.g.
@@ -964,7 +1045,7 @@ fromJSONPBMessageInstD
     -> [DotProtoMessagePart]
     -> m HsDecl
 fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
-  msgName    <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+  msgName    <- dotProtoDefnName parentIdent msgIdent
   qualFields <- getQualifiedFields msgName messageParts
 
   let lambdaPVar = patVar "obj"
@@ -1509,8 +1590,7 @@ dotProtoEnumD
     -> [DotProtoEnumPart]
     -> m [HsDecl]
 dotProtoEnumD parentIdent enumIdent enumParts =
-  do enumName <- nestedTypeName parentIdent =<<
-                 dpIdentUnqualName enumIdent
+  do enumName <- dotProtoDefnName parentIdent enumIdent
 
      enumCons <- sortBy (comparing fst) <$>
                  sequence [ (i,) . prefixedEnumFieldName enumName
@@ -2038,6 +2118,9 @@ defaultEnumDeriving = map haskellName [ "Show", "Bounded"
                                       , "Generic" ]
 
 defaultServiceDeriving = map haskellName [ "Generic" ]
+
+defaultImportsPs :: [HsImportDecl]
+defaultImportsPs = []
 
 -- * Wrappers around haskell-src-exts constructors
 

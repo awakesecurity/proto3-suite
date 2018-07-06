@@ -18,11 +18,15 @@ data Args w = Args
   , includeDir :: w ::: [FilePath] <?> "Path to search for included .proto files (can be repeated, and paths will be searched in order; the current directory is used if this option is not provided)"
   , proto      :: w ::: FilePath   <?> "Path to input .proto file"
   , extraInstanceFile :: w ::: [FilePath] <?> "Additional file to provide instances that would otherwise be generated. Can be used multiple times. Types for which instance overrides are given must be fully qualified."
+  , language :: w ::: [TargetLanguage] <?> "Languages to generate code for (default: Haskell)."
   } deriving Generic
+
 instance ParseRecord (Args Wrapped)
 deriving instance Show (Args Unwrapped)
 
 main :: IO ()
 main = do
   Args{..} :: Args Unwrapped <- unwrapRecord "Compiles a .proto file to a Haskell module"
-  compileDotProtoFileOrDie extraInstanceFile out includeDir proto
+  let language' | null language = [Haskell]
+                | otherwise = language
+  compileDotProtoFileOrDie language' extraInstanceFile out includeDir proto
