@@ -279,7 +279,8 @@ instancesForModule m = foldr go []
 -- | For each thing in @base@ replaces it if it finds a matching @override@
 replaceHsInstDecls :: [HsDecl] -> [HsDecl] -> [HsDecl]
 replaceHsInstDecls overrides base = map mbReplace base
-  where mbReplace hid@(HsInstDecl _ _ qn tys _) = fromMaybe hid $ find (\x -> Just (unQual qn,tys) == getSig x) overrides
+  where mbReplace hid@(HsInstDecl _ _ qn tys _) = fromMaybe hid
+          $ find (\x -> Just (unQual qn,tys) == getSig x) overrides
         mbReplace hid = hid
 
         getSig (HsInstDecl _ _ qn tys _) = Just (unQual qn,tys)
