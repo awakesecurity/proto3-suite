@@ -463,8 +463,8 @@ instance MessageField1 f => GenericMessage1 (Rec1 f) where
 
 instance GenericMessage1 Par1 where
   type GenericFieldCount1 Par1 = 1
-  genericLiftEncodeMessage encodeMessage fieldNumber (Par1 x) = encodeMessage fieldNumber x
-  genericLiftDecodeMessage decodeMessage fieldNumber = Par1 <$> decodeMessage fieldNumber
+  genericLiftEncodeMessage encodeMessage fieldNumber (Par1 x) = Encode.embedded fieldNumber (encodeMessage 1 x)
+  genericLiftDecodeMessage decodeMessage fieldNumber = undefined -- Par1 . fromMaybe undefined <$> Decode.at (decodeMessage 1) fieldNumber
   genericLiftDotProto (_ :: Proxy (Par1 a)) = [ DotProtoMessageField $ messageField (Prim (Named (Single (nameOf (Proxy @a))))) Nothing ]
 
 
