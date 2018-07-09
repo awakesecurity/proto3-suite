@@ -780,9 +780,9 @@ instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g)
     where
       sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf (Single "sum") [ leftField, rightField ]
       sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf name  (fields <> [ rightField ])
-      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageOneOf name fields)] = DotProtoMessageOneOf name  (leftField : fields)
-      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageOneOf name' rightFields)] = DotProtoMessageOneOf name (fields <> rightFields)
-      sumProtos _ _ = error "no genericLiftDotProto instance for message definitions or reserved message fields"
+      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageOneOf name fields)] = sumProtos (DotProtoMessageOneOf name  (leftField : fields)
+      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageOneOf name' rightFields)] = sumProtos (DotProtoMessageOneOf name (fields <> rightFields)) xs
+      sumProtos messages others = messages <> others
 
 
 instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g) => GenericMessage1 (f :*: g) where
