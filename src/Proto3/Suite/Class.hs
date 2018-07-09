@@ -841,7 +841,13 @@ instance (GenericMessage f, GenericMessage g) => GenericMessage (f :+: g) where
   genericEncodeMessage num (L1 x) = genericEncodeMessage num x
   genericEncodeMessage num (R1 y) = genericEncodeMessage num y
   genericDecodeMessage num = L1 <$> genericDecodeMessage num <|> R1 <$> genericDecodeMessage num
-  genericDotProto _ = error "No genericDotProto instance for f :+: g"
+  genericDotProto (_ :: Proxy (f :+: g)) = pure $ sumProtos (genericDotProto (Proxy @f)) (genericDotProto (Proxy @g))
+    where
+      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf (Single "sum") [ leftField, rightField ]
+      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf name  (fields <> [ rightField ])
+      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageOneOf name fields)] = DotProtoMessageOneOf name  (leftField : fields)
+      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageOneOf _ rightFields)] = DotProtoMessageOneOf name (fields <> rightFields)
+      sumProtos _ _ = error "no genericLiftDotProto instance for message definitions or reserved message fields"
 
 instance MessageField c => GenericMessage (K1 i c) where
   type GenericFieldCount (K1 i c) = 1
