@@ -776,7 +776,14 @@ instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g)
   genericLiftEncodeMessage encodeMessage num (R1 r) = genericLiftEncodeMessage encodeMessage num r
   -- FIXME: Implement these
   genericLiftDecodeMessage decodeMessage num = L1 <$> genericLiftDecodeMessage decodeMessage num <|> R1 <$> genericLiftDecodeMessage decodeMessage num
-  genericLiftDotProto _ = error "No genericLiftDotProto instance for f :+: g"
+  genericLiftDotProto (_ :: Proxy ((f :+: g) a)) = pure $ sumProtos (genericLiftDotProto (Proxy @(f a))) (genericLiftDotProto (Proxy @(g a)))
+    where
+      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf (Single "sum") [ leftField, rightField ]
+      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf name  (fields <> [ rightField ])
+      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageOneOf name fields)] = DotProtoMessageOneOf name  (leftField : fields)
+      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageOneOf name' rightFields)] = DotProtoMessageOneOf name (fields <> rightFields)
+      sumProtos _ _ = error "no genericLiftDotProto instance for message definitions or reserved message fields"
+
 
 instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g) => GenericMessage1 (f :*: g) where
   type GenericFieldCount1 (f :*: g) = GenericFieldCount1 f + GenericFieldCount1 g
