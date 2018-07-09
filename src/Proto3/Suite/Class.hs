@@ -776,12 +776,12 @@ instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g)
   genericLiftEncodeMessage encodeMessage num (R1 r) = genericLiftEncodeMessage encodeMessage num r
   -- FIXME: Implement these
   genericLiftDecodeMessage decodeMessage num = L1 <$> genericLiftDecodeMessage decodeMessage num <|> R1 <$> genericLiftDecodeMessage decodeMessage num
-  genericLiftDotProto (_ :: Proxy ((f :+: g) a)) = pure $ sumProtos (genericLiftDotProto (Proxy @(f a))) (genericLiftDotProto (Proxy @(g a)))
+  genericLiftDotProto (_ :: Proxy ((f :+: g) a)) = sumProtos (genericLiftDotProto (Proxy @(f a))) (genericLiftDotProto (Proxy @(g a)))
     where
-      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf (Single "sum") [ leftField, rightField ]
-      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf name  (fields <> [ rightField ])
-      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageOneOf name fields)] = sumProtos (DotProtoMessageOneOf name  (leftField : fields)
-      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageOneOf name' rightFields)] = sumProtos (DotProtoMessageOneOf name (fields <> rightFields)) xs
+      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageField rightField)] = pure $ DotProtoMessageOneOf (Single "sum") [ leftField, rightField ]
+      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageField rightField)] = pure $ DotProtoMessageOneOf name (fields <> [ rightField ])
+      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageOneOf name fields)] = pure $ DotProtoMessageOneOf name (leftField : fields)
+      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageOneOf name' rightFields)] = pure $ DotProtoMessageOneOf name (fields <> rightFields)
       sumProtos messages others = messages <> others
 
 
