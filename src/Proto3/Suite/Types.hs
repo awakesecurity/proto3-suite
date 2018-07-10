@@ -62,7 +62,7 @@ instance (Bounded a, Enum a) => Arbitrary (Enumerated a) where
 -- the wire format.
 newtype PackedVec a = PackedVec { packedvec :: V.Vector a }
   deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData, Applicative,
-            Alternative, Monoid)
+            Alternative, Semigroup, Monoid)
 
 instance IsList (PackedVec a) where
   type Item (PackedVec a) = a
@@ -74,7 +74,7 @@ instance Arbitrary a => Arbitrary (PackedVec a) where
 
 newtype UnpackedVec a = UnpackedVec {unpackedvec :: V.Vector a }
   deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData, Applicative,
-            Alternative, Monoid)
+            Alternative, Semigroup, Monoid)
 
 instance IsList (UnpackedVec a) where
   type Item (UnpackedVec a) = a
@@ -87,7 +87,7 @@ instance Arbitrary a => Arbitrary (UnpackedVec a) where
 newtype NestedVec a =
   NestedVec { nestedvec :: V.Vector a }
   deriving (Show, Eq, Functor, Foldable, Traversable, Ord, NFData, Applicative,
-            Alternative, Monoid)
+            Alternative, Semigroup, Monoid)
 
 instance IsList (NestedVec a) where
   type Item (NestedVec a) = a
@@ -99,19 +99,20 @@ instance Arbitrary a => Arbitrary (NestedVec a) where
 
 -- | 'Nested' provides a way to nest protobuf messages within protobuf messages.
 newtype Nested a = Nested { nested :: Maybe a }
-  deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable,
-            Traversable, Applicative, Alternative, Monad)
+  deriving (Show, Eq, Ord, Generic, NFData, Semigroup, Monoid, Arbitrary, Functor,
+            Foldable, Traversable, Applicative, Alternative, Monad)
 
 -- | 'ForceEmit' provides a way to force emission of field values, even when
 -- default-value semantics states otherwise. Used when serializing oneof
 -- subfields.
 newtype ForceEmit a = ForceEmit{ forceEmit :: a }
-  deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable,
-            Traversable)
+  deriving (Show, Eq, Ord, Generic, NFData, Semigroup, Monoid, Arbitrary, Functor,
+            Foldable, Traversable)
 
 -- | 'Commented' provides a way to add comments to generated @.proto@ files.
 newtype Commented (comment :: Symbol) a = Commented { unCommented :: a }
-  deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable, Traversable)
+  deriving (Show, Eq, Ord, Generic, NFData, Semigroup, Monoid, Arbitrary, Functor,
+            Foldable, Traversable)
 
 -- | A type operator synonym for 'Commented', so that we can write C-style
 -- comments on fields.
