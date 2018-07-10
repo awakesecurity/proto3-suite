@@ -1,33 +1,33 @@
 { mkDerivation, ansi-terminal, base, bytestring, case-insensitive
-, containers, contravariant, cryptonite, deepseq, directory
-, exceptions, filepath, formatting, haskeline, http-client
+, containers, contravariant, criterion, cryptonite, deepseq, Diff
+, directory, doctest, exceptions, filepath, haskeline, http-client
 , http-client-tls, insert-ordered-containers, lens-family-core
-, megaparsec, memory, mtl, optparse-applicative, parsers
+, megaparsec, memory, mockery, mtl, optparse-applicative, parsers
 , prettyprinter, prettyprinter-ansi-terminal, repline, scientific
-, stdenv, tasty, tasty-hunit, text, transformers
+, stdenv, tasty, tasty-hunit, template-haskell, text, transformers
 , unordered-containers, vector
 }:
 mkDerivation {
   pname = "dhall";
-  version = "1.13.0";
-  sha256 = "1fn3yi2zv2l88jjapk0zhij247cy4yh0w07icyr41g341wx7gfv4";
+  version = "1.15.1";
+  sha256 = "ea3bb3b6a006b82e0286d72757ba9969f6ee292ef12eea2376939ba219c88e30";
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
     ansi-terminal base bytestring case-insensitive containers
-    contravariant cryptonite directory exceptions filepath formatting
-    http-client http-client-tls insert-ordered-containers
-    lens-family-core megaparsec memory parsers prettyprinter
-    prettyprinter-ansi-terminal scientific text transformers
-    unordered-containers vector
+    contravariant cryptonite Diff directory exceptions filepath
+    haskeline http-client http-client-tls insert-ordered-containers
+    lens-family-core megaparsec memory mtl optparse-applicative parsers
+    prettyprinter prettyprinter-ansi-terminal repline scientific
+    template-haskell text transformers unordered-containers vector
   ];
-  executableHaskellDepends = [
-    ansi-terminal base haskeline megaparsec mtl optparse-applicative
-    prettyprinter prettyprinter-ansi-terminal repline text
-  ];
+  executableHaskellDepends = [ base ];
   testHaskellDepends = [
-    base deepseq insert-ordered-containers prettyprinter tasty
-    tasty-hunit text vector
+    base deepseq directory doctest filepath insert-ordered-containers
+    mockery prettyprinter tasty tasty-hunit text vector
+  ];
+  benchmarkHaskellDepends = [
+    base containers criterion directory text
   ];
   description = "A configuration language guaranteed to terminate";
   license = stdenv.lib.licenses.bsd3;
