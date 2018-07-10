@@ -60,6 +60,7 @@ import           Turtle                         (FilePath)
 import qualified Turtle
 import           Turtle.Format                  ((%))
 import qualified Turtle.Format                  as F
+import qualified Data.Char as Char
 
 -- * Public interface
 
@@ -378,11 +379,20 @@ hsTypeFromDotProtoPrim _    Bool            = pure $ primType_ "Bool"
 hsTypeFromDotProtoPrim _    Float           = pure $ primType_ "Float"
 hsTypeFromDotProtoPrim _    Double          = pure $ primType_ "Double"
 hsTypeFromDotProtoPrim ctxt (Named msgName) =
-    case M.lookup msgName ctxt of
+    let
+      msgName' = case msgName of
+        (Dots (Path [_, name])) -> Single name
+        name -> name
+    in
+    case M.lookup msgName' ctxt of
       Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
-          HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ty msgName
-      Just ty -> msgTypeFromDpTypeInfo ty msgName
+          HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ty msgName'
+      Just ty -> msgTypeFromDpTypeInfo ty msgName'
       Nothing -> noSuchTypeError msgName
+
+capitalized :: String -> String
+capitalized (head:tail) = Char.toUpper head : map Char.toLower tail
+capitalized [] = []
 
 -- | Generate the Haskell type name for a 'DotProtoTypeInfo' for a message /
 --   enumeration being compiled. NB: We ignore the 'dotProtoTypeInfoPackage'
@@ -553,7 +563,6 @@ dotProtoMessageD ctxt parentIdent messageIdent message =
                   cons <- mapM oneOfCons fields
                   pure [ dataDecl_ fullName cons defaultMessageDeriving
                        , namedInstD fullName
-                       , toSchemaInstDecl fullName
                        ]
 
        conDecl <- recDecl_ (HsIdent messageName) . mconcat <$>
@@ -1471,8 +1480,7 @@ defaultImports usesGrpc =
   if usesGrpc
     then [ importDecl_ networkGrpcHighLevelGeneratedM   False (Just grpcNS) Nothing
          , importDecl_ networkGrpcHighLevelClientM      False (Just grpcNS) Nothing
-         , importDecl_ networkGrpcHighLevelServerM      False (Just grpcNS)
-               (Just (True, [ importSym "asyncServerLoop" ]))
+         , importDecl_ networkGrpcHighLevelServerM      False (Just grpcNS) Nothing
          , importDecl_ networkGrpcHighLevelServerUnregM False (Just grpcNS)
                (Just (False, [ importSym "asyncServerLoop" ]))
          , importDecl_ networkGrpcLowLevelCallM         False (Just grpcNS) Nothing  ]
