@@ -29,6 +29,7 @@ module Proto3.Suite.Types
 
 import           Control.Applicative
 import           Control.DeepSeq (NFData)
+import           Data.Semigroup
 import           GHC.Exts (IsList(..))
 import           GHC.Generics
 import qualified Data.Vector as V
