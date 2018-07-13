@@ -4,5 +4,5 @@ packages:
 - .
 - location:
     git: https://github.com/joshvera/proto3-wire.git
-    commit: a65d56b7d23ee1f89f03de12ac8834904257bc7b
+    commit: bea2385a0f39bb16cb2b29690b76e3ebc227a3f7
   extra-dep: true
