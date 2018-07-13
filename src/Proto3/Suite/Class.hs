@@ -739,8 +739,8 @@ class GenericMessage1 (f :: * -> *) where
 
 instance GenericMessage1 U1 where
   type GenericFieldCount1 U1 = 0
-  genericLiftEncodeMessage _ num _ = Encode.embedded num mempty
-  genericLiftDecodeMessage _ num = Decode.at (pure U1) num
+  genericLiftEncodeMessage _ num _ = mempty
+  genericLiftDecodeMessage _ num = pure U1
   genericLiftDotProto _      = mempty
 
 instance GenericMessage1 f => GenericMessage1 (M1 D c f) where
