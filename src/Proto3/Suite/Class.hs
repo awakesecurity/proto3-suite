@@ -743,6 +743,7 @@ instance GenericMessage1 U1 where
   genericLiftDecodeMessage _ num = pure U1
   genericLiftDotProto _      = mempty
 
+-- TODO Maybe the field number with encode.embedded and decode.embedded
 instance GenericMessage1 f => GenericMessage1 (M1 D c f) where
   type GenericFieldCount1 (M1 D c f) = GenericFieldCount1 f
   genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
