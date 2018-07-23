@@ -4,5 +4,7 @@ packages:
 - .
 - location:
     git: https://github.com/joshvera/proto3-wire.git
-    commit: bea2385a0f39bb16cb2b29690b76e3ebc227a3f7
+    commit: 9a287602218668aefceede406c93232fc0890f33
   extra-dep: true
+extra-deps:
+- wl-pprint-1.2.1

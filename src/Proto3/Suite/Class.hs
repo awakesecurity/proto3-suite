@@ -129,6 +129,7 @@ import           Safe                   (toEnumMay)
 import GHC.TypeLits.Extra
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
+import Debug.Trace (traceShow)
 
 -- | A class for types with default values per the protocol buffers spec.
 class HasDefault a where
@@ -848,7 +849,7 @@ instance (GenericMessage f, GenericMessage g) => GenericMessage (f :+: g) where
       sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf name  (fields <> [ rightField ])
       sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageOneOf name fields)] = DotProtoMessageOneOf name  (leftField : fields)
       sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageOneOf _ rightFields)] = DotProtoMessageOneOf name (fields <> rightFields)
-      sumProtos fields1 fields2 = fields1 <> fields2
+      sumProtos fields1 fields2 = (traceShow fields1 (traceShow fields2 (error "no genericLiftDotProto instance for message definitions or reserved message fields")))
 
 instance MessageField c => GenericMessage (K1 i c) where
   type GenericFieldCount (K1 i c) = 1
