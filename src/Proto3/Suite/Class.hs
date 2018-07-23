@@ -848,7 +848,7 @@ instance (GenericMessage f, GenericMessage g) => GenericMessage (f :+: g) where
       sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf name  (fields <> [ rightField ])
       sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageOneOf name fields)] = DotProtoMessageOneOf name  (leftField : fields)
       sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageOneOf _ rightFields)] = DotProtoMessageOneOf name (fields <> rightFields)
-      sumProtos _ _ = error "no genericLiftDotProto instance for message definitions or reserved message fields"
+      sumProtos fields1 fields2 = fields1 <> fields2
 
 instance MessageField c => GenericMessage (K1 i c) where
   type GenericFieldCount (K1 i c) = 1
