@@ -19,6 +19,8 @@ module Proto3.Suite.DotProto.Rendering
   , RenderingOptions(..)
   ) where
 
+import Prelude hiding ((<>))
+
 import           Data.Char
 import qualified Data.Text                 as T
 import           Filesystem.Path.CurrentOS (toText)

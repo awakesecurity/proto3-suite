@@ -739,10 +739,11 @@ class GenericMessage1 (f :: * -> *) where
 
 instance GenericMessage1 U1 where
   type GenericFieldCount1 U1 = 0
-  genericLiftEncodeMessage _ _ _ = mempty
-  genericLiftDecodeMessage _ _ = pure U1
+  genericLiftEncodeMessage _ num _ = mempty
+  genericLiftDecodeMessage _ num = pure U1
   genericLiftDotProto _      = mempty
 
+-- TODO Maybe the field number with encode.embedded and decode.embedded
 instance GenericMessage1 f => GenericMessage1 (M1 D c f) where
   type GenericFieldCount1 (M1 D c f) = GenericFieldCount1 f
   genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
