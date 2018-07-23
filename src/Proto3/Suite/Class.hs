@@ -838,12 +838,12 @@ instance (KnownNat (GenericFieldCount f), GenericMessage f, GenericMessage g) =>
         DotProtoMessageField part { dotProtoFieldNumber = (FieldNumber . (offset +) . getFieldNumber . dotProtoFieldNumber) part }
       adjustPart part = part -- Don't adjust other message types?
 
-instance (Named1 f, Named1 g, Selector s, Selector s2, GenericMessage f, GenericMessage g) => GenericMessage (M1 S s f :+: M1 S s2 g) where
-  type GenericFieldCount (M1 S s f :+: M1 S s2 g) = GenericFieldCount f `Max` GenericFieldCount g
+instance (Named1 f, Named1 g, Constructor t1, Constructor t2, GenericMessage f, GenericMessage g) => GenericMessage (M1 C t1 f :+: M1 C t2 g) where
+  type GenericFieldCount (C1 t1 f :+: C1 t2 g) = GenericFieldCount f `Max` GenericFieldCount g
   genericEncodeMessage num (L1 x) = genericEncodeMessage num x
   genericEncodeMessage num (R1 y) = genericEncodeMessage num y
   genericDecodeMessage num = L1 <$> genericDecodeMessage num <|> R1 <$> genericDecodeMessage num
-  genericDotProto (_ :: Proxy (M1 S s f :+: M1 S s2 g)) = pure $ sumProtos (genericDotProto (Proxy @f)) (genericDotProto (Proxy @g))
+  genericDotProto (_ :: Proxy (M1 C t1 f :+: M1 C t2 g)) = pure $ sumProtos (genericDotProto (Proxy @f)) (genericDotProto (Proxy @g))
     where
       sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf (Single "sum") [ leftField, rightField ]
       sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf name (fields <> [ rightField ])
@@ -852,8 +852,8 @@ instance (Named1 f, Named1 g, Selector s, Selector s2, GenericMessage f, Generic
       sumProtos fields1 fields2 = (traceShow fields1 (traceShow fields2 (error "no genericLiftDotProto instance for message definitions or reserved message fields")))
       sumProtos fields1 fields2 =
         DotProtoMessageOneOf (Single "sum")
-          [ DotProtoField 1 (Prim (Named (Single (nameOf1 (Proxy @f))))) (Single (selName (undefined :: S1 s f ()))) [] Nothing
-          , DotProtoField 2 (Prim (Named (Single (nameOf1 (Proxy @f))))) (Single (selName (undefined :: S1 s2 g ()))) [] Nothing ]
+          [ DotProtoField 1 (Prim (Named (Single (nameOf1 (Proxy @f))))) (Single (conName (undefined :: C1 t1 f ()))) [] Nothing
+          , DotProtoField 2 (Prim (Named (Single (nameOf1 (Proxy @f))))) (Single (conName (undefined :: C1 t2 g ()))) [] Nothing ]
 
 instance MessageField c => GenericMessage (K1 i c) where
   type GenericFieldCount (K1 i c) = 1
