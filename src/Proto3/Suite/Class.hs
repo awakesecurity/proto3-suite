@@ -844,16 +844,15 @@ instance (Constructor t1, Constructor t2, GenericMessage f, GenericMessage g) =>
   genericEncodeMessage num (L1 x) = genericEncodeMessage num x
   genericEncodeMessage num (R1 y) = genericEncodeMessage num y
   genericDecodeMessage num = L1 <$> genericDecodeMessage num <|> R1 <$> genericDecodeMessage num
-  genericDotProto (_ :: Proxy (M1 C t1 f :+: M1 C t2 g)) = pure $ sumProtos (genericDotProto (Proxy @f)) (genericDotProto (Proxy @g))
+  genericDotProto (_ :: Proxy (M1 C t1 f :+: M1 C t2 g)) = sumProtos (genericDotProto (Proxy @f)) (genericDotProto (Proxy @g))
     where
-      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf (Single "sum") [ leftField, rightField ]
-      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageField rightField)] = DotProtoMessageOneOf name (fields <> [ rightField ])
-      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageOneOf name fields)] = DotProtoMessageOneOf name  (leftField : fields)
-      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageOneOf _ rightFields)] = DotProtoMessageOneOf name (fields <> rightFields)
       sumProtos fields1 fields2 =
-        DotProtoMessageOneOf (Single "sum")
-          [ DotProtoField 1 (Prim (Named (Single (conName (undefined :: C1 t1 f ()))))) (Single (toLower $ conName (undefined :: C1 t1 f ()))) [] Nothing
-          , DotProtoField 2 (Prim (Named (Single (conName (undefined :: C1 t2 g ()))))) (Single (toLower $ conName (undefined :: C1 t2 g ()))) [] Nothing ]
+        [ DotProtoMessageOneOf (Single "sum")
+            [ DotProtoField 1 (Prim (Named (Single (conName (undefined :: C1 t1 f ()))))) (Single (toLower $ conName (undefined :: C1 t1 f ()))) [] Nothing
+            , DotProtoField 2 (Prim (Named (Single (conName (undefined :: C1 t2 g ()))))) (Single (toLower $ conName (undefined :: C1 t2 g ()))) [] Nothing ]
+        , DotProtoMessageDefinition $ DotProtoMessage (Single (conName (undefined :: C1 t1 f ()))) fields1
+        , DotProtoMessageDefinition $ DotProtoMessage (Single (conName (undefined :: C1 t1 f ()))) fields2
+        ]
         where
           toLower (x : xs) = Char.toLower x : xs
 
