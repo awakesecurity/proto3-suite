@@ -851,7 +851,7 @@ instance (Constructor t1, Constructor t2, GenericMessage f, GenericMessage g) =>
             [ DotProtoField 1 (Prim (Named (Single (conName (undefined :: C1 t1 f ()))))) (Single (toLower $ conName (undefined :: C1 t1 f ()))) [] Nothing
             , DotProtoField 2 (Prim (Named (Single (conName (undefined :: C1 t2 g ()))))) (Single (toLower $ conName (undefined :: C1 t2 g ()))) [] Nothing ]
         , DotProtoMessageDefinition $ DotProtoMessage (Single (conName (undefined :: C1 t1 f ()))) fields1
-        , DotProtoMessageDefinition $ DotProtoMessage (Single (conName (undefined :: C1 t1 f ()))) fields2
+        , DotProtoMessageDefinition $ DotProtoMessage (Single (conName (undefined :: C1 t1 g ()))) fields2
         ]
         where
           toLower (x : xs) = Char.toLower x : xs
