@@ -1,5 +1,6 @@
 -- | This module provides types and functions to generate .proto files.
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists            #-}
 {-# LANGUAGE RecordWildCards            #-}
@@ -20,6 +21,9 @@ module Proto3.Suite.DotProto.Rendering
 import           Data.Char
 import qualified Data.Text                       as T
 import           Filesystem.Path.CurrentOS       (toText)
+#if (MIN_VERSION_base(4,11,0))
+import           Prelude                         hiding ((<>))
+#endif
 import           Proto3.Suite.DotProto.AST
 import           Proto3.Wire.Types               (FieldNumber (..))
 import           Text.PrettyPrint                (($$), (<+>), (<>))
