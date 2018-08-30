@@ -129,6 +129,8 @@ import           Safe                   (toEnumMay)
 import GHC.TypeLits.Extra
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
+import Debug.Trace (traceShow)
+import qualified Data.Char as Char
 
 -- | A class for types with default values per the protocol buffers spec.
 class HasDefault a where
@@ -739,10 +741,11 @@ class GenericMessage1 (f :: * -> *) where
 
 instance GenericMessage1 U1 where
   type GenericFieldCount1 U1 = 0
-  genericLiftEncodeMessage _ _ _ = mempty
-  genericLiftDecodeMessage _ _ = pure U1
+  genericLiftEncodeMessage _ num _ = mempty
+  genericLiftDecodeMessage _ num = pure U1
   genericLiftDotProto _      = mempty
 
+-- TODO Maybe the field number with encode.embedded and decode.embedded
 instance GenericMessage1 f => GenericMessage1 (M1 D c f) where
   type GenericFieldCount1 (M1 D c f) = GenericFieldCount1 f
   genericLiftEncodeMessage encodeMessage fieldNumber (M1 x) = genericLiftEncodeMessage encodeMessage fieldNumber x
@@ -776,7 +779,14 @@ instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g)
   genericLiftEncodeMessage encodeMessage num (R1 r) = genericLiftEncodeMessage encodeMessage num r
   -- FIXME: Implement these
   genericLiftDecodeMessage decodeMessage num = L1 <$> genericLiftDecodeMessage decodeMessage num <|> R1 <$> genericLiftDecodeMessage decodeMessage num
-  genericLiftDotProto _ = error "No genericLiftDotProto instance for f :+: g"
+  genericLiftDotProto (_ :: Proxy ((f :+: g) a)) = sumProtos (genericLiftDotProto (Proxy @(f a))) (genericLiftDotProto (Proxy @(g a)))
+    where
+      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageField rightField)] = pure $ DotProtoMessageOneOf (Single "sum") [ leftField, rightField ]
+      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageField rightField)] = pure $ DotProtoMessageOneOf name (fields <> [ rightField ])
+      sumProtos [(DotProtoMessageField leftField)] [(DotProtoMessageOneOf name fields)] = pure $ DotProtoMessageOneOf name (leftField : fields)
+      sumProtos [(DotProtoMessageOneOf name fields)] [(DotProtoMessageOneOf name' rightFields)] = pure $ DotProtoMessageOneOf name (fields <> rightFields)
+      sumProtos messages others = messages <> others
+
 
 instance (KnownNat (GenericFieldCount1 f), GenericMessage1 f, GenericMessage1 g) => GenericMessage1 (f :*: g) where
   type GenericFieldCount1 (f :*: g) = GenericFieldCount1 f + GenericFieldCount1 g
@@ -829,12 +839,22 @@ instance (KnownNat (GenericFieldCount f), GenericMessage f, GenericMessage g) =>
         DotProtoMessageField part { dotProtoFieldNumber = (FieldNumber . (offset +) . getFieldNumber . dotProtoFieldNumber) part }
       adjustPart part = part -- Don't adjust other message types?
 
-instance (GenericMessage f, GenericMessage g) => GenericMessage (f :+: g) where
-  type GenericFieldCount (f :+: g) = GenericFieldCount f `Max` GenericFieldCount g
+instance (Constructor t1, Constructor t2, GenericMessage f, GenericMessage g) => GenericMessage (M1 C t1 f :+: M1 C t2 g) where
+  type GenericFieldCount (C1 t1 f :+: C1 t2 g) = GenericFieldCount f `Max` GenericFieldCount g
   genericEncodeMessage num (L1 x) = genericEncodeMessage num x
   genericEncodeMessage num (R1 y) = genericEncodeMessage num y
   genericDecodeMessage num = L1 <$> genericDecodeMessage num <|> R1 <$> genericDecodeMessage num
-  genericDotProto _ = error "No genericDotProto instance for f :+: g"
+  genericDotProto (_ :: Proxy (M1 C t1 f :+: M1 C t2 g)) = sumProtos (genericDotProto (Proxy @f)) (genericDotProto (Proxy @g))
+    where
+      sumProtos fields1 fields2 =
+        [ DotProtoMessageOneOf (Single "sum")
+            [ DotProtoField 1 (Prim (Named (Single (conName (undefined :: C1 t1 f ()))))) (Single (toLower $ conName (undefined :: C1 t1 f ()))) [] Nothing
+            , DotProtoField 2 (Prim (Named (Single (conName (undefined :: C1 t2 g ()))))) (Single (toLower $ conName (undefined :: C1 t2 g ()))) [] Nothing ]
+        , DotProtoMessageDefinition $ DotProtoMessage (Single (conName (undefined :: C1 t1 f ()))) fields1
+        , DotProtoMessageDefinition $ DotProtoMessage (Single (conName (undefined :: C1 t2 g ()))) fields2
+        ]
+        where
+          toLower (x : xs) = Char.toLower x : xs
 
 instance MessageField c => GenericMessage (K1 i c) where
   type GenericFieldCount (K1 i c) = 1
