@@ -906,8 +906,8 @@ wrapE ctxt dpt opts e = case dpt of
     -> pure (wrapPrimE ctxt ty e)
   Optional ty
     -> pure (wrapPrimE ctxt ty e)
-  Repeated (Named tyName)
-    | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
+  Repeated (Named n)
+    | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup (tyName n) ctxt
       -> pure (wrapWithFuncE "NestedVec" e)
   Repeated ty
     | isUnpacked opts                     -> wrapVE "UnpackedVec" ty
@@ -915,6 +915,9 @@ wrapE ctxt dpt opts e = case dpt of
     | otherwise                           -> wrapVE "UnpackedVec" ty
   _ -> internalError "wrapE: unimplemented"
   where
+    tyName n = case n of
+      (Dots (Path [_, name])) -> Single name
+      name -> name
     wrapVE nm ty = pure . wrapWithFuncE nm . wrapPrimVecE ty $ e
 
 unwrapE :: TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> CompileResult HsExp
@@ -923,8 +926,8 @@ unwrapE ctxt dpt opts e = case dpt of
    -> pure (unwrapPrimE ctxt ty e)
  Optional ty
    -> pure (unwrapPrimE ctxt ty e)
- Repeated (Named tyName)
-   | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
+ Repeated (Named n)
+   | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup (tyName n) ctxt
      -> pure (unwrapWithFuncE "nestedvec" e)
  Repeated ty
    | isUnpacked opts                     -> unwrapVE ty "unpackedvec"
@@ -932,6 +935,9 @@ unwrapE ctxt dpt opts e = case dpt of
    | otherwise                           -> unwrapVE ty "unpackedvec"
  _ -> internalError "unwrapE: unimplemented"
  where
+   tyName n = case n of
+      (Dots (Path [_, name])) -> Single name
+      name -> name
    unwrapVE ty nm = pure . unwrapPrimVecE ty . unwrapWithFuncE nm $ e
 
 wrapPrimVecE, unwrapPrimVecE :: DotProtoPrimType -> HsExp -> HsExp
