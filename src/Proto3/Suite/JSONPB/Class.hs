@@ -65,6 +65,7 @@ import qualified Data.Aeson                       as A (Encoding, FromJSON (..),
                                                         decode, eitherDecode, json,
                                                         (.!=))
 import qualified Data.Aeson.Encoding              as E
+import qualified Data.Aeson.Encoding.Internal     as E
 import qualified Data.Aeson.Internal              as A (formatError, iparse)
 import qualified Data.Aeson.Parser                as A (eitherDecodeWith)
 import qualified Data.Aeson.Types                 as A (Object, Pair, Parser,
@@ -182,10 +183,14 @@ parseField :: FromJSONPB a
            => A.Object -> Text -> A.Parser a
 parseField = A.explicitParseField parseJSONPB
 
+-- | >>> isDefault (def @E.Encoding)
+-- True
 instance HasDefault E.Encoding where
-  def       = E.pairs mempty
+  def       = E.empty
   isDefault = E.nullEncoding
 
+-- | >>> isDefault (def @A.Value)
+-- True
 instance HasDefault A.Value where
   def       = A.Null
   isDefault = (== A.Null)

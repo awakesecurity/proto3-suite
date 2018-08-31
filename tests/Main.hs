@@ -64,6 +64,7 @@ docTests = testCase "doctests" $ do
     , "-itests"
     , "-igen"
     , "src/Proto3/Suite/DotProto/Internal.hs"
+    , "src/Proto3/Suite/JSONPB/Class.hs"
     , "tests/TestCodeGen.hs"
     ]
 
