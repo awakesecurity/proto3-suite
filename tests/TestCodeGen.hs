@@ -193,7 +193,7 @@ compileTestDotProtos = do
 -- prop> encodesAs json   (Something 42 99 (Just (SomethingPickOneDummyMsg1 (DummyMsg 66))))                        "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyMsg1\":{\"dummy\":66}}}"
 -- prop> encodesAs json   (Something 42 99 (Just (SomethingPickOneDummyMsg2 (DummyMsg 67))))                        "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyMsg2\":{\"dummy\":67}}}"
 -- prop> encodesAs json   (Something 42 99 (Just (SomethingPickOneDummyEnum (Enumerated (Right DummyEnumDUMMY0))))) "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyEnum\":\"DUMMY0\"}}"
--- prop> encodesAs json   (Something 42 99 Nothing)                                                                 "{\"value\":\"42\",\"another\":99,\"pickOne\":{}}"
+-- prop> encodesAs json   (Something 42 99 Nothing)                                                                 "{\"value\":\"42\",\"another\":99,\"pickOne\":null}"
 
 -- | Specific decoding tests
 -- prop> decodesAs "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}"   (SignedInts 2147483647 9223372036854775807)
@@ -219,6 +219,7 @@ compileTestDotProtos = do
 -- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyMsg2\":{\"dummy\":67}}}"  (Something 42 99 (Just (SomethingPickOneDummyMsg2 (DummyMsg 67))))
 -- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyEnum\":\"DUMMY0\"}}"      (Something 42 99 (Just (SomethingPickOneDummyEnum (Enumerated (Right DummyEnumDUMMY0)))))
 -- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{}}"                              (Something 42 99 Nothing)
+-- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":null}"                            (Something 42 99 Nothing)
 --
 -- Swagger
 --
