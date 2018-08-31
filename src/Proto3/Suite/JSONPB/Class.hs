@@ -243,8 +243,32 @@ dropNamedPrefix p = drop (length (nameOf p :: String))
 object :: [Options -> [A.Pair]] -> Options -> A.Value
 object fs = A.object . mconcat fs
 
+-- | As 'object', but produces 'A.Null' when there are no pairs to wrap (cf. the
+-- empty object result of 'object)
+--
+-- >>> object [const []] defaultOptions
+-- Object (fromList [])
+-- >>> objectOrNull [const []] defaultOptions
+-- Null
+objectOrNull :: [Options -> [A.Pair]] -> Options -> A.Value
+objectOrNull fs options = case mconcat fs options of
+  []       -> A.Null
+  nonEmpty -> A.object nonEmpty
+
 pairs :: [Options -> A.Series] -> Options -> E.Encoding
 pairs fs = E.pairs . mconcat fs
+
+-- | As 'pairs', but produces the "null" when there is no series to encode
+-- (cf. the empty object encoding of 'pairs')
+--
+-- >>> pairs [const mempty] defaultOptions
+-- "{}"
+-- >>> pairsOrNull [const mempty] defaultOptions
+-- "null"
+pairsOrNull :: [Options -> A.Series] -> Options -> E.Encoding
+pairsOrNull fs options = case mconcat fs options of
+  E.Empty  -> E.null_
+  nonEmpty -> E.pairs nonEmpty
 
 enumFieldString :: forall a. (Named a, Show a) => a -> A.Value
 enumFieldString = A.String . T.pack . dropNamedPrefix (Proxy @a) . show

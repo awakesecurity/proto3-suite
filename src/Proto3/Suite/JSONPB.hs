@@ -17,8 +17,10 @@ module Proto3.Suite.JSONPB
   , enumFieldEncoding
   , enumFieldString
   , object
+  , objectOrNull
   , pair
   , pairs
+  , pairsOrNull
   , parseField
   , toAesonEncoding
   , toAesonValue
