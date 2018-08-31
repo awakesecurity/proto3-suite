@@ -2,7 +2,6 @@
 
 module ArbitraryGeneratedTestTypes where
 
-import qualified Data.ByteString       as BS
 import qualified Data.Text.Lazy        as T
 import qualified Data.Vector           as V
 import qualified Proto3.Suite.Types as DotProto

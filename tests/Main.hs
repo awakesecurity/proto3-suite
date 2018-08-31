@@ -8,21 +8,13 @@
 module Main where
 
 import           ArbitraryGeneratedTestTypes ()
-import           Control.Applicative
-import           Control.Exception
 import qualified Data.ByteString             as B
-import qualified Data.ByteString.Builder     as BB
 import qualified Data.ByteString.Char8       as BC
 import qualified Data.ByteString.Lazy        as BL
 import           Data.Either                 (isRight)
-import           Data.Int
-import           Data.Maybe                  (fromJust)
 import           Data.Monoid
 import           Data.Proxy
-import           Data.Serialize.Get          (runGet)
 import           Data.String
-import qualified Data.Text.Lazy              as TL
-import           Data.Word                   (Word64)
 import           GHC.Exts                    (fromList)
 import           Proto3.Suite
 import           Proto3.Wire.Decode          (ParseError)
@@ -72,6 +64,7 @@ docTests = testCase "doctests" $ do
     , "-itests"
     , "-igen"
     , "src/Proto3/Suite/DotProto/Internal.hs"
+    , "src/Proto3/Suite/JSONPB/Class.hs"
     , "tests/TestCodeGen.hs"
     ]
 

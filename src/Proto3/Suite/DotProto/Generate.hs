@@ -885,7 +885,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
   -- >   HsJSONPB.object
   -- >     [ (let encodeFoo = (<case expr scrutinising foo> :: Options -> Value)
   -- >        in \option -> if optEmitNamedOneof option
-  -- >                      then ("Foo" .= (PB.object [encodeFoo] option)) option
+  -- >                      then ("Foo" .= (PB.objectOrNull [encodeFoo] option)) option
   -- >                      else encodeFoo option
   -- >       )
   -- >     , <encode more>
@@ -940,18 +940,23 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
                      []
 
   let patBinder = onQF (const fieldBinder) (oneofSubDisjunctBinder . subfields)
-  let applyE nm = apply (HsVar (jsonpbName nm)) [ HsList (onQF defPairE (oneofCaseE nm) <$> qualFields) ]
 
-  let matchE nm appNm = match_ (HsIdent nm)
-                               [ HsPApp (unqual_ msgName)
-                                        (patVar . patBinder <$> qualFields) ]
-                               (HsUnGuardedRhs (applyE appNm))
-                               []
+  let applyE nm oneofNm =
+        apply (HsVar (jsonpbName nm))
+              [ HsList (onQF defPairE (oneofCaseE oneofNm) <$> qualFields) ]
+
+  let matchE nm appNm oneofAppNm =
+        match_
+          (HsIdent nm)
+          [ HsPApp (unqual_ msgName)
+                   (patVar . patBinder <$> qualFields) ]
+          (HsUnGuardedRhs (applyE appNm oneofAppNm))
+          []
 
   pure $ instDecl_ (jsonpbName "ToJSONPB")
                    [ type_ msgName ]
-                   [ HsFunBind [matchE "toJSONPB" "object"]
-                   , HsFunBind [matchE "toEncodingPB" "pairs"]
+                   [ HsFunBind [matchE "toJSONPB"     "object" "objectOrNull"]
+                   , HsFunBind [matchE "toEncodingPB" "pairs"  "pairsOrNull" ]
                    ]
 
 
@@ -2099,4 +2104,4 @@ l :: SrcLoc
 l = SrcLoc "<generated>" 0 0
 
 __nowarn_unused :: a
-__nowarn_unused = subfieldType `undefined` subfieldOptions
+__nowarn_unused = subfieldType `undefined` subfieldOptions `undefined` oneofType
