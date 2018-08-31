@@ -2,9 +2,9 @@ name:                proto3-suite
 version:             0.2.0.0
 synopsis:            A low level library for writing out data in the Protocol Buffers wire format
 license:             Apache-2.0
-author:              Awake Networks
-maintainer:          opensource@awakenetworks.com
-copyright:           2017 Awake Networks
+author:              Awake Security
+maintainer:          opensource@awakesecurity.com
+copyright:           2017-2018 Awake Security
 category:            Codec
 build-type:          Simple
 cabal-version:       >=1.10
@@ -72,7 +72,7 @@ library
 
   hs-source-dirs:      src
   default-language:    Haskell2010
-  ghc-options:         -O2 -Wall
+  ghc-options:         -O2 -Wall -Werror
 
 test-suite tests
   type:                exitcode-stdio-1.0
@@ -83,8 +83,13 @@ test-suite tests
     build-depends:     dhall >=1.13.0 && < 1.16
     cpp-options:       -DDHALL
 
-  other-modules:       TestProto
+  other-modules:       ArbitraryGeneratedTestTypes
+                       TestProto
                        TestCodeGen
+                       TestProtoImport
+                       TestProtoOneof
+                       TestProtoOneofImport
+
   hs-source-dirs:      tests gen
   default-language:    Haskell2010
   build-depends:       base >=4.8 && <5.0,
@@ -108,6 +113,7 @@ test-suite tests
                        transformers >=0.4 && <0.6,
                        turtle,
                        vector >=0.11 && < 0.13
+  ghc-options:         -O2 -Wall -Werror
 
 executable compile-proto-file
   main-is:             Main.hs
@@ -119,6 +125,7 @@ executable compile-proto-file
                        , system-filepath
                        , text
                        , turtle
+  ghc-options:         -O2 -Wall -Werror
 
 executable canonicalize-proto-file
   main-is:             Main.hs
@@ -132,3 +139,4 @@ executable canonicalize-proto-file
                        , range-set-list >=0.1.2 && <0.2
                        , system-filepath
                        , turtle
+  ghc-options:         -O2 -Wall -Werror

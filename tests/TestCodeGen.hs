@@ -19,20 +19,15 @@ import           Data.Swagger                   (ToSchema)
 import qualified Data.Swagger
 import qualified Data.Text                      as T
 import           Prelude                        hiding (FilePath)
-import qualified Prelude
-import           Proto3.Suite
 import           Proto3.Suite.DotProto.Generate
 import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  ToJSONPB (..), eitherDecode,
-                                                 encode, defaultOptions, jsonPBOptions)
+                                                 encode, defaultOptions)
 import           System.Exit
 import           Test.Tasty
 import           Test.Tasty.HUnit               (testCase, (@?=))
-import           TestProto
-import           TestProtoOneof
 import           Turtle                         (FilePath)
 import qualified Turtle
-import           Turtle.Format                  ((%))
 import qualified Turtle.Format                  as F
 
 codeGenTests :: TestTree
@@ -151,7 +146,10 @@ compileTestDotProtos = do
 -- $setup
 -- >>> import qualified Data.Text.Lazy as TL
 -- >>> import qualified Data.Vector    as V
+-- >>> import Proto3.Suite
 -- >>> import Proto3.Suite.JSONPB
+-- >>> import TestProto
+-- >>> import TestProtoOneof
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XOverloadedLists
 -- >>> :set -XTypeApplications

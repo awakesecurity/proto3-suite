@@ -121,7 +121,7 @@ instance CanonicalRank DotProtoMessagePart
     DotProtoMessageField f -> Right (canonicalRank f)
     DotProtoMessageOneOf _ fs -> Right (canonicalRank fs)
     DotProtoMessageDefinition d -> Left (Left (canonicalRank d))
-    DotProtoMessageReserved fs -> Left (Right ())
+    DotProtoMessageReserved _fs -> Left (Right ())
       -- We use '()' here because 'Canonicalize [DotProtoMessagePart]'
       -- collapses all of the 'DotProtoMessageReserved's into just one.
 

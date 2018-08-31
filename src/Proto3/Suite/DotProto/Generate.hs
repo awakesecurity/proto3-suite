@@ -2099,4 +2099,4 @@ l :: SrcLoc
 l = SrcLoc "<generated>" 0 0
 
 __nowarn_unused :: a
-__nowarn_unused = subfieldType `undefined` subfieldOptions
+__nowarn_unused = subfieldType `undefined` subfieldOptions `undefined` oneofType
