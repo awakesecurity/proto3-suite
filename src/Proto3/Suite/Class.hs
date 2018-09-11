@@ -885,6 +885,6 @@ instance GenericMessage f => GenericMessage (M1 C t f) where
 
 instance GenericMessage f => GenericMessage (M1 D t f) where
   type GenericFieldCount (M1 D t f) = GenericFieldCount f
-  genericEncodeMessage num (M1 x) = genericEncodeMessage num x
-  genericDecodeMessage num = fmap M1 $ genericDecodeMessage num
+  genericEncodeMessage num (M1 x) = Encode.embedded num (genericEncodeMessage 1 x)
+  genericDecodeMessage num = fmap M1 $ Decode.at (Decode.embedded'' (genericDecodeMessage 1)) num
   genericDotProto _ = genericDotProto (Proxy @f)
