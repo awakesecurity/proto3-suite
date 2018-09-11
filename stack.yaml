@@ -1,5 +1,7 @@
 resolver: lts-12.0
 
+extra-deps:
+- wl-pprint-1.2.1
 packages:
 - .
 - location:
