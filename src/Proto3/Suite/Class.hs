@@ -100,7 +100,6 @@ import           Data.Int               (Int32, Int64)
 import           Data.Maybe             (fromMaybe, isNothing)
 import           Data.Monoid            ((<>))
 import           Data.Proxy             (Proxy (..))
-import           Data.Sequence          (Seq)
 import           Data.String            (IsString (..))
 import qualified Data.Text              as T
 import qualified Data.Text.Lazy         as TL
@@ -474,9 +473,6 @@ instance (Bounded e, Named e, Enum e) => MessageField (Enumerated e)
 instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
   encodeMessageField = encodePrimitive
 
-seqToVec :: Seq a -> Vector a
-seqToVec = fromList . F.toList
-
 instance (Named a, Message a) => MessageField (Nested a) where
   encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . nested
   decodeMessageField = fmap Nested (Decode.embedded (decodeMessage (fieldNumber 1)))
@@ -484,13 +480,13 @@ instance (Named a, Message a) => MessageField (Nested a) where
 
 instance Primitive a => MessageField (UnpackedVec a) where
   encodeMessageField = foldMap . encodePrimitive
-  decodeMessageField = UnpackedVec . seqToVec <$> repeated decodePrimitive
+  decodeMessageField = UnpackedVec . fromList <$> repeated decodePrimitive
   protoType _ = messageField (Repeated $ primType (Proxy @a)) (Just DotProto.UnpackedField)
 
 instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
   encodeMessageField fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
                           . nestedvec
-  decodeMessageField = fmap (NestedVec . seqToVec)
+  decodeMessageField = fmap (NestedVec . fromList)
                             (repeated (Decode.embedded' oneMsg))
     where
       oneMsg :: Parser RawMessage a
@@ -592,7 +588,7 @@ decodePacked = Parser
              . TR.traverse
              . runParser
   where
-    pack :: forall a. Seq [a] -> PackedVec a
+    pack :: forall a. [[a]] -> PackedVec a
     pack = fromList . join . F.toList
 
 
