@@ -94,7 +94,6 @@ import           Control.Monad
 import qualified Data.ByteString        as B
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy   as BL
-import qualified Data.Foldable          as F
 import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
 import           Data.Maybe             (fromMaybe, isNothing)
@@ -589,7 +588,7 @@ decodePacked = Parser
              . runParser
   where
     pack :: forall a. [[a]] -> PackedVec a
-    pack = fromList . join . F.toList
+    pack = fromList . join . reverse
 
 
 -- | This class captures those types which correspond to protocol buffer messages.
