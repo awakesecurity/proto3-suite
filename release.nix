@@ -7,7 +7,7 @@
 #     [nix-shell]$ cabal configure --enable-tests
 #     [nix-shell]$ cabal test
 
-{ compiler ? "ghc822", enableDhall ? false }:
+{ compiler ? "ghc843", enableDhall ? false }:
 
 let
   fetchNixpkgs = import ./nix/fetchNixpkgs.nix;
