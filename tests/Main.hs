@@ -12,9 +12,9 @@ import qualified Data.ByteString             as B
 import qualified Data.ByteString.Char8       as BC
 import qualified Data.ByteString.Lazy        as BL
 import           Data.Either                 (isRight)
-import           Data.Monoid
 import           Data.Proxy
 import           Data.String
+import           Data.Semigroup              ((<>))
 import           GHC.Exts                    (fromList)
 import           Proto3.Suite
 import           Proto3.Wire.Decode          (ParseError)
