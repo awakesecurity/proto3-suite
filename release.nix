@@ -7,15 +7,15 @@
 #     [nix-shell]$ cabal configure --enable-tests
 #     [nix-shell]$ cabal test
 
-{ compiler ? "ghc843", enableDhall ? false }:
+{ compiler ? "ghc844", enableDhall ? false }:
 
 let
   fetchNixpkgs = import ./nix/fetchNixpkgs.nix;
 
   nixpkgs = fetchNixpkgs {
-    rev          = "f5689d5d6b9be626e8528cb63e2f2cf8f9a0c87e";
-    sha256       = "0dn2bjkqc3q5vw6x048fj0il2s3d25jjxx8rmjpayxxipx5nikky";
-    outputSha256 = "101f0nnk6i25x9nxviy4by1mpxbdplq81hssvvgi8x54yvh8m3rq";
+    rev          = "bedbba61380a4da0318de41fcb790c176e1f26d1";
+    sha256       = "0z4fgh15nz86kxib9ildmh49v6jim6vgbjyla7jbmgdcl0vd9qsg";
+    outputSha256 = "0dxxw2ipa9403nk8lggjsypbr1a9jpb3q4hkjsg89gr5wz26p217";
   };
 
   config = { };
