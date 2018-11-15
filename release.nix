@@ -7,15 +7,15 @@
 #     [nix-shell]$ cabal configure --enable-tests
 #     [nix-shell]$ cabal test
 
-{ compiler ? "ghc822", enableDhall ? false }:
+{ compiler ? "ghc844", enableDhall ? false }:
 
 let
   fetchNixpkgs = import ./nix/fetchNixpkgs.nix;
 
   nixpkgs = fetchNixpkgs {
-    rev          = "e942479be49c3d1b586201be7488d7190ff46255";
-    sha256       = "0q4jdlvx0i1bhxy7xk85mflv7fchlap28sis9qn4p3naz2l46mbw";
-    outputSha256 = "0n424nkkjzvvsk0bcvb4lhyjl4k88nc5dzayjvscsqxssh1g06yh";
+    rev          = "bedbba61380a4da0318de41fcb790c176e1f26d1";
+    sha256       = "0z4fgh15nz86kxib9ildmh49v6jim6vgbjyla7jbmgdcl0vd9qsg";
+    outputSha256 = "0dxxw2ipa9403nk8lggjsypbr1a9jpb3q4hkjsg89gr5wz26p217";
   };
 
   config = { };
@@ -39,9 +39,45 @@ let
                       (haskellPackagesNew.callPackage ./nix/prettyprinter.nix { });
 
                   proto3-suite-base =
-                    if enableDhall
-                    then haskellPackagesNew.callPackage ./nix/proto3-suite-dhall.nix {}
-                    else haskellPackagesNew.callPackage ./nix/proto3-suite.nix {};
+                    let
+
+                      # Adds a nix file as an input to the haskell derivation it
+                      # produces. This is useful for callHackage / callCabal2nix to
+                      # prevent the generated default.nix from being garbage collected
+                      # (requiring it to be frequently rebuilt), which can be an
+                      # annoyance.
+                      #
+                      # Cribbed from nixpkgs master because it was not
+                      # backported to 18.09
+                      callPackageKeepDeriver = src: args:
+                        pkgsNew.haskell.lib.overrideCabal (haskellPackagesNew.callPackage src args) (orig: {
+                          preConfigure = ''
+                            # Generated from ${src}
+                            ${orig.preConfigure or ""}
+                          '';
+                        });
+
+                      # Cribbed from nixpkgs master because it was not
+                      # backported to 18.09
+                      callCabal2nixWithOptions = name: src: extraCabal2nixOptions: args:
+                        let
+                          filter = path: type:
+                                     pkgsNew.lib.hasSuffix "${name}.cabal" path ||
+                                     baseNameOf path == "package.yaml";
+                          expr = haskellPackagesNew.haskellSrc2nix {
+                            inherit name extraCabal2nixOptions;
+                            src = if pkgsNew.lib.canCleanSource src
+                                  then pkgsNew.lib.cleanSourceWith { inherit src filter; }
+                                  else src;
+                          };
+                        in pkgsNew.haskell.lib.overrideCabal (callPackageKeepDeriver expr args) (orig: {
+                             inherit src;
+                           });
+
+                      cabal2nixFlags = if enableDhall then "-fdhall" else "";
+                    in
+                      callCabal2nixWithOptions "proto3-suite" ./. cabal2nixFlags { };
+
                   proto3-suite-boot =
                     pkgsNew.haskell.lib.overrideCabal
                       proto3-suite-base
