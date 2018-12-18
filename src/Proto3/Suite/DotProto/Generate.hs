@@ -39,6 +39,7 @@ import           Control.Lens                   ((<&>), ix, over)
 import           Data.Bifunctor                 (first)
 import           Data.Char
 import           Data.Coerce
+import           Data.Either                    (partitionEithers)
 import           Data.List                      (find, intercalate, nub, sortBy,
                                                  stripPrefix)
 import qualified Data.Map                       as M
@@ -278,9 +279,22 @@ instancesForModule m = foldr go []
 
 -- | For each thing in @base@ replaces it if it finds a matching @override@
 replaceHsInstDecls :: [HsDecl] -> [HsDecl] -> [HsDecl]
-replaceHsInstDecls overrides base = map mbReplace base
-  where mbReplace hid@(HsInstDecl _ _ qn tys _) = fromMaybe hid $ find (\x -> Just (unQual qn,tys) == getSig x) overrides
-        mbReplace hid = hid
+replaceHsInstDecls overrides base = concatMap mbReplace base
+  where -- instances defined separately from data type definition:
+        mbReplace hid@(HsInstDecl _ _ qn tys _) =
+            (: []) . fromMaybe hid $ search qn tys
+
+        -- instances listed in "deriving" clause of data type definition:
+        mbReplace (HsDataDecl loc ctx tyn names def insts) =
+            let (filtered,customized) = partitionEithers (map (deriv tyn) insts)
+            in HsDataDecl loc ctx tyn names def filtered : customized
+
+        -- irrelevant declarations remain unchanged:
+        mbReplace hid = [hid]
+
+        deriv tyn qn = maybe (Left qn) Right $ search qn [HsTyCon (UnQual tyn)]
+
+        search qn tys = find (\x -> Just (unQual qn,tys) == getSig x) overrides
 
         getSig (HsInstDecl _ _ qn tys _) = Just (unQual qn,tys)
         getSig _ = Nothing
