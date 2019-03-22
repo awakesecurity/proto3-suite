@@ -287,7 +287,7 @@ messageType = try mapType <|> try repType <|> (Prim <$> primType)
   where
     mapType = do symbol "map"
                  angles $ Map <$> (primType <* comma)
-                              <*> primType
+                              <*> messageType
 
     repType = do symbol "repeated"
                  Repeated <$> primType

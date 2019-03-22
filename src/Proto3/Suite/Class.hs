@@ -94,8 +94,10 @@ import           Control.Monad
 import qualified Data.ByteString        as B
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy   as BL
+import qualified Data.Coerce
 import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
+import qualified Data.Map               as M
 import           Data.Maybe             (fromMaybe, isNothing)
 import           Data.Monoid            ((<>))
 import           Data.Proxy             (Proxy (..))
@@ -469,13 +471,37 @@ instance MessageField B.ByteString
 instance MessageField BL.ByteString
 instance (Bounded e, Named e, Enum e) => MessageField (Enumerated e)
 
+instance (Ord k, Primitive k, MessageField v) => MessageField (Wire.MapOfFields k v) where
+  encodeMessageField num = foldMap (\(k, v) -> Encode.embedded num $
+                                     encodePrimitive (fieldNumber 1) k <>
+                                     encodeMessageField (fieldNumber 2) v
+                                   )
+                           . M.toList
+                           . Data.Coerce.coerce @(Wire.MapOfFields k v) @(M.Map k v)
+  decodeMessageField = Data.Coerce.coerce @(M.Map k v) @(Wire.MapOfFields k v)
+                       . M.fromList . fromList
+                       <$> repeated ((,) <$> decodePrimitive @k <*> Decode.embedded' (Decode.at (decodeMessageField @v) 2))
+  protoType _ = messageField (Map (primType (Proxy @k)) (dotProtoFieldType $ protoType (Proxy @v))) Nothing
+
+instance (Ord k, Primitive k, Message v, Named v) => MessageField (Wire.MapOfMessages k v) where
+  encodeMessageField num = foldMap (\(k,v) -> Encode.embedded num $
+                                     encodePrimitive (fieldNumber 1) k <>
+                                     encodeMessage (fieldNumber 2) v
+                                   )
+                           . M.toList
+                           . Data.Coerce.coerce @(Wire.MapOfMessages k v) @(M.Map k v)
+  decodeMessageField = Data.Coerce.coerce @(M.Map k v) @(Wire.MapOfMessages k v)
+                       . M.fromList . fromList
+                       <$> repeated ((,) <$> decodePrimitive @k <*> Decode.embedded' (decodeMessage @v 2))
+  protoType _ = messageField (Map (primType (Proxy @k)) (Prim . Named . Single . nameOf $ Proxy @v)) Nothing
+
 instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
   encodeMessageField = encodePrimitive
 
 instance (Named a, Message a) => MessageField (Nested a) where
   encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . nested
   decodeMessageField = fmap Nested (Decode.embedded (decodeMessage (fieldNumber 1)))
-  protoType _ = messageField (Prim $ Named (Single (nameOf (Proxy @a)))) Nothing
+  protoType _ = messageField (Prim . Named . Single . nameOf $ Proxy @a) Nothing
 
 instance Primitive a => MessageField (UnpackedVec a) where
   encodeMessageField = foldMap . encodePrimitive
@@ -503,7 +529,7 @@ instance (Bounded e, Enum e, Named e) => MessageField (PackedVec (Enumerated e))
     where
       -- retain only those values which are inside the enum range
       retain = foldMap (pure . Enumerated. Right) . toEnumMay . fromIntegral
-  protoType _ = messageField (Repeated (Named (Single (nameOf (Proxy @e))))) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated . Named . Single . nameOf $ Proxy @e) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Bool) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromBool
