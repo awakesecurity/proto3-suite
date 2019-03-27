@@ -1424,9 +1424,9 @@ mkWrapE ctxt dpt opts = case dpt of
                (HsApp (HsVar $ haskellName "mapKeysMonotonic") <$> wrapPrimE ctxt k)
                (HsApp fmapE <$> wrapV)
   where
-    wrapVE nm ty = pure $ Just $ foldl (\e -> maybe e (HsInfixApp e composeOp))
-                                       (HsVar (protobufName nm))
-                                       [wrapPrimVecE ty]
+    wrapVE nm ty = pure $ maybeCompose
+                            (Just (HsVar (protobufName nm)))
+                            (wrapPrimVecE ty)
 
 -- | The inverse of wrapE.
 mkUnwrapE
@@ -1453,10 +1453,9 @@ mkUnwrapE ctxt dpt opts = case dpt of
               (HsApp (HsVar $ haskellName "mapKeysMonotonic") <$> unwrapPrimE ctxt k)
               (HsApp fmapE <$> unwrapV)
  where
-   unwrapVE ty nm = pure $ Just
-                         $ foldl (\e f -> maybe e (\f' -> HsInfixApp (HsApp fmapE f') composeOp e) f)
-                                 (HsVar $ protobufName nm)
-                                 [unwrapPrimVecE ty]
+   unwrapVE ty nm = pure $ maybeCompose
+                             (Just (HsVar $ protobufName nm))
+                             (unwrapPrimVecE ty)
 
 
 wrapPrimVecE :: DotProtoPrimType -> Maybe HsExp
@@ -1845,21 +1844,16 @@ stringLitC           = HsVar (protobufName "StringLit")
 intLitC              = HsVar (protobufName "IntLit")
 floatLitC            = HsVar (protobufName "FloatLit")
 boolLitC             = HsVar (protobufName "BoolLit")
-trueC                = HsVar (haskellName "True")
-falseC               = HsVar (haskellName "False")
-unaryHandlerC        = HsVar (grpcName "UnaryHandler")
-clientStreamHandlerC = HsVar (grpcName "ClientStreamHandler")
-serverStreamHandlerC = HsVar (grpcName "ServerStreamHandler")
-biDiStreamHandlerC   = HsVar (grpcName "BiDiStreamHandler")
-methodNameC          = HsVar (grpcName "MethodName")
-nothingC             = HsVar (haskellName "Nothing")
-justC                = HsVar (haskellName "Just")
 forceEmitC           = HsVar (protobufName "ForceEmit")
+encodeMessageFieldE  = HsVar (protobufName "encodeMessageField")
+decodeMessageFieldE  = HsVar (protobufName "decodeMessageField")
+atE                  = HsVar (protobufName "at")
+oneofE               = HsVar (protobufName "oneof")
 
-encodeMessageFieldE         = HsVar (protobufName "encodeMessageField")
-decodeMessageFieldE         = HsVar (protobufName "decodeMessageField")
-atE                         = HsVar (protobufName "at")
-oneofE                      = HsVar (protobufName "oneof")
+trueC                       = HsVar (haskellName "True")
+falseC                      = HsVar (haskellName "False")
+nothingC                    = HsVar (haskellName "Nothing")
+justC                       = HsVar (haskellName "Just")
 mconcatE                    = HsVar (haskellName "mconcat")
 fromStringE                 = HsVar (haskellName "fromString")
 pureE                       = HsVar (haskellName "pure")
@@ -1870,6 +1864,12 @@ succErrorE                  = HsVar (haskellName "succError")
 predErrorE                  = HsVar (haskellName "predError")
 toEnumErrorE                = HsVar (haskellName "toEnumError")
 fmapE                       = HsVar (haskellName "fmap")
+
+unaryHandlerC               = HsVar (grpcName "UnaryHandler")
+clientStreamHandlerC        = HsVar (grpcName "ClientStreamHandler")
+serverStreamHandlerC        = HsVar (grpcName "ServerStreamHandler")
+biDiStreamHandlerC          = HsVar (grpcName "BiDiStreamHandler")
+methodNameC                 = HsVar (grpcName "MethodName")
 defaultOptionsE             = HsVar (grpcName "defaultOptions")
 serverLoopE                 = HsVar (grpcName "serverLoop")
 convertServerHandlerE       = HsVar (grpcName "convertGeneratedServerHandler")
@@ -1891,9 +1891,9 @@ serverRequestT   = HsTyCon (grpcName "ServerRequest")
 serverResponseT  = HsTyCon (grpcName "ServerResponse")
 clientRequestT   = HsTyCon (grpcName "ClientRequest")
 clientResultT    = HsTyCon (grpcName "ClientResult")
+grpcClientT      = HsTyCon (grpcName "Client")
 ioActionT        = tyApp ioT [ HsTyTuple [] ]
 ioT              = HsTyCon (haskellName "IO")
-grpcClientT      = HsTyCon (grpcName "Client")
 
 apOp :: HsQOp
 apOp  = HsQVarOp (UnQual (HsSymbol "<*>"))
