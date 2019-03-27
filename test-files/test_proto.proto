@@ -140,3 +140,11 @@ enum EnumAnnots {
   FOO = 0;
   BAR = 1 [deprecated=true];
 }
+
+message MapTest {
+  map<string, sint32> prim = 1;
+  map<int32, Wrapped> wrapped = 2;
+  map<string, repeated OutOfOrderFields> listOfMessages = 3;
+  map<int32, repeated bool> listOfPackedBool = 4 [packed=true];
+  map<int32, repeated int32> listOfUnpackedInt32 = 5;
+}
