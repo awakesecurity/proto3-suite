@@ -147,4 +147,5 @@ message MapTest {
   map<string, repeated OutOfOrderFields> listOfMessages = 3;
   map<int32, repeated bool> listOfPackedBool = 4 [packed=true];
   map<int32, repeated int32> listOfUnpackedInt32 = 5;
+  map<sint32, sint32> signedSigned = 6; // both the key and value needs to be wrapped with 'Signed'
 }

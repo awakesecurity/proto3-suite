@@ -209,6 +209,10 @@ instance HasDefault (Maybe a) where
   def       = Nothing
   isDefault = isNothing
 
+instance HasDefault (M.Map k v) where
+  def = M.empty
+  isDefault = M.null
+
 -- TODO: Determine if we have a reason for rendering fixed32/sfixed as Fixed
 -- Word32/Int32 in generated datatypes; for other field types, we omit the
 -- newtype wrappers in the type signature but un/wrap them as needed in the
@@ -223,6 +227,13 @@ instance HasDefault (Fixed Int32)
 
 -- | Used in generated records to represent @sfixed64@
 instance HasDefault (Fixed Int64)
+
+-- | This class captures the types which are valid map keys.
+-- from the proto3 reference guide:
+-- > the key_type can be any integral or string type (so, any scalar type except
+-- > for floating point types and bytes). Note that enum is not a valid key_type.
+class IsMapKey a where
+
 
 -- | This class captures those types whose names need to appear in .proto files.
 --
@@ -471,29 +482,36 @@ instance MessageField B.ByteString
 instance MessageField BL.ByteString
 instance (Bounded e, Named e, Enum e) => MessageField (Enumerated e)
 
-instance (Ord k, Primitive k, MessageField v) => MessageField (Wire.MapOfFields k v) where
+instance (Ord k, Primitive k, MessageField v) => MessageField (M.Map k v) where
   encodeMessageField num = foldMap (\(k, v) -> Encode.embedded num $
                                      encodePrimitive (fieldNumber 1) k <>
                                      encodeMessageField (fieldNumber 2) v
                                    )
                            . M.toList
-                           . Data.Coerce.coerce @(Wire.MapOfFields k v) @(M.Map k v)
-  decodeMessageField = Data.Coerce.coerce @(M.Map k v) @(Wire.MapOfFields k v)
-                       . M.fromList . fromList
+--                           . Data.Coerce.coerce @(Wire.MapOfFields k v)
+--                           @(M.Map k v)
+
+  -- 'reverse' the list before turning into a map because the map monoid keeps
+  -- the first key. From the spec:
+  --
+  -- > When parsing from the wire or when merging, if there are duplicate map
+  -- > keys the last key seen is used.
+  decodeMessageField = --Data.Coerce.coerce @(M.Map k v) @(Wire.MapOfFields k v)
+                       M.fromList . reverse . fromList
                        <$> repeated ((,) <$> decodePrimitive @k <*> Decode.embedded' (Decode.at (decodeMessageField @v) 2))
   protoType _ = messageField (Map (primType (Proxy @k)) (dotProtoFieldType $ protoType (Proxy @v))) Nothing
 
-instance (Ord k, Primitive k, Message v, Named v) => MessageField (Wire.MapOfMessages k v) where
-  encodeMessageField num = foldMap (\(k,v) -> Encode.embedded num $
-                                     encodePrimitive (fieldNumber 1) k <>
-                                     encodeMessage (fieldNumber 2) v
-                                   )
-                           . M.toList
-                           . Data.Coerce.coerce @(Wire.MapOfMessages k v) @(M.Map k v)
-  decodeMessageField = Data.Coerce.coerce @(M.Map k v) @(Wire.MapOfMessages k v)
-                       . M.fromList . fromList
-                       <$> repeated ((,) <$> decodePrimitive @k <*> Decode.embedded' (decodeMessage @v 2))
-  protoType _ = messageField (Map (primType (Proxy @k)) (Prim . Named . Single . nameOf $ Proxy @v)) Nothing
+-- instance (Ord k, Primitive k, Message v, Named v) => MessageField (Wire.MapOfMessages k v) where
+--   encodeMessageField num = foldMap (\(k,v) -> Encode.embedded num $
+--                                      encodePrimitive (fieldNumber 1) k <>
+--                                      encodeMessage (fieldNumber 2) v
+--                                    )
+--                            . M.toList
+--                            . Data.Coerce.coerce @(Wire.MapOfMessages k v) @(M.Map k v)
+--   decodeMessageField = Data.Coerce.coerce @(M.Map k v) @(Wire.MapOfMessages k v)
+--                        . M.fromList . fromList
+--                        <$> repeated ((,) <$> decodePrimitive @k <*> Decode.embedded' (decodeMessage @v 2))
+--   protoType _ = messageField (Map (primType (Proxy @k)) (Prim . Named . Single . nameOf $ Proxy @v)) Nothing
 
 instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
   encodeMessageField = encodePrimitive

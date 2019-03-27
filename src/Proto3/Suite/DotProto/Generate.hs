@@ -1387,10 +1387,6 @@ coerceE from to = HsApp (HsApp (HsVar (haskellName "coerce")) (typeApp from)) (t
   where
     typeApp ty = HsVar (UnQual (HsIdent ("@("++ prettyPrint ty ++ ")")))
 
--- Translate a dot proto type to its Haskell type
-dpTypeToHaskell :: DotProtoType -> HsType
-dpTypeToHaskell = undefined
-
 wrapE :: MonadError CompileError m => TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> m HsExp
 wrapE ctxt dpt opts e = fmap HsParen $ maybe id (HsApp . HsParen) <$> mkWrapE ctxt dpt opts <*> pure e
 
@@ -1398,7 +1394,12 @@ wrapE ctxt dpt opts e = fmap HsParen $ maybe id (HsApp . HsParen) <$> mkWrapE ct
 unwrapE :: MonadError CompileError m => TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> m HsExp
 unwrapE ctxt dpt opts e = fmap HsParen $ maybe id (\f -> HsInfixApp f fmapOp) <$> mkUnwrapE ctxt dpt opts <*> pure e
 
--- make a transformer to apply to a haskell type based on the dot proto type.
+maybeCompose :: Maybe HsExp -> Maybe HsExp -> Maybe HsExp
+maybeCompose Nothing e = e
+maybeCompose e Nothing = e
+maybeCompose (Just e1) (Just e2) = Just $ HsInfixApp e1 composeOp e2
+
+-- | Make a transformer to apply to a haskell type based on the dot proto type.
 mkWrapE
     :: MonadError CompileError m
     => TypeContext
@@ -1417,33 +1418,17 @@ mkWrapE ctxt dpt opts = case dpt of
       | isUnpacked opts                     -> wrapVE "UnpackedVec" ty
       | isPacked opts || isPackable ctxt ty -> wrapVE "PackedVec"   ty
       | otherwise                           -> wrapVE "UnpackedVec" ty
-
-    -- use MapOfMessages
-    -- apply: MapOfMessages . Map.mapKeysMonotonic wrapPrimE . map wrapE
-    Map k v@(Prim (Named _)) -> wrapMap "MapOfMessages" k v
-    Map k v@(Optional (Named _)) -> wrapMap "MapOfMessages" k v
-
-    -- use MapOfFields
-    -- apply: MapOfFields . Map.mapKeysMonotonic wrapPrimE . map wrapE
-    Map k v -> wrapMap "MapOfFields" k v
-
-    _ -> internalError "wrapE: unimplemented"
-  where
-    composeWraps :: HsExp -> [Maybe HsExp] -> HsExp
-    composeWraps = foldl (\e -> maybe e (HsInfixApp e composeOp))
-
-    wrapVE nm ty = pure $ Just $ composeWraps (HsVar (protobufName nm)) [wrapPrimVecE ty]
-
-    wrapMap wrapper k v = do
+    Map k v -> do
       wrapV <- mkWrapE ctxt v opts
-      pure $ Just
-           $ composeWraps
-             (HsVar (protobufName wrapper))
-             [ HsApp (HsVar $ haskellName "mapKeysMonotonic") <$> wrapPrimE ctxt k
-             , HsApp fmapE <$> wrapV
-             ]
+      pure $ maybeCompose
+               (HsApp (HsVar $ haskellName "mapKeysMonotonic") <$> wrapPrimE ctxt k)
+               (HsApp fmapE <$> wrapV)
+  where
+    wrapVE nm ty = pure $ Just $ foldl (\e -> maybe e (HsInfixApp e composeOp))
+                                       (HsVar (protobufName nm))
+                                       [wrapPrimVecE ty]
 
--- the inverse of wrapE.
+-- | The inverse of wrapE.
 mkUnwrapE
     :: MonadError CompileError m
     => TypeContext
@@ -1462,27 +1447,16 @@ mkUnwrapE ctxt dpt opts = case dpt of
     | isUnpacked opts                     -> unwrapVE ty "unpackedvec"
     | isPacked opts || isPackable ctxt ty -> unwrapVE ty "packedvec"
     | otherwise                           -> unwrapVE ty "unpackedvec"
-
-  -- Map.mapKeysMonotonic unwrapPrimE . map unwrapE . unMapOfMessages
-  Map k v@(Prim (Named _)) -> unwrapMap "mapofmessages" k v
-  Map k v@(Optional (Named _)) -> unwrapMap "mapofmessages" k v
-  Map k v -> unwrapMap "mapoffields" k v
-
-  _ -> internalError "unwrapE: unimplemented"
+  Map k v -> do
+     unwrapV <- mkUnwrapE ctxt v opts
+     pure $ maybeCompose
+              (HsApp (HsVar $ haskellName "mapKeysMonotonic") <$> unwrapPrimE ctxt k)
+              (HsApp fmapE <$> unwrapV)
  where
    unwrapVE ty nm = pure $ Just
                          $ foldl (\e f -> maybe e (\f' -> HsInfixApp (HsApp fmapE f') composeOp e) f)
                                  (HsVar $ protobufName nm)
                                  [unwrapPrimVecE ty]
-
-   unwrapMap wrapper k v = do
-     unwrapV <- mkUnwrapE ctxt v opts
-     pure $ Just $
-       foldr (\f e -> maybe e (\f' -> HsInfixApp f' composeOp e) f)
-             (HsVar (protobufName wrapper))
-             [ HsApp (HsVar $ haskellName "mapKeysMonotonic") <$> unwrapPrimE ctxt k
-             , HsApp fmapE <$> unwrapV
-             ]
 
 
 wrapPrimVecE :: DotProtoPrimType -> Maybe HsExp
@@ -1498,14 +1472,14 @@ wrapPrimE ctxt (Named tyName)
     | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
      = Just . HsVar . protobufName $ "Nested"
 wrapPrimE _ ty | isSignedPrim ty = Just . HsVar . protobufName $ "Signed"
-wrapPrimE _ _        = Nothing
+wrapPrimE _ _ = Nothing
 
 unwrapPrimE :: TypeContext -> DotProtoPrimType -> Maybe HsExp
 unwrapPrimE ctxt (Named tyName)
     | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
     = Just . HsVar . protobufName $ "nested"
 unwrapPrimE _ ty | isSignedPrim ty = Just . HsVar . protobufName $ "signed"
-unwrapPrimE _ _        = Nothing
+unwrapPrimE _ _ = Nothing
 
 isPacked, isUnpacked :: [DotProtoOption] -> Bool
 isPacked opts =

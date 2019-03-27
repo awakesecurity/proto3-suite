@@ -23,8 +23,8 @@ module Proto3.Suite.Types
   , UnpackedVec(..)
   , PackedVec(..)
   , NestedVec(..)
-  , MapOfFields(..)
-  , MapOfMessages(..)
+  -- , MapOfFields(..)
+  -- , MapOfMessages(..)
   , Commented(..)
   , type (//)()
   ) where
@@ -101,13 +101,13 @@ instance IsList (NestedVec a) where
 instance Arbitrary a => Arbitrary (NestedVec a) where
   arbitrary = fmap (NestedVec . V.fromList) arbitrary
 
-newtype MapOfFields k v = MapOfFields { mapoffields :: M.Map k v }
-  deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable,
-            Traversable, Semigroup)
+-- newtype Map k v = Map { mapoffields :: M.Map k v }
+--   deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable,
+--             Traversable, Semigroup)
 
-newtype MapOfMessages k v = MapOfMessages { mapofmessages :: M.Map k v }
-  deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable,
-            Traversable, Semigroup)
+-- newtype MapOfMessages k v = MapOfMessages { mapofmessages :: M.Map k v }
+--   deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable,
+--             Traversable, Semigroup)
 
 -- | 'Nested' provides a way to nest protobuf messages within protobuf messages.
 newtype Nested a = Nested { nested :: Maybe a }

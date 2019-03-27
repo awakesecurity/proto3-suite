@@ -81,6 +81,7 @@ import qualified Data.ByteString.Base64           as B64
 import qualified Data.ByteString.Lazy             as LBS
 import           Data.Coerce
 import           Data.Maybe
+import           Data.Map                         (Map)
 import           Data.Proxy
 import           Data.Text                        (Text)
 import qualified Data.Text                        as T
@@ -503,3 +504,12 @@ instance ToJSONPB a => ToJSONPB (Maybe a) where
 instance FromJSONPB a => FromJSONPB (Maybe a) where
   parseJSONPB A.Null = pure Nothing
   parseJSONPB v      = fmap Just (parseJSONPB v)
+
+--------------------------------------------------------------------------------
+-- Instances for map
+
+instance (IsMapKey k, ToJSONPB k, ToJSONPB v) => ToJSONPB (Map k v) where
+  toJSONPB m opts = () m
+
+-- > When parsing a map from text format, parsing may fail if there are duplicate keys.
+instance (IsMapKey k, FromJSONPB k, FromJSONPB v) => FromJSONPB (Map k v) where
