@@ -1344,8 +1344,10 @@ getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
     qualName  <- prefixedFieldName msgName fieldName
     pure $ Just $
       QualifiedField (coerce qualName) (FieldNormal (coerce fieldName) fieldNum dpType options)
+
   DotProtoMessageOneOf _ [] ->
     throwError (InternalError "getQualifiedFields: encountered oneof with no oneof fields")
+
   DotProtoMessageOneOf oneofIdent fields -> do
     ident <- dpIdentUnqualName oneofIdent
     oneofName <- prefixedFieldName msgName ident
@@ -1357,6 +1359,7 @@ getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
                     | DotProtoField fieldNum dpType subFieldName options _ <- fields
                     ]
     pure $ Just $ QualifiedField (coerce oneofName) (FieldOneOf (OneofField ident fieldElems))
+
   _ ->
     pure Nothing
 
@@ -1986,28 +1989,26 @@ dpTypeE (Map k v)          = apply mapC            [ dpPrimTypeE k, dpTypeE v]
 
 -- | Translate a dot proto primitive type to a Haskell AST primitive type.
 dpPrimTypeE :: DotProtoPrimType -> HsExp
-dpPrimTypeE (Named named) = apply namedC [ dpIdentE named ]
-dpPrimTypeE ty            =
-    HsVar . protobufName $
+dpPrimTypeE ty =
+    let wrap = HsVar . protobufName in
     case ty of
-        Int32    -> "Int32"
-        Int64    -> "Int64"
-        SInt32   -> "SInt32"
-        SInt64   -> "SInt64"
-        UInt32   -> "UInt32"
-        UInt64   -> "UInt64"
-        Fixed32  -> "Fixed32"
-        Fixed64  -> "Fixed64"
-        SFixed32 -> "SFixed32"
-        SFixed64 -> "SFixed64"
-        String   -> "String"
-        Bytes    -> "Bytes"
-        Bool     -> "Bool"
-        Float    -> "Float"
-        Double   -> "Double"
+        Named n  -> apply namedC [ dpIdentE n ]
 
-        -- 'error' okay because this is literally impossible
-        Named _  -> error "dpPrimTypeE: impossible"
+        Int32    -> wrap "Int32"
+        Int64    -> wrap "Int64"
+        SInt32   -> wrap "SInt32"
+        SInt64   -> wrap "SInt64"
+        UInt32   -> wrap "UInt32"
+        UInt64   -> wrap "UInt64"
+        Fixed32  -> wrap "Fixed32"
+        Fixed64  -> wrap "Fixed64"
+        SFixed32 -> wrap "SFixed32"
+        SFixed64 -> wrap "SFixed64"
+        String   -> wrap "String"
+        Bytes    -> wrap "Bytes"
+        Bool     -> wrap "Bool"
+        Float    -> wrap "Float"
+        Double   -> wrap "Double"
 
 defaultImports :: Bool -> [HsImportDecl]
 defaultImports usesGrpc =
@@ -2101,15 +2102,13 @@ defaultImports usesGrpc =
 haskellNS :: Module
 haskellNS = Module "Hs"
 
-defaultMessageDeriving, defaultEnumDeriving, defaultServiceDeriving :: [HsQName]
-defaultMessageDeriving = map haskellName [ "Show"
-                                         , "Eq",   "Ord"
-                                         , "Generic" ]
+defaultMessageDeriving :: [HsQName]
+defaultMessageDeriving = map haskellName [ "Show", "Eq", "Ord" , "Generic" ]
 
-defaultEnumDeriving = map haskellName [ "Show", "Bounded"
-                                      , "Eq",   "Ord"
-                                      , "Generic" ]
+defaultEnumDeriving :: [HsQName]
+defaultEnumDeriving = map haskellName [ "Show", "Bounded", "Eq",   "Ord" , "Generic" ]
 
+defaultServiceDeriving :: [HsQName]
 defaultServiceDeriving = map haskellName [ "Generic" ]
 
 -- * Wrappers around haskell-src-exts constructors
@@ -2127,12 +2126,10 @@ applicativeApply f = foldl snoc nil
 tyApp :: HsType -> [HsType] -> HsType
 tyApp = foldl HsTyApp
 
-module_ :: Module -> Maybe [HsExportSpec] -> [HsImportDecl] -> [HsDecl]
-        -> HsModule
+module_ :: Module -> Maybe [HsExportSpec] -> [HsImportDecl] -> [HsDecl] -> HsModule
 module_ = HsModule l
 
-importDecl_ :: Module -> Bool -> Maybe Module
-            -> Maybe (Bool, [HsImportSpec]) -> HsImportDecl
+importDecl_ :: Module -> Bool -> Maybe Module -> Maybe (Bool, [HsImportSpec]) -> HsImportDecl
 importDecl_ = HsImportDecl l
 
 dataDecl_ :: String -> [HsConDecl] -> [HsQName] -> HsDecl
