@@ -1502,7 +1502,7 @@ wrapPrimE _ _        = Nothing
 
 unwrapPrimE :: TypeContext -> DotProtoPrimType -> Maybe HsExp
 unwrapPrimE ctxt (Named tyName)
-    | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName
+    | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
     = Just . HsVar . protobufName $ "nested"
 unwrapPrimE _ ty | isSignedPrim ty = Just . HsVar . protobufName $ "signed"
 unwrapPrimE _ _        = Nothing
@@ -1687,8 +1687,8 @@ dotProtoServiceD
     -> DotProtoIdentifier
     -> [DotProtoServicePart]
     -> m [HsDecl]
-dotProtoServiceD pkgIdent ctxt serviceIdent service =
-  do serviceNameUnqual <- dpIdentUnqualName serviceIdent
+dotProtoServiceD pkgIdent ctxt serviceIdent service = do
+     serviceNameUnqual <- dpIdentUnqualName serviceIdent
      packageName <- dpIdentQualName pkgIdent
 
      serviceName <- typeLikeName serviceNameUnqual
