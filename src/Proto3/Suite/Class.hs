@@ -474,36 +474,26 @@ instance MessageField B.ByteString
 instance MessageField BL.ByteString
 instance (Bounded e, Named e, Enum e) => MessageField (Enumerated e)
 
-instance (Ord k, Primitive k, Primitive v) => MessageField (M.Map k v) where
-  encodeMessageField num = foldMap (\(k, v) -> Encode.embedded num $
-                                     encodePrimitive (fieldNumber 1) k <>
-                                     encodePrimitive (fieldNumber 2) v
-                                   )
-                           . M.toList
-
-  -- Data.Map.fromList will retain the last key/value mapping. From the spec:
-  --
-  -- > When parsing from the wire or when merging, if there are duplicate map
-  -- > keys the last key seen is used.
-  decodeMessageField = M.fromList . reverse . fromList
-                       <$> repeated ((,) <$> decodePrimitive @k <*> decodePrimitive @v)
-  protoType _ = messageField (Map (primType (Proxy @k)) (primType (Proxy @v))) Nothing
-
-instance {-# OVERLAPS #-} (Ord k, Primitive k, Named v, Message v) => MessageField (M.Map k (Nested v)) where
-  encodeMessageField num = foldMap (\(k, v) -> Encode.embedded num $
-                                     encodePrimitive (fieldNumber 1) k <>
-                                     encodeMessageField (fieldNumber 2) v
-                                   )
-                           . M.toList
+instance (Ord k, Primitive k, MessageField k, Primitive v, MessageField v) => MessageField (M.Map k v) where
+  encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . M.toList
 
   -- Data.Map.fromList will retain the last key/value mapping. From the spec:
   --
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
   decodeMessageField = M.fromList . fromList
-                       <$> repeated ((,) <$> decodePrimitive @k
-                                         <*> Decode.embedded' (Decode.at (decodeMessageField @(Nested v)) 2)
-                                    )
+                       <$> repeated (Decode.embedded' (decodeMessage (fieldNumber 1)))
+  protoType _ = messageField (Map (primType (Proxy @k)) (primType (Proxy @v))) Nothing
+
+instance {-# OVERLAPS #-} (Ord k, Primitive k, Named v, Message v, MessageField k) => MessageField (M.Map k (Nested v)) where
+  encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . M.toList
+
+  -- Data.Map.fromList will retain the last key/value mapping. From the spec:
+  --
+  -- > When parsing from the wire or when merging, if there are duplicate map
+  -- > keys the last key seen is used.
+  decodeMessageField = M.fromList . fromList
+                       <$> repeated (Decode.embedded' (decodeMessage (fieldNumber 1)))
   protoType _ = messageField (Map (primType (Proxy @k)) (Named . Single . nameOf $ Proxy @v)) Nothing
 
 instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
@@ -648,6 +638,8 @@ class Message a where
   default dotProto :: GenericMessage (Rep a)
                    => Proxy a -> [DotProtoField]
   dotProto _ = genericDotProto (Proxy @(Rep a))
+
+instance (MessageField k, MessageField v) => Message (k, v)
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy a -> DotProtoDefinition
