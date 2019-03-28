@@ -332,7 +332,9 @@ testCase19 = testCase "Maps" $ do
   result <- readProto
   let wt = Just . WrappedTrivial . Just . Trivial
   let expected = MapTest{ mapTestPrim = M.fromList [("foo", 1),("bar", 42),("baz", 1234567)]
-                        , mapTestTrivial = M.fromList [(1, wt 1),(2, wt 42),(101, wt 1234567), (79, Nothing)]
+                        -- The python implementation forbids serialising map entries
+                        -- with 'None' as the value (dynamic type error).
+                        , mapTestTrivial = M.fromList [(1, wt 1),(2, wt 42),(101, wt 1234567), (79, Just (WrappedTrivial Nothing))]
                         , mapTestSigned = M.fromList [(1,2),(3,4),(5,6)]
                         }
   result @?= expected
