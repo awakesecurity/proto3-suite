@@ -474,27 +474,39 @@ instance MessageField B.ByteString
 instance MessageField BL.ByteString
 instance (Bounded e, Named e, Enum e) => MessageField (Enumerated e)
 
-instance (Ord k, Primitive k, MessageField v) => MessageField (M.Map k v) where
+instance (Ord k, Primitive k, Primitive v) => MessageField (M.Map k v) where
   encodeMessageField num = foldMap (\(k, v) -> Encode.embedded num $
                                      encodePrimitive (fieldNumber 1) k <>
-                                     encodeMessageField (fieldNumber 2) v
+                                     encodePrimitive (fieldNumber 2) v
                                    )
                            . M.toList
+
   -- 'reverse' the list before turning into a map because the map monoid keeps
   -- the first key. From the spec:
   --
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
   decodeMessageField = M.fromList . reverse . fromList
-                       <$> repeated ((,) <$> decodePrimitive @k <*> Decode.embedded' (Decode.at (decodeMessageField @v) 2))
-  protoType _ = messageField (Map (primType (Proxy @k)) valueTy) Nothing
-    where
-      valueTy = case dotProtoFieldType (protoType (Proxy @v)) of
-                  Prim p -> p
-                  -- This is impossible by construction. The constraint on 'v'
-                  -- is 'MessageField' and not Primitive only to handle serialisation of Named
-                  -- messages in Prim easily through 'Nested'.
-                  _ -> error "IMPOSSIBLE: Map value type is not primitive or named message"
+                       <$> repeated ((,) <$> decodePrimitive @k <*> decodePrimitive @v)
+  protoType _ = messageField (Map (primType (Proxy @k)) (primType (Proxy @v))) Nothing
+
+instance {-# OVERLAPS #-} (Ord k, Primitive k, Named v, Message v) => MessageField (M.Map k (Nested v)) where
+  encodeMessageField num = foldMap (\(k, v) -> Encode.embedded num $
+                                     encodePrimitive (fieldNumber 1) k <>
+                                     encodeMessageField (fieldNumber 2) v
+                                   )
+                           . M.toList
+
+  -- 'reverse' the list before turning into a map because the map monoid keeps
+  -- the first key. From the spec:
+  --
+  -- > When parsing from the wire or when merging, if there are duplicate map
+  -- > keys the last key seen is used.
+  decodeMessageField = M.fromList . reverse . fromList
+                       <$> repeated ((,) <$> decodePrimitive @k
+                                         <*> Decode.embedded' (Decode.at (decodeMessageField @(Nested v)) 2)
+                                    )
+  protoType _ = messageField (Map (primType (Proxy @k)) (Named . Single . nameOf $ Proxy @v)) Nothing
 
 instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
   encodeMessageField = encodePrimitive
@@ -517,7 +529,7 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
     where
       oneMsg :: Parser RawMessage a
       oneMsg = decodeMessage (fieldNumber 1)
-  protoType _ = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
+  protoType _ = messageField (NestedRepeated . Named . Single . nameOf $ Proxy @a) Nothing
 
 instance (Bounded e, Enum e, Named e) => MessageField (PackedVec (Enumerated e)) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . foldMap omit
