@@ -98,7 +98,7 @@ let
                       proto3-suite-base
                       (oldArgs:
                         let
-                          python = pkgsNew.python.withPackages (pkgs: [ pkgs.protobuf3_1 ]);
+                          python = pkgsNew.python.withPackages (pkgs: [ pkgs.protobuf]);
 
                           ghc =
                             haskellPackagesNew.ghcWithPackages
