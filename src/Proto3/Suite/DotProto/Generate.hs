@@ -470,8 +470,7 @@ hsTypeFromDotProto ctxt = \case
   NestedRepeated pType -> HsTyApp (primType_ "Vector") <$> hsTypeFromDotProtoPrim ctxt pType
   Map k v              -> HsTyApp . HsTyApp (primType_ "Map")
                           <$> hsTypeFromDotProtoPrim ctxt k
-                          <*> hsTypeFromDotProtoPrim ctxt v
-  --    internalError "No support for protobuf mappings"
+                          <*> hsTypeFromDotProto ctxt (Prim v) -- need to 'Nest' message types
 
 hsTypeFromDotProtoPrim :: MonadError CompileError m => TypeContext -> DotProtoPrimType -> m HsType
 hsTypeFromDotProtoPrim _    Int32   = pure $ primType_ "Int32"
@@ -1381,11 +1380,6 @@ oneofSubDisjunctBinder = intercalate "_or_" . fmap oneofSubBinder
 
 -- ** Helpers to wrap/unwrap types for protobuf (de-)serialization
 
-coerceE :: HsType -> HsType -> HsExp
-coerceE from to = HsApp (HsApp (HsVar (haskellName "coerce")) (typeApp from)) (typeApp to)
-  where
-    typeApp ty = HsVar (UnQual (HsIdent ("@("++ prettyPrint ty ++ ")")))
-
 wrapE :: TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> HsExp
 wrapE ctxt dpt opts e = HsParen $ maybe id (HsApp . HsParen) (mkWrapE ctxt dpt opts) e
 
@@ -1410,7 +1404,7 @@ mkWrapE ctxt dpt opts = case dpt of
       -> wrapPrimE ctxt ty
     Repeated (Named tyName)
       | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
-        -> Just (HsVar (protobufName "NestedVec"))
+      -> Just (HsVar (protobufName "NestedVec"))
     Repeated ty
       | isUnpacked opts                     -> wrapVE "UnpackedVec" ty
       | isPacked opts || isPackable ctxt ty -> wrapVE "PackedVec"   ty
@@ -1434,7 +1428,7 @@ mkUnwrapE ctxt dpt opts = case dpt of
     -> unwrapPrimE ctxt ty
   Repeated (Named tyName)
     | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
-      -> Just (HsVar (protobufName "nestedvec"))
+    -> Just (HsVar (protobufName "nestedvec"))
   Repeated ty
     | isUnpacked opts                     -> unwrapVE ty "unpackedvec"
     | isPacked opts || isPackable ctxt ty -> unwrapVE ty "packedvec"

@@ -94,7 +94,6 @@ import           Control.Monad
 import qualified Data.ByteString        as B
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy   as BL
-import qualified Data.Coerce
 import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
 import qualified Data.Map               as M
@@ -475,10 +474,10 @@ instance MessageField B.ByteString
 instance MessageField BL.ByteString
 instance (Bounded e, Named e, Enum e) => MessageField (Enumerated e)
 
-instance (Ord k, Primitive k, Primitive v) => MessageField (M.Map k v) where
+instance (Ord k, Primitive k, MessageField v) => MessageField (M.Map k v) where
   encodeMessageField num = foldMap (\(k, v) -> Encode.embedded num $
                                      encodePrimitive (fieldNumber 1) k <>
-                                     encodePrimitive (fieldNumber 2) v
+                                     encodeMessageField (fieldNumber 2) v
                                    )
                            . M.toList
   -- 'reverse' the list before turning into a map because the map monoid keeps
@@ -487,8 +486,15 @@ instance (Ord k, Primitive k, Primitive v) => MessageField (M.Map k v) where
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
   decodeMessageField = M.fromList . reverse . fromList
-                       <$> repeated ((,) <$> decodePrimitive @k <*> decodePrimitive @v)
-  protoType _ = messageField (Map (primType (Proxy @k)) (primType (Proxy @v))) Nothing
+                       <$> repeated ((,) <$> decodePrimitive @k <*> Decode.embedded' (Decode.at (decodeMessageField @v) 2))
+  protoType _ = messageField (Map (primType (Proxy @k)) valueTy) Nothing
+    where
+      valueTy = case dotProtoFieldType (protoType (Proxy @v)) of
+                  Prim p -> p
+                  -- This is impossible by construction. The constraint on 'v'
+                  -- is 'MessageField' and not Primitive only to handle serialisation of Named
+                  -- messages in Prim easily through 'Nested'.
+                  _ -> error "IMPOSSIBLE: Map value type is not primitive or named message"
 
 instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
   encodeMessageField = encodePrimitive

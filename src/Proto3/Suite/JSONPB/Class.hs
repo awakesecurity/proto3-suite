@@ -82,7 +82,6 @@ import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Base64           as B64
 import qualified Data.ByteString.Lazy             as LBS
 import           Data.Coerce
-import qualified Data.HashMap.Strict              as HM
 import           Data.Maybe
 import qualified Data.Map                         as M
 import           Data.Proxy
