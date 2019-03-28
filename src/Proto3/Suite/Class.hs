@@ -228,13 +228,6 @@ instance HasDefault (Fixed Int32)
 -- | Used in generated records to represent @sfixed64@
 instance HasDefault (Fixed Int64)
 
--- | This class captures the types which are valid map keys.
--- from the proto3 reference guide:
--- > the key_type can be any integral or string type (so, any scalar type except
--- > for floating point types and bytes). Note that enum is not a valid key_type.
-class IsMapKey a where
-
-
 -- | This class captures those types whose names need to appear in .proto files.
 --
 -- It has a default implementation for any data type which is an instance of the

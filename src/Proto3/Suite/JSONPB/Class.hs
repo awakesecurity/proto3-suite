@@ -62,6 +62,8 @@ import qualified Data.Aeson                       as A (Encoding, FromJSON (..),
                                                         FromJSONKey (..),
                                                         FromJSONKeyFunction (..),
                                                         ToJSON (..), Value (..),
+                                                        ToJSON1(..), FromJSON1(..),
+                                                        ToJSONKey(..),
                                                         decode, eitherDecode, json,
                                                         (.!=))
 import qualified Data.Aeson.Encoding              as E
@@ -80,8 +82,9 @@ import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Base64           as B64
 import qualified Data.ByteString.Lazy             as LBS
 import           Data.Coerce
+import qualified Data.HashMap.Strict              as HM
 import           Data.Maybe
-import           Data.Map                         (Map)
+import qualified Data.Map                         as M
 import           Data.Proxy
 import           Data.Text                        (Text)
 import qualified Data.Text                        as T
@@ -508,8 +511,12 @@ instance FromJSONPB a => FromJSONPB (Maybe a) where
 --------------------------------------------------------------------------------
 -- Instances for map
 
-instance (IsMapKey k, ToJSONPB k, ToJSONPB v) => ToJSONPB (Map k v) where
-  toJSONPB m opts = () m
+instance (A.ToJSONKey k, ToJSONPB k, ToJSONPB v) => ToJSONPB (M.Map k v) where
+  toJSONPB m opts = A.liftToJSON @(M.Map k) (`toJSONPB` opts) (A.Array . V.fromList . map (`toJSONPB` opts)) m
+  toEncodingPB m opts = A.liftToEncoding @(M.Map k) (`toEncodingPB` opts) (E.list (`toEncodingPB` opts)) m
 
--- > When parsing a map from text format, parsing may fail if there are duplicate keys.
-instance (IsMapKey k, FromJSONPB k, FromJSONPB v) => FromJSONPB (Map k v) where
+instance (Ord k, A.FromJSONKey k, FromJSONPB k, FromJSONPB v) => FromJSONPB (M.Map k v) where
+  parseJSONPB = A.liftParseJSON @(M.Map k) parseJSONPB parseList
+    where
+      parseList (A.Array a) = traverse parseJSONPB (V.toList a)
+      parseList v = A.typeMismatch "not a list" v

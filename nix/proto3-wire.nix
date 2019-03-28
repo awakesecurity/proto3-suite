@@ -18,6 +18,6 @@ mkDerivation {
     base bytestring cereal doctest QuickCheck tasty tasty-hunit
     tasty-quickcheck text
   ];
-  description = "A low-level implementation of the Protocol Buffers (version 3) wire format";
+  description = "A low-level implementation of the Protocol Buffers (version 3) wire formats";
   license = stdenv.lib.licenses.asl20;
 }

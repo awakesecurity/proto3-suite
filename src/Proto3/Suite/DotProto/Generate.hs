@@ -1423,6 +1423,7 @@ mkWrapE ctxt dpt opts = case dpt of
       pure $ maybeCompose
                (HsApp (HsVar $ haskellName "mapKeysMonotonic") <$> wrapPrimE ctxt k)
                (HsApp fmapE <$> wrapV)
+    _ -> pure Nothing
   where
     wrapVE nm ty = pure $ maybeCompose
                             (Just (HsVar (protobufName nm)))
@@ -1452,24 +1453,24 @@ mkUnwrapE ctxt dpt opts = case dpt of
      pure $ maybeCompose
               (HsApp (HsVar $ haskellName "mapKeysMonotonic") <$> unwrapPrimE ctxt k)
               (HsApp fmapE <$> unwrapV)
+  _ -> pure Nothing
  where
    unwrapVE ty nm = pure $ maybeCompose
-                             (Just (HsVar $ protobufName nm))
                              (unwrapPrimVecE ty)
-
+                             (Just (HsVar $ protobufName nm))
 
 wrapPrimVecE :: DotProtoPrimType -> Maybe HsExp
 wrapPrimVecE ty | isSignedPrim ty = Just $ apply fmapE [ HsVar (protobufName "Signed") ]
 wrapPrimVecE _ = Nothing
 
 unwrapPrimVecE :: DotProtoPrimType -> Maybe HsExp
-unwrapPrimVecE ty | isSignedPrim ty = Just $ HsVar (protobufName "signed")
+unwrapPrimVecE ty | isSignedPrim ty = Just $ apply fmapE [ HsVar (protobufName "signed") ]
 unwrapPrimVecE _ = Nothing
 
 wrapPrimE :: TypeContext -> DotProtoPrimType -> Maybe HsExp
 wrapPrimE ctxt (Named tyName)
     | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
-     = Just . HsVar . protobufName $ "Nested"
+    = Just . HsVar . protobufName $ "Nested"
 wrapPrimE _ ty | isSignedPrim ty = Just . HsVar . protobufName $ "Signed"
 wrapPrimE _ _ = Nothing
 
