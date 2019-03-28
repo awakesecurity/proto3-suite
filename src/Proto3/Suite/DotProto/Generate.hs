@@ -604,11 +604,11 @@ dotProtoDefinitionD
     :: MonadError CompileError m
     => DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
 dotProtoDefinitionD _ ctxt (DotProtoMessage messageName dotProtoMessage) =
-  dotProtoMessageD ctxt Anonymous messageName dotProtoMessage
+    dotProtoMessageD ctxt Anonymous messageName dotProtoMessage
 dotProtoDefinitionD _ _ (DotProtoEnum messageName dotProtoEnum) =
-  dotProtoEnumD Anonymous messageName dotProtoEnum
+    dotProtoEnumD Anonymous messageName dotProtoEnum
 dotProtoDefinitionD pkgIdent ctxt (DotProtoService serviceName dotProtoService) =
-  dotProtoServiceD pkgIdent ctxt serviceName dotProtoService
+    dotProtoServiceD pkgIdent ctxt serviceName dotProtoService
 
 -- | Generate 'Named' instance for a type in this package
 namedInstD :: String -> HsDecl
@@ -633,69 +633,69 @@ dotProtoMessageD
     -> DotProtoIdentifier
     -> [DotProtoMessagePart]
     -> m [HsDecl]
-dotProtoMessageD ctxt parentIdent messageIdent message =
-    do messageName <- nestedTypeName parentIdent =<<
-                      dpIdentUnqualName messageIdent
+dotProtoMessageD ctxt parentIdent messageIdent message = do
+       messageName <- nestedTypeName parentIdent =<< dpIdentUnqualName messageIdent
 
-       let ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup messageIdent ctxt) <>
-                   ctxt
+       let ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup messageIdent ctxt) <> ctxt
 
            messagePartFieldD (DotProtoMessageField (DotProtoField _ ty fieldName _ _)) = do
-             fullName <- prefixedFieldName messageName =<< dpIdentUnqualName fieldName
-             fullTy <- hsTypeFromDotProto ctxt' ty
-             pure [ ([HsIdent fullName], HsUnBangedTy fullTy ) ]
+               fullName <- prefixedFieldName messageName =<< dpIdentUnqualName fieldName
+               fullTy <- hsTypeFromDotProto ctxt' ty
+               pure [ ([HsIdent fullName], HsUnBangedTy fullTy ) ]
 
            messagePartFieldD (DotProtoMessageOneOf fieldName _) = do
-             fullName <- prefixedFieldName messageName =<< dpIdentUnqualName fieldName
-             qualTyName <- prefixedConName messageName =<< dpIdentUnqualName fieldName
-             let fullTy = HsTyApp (HsTyCon (haskellName "Maybe")) . type_ $ qualTyName
-             pure [ ([HsIdent fullName], HsUnBangedTy fullTy) ]
+               fullName <- prefixedFieldName messageName =<< dpIdentUnqualName fieldName
+               qualTyName <- prefixedConName messageName =<< dpIdentUnqualName fieldName
+               let fullTy = HsTyApp (HsTyCon (haskellName "Maybe")) . type_ $ qualTyName
+               pure [ ([HsIdent fullName], HsUnBangedTy fullTy) ]
 
            messagePartFieldD _ = pure []
 
            nestedDecls :: MonadError CompileError m => DotProtoDefinition -> m [HsDecl]
            nestedDecls (DotProtoMessage subMsgName subMessageDef) = do
-             parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-             dotProtoMessageD ctxt' parentIdent' subMsgName subMessageDef
+               parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
+               dotProtoMessageD ctxt' parentIdent' subMsgName subMessageDef
 
            nestedDecls (DotProtoEnum subEnumName subEnumDef) = do
-             parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-             dotProtoEnumD parentIdent' subEnumName subEnumDef
+               parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
+               dotProtoEnumD parentIdent' subEnumName subEnumDef
 
            nestedDecls _ = pure []
 
            nestedOneOfDecls :: MonadError CompileError m
                             => DotProtoIdentifier -> [DotProtoField] -> m [HsDecl]
            nestedOneOfDecls identifier fields = do
-             fullName <- prefixedConName messageName =<< dpIdentUnqualName identifier
-             let oneOfCons (DotProtoField _ ty fieldName _ _) = do
-                   consTy <- case ty of
-                        Prim msg@(Named msgName)
-                          | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup msgName ctxt'
-                            -> -- Do not wrap message summands with Maybe.
-                               hsTypeFromDotProtoPrim ctxt' msg
-                        _   -> hsTypeFromDotProto ctxt' ty
-                   consName <- prefixedConName fullName =<< dpIdentUnqualName fieldName
-                   let ident = HsIdent consName
-                   pure (conDecl_ ident [HsUnBangedTy consTy], ident)
-                 oneOfCons DotProtoEmptyField =
-                     internalError "field type : empty field"
+               fullName <- prefixedConName messageName =<< dpIdentUnqualName identifier
+               let oneOfCons (DotProtoField _ ty fieldName _ _) = do
+                       consTy <- case ty of
+                            Prim msg@(Named msgName)
+                              | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup msgName ctxt'
+                                -> -- Do not wrap message summands with Maybe.
+                                   hsTypeFromDotProtoPrim ctxt' msg
 
-             (cons, idents) <- fmap unzip (mapM oneOfCons fields)
+                            _   -> hsTypeFromDotProto ctxt' ty
 
-             fieldNames <- mapM (dpIdentUnqualName . dotProtoFieldName) fields
+                       consName <- prefixedConName fullName =<< dpIdentUnqualName fieldName
+                       let ident = HsIdent consName
+                       pure (conDecl_ ident [HsUnBangedTy consTy], ident)
 
-             toSchemaInstance <- toSchemaInstanceDeclaration fullName fieldNames (Just idents)
+                   oneOfCons DotProtoEmptyField = internalError "field type : empty field"
 
-             pure [ dataDecl_ fullName cons defaultMessageDeriving
-                  , namedInstD fullName
-                  , toSchemaInstance
+               (cons, idents) <- fmap unzip (mapM oneOfCons fields)
+
+               fieldNames <- mapM (dpIdentUnqualName . dotProtoFieldName) fields
+
+               toSchemaInstance <- toSchemaInstanceDeclaration fullName fieldNames (Just idents)
+
+               pure [ dataDecl_ fullName cons defaultMessageDeriving
+                    , namedInstD fullName
+                    , toSchemaInstance
 
 #ifdef DHALL
-                  , dhallInterpretInstDecl fullName
-                  , dhallInjectInstDecl fullName
+                    , dhallInterpretInstDecl fullName
+                    , dhallInjectInstDecl fullName
 #endif
-                  ]
+                    ]
 
        conDecl <- recDecl_ (HsIdent messageName) . mconcat <$>
                   mapM messagePartFieldD message
@@ -1683,7 +1683,9 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
                   , fullName, requestStreaming, responseStreaming
                   , HsUnBangedTy $
                     HsTyFun (tyApp (HsTyVar (HsIdent "request")) [streamingType, requestTy, responseTy])
-                            (tyApp ioT [tyApp (HsTyVar (HsIdent "response")) [streamingType, responseTy]]))]
+                            (tyApp ioT [tyApp (HsTyVar (HsIdent "response")) [streamingType, responseTy]])
+                  )
+                ]
 
          serviceFieldD _ = pure []
 
@@ -1697,8 +1699,9 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
 
          serverT = tyApp (HsTyCon (unqual_ serviceName))
                          [ serverRequestT, serverResponseT ]
+
          serviceServerTypeD = HsTypeSig l [ HsIdent serverFuncName ]
-             (HsQualType [] (HsTyFun serverT (HsTyFun serviceOptionsC ioActionT)))
+                                        (HsQualType [] (HsTyFun serverT (HsTyFun serviceOptionsC ioActionT)))
 
          serviceServerD =
              let serverFuncD =
@@ -1763,7 +1766,8 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
                      , update "optSSLConfig" "sslConfig"
                      , update "optLogger" "logger"
                      ]
-             in HsFunBind [serverFuncD]
+             in
+                HsFunBind [serverFuncD]
 
          clientT = tyApp (HsTyCon (unqual_ serviceName)) [ clientRequestT, clientResultT ]
 
@@ -1788,7 +1792,8 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
                    apply clientRegisterMethodE [ HsVar (unqual_ "client")
                                                , apply methodNameC [ HsLit (HsString endpoint) ]
                                                ]
-             in HsFunBind [ clientFuncD ]
+             in
+                HsFunBind [ clientFuncD ]
 
      pure [ HsDataDecl l  [] (HsIdent serviceName)
                 [ HsIdent "request", HsIdent "response" ]
@@ -1974,92 +1979,94 @@ dpPrimTypeE ty =
 
 defaultImports :: Bool -> [HsImportDecl]
 defaultImports usesGrpc =
-  [ importDecl_ preludeM                  True  (Just haskellNS)  Nothing
+    [ importDecl_ preludeM                  True  (Just haskellNS)  Nothing
 
 #ifdef DHALL
-  , importDecl_ proto3SuiteDhallPBM       True  (Just (Module hsDhallPB)) Nothing
+    , importDecl_ proto3SuiteDhallPBM       True  (Just (Module hsDhallPB)) Nothing
 #endif
 
-  , importDecl_ dataProtobufWireDotProtoM True  (Just protobufNS) Nothing
-  , importDecl_ dataProtobufWireTypesM    True  (Just protobufNS) Nothing
-  , importDecl_ dataProtobufWireClassM    True  (Just protobufNS) Nothing
-  , importDecl_ proto3SuiteJSONPBM        True  (Just jsonpbNS) Nothing
-  , importDecl_ proto3SuiteJSONPBM        False  Nothing
-                (Just (False, [ HsIAbs (HsSymbol ".=")
-                              , HsIAbs (HsSymbol ".:") ]))
-  , importDecl_ proto3WireM               True  (Just protobufNS) Nothing
-  , importDecl_ controlApplicativeM       False Nothing
-                (Just (False, [ HsIAbs (HsSymbol "<*>")
-                              , HsIAbs (HsSymbol "<|>")
-                              , HsIAbs (HsSymbol "<$>")
-                              ]
-                      )
-                )
-  , importDecl_ controlApplicativeM       True  (Just haskellNS) Nothing
-  , importDecl_ controlMonadM             True  (Just haskellNS) Nothing
-  , importDecl_ dataTextM                 True
-                (Just haskellNS) (Just (False, [ importSym "Text" ]))
-  , importDecl_ dataByteStringM           True  (Just haskellNS) Nothing
-  , importDecl_ dataCoerceM               True  (Just haskellNS) Nothing
-  , importDecl_ dataStringM               True  (Just haskellNS)
-                (Just (False, [ importSym "fromString" ]))
-  , importDecl_ dataVectorM               True  (Just haskellNS)
-                (Just (False, [ importSym "Vector" ]))
-  , importDecl_ dataMapM               True  (Just haskellNS)
-                (Just (False, [ importSym "Map", importSym "mapKeysMonotonic" ]))
-  , importDecl_ dataIntM                  True  (Just haskellNS)
-                (Just (False, [ importSym "Int16", importSym "Int32"
-                              , importSym "Int64" ]))
-  , importDecl_ dataWordM                 True  (Just haskellNS)
-                (Just (False, [ importSym "Word16", importSym "Word32"
-                              , importSym "Word64" ]))
-  , importDecl_ dataProxy                 True (Just proxyNS)   Nothing
-  , importDecl_ ghcGenericsM              True (Just haskellNS) Nothing
-  , importDecl_ ghcEnumM                  True (Just haskellNS) Nothing
-  ] <>
-  if usesGrpc
-    then [ importDecl_ networkGrpcHighLevelGeneratedM   False (Just grpcNS) Nothing
-         , importDecl_ networkGrpcHighLevelClientM      False (Just grpcNS) Nothing
-         , importDecl_ networkGrpcHighLevelServerM      False (Just grpcNS)
-               (Just (True, [ importSym "serverLoop" ]))
-         , importDecl_ networkGrpcHighLevelServerUnregM False (Just grpcNS)
-               (Just (False, [ importSym "serverLoop" ]))
-         ]
-    else []
-  where preludeM                  = Module "Prelude"
-        dataProtobufWireDotProtoM = Module "Proto3.Suite.DotProto"
-        dataProtobufWireClassM    = Module "Proto3.Suite.Class"
-        dataProtobufWireTypesM    = Module "Proto3.Suite.Types"
-        proto3SuiteJSONPBM        = Module "Proto3.Suite.JSONPB"
-        proto3WireM               = Module "Proto3.Wire"
-        controlApplicativeM       = Module "Control.Applicative"
-        controlMonadM             = Module "Control.Monad"
-        dataCoerceM               = Module "Data.Coerce"
-        dataTextM                 = Module "Data.Text.Lazy"
-        dataByteStringM           = Module "Data.ByteString"
-        dataStringM               = Module "Data.String"
-        dataIntM                  = Module "Data.Int"
-        dataVectorM               = Module "Data.Vector"
-        dataMapM                  = Module "Data.Map"
-        dataWordM                 = Module "Data.Word"
-        dataProxy                 = Module "Data.Proxy"
-        ghcGenericsM              = Module "GHC.Generics"
-        ghcEnumM                  = Module "GHC.Enum"
-        networkGrpcHighLevelGeneratedM   = Module "Network.GRPC.HighLevel.Generated"
-        networkGrpcHighLevelServerM      = Module "Network.GRPC.HighLevel.Server"
-        networkGrpcHighLevelClientM      = Module "Network.GRPC.HighLevel.Client"
-        networkGrpcHighLevelServerUnregM = Module "Network.GRPC.HighLevel.Server.Unregistered"
+    , importDecl_ dataProtobufWireDotProtoM True  (Just protobufNS) Nothing
+    , importDecl_ dataProtobufWireTypesM    True  (Just protobufNS) Nothing
+    , importDecl_ dataProtobufWireClassM    True  (Just protobufNS) Nothing
+    , importDecl_ proto3SuiteJSONPBM        True  (Just jsonpbNS) Nothing
+    , importDecl_ proto3SuiteJSONPBM        False  Nothing
+                  (Just (False, [ HsIAbs (HsSymbol ".=")
+                                , HsIAbs (HsSymbol ".:") ]))
+    , importDecl_ proto3WireM               True  (Just protobufNS) Nothing
+    , importDecl_ controlApplicativeM       False Nothing
+                  (Just (False, [ HsIAbs (HsSymbol "<*>")
+                                , HsIAbs (HsSymbol "<|>")
+                                , HsIAbs (HsSymbol "<$>")
+                                ]
+                        )
+                  )
+    , importDecl_ controlApplicativeM       True  (Just haskellNS) Nothing
+    , importDecl_ controlMonadM             True  (Just haskellNS) Nothing
+    , importDecl_ dataTextM                 True
+                  (Just haskellNS) (Just (False, [ importSym "Text" ]))
+    , importDecl_ dataByteStringM           True  (Just haskellNS) Nothing
+    , importDecl_ dataCoerceM               True  (Just haskellNS) Nothing
+    , importDecl_ dataStringM               True  (Just haskellNS)
+                  (Just (False, [ importSym "fromString" ]))
+    , importDecl_ dataVectorM               True  (Just haskellNS)
+                  (Just (False, [ importSym "Vector" ]))
+    , importDecl_ dataMapM               True  (Just haskellNS)
+                  (Just (False, [ importSym "Map", importSym "mapKeysMonotonic" ]))
+    , importDecl_ dataIntM                  True  (Just haskellNS)
+                  (Just (False, [ importSym "Int16", importSym "Int32"
+                                , importSym "Int64" ]))
+    , importDecl_ dataWordM                 True  (Just haskellNS)
+                  (Just (False, [ importSym "Word16", importSym "Word32"
+                                , importSym "Word64" ]))
+    , importDecl_ dataProxy                 True (Just proxyNS)   Nothing
+    , importDecl_ ghcGenericsM              True (Just haskellNS) Nothing
+    , importDecl_ ghcEnumM                  True (Just haskellNS) Nothing
+    ]
+    <>
+    if usesGrpc
+      then [ importDecl_ networkGrpcHighLevelGeneratedM   False (Just grpcNS) Nothing
+           , importDecl_ networkGrpcHighLevelClientM      False (Just grpcNS) Nothing
+           , importDecl_ networkGrpcHighLevelServerM      False (Just grpcNS)
+                 (Just (True, [ importSym "serverLoop" ]))
+           , importDecl_ networkGrpcHighLevelServerUnregM False (Just grpcNS)
+                 (Just (False, [ importSym "serverLoop" ]))
+           ]
+      else []
+  where
+    preludeM                  = Module "Prelude"
+    dataProtobufWireDotProtoM = Module "Proto3.Suite.DotProto"
+    dataProtobufWireClassM    = Module "Proto3.Suite.Class"
+    dataProtobufWireTypesM    = Module "Proto3.Suite.Types"
+    proto3SuiteJSONPBM        = Module "Proto3.Suite.JSONPB"
+    proto3WireM               = Module "Proto3.Wire"
+    controlApplicativeM       = Module "Control.Applicative"
+    controlMonadM             = Module "Control.Monad"
+    dataCoerceM               = Module "Data.Coerce"
+    dataTextM                 = Module "Data.Text.Lazy"
+    dataByteStringM           = Module "Data.ByteString"
+    dataStringM               = Module "Data.String"
+    dataIntM                  = Module "Data.Int"
+    dataVectorM               = Module "Data.Vector"
+    dataMapM                  = Module "Data.Map"
+    dataWordM                 = Module "Data.Word"
+    dataProxy                 = Module "Data.Proxy"
+    ghcGenericsM              = Module "GHC.Generics"
+    ghcEnumM                  = Module "GHC.Enum"
+    networkGrpcHighLevelGeneratedM   = Module "Network.GRPC.HighLevel.Generated"
+    networkGrpcHighLevelServerM      = Module "Network.GRPC.HighLevel.Server"
+    networkGrpcHighLevelClientM      = Module "Network.GRPC.HighLevel.Client"
+    networkGrpcHighLevelServerUnregM = Module "Network.GRPC.HighLevel.Server.Unregistered"
 
 #ifdef DHALL
-        proto3SuiteDhallPBM       = Module "Proto3.Suite.DhallPB"
+    proto3SuiteDhallPBM       = Module "Proto3.Suite.DhallPB"
 #endif
 
-        grpcNS                    = Module "HsGRPC"
-        jsonpbNS                  = Module "HsJSONPB"
-        protobufNS                = Module "HsProtobuf"
-        proxyNS                   = Module "Proxy"
+    grpcNS                    = Module "HsGRPC"
+    jsonpbNS                  = Module "HsJSONPB"
+    protobufNS                = Module "HsProtobuf"
+    proxyNS                   = Module "Proxy"
 
-        importSym = HsIAbs . HsIdent
+    importSym = HsIAbs . HsIdent
 
 haskellNS :: Module
 haskellNS = Module "Hs"
