@@ -283,13 +283,11 @@ messagePart = try (DotProtoMessageDefinition <$> enum)
           <|> try (DotProtoMessageField      <$> messageField)
 
 messageType :: ProtoParser DotProtoType
-messageType = try mapType <|> repOrPrim
+messageType = try mapType <|> try repType <|> (Prim <$> primType)
   where
-    repOrPrim = try repType <|> (Prim <$> primType)
-
     mapType = do symbol "map"
                  angles $ Map <$> (primType <* comma)
-                              <*> repOrPrim
+                              <*> primType
 
     repType = do symbol "repeated"
                  Repeated <$> primType

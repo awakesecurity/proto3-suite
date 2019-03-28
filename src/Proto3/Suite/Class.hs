@@ -475,15 +475,12 @@ instance MessageField B.ByteString
 instance MessageField BL.ByteString
 instance (Bounded e, Named e, Enum e) => MessageField (Enumerated e)
 
-instance (Ord k, Primitive k, MessageField v) => MessageField (M.Map k v) where
+instance (Ord k, Primitive k, Primitive v) => MessageField (M.Map k v) where
   encodeMessageField num = foldMap (\(k, v) -> Encode.embedded num $
                                      encodePrimitive (fieldNumber 1) k <>
-                                     encodeMessageField (fieldNumber 2) v
+                                     encodePrimitive (fieldNumber 2) v
                                    )
                            . M.toList
---                           . Data.Coerce.coerce @(Wire.MapOfFields k v)
---                           @(M.Map k v)
-
   -- 'reverse' the list before turning into a map because the map monoid keeps
   -- the first key. From the spec:
   --
@@ -491,20 +488,8 @@ instance (Ord k, Primitive k, MessageField v) => MessageField (M.Map k v) where
   -- > keys the last key seen is used.
   decodeMessageField = --Data.Coerce.coerce @(M.Map k v) @(Wire.MapOfFields k v)
                        M.fromList . reverse . fromList
-                       <$> repeated ((,) <$> decodePrimitive @k <*> Decode.embedded' (Decode.at (decodeMessageField @v) 2))
-  protoType _ = messageField (Map (primType (Proxy @k)) (dotProtoFieldType $ protoType (Proxy @v))) Nothing
-
--- instance (Ord k, Primitive k, Message v, Named v) => MessageField (Wire.MapOfMessages k v) where
---   encodeMessageField num = foldMap (\(k,v) -> Encode.embedded num $
---                                      encodePrimitive (fieldNumber 1) k <>
---                                      encodeMessage (fieldNumber 2) v
---                                    )
---                            . M.toList
---                            . Data.Coerce.coerce @(Wire.MapOfMessages k v) @(M.Map k v)
---   decodeMessageField = Data.Coerce.coerce @(M.Map k v) @(Wire.MapOfMessages k v)
---                        . M.fromList . fromList
---                        <$> repeated ((,) <$> decodePrimitive @k <*> Decode.embedded' (decodeMessage @v 2))
---   protoType _ = messageField (Map (primType (Proxy @k)) (Prim . Named . Single . nameOf $ Proxy @v)) Nothing
+                       <$> repeated ((,) <$> decodePrimitive @k <*> decodePrimitive @v)
+  protoType _ = messageField (Map (primType (Proxy @k)) (primType (Proxy @v))) Nothing
 
 instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
   encodeMessageField = encodePrimitive

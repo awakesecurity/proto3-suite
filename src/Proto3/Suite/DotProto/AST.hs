@@ -258,7 +258,7 @@ data DotProtoType
   | Optional       DotProtoPrimType
   | Repeated       DotProtoPrimType
   | NestedRepeated DotProtoPrimType
-  | Map            DotProtoPrimType DotProtoType -- no nested maps.
+  | Map            DotProtoPrimType DotProtoPrimType
   deriving (Show, Eq)
 
 instance Arbitrary DotProtoType where

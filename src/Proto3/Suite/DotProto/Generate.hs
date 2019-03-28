@@ -468,10 +468,9 @@ hsTypeFromDotProto ctxt = \case
   Optional pType       -> HsTyApp (primType_ "Maybe") <$> hsTypeFromDotProtoPrim ctxt pType
   Repeated pType       -> HsTyApp (primType_ "Vector") <$> hsTypeFromDotProtoPrim ctxt pType
   NestedRepeated pType -> HsTyApp (primType_ "Vector") <$> hsTypeFromDotProtoPrim ctxt pType
-  Map _ (Map _ _)      -> internalError "Nested Map" -- disallowed by protobuf 3.
   Map k v              -> HsTyApp . HsTyApp (primType_ "Map")
                           <$> hsTypeFromDotProtoPrim ctxt k
-                          <*> hsTypeFromDotProto ctxt v
+                          <*> hsTypeFromDotProtoPrim ctxt v
   --    internalError "No support for protobuf mappings"
 
 hsTypeFromDotProtoPrim :: MonadError CompileError m => TypeContext -> DotProtoPrimType -> m HsType
@@ -752,74 +751,72 @@ messageInstD
     -> DotProtoIdentifier -> DotProtoIdentifier
     -> [DotProtoMessagePart]
     -> m HsDecl
-messageInstD ctxt parentIdent msgIdent messageParts =
-  do msgName <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
-
+messageInstD ctxt parentIdent msgIdent messageParts = do
+     msgName <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
      qualifiedFields <- getQualifiedFields msgName messageParts
 
-     encodeMessagePartEs <- forM qualifiedFields $ \QualifiedField{recordFieldName, fieldInfo} ->
-        let recordFieldName' = HsVar (unqual_ (coerce recordFieldName)) in
-        case fieldInfo of
-            FieldNormal _fieldName fieldNum dpType options -> do
-                fieldE <- wrapE ctxt dpType options recordFieldName'
-                pure (apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ])
+     let encodeMessagePart1 QualifiedField{recordFieldName, fieldInfo} =
+             let recordFieldName' = HsVar (unqual_ (coerce recordFieldName)) in
+             case fieldInfo of
+                 FieldNormal _fieldName fieldNum dpType options ->
+                     let fieldE = wrapE ctxt dpType options recordFieldName'
+                     in apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ]
 
-            FieldOneOf OneofField{subfields} -> do
-                 -- Create all pattern match & expr for each constructor:
-                 --    Constructor y -> encodeMessageField num (Nested (Just y)) -- for embedded messages
-                 --    Constructor y -> encodeMessageField num (ForceEmit y)     -- for everything else
-                 alts <- forM subfields $ \(OneofSubfield fieldNum conName _ dpType options) -> do
-                     let wrapMaybe
-                            | Prim (Named tyName) <- dpType
-                            , Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
-                            = HsParen . HsApp (HsVar (haskellName "Just"))
-                            | otherwise
-                            = forceEmitE
+                 FieldOneOf OneofField{subfields} ->
+                      -- Create all pattern match & expr for each constructor:
+                      --    Constructor y -> encodeMessageField num (Nested (Just y)) -- for embedded messages
+                      --    Constructor y -> encodeMessageField num (ForceEmit y)     -- for everything else
+                      let mkAlt (OneofSubfield fieldNum conName _ dpType options) =
+                            let wrapMaybe
+                                   | Prim (Named tyName) <- dpType
+                                   , Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
+                                   = HsParen . HsApp (HsVar (haskellName "Just"))
+                                   | otherwise
+                                   = forceEmitE
 
-                     xE <- wrapE ctxt dpType options
-                           . wrapMaybe
-                           $ HsVar (unqual_ "y")
+                                xE = wrapE ctxt dpType options
+                                   . wrapMaybe
+                                   $ HsVar (unqual_ "y")
 
-                     pure $
-                       alt_ (HsPApp (unqual_ conName) [patVar "y"])
-                            (HsUnGuardedAlt (apply encodeMessageFieldE [fieldNumberE fieldNum, xE]))
-                            []
+                            in
+                              alt_ (HsPApp (unqual_ conName) [patVar "y"])
+                                   (HsUnGuardedAlt (apply encodeMessageFieldE [fieldNumberE fieldNum, xE]))
+                                   []
 
-                 pure $ HsCase recordFieldName'
-                        [ alt_ (HsPApp (haskellName "Nothing") [])
-                               (HsUnGuardedAlt memptyE)
-                               []
-                        , alt_ (HsPApp (haskellName "Just") [patVar "x"])
-                               (HsUnGuardedAlt (HsCase (HsVar (unqual_ "x")) alts))
-                               []
-                        ]
+                      in HsCase recordFieldName'
+                             [ alt_ (HsPApp (haskellName "Nothing") [])
+                                    (HsUnGuardedAlt memptyE)
+                                    []
+                             , alt_ (HsPApp (haskellName "Just") [patVar "x"])
+                                    (HsUnGuardedAlt (HsCase (HsVar (unqual_ "x")) (map mkAlt subfields)))
+                                    []
+                             ]
 
-     decodeMessagePartEs <- forM qualifiedFields $ \QualifiedField{fieldInfo} ->
-        case fieldInfo of
-            FieldNormal _fieldName fieldNum dpType options ->
-                unwrapE ctxt dpType options $ apply atE [ decodeMessageFieldE, fieldNumberE fieldNum ]
+     let decodeMessagePart1 QualifiedField{fieldInfo} =
+             case fieldInfo of
+                 FieldNormal _fieldName fieldNum dpType options ->
+                     unwrapE ctxt dpType options $ apply atE [ decodeMessageFieldE, fieldNumberE fieldNum ]
 
-            FieldOneOf OneofField{subfields} -> do
-                -- create a list of (fieldNumber, Cons <$> parser)
-                let subfieldParserE (OneofSubfield fieldNumber consName _ dpType options) = do
-                      decodeMessageFieldE' <- unwrapE ctxt dpType options decodeMessageFieldE
-                      let fE = case dpType of
-                                 Prim (Named tyName)
-                                   | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
-                                     -> HsParen (HsApp fmapE (HsVar (unqual_ consName)))
-                                 _ -> HsParen (HsInfixApp (HsVar (haskellName "Just"))
-                                                          composeOp
-                                                          (HsVar (unqual_ consName)))
-                      pure $ HsTuple
-                               [ fieldNumberE fieldNumber
-                               , HsInfixApp (apply pureE [ fE ])
-                                            apOp
-                                            decodeMessageFieldE'
-                               ]
-                subfieldParserEs <- mapM subfieldParserE subfields
-                pure $ apply oneofE [ HsVar (haskellName "Nothing")
-                                    , HsList subfieldParserEs
-                                    ]
+                 FieldOneOf OneofField{subfields} ->
+                     -- create a list of (fieldNumber, Cons <$> parser)
+                     let subfieldParserE (OneofSubfield fieldNumber consName _ dpType options) =
+                           let fE = case dpType of
+                                      Prim (Named tyName)
+                                        | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
+                                          -> HsParen (HsApp fmapE (HsVar (unqual_ consName)))
+                                      _ -> HsParen (HsInfixApp (HsVar (haskellName "Just"))
+                                                               composeOp
+                                                               (HsVar (unqual_ consName)))
+                           in HsTuple
+                                [ fieldNumberE fieldNumber
+                                , HsInfixApp (apply pureE [ fE ])
+                                             apOp
+                                             (unwrapE ctxt dpType options decodeMessageFieldE)
+                                ]
+
+                     in apply oneofE [ HsVar (haskellName "Nothing")
+                                     , HsList (map subfieldParserE subfields)
+                                     ]
 
      let dotProtoE = HsList
                        [ apply dotProtoFieldC
@@ -833,29 +830,31 @@ messageInstD ctxt parentIdent msgIdent messageParts =
                           <- messageParts
                        ]
 
+     let punnedFieldsP =
+             [ HsPFieldPat (unqual_ fieldName) (HsPVar (HsIdent fieldName))
+             | QualifiedField (coerce -> fieldName) _ <- qualifiedFields
+             ]
+
+     let encodeMessageE = apply mconcatE [ HsList (map encodeMessagePart1 qualifiedFields) ]
+     let decodeMessageE = foldl (\f -> HsInfixApp f apOp)
+                                (apply pureE [ HsVar (unqual_ msgName) ])
+                                (map decodeMessagePart1 qualifiedFields)
+
      let encodeMessageDecl = match_ (HsIdent "encodeMessage")
                                     [HsPWildCard, HsPRec (unqual_ msgName) punnedFieldsP]
                                     (HsUnGuardedRhs encodeMessageE) []
-         decodeMessageDecl = match_ (HsIdent "decodeMessage") [ HsPWildCard ]
+     let decodeMessageDecl = match_ (HsIdent "decodeMessage") [ HsPWildCard ]
                                     (HsUnGuardedRhs decodeMessageE) []
-         dotProtoDecl      = match_ (HsIdent "dotProto") [HsPWildCard]
+     let dotProtoDecl      = match_ (HsIdent "dotProto") [HsPWildCard]
                                     (HsUnGuardedRhs dotProtoE) []
 
-         punnedFieldsP =
-             [ HsPFieldPat (unqual_ fieldName) (HsPVar (HsIdent fieldName))
-             | QualifiedField (coerce -> fieldName) _ <- qualifiedFields ]
+     pure $ instDecl_ (protobufName "Message")
+                      [ type_ msgName ]
+                      [ HsFunBind [ encodeMessageDecl ]
+                      , HsFunBind [ decodeMessageDecl ]
+                      , HsFunBind [ dotProtoDecl ]
+                      ]
 
-         encodeMessageE = apply mconcatE [ HsList encodeMessagePartEs ]
-         decodeMessageE = foldl (\f -> HsInfixApp f apOp)
-                                (apply pureE [ HsVar (unqual_ msgName) ])
-                                decodeMessagePartEs
-
-     pure (instDecl_ (protobufName "Message")
-                     [ type_ msgName ]
-                     (map (HsFunBind . (: []))
-                      [ encodeMessageDecl
-                      , decodeMessageDecl
-                      , dotProtoDecl ]))
 
 -- *** Generate ToJSONPB/FromJSONPB instances
 
@@ -1387,12 +1386,12 @@ coerceE from to = HsApp (HsApp (HsVar (haskellName "coerce")) (typeApp from)) (t
   where
     typeApp ty = HsVar (UnQual (HsIdent ("@("++ prettyPrint ty ++ ")")))
 
-wrapE :: MonadError CompileError m => TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> m HsExp
-wrapE ctxt dpt opts e = fmap HsParen $ maybe id (HsApp . HsParen) <$> mkWrapE ctxt dpt opts <*> pure e
+wrapE :: TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> HsExp
+wrapE ctxt dpt opts e = HsParen $ maybe id (HsApp . HsParen) (mkWrapE ctxt dpt opts) e
 
 -- the unwrapping function has to be fmapped over the parser.
-unwrapE :: MonadError CompileError m => TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> m HsExp
-unwrapE ctxt dpt opts e = fmap HsParen $ maybe id (\f -> HsInfixApp f fmapOp) <$> mkUnwrapE ctxt dpt opts <*> pure e
+unwrapE :: TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> HsExp
+unwrapE ctxt dpt opts e = HsParen $ maybe id (\f -> HsInfixApp f fmapOp) (mkUnwrapE ctxt dpt opts) e
 
 maybeCompose :: Maybe HsExp -> Maybe HsExp -> Maybe HsExp
 maybeCompose Nothing e = e
@@ -1400,64 +1399,52 @@ maybeCompose e Nothing = e
 maybeCompose (Just e1) (Just e2) = Just $ HsInfixApp e1 composeOp e2
 
 -- | Make a transformer to apply to a haskell type based on the dot proto type.
-mkWrapE
-    :: MonadError CompileError m
-    => TypeContext
-    -> DotProtoType
-    -> [DotProtoOption]
-    -> m (Maybe HsExp)
+mkWrapE :: TypeContext
+       -> DotProtoType
+       -> [DotProtoOption]
+       -> Maybe HsExp
 mkWrapE ctxt dpt opts = case dpt of
     Prim ty
-      -> pure (wrapPrimE ctxt ty)
+      -> wrapPrimE ctxt ty
     Optional ty
-      -> pure (wrapPrimE ctxt ty)
+      -> wrapPrimE ctxt ty
     Repeated (Named tyName)
       | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
-        -> pure $ Just (HsVar (protobufName "NestedVec"))
+        -> Just (HsVar (protobufName "NestedVec"))
     Repeated ty
       | isUnpacked opts                     -> wrapVE "UnpackedVec" ty
       | isPacked opts || isPackable ctxt ty -> wrapVE "PackedVec"   ty
       | otherwise                           -> wrapVE "UnpackedVec" ty
-    Map k v -> do
-      wrapV <- mkWrapE ctxt v opts
-      pure $ maybeCompose
-               (HsApp (HsVar $ haskellName "mapKeysMonotonic") <$> wrapPrimE ctxt k)
-               (HsApp fmapE <$> wrapV)
-    _ -> pure Nothing
+    Map k v -> maybeCompose
+                (HsApp (HsVar $ haskellName "mapKeysMonotonic") <$> wrapPrimE ctxt k)
+                (HsApp fmapE <$> wrapPrimE ctxt v)
+    _ -> Nothing
   where
-    wrapVE nm ty = pure $ maybeCompose
-                            (Just (HsVar (protobufName nm)))
-                            (wrapPrimVecE ty)
+    wrapVE nm ty = maybeCompose (Just (HsVar (protobufName nm))) (wrapPrimVecE ty)
 
 -- | The inverse of wrapE.
-mkUnwrapE
-    :: MonadError CompileError m
-    => TypeContext
-    -> DotProtoType
-    -> [DotProtoOption]
-    -> m (Maybe HsExp)
+mkUnwrapE :: TypeContext
+          -> DotProtoType
+          -> [DotProtoOption]
+          -> Maybe HsExp
 mkUnwrapE ctxt dpt opts = case dpt of
   Prim ty
-    -> pure (unwrapPrimE ctxt ty)
+    -> unwrapPrimE ctxt ty
   Optional ty
-    -> pure (unwrapPrimE ctxt ty)
+    -> unwrapPrimE ctxt ty
   Repeated (Named tyName)
     | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
-      -> pure $ Just (HsVar (protobufName "nestedvec"))
+      -> Just (HsVar (protobufName "nestedvec"))
   Repeated ty
     | isUnpacked opts                     -> unwrapVE ty "unpackedvec"
     | isPacked opts || isPackable ctxt ty -> unwrapVE ty "packedvec"
     | otherwise                           -> unwrapVE ty "unpackedvec"
-  Map k v -> do
-     unwrapV <- mkUnwrapE ctxt v opts
-     pure $ maybeCompose
+  Map k v -> maybeCompose
               (HsApp (HsVar $ haskellName "mapKeysMonotonic") <$> unwrapPrimE ctxt k)
-              (HsApp fmapE <$> unwrapV)
-  _ -> pure Nothing
+              (HsApp fmapE <$> unwrapPrimE ctxt v)
+  _ -> Nothing
  where
-   unwrapVE ty nm = pure $ maybeCompose
-                             (unwrapPrimVecE ty)
-                             (Just (HsVar $ protobufName nm))
+   unwrapVE ty nm = maybeCompose (unwrapPrimVecE ty) (Just (HsVar $ protobufName nm))
 
 wrapPrimVecE :: DotProtoPrimType -> Maybe HsExp
 wrapPrimVecE ty | isSignedPrim ty = Just $ apply fmapE [ HsVar (protobufName "Signed") ]
@@ -1959,7 +1946,7 @@ dpTypeE (Prim p)           = apply primC           [ dpPrimTypeE p ]
 dpTypeE (Optional p)       = apply optionalC       [ dpPrimTypeE p ]
 dpTypeE (Repeated p)       = apply repeatedC       [ dpPrimTypeE p ]
 dpTypeE (NestedRepeated p) = apply nestedRepeatedC [ dpPrimTypeE p ]
-dpTypeE (Map k v)          = apply mapC            [ dpPrimTypeE k, dpTypeE v]
+dpTypeE (Map k v)          = apply mapC            [ dpPrimTypeE k, dpPrimTypeE v]
 
 
 -- | Translate a dot proto primitive type to a Haskell AST primitive type.
