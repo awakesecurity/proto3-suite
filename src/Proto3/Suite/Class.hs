@@ -486,8 +486,7 @@ instance (Ord k, Primitive k, Primitive v) => MessageField (M.Map k v) where
   --
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
-  decodeMessageField = --Data.Coerce.coerce @(M.Map k v) @(Wire.MapOfFields k v)
-                       M.fromList . reverse . fromList
+  decodeMessageField = M.fromList . reverse . fromList
                        <$> repeated ((,) <$> decodePrimitive @k <*> decodePrimitive @v)
   protoType _ = messageField (Map (primType (Proxy @k)) (primType (Proxy @v))) Nothing
 
