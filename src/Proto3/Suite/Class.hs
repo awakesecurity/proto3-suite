@@ -481,8 +481,7 @@ instance (Ord k, Primitive k, Primitive v) => MessageField (M.Map k v) where
                                    )
                            . M.toList
 
-  -- 'reverse' the list before turning into a map because the map monoid keeps
-  -- the first key. From the spec:
+  -- Data.Map.fromList will retain the last key/value mapping. From the spec:
   --
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
@@ -497,12 +496,11 @@ instance {-# OVERLAPS #-} (Ord k, Primitive k, Named v, Message v) => MessageFie
                                    )
                            . M.toList
 
-  -- 'reverse' the list before turning into a map because the map monoid keeps
-  -- the first key. From the spec:
+  -- Data.Map.fromList will retain the last key/value mapping. From the spec:
   --
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
-  decodeMessageField = M.fromList . reverse . fromList
+  decodeMessageField = M.fromList . fromList
                        <$> repeated ((,) <$> decodePrimitive @k
                                          <*> Decode.embedded' (Decode.at (decodeMessageField @(Nested v)) 2)
                                     )

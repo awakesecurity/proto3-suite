@@ -362,6 +362,15 @@ case18h = read_proto(WithImported)
 assert not case18h.HasField('dummyMsg1')
 assert not case18h.HasField('withOneof')
 
+case19 = read_proto(MapTest)
+assert case19.HasField('prim')
+assert case19.prim['foo'] == 1
+assert case19.HasField('trivial')
+assert case19.trivial[101].trivial.trivialField == 1234567
+assert case19.trivial[79].trivial == WrappedTrivial()
+assert case19.HasField('signed')
+assert case19.signed[1] == 2
+
 # Wait for the special 'done' messsage
 done_msg = read_proto(MultipleFields)
 assert done_msg.multiFieldString == "All tests complete"

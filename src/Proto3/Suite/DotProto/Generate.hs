@@ -754,7 +754,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
      msgName <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
      qualifiedFields <- getQualifiedFields msgName messageParts
 
-     let encodeMessagePart1 QualifiedField{recordFieldName, fieldInfo} =
+     let encodeMessageField QualifiedField{recordFieldName, fieldInfo} =
              let recordFieldName' = HsVar (unqual_ (coerce recordFieldName)) in
              case fieldInfo of
                  FieldNormal _fieldName fieldNum dpType options ->
@@ -791,7 +791,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                                     []
                              ]
 
-     let decodeMessagePart1 QualifiedField{fieldInfo} =
+     let decodeMessageField QualifiedField{fieldInfo} =
              case fieldInfo of
                  FieldNormal _fieldName fieldNum dpType options ->
                      unwrapE ctxt dpType options $ apply atE [ decodeMessageFieldE, fieldNumberE fieldNum ]
@@ -834,10 +834,10 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
              | QualifiedField (coerce -> fieldName) _ <- qualifiedFields
              ]
 
-     let encodeMessageE = apply mconcatE [ HsList (map encodeMessagePart1 qualifiedFields) ]
+     let encodeMessageE = apply mconcatE [ HsList (map encodeMessageField qualifiedFields) ]
      let decodeMessageE = foldl (\f -> HsInfixApp f apOp)
                                 (apply pureE [ HsVar (unqual_ msgName) ])
-                                (map decodeMessagePart1 qualifiedFields)
+                                (map decodeMessageField qualifiedFields)
 
      let encodeMessageDecl = match_ (HsIdent "encodeMessage")
                                     [HsPWildCard, HsPRec (unqual_ msgName) punnedFieldsP]

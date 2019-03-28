@@ -141,13 +141,12 @@ enum EnumAnnots {
   BAR = 1 [deprecated=true];
 }
 
+message WrappedTrivial {
+  Trivial trivial = 1;
+}
+
 message MapTest {
   map<string, sint32> prim = 1;
-  map<int32, Wrapped> wrapped = 2;
-  // In theory you could do this because of how map is elaborated to a
-  // nested message under the hood. In practice it causes the reference impl to barf.
-  //  map<string, repeated OutOfOrderFields> listOfMessages = 3;
-  //  map<int32, repeated bool> listOfPackedBool = 4 [packed=true];
-  //  map<int32, repeated int32> listOfUnpackedInt32 = 5;
-  map<sint32, sint32> signedSigned = 6; // both the key and value needs to be wrapped with 'Signed'
+  map<int32, WrappedTrivial> trivial = 2;
+  map<sint32, sint32> signed= 3; // both the key and value needs to be wrapped with 'Signed'
 }

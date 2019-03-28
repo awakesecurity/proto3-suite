@@ -5,6 +5,7 @@
 module Main where
 
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.Map as M
 import           Proto3.Suite
 import           TestProto
 import qualified TestProtoImport
@@ -185,6 +186,15 @@ testCase18 = do
   emitWithOneof $ Just $ TestProtoOneofImport.WithOneofPickOneB 19
   emit Nothing
 
+testCase19 :: IO ()
+testCase19 = do
+  let wt = Just . WrappedTrivial . Just . Trivial
+  outputMessage MapTest{ mapTestPrim = M.fromList [("foo", 1),("bar", 42),("baz", 1234567)]
+                       , mapTestTrivial = M.fromList [(1, wt 1),(2, wt 42),(101, wt 1234567), (79, Nothing)]
+                       , mapTestSigned = M.fromList [(1,2),(3,4),(5,6)]
+                       }
+
+
 main :: IO ()
 main = do testCase1
           testCase2
@@ -209,5 +219,8 @@ main = do testCase1
           -- Oneof tests
           testCase17
           testCase18
+
+          -- Map tests
+          testCase19
 
           outputMessage (MultipleFields 0 0 0 0 "All tests complete" False)
