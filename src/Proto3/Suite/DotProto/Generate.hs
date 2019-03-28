@@ -252,7 +252,7 @@ hsModuleForDotProto
     typeContext <- dotProtoTypeContext dotProto
 
     let toDotProtoDeclaration =
-            dotProtoDefinitionD packageIdentifier (typeContext <> importTypeContext)
+          dotProtoDefinitionD packageIdentifier (typeContext <> importTypeContext)
 
     let instances = instancesForModule moduleName extraInstances
 
@@ -465,7 +465,7 @@ hsTypeFromDotProto ctxt = \case
      -> HsTyApp (primType_ "Maybe") <$> hsTypeFromDotProtoPrim ctxt (Named msgName)
   Prim pType           -> hsTypeFromDotProtoPrim ctxt pType
   Optional (Named nm)  -> hsTypeFromDotProto ctxt (Prim (Named nm))
-  Optional pType       -> HsTyApp (primType_ "Maybe") <$> hsTypeFromDotProtoPrim ctxt pType
+  Optional pType       -> HsTyApp (primType_ "Maybe")  <$> hsTypeFromDotProtoPrim ctxt pType
   Repeated pType       -> HsTyApp (primType_ "Vector") <$> hsTypeFromDotProtoPrim ctxt pType
   NestedRepeated pType -> HsTyApp (primType_ "Vector") <$> hsTypeFromDotProtoPrim ctxt pType
   Map k v              -> HsTyApp . HsTyApp (primType_ "Map")
@@ -473,21 +473,21 @@ hsTypeFromDotProto ctxt = \case
                           <*> hsTypeFromDotProto ctxt (Prim v) -- need to 'Nest' message types
 
 hsTypeFromDotProtoPrim :: MonadError CompileError m => TypeContext -> DotProtoPrimType -> m HsType
-hsTypeFromDotProtoPrim _    Int32   = pure $ primType_ "Int32"
-hsTypeFromDotProtoPrim _    Int64   = pure $ primType_ "Int64"
-hsTypeFromDotProtoPrim _    SInt32  = pure $ primType_ "Int32"
-hsTypeFromDotProtoPrim _    SInt64  = pure $ primType_ "Int64"
-hsTypeFromDotProtoPrim _    UInt32  = pure $ primType_ "Word32"
-hsTypeFromDotProtoPrim _    UInt64  = pure $ primType_ "Word64"
-hsTypeFromDotProtoPrim _    Fixed32 = pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Word32")
-hsTypeFromDotProtoPrim _    Fixed64 = pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Word64")
-hsTypeFromDotProtoPrim _    SFixed32= pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Int32")
-hsTypeFromDotProtoPrim _    SFixed64= pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Int64")
-hsTypeFromDotProtoPrim _    String  = pure $ primType_ "Text"
-hsTypeFromDotProtoPrim _    Bytes   = pure $ primType_ "ByteString"
-hsTypeFromDotProtoPrim _    Bool    = pure $ primType_ "Bool"
-hsTypeFromDotProtoPrim _    Float   = pure $ primType_ "Float"
-hsTypeFromDotProtoPrim _    Double  = pure $ primType_ "Double"
+hsTypeFromDotProtoPrim _    Int32    = pure $ primType_ "Int32"
+hsTypeFromDotProtoPrim _    Int64    = pure $ primType_ "Int64"
+hsTypeFromDotProtoPrim _    SInt32   = pure $ primType_ "Int32"
+hsTypeFromDotProtoPrim _    SInt64   = pure $ primType_ "Int64"
+hsTypeFromDotProtoPrim _    UInt32   = pure $ primType_ "Word32"
+hsTypeFromDotProtoPrim _    UInt64   = pure $ primType_ "Word64"
+hsTypeFromDotProtoPrim _    Fixed32  = pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Word32")
+hsTypeFromDotProtoPrim _    Fixed64  = pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Word64")
+hsTypeFromDotProtoPrim _    SFixed32 = pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Int32")
+hsTypeFromDotProtoPrim _    SFixed64 = pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Int64")
+hsTypeFromDotProtoPrim _    String   = pure $ primType_ "Text"
+hsTypeFromDotProtoPrim _    Bytes    = pure $ primType_ "ByteString"
+hsTypeFromDotProtoPrim _    Bool     = pure $ primType_ "Bool"
+hsTypeFromDotProtoPrim _    Float    = pure $ primType_ "Float"
+hsTypeFromDotProtoPrim _    Double   = pure $ primType_ "Double"
 hsTypeFromDotProtoPrim ctxt (Named msgName) =
     case M.lookup msgName ctxt of
       Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
@@ -500,23 +500,21 @@ hsTypeFromDotProtoPrim ctxt (Named msgName) =
 --   field of the 'DotProtoTypeInfo' parameter, instead demanding that we have
 --   been provided with a valid module path in its 'dotProtoTypeInfoModulePath'
 --   field. The latter describes the name of the Haskell module being generated.
+msgTypeFromDpTypeInfo :: MonadError CompileError m
+                      => DotProtoTypeInfo -> DotProtoIdentifier -> m HsType
 msgTypeFromDpTypeInfo
-    :: MonadError CompileError m
-    => DotProtoTypeInfo -> DotProtoIdentifier -> m HsType
-msgTypeFromDpTypeInfo
-  DotProtoTypeInfo{ dotProtoTypeInfoModulePath = Path [] }
-  _ident
-  = throwError InternalEmptyModulePath
-msgTypeFromDpTypeInfo
-  DotProtoTypeInfo { dotProtoTypeInfoParent     = p
-                   , dotProtoTypeInfoModulePath = modulePath
-                   }
-  ident
-  = HsTyCon <$> do Qual <$> modulePathModName modulePath
-                        <*> do HsIdent <$> do
-                                 nestedTypeName p =<< dpIdentUnqualName ident
+    DotProtoTypeInfo { dotProtoTypeInfoParent = p
+                     , dotProtoTypeInfoModulePath = modulePath
+                     }
+    ident
+  | Path [] <- modulePath = throwError InternalEmptyModulePath
+  | otherwise = do
+       modName <- modulePathModName modulePath
+       identName <- nestedTypeName p =<< dpIdentUnqualName ident
+       pure $ HsTyCon (Qual modName (HsIdent identName))
 
--- | Given a 'DotProtoIdentifier' for the parent type and the unqualified name of this type, generate the corresponding Haskell name
+-- | Given a 'DotProtoIdentifier' for the parent type and the unqualified name
+-- of this type, generate the corresponding Haskell name
 nestedTypeName :: MonadError CompileError m => DotProtoIdentifier -> String -> m String
 nestedTypeName Anonymous             nm = typeLikeName nm
 nestedTypeName (Single parent)       nm = intercalate "_" <$> sequenceA [ typeLikeName parent , typeLikeName nm ]
@@ -818,16 +816,16 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                                      ]
 
      let dotProtoE = HsList
-                       [ apply dotProtoFieldC
-                            [ fieldNumberE fieldNum
-                            , dpTypeE dpType
-                            , dpIdentE fieldIdent
-                            , HsList (map optionE options)
-                            , maybeE (HsLit . HsString) comments
-                            ]
-                       | DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options comments)
-                          <- messageParts
-                       ]
+             [ apply dotProtoFieldC
+                  [ fieldNumberE fieldNum
+                  , dpTypeE dpType
+                  , dpIdentE fieldIdent
+                  , HsList (map optionE options)
+                  , maybeE (HsLit . HsString) comments
+                  ]
+             | DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options comments)
+                <- messageParts
+             ]
 
      let punnedFieldsP =
              [ HsPFieldPat (unqual_ fieldName) (HsPVar (HsIdent fieldName))
@@ -1585,9 +1583,7 @@ dotProtoEnumD parentIdent enumIdent enumParts =
            <> [ match_ (HsIdent "parseJSONPB") [patVar "v"]
                        (HsUnGuardedRhs
                           (apply (HsVar (jsonpbName "typeMismatch"))
-                                 [ HsLit (HsString enumName)
-                                 , HsVar (unqual_ "v")
-                                 ]))
+                                 [ HsLit (HsString enumName), HsVar (unqual_ "v") ]))
                        []
               ]
 
@@ -1715,7 +1711,6 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
                                    , patVar "sslConfig"
                                    , patVar "logger"
                                    ]
-
                           ]
                           (HsUnGuardedRhs (apply serverLoopE [ serverOptsE ]))
                           []
