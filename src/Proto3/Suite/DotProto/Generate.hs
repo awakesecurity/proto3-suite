@@ -456,6 +456,24 @@ ctxtImports tyCtxt =
 
 -- * Functions to convert 'DotProtoType' into Haskell types
 
+
+coerceE :: HsType -> HsType -> HsExp
+coerceE from to = HsApp (HsApp (HsVar (haskellName "coerce")) (typeApp from)) (typeApp to)
+  where
+    typeApp ty = HsVar (UnQual (HsIdent ("@("++ prettyPrint ty ++ ")")))
+
+
+-- Convert a dot proto type to a Haskell type
+dptToHsType :: MonadError CompileError m => TypeContext -> DotProtoType -> m HsType
+dptToHsType = foldDPT (const id) (\ctxt _ -> dpptToHsType ctxt)
+
+-- Convert a dot proto type to a wrapped Haskell type
+dptToHsTypeWrapped :: MonadError CompileError m => TypeContext -> [DotProtoOption] -> DotProtoType -> m HsType
+dptToHsTypeWrapped ctxt opts = foldDPT (dptToHsWrapper ctxt opts)
+                                       (\ctxt isContainer ty -> dpptToHsWrapper ctxt isContainer ty <$> dpptToHsType ctxt ty)
+                                       ctxt
+
+{-
 -- | Produce the Haskell type for the given 'DotProtoType' in the
 --   given 'TypeContext'
 hsTypeFromDotProto :: MonadError CompileError m => TypeContext -> DotProtoType -> m HsType
@@ -471,29 +489,101 @@ hsTypeFromDotProto ctxt = \case
   Map k v              -> HsTyApp . HsTyApp (primType_ "Map")
                           <$> hsTypeFromDotProtoPrim ctxt k
                           <*> hsTypeFromDotProto ctxt (Prim v) -- need to 'Nest' message types
+-}
 
-hsTypeFromDotProtoPrim :: MonadError CompileError m => TypeContext -> DotProtoPrimType -> m HsType
-hsTypeFromDotProtoPrim _    Int32    = pure $ primType_ "Int32"
-hsTypeFromDotProtoPrim _    Int64    = pure $ primType_ "Int64"
-hsTypeFromDotProtoPrim _    SInt32   = pure $ primType_ "Int32"
-hsTypeFromDotProtoPrim _    SInt64   = pure $ primType_ "Int64"
-hsTypeFromDotProtoPrim _    UInt32   = pure $ primType_ "Word32"
-hsTypeFromDotProtoPrim _    UInt64   = pure $ primType_ "Word64"
-hsTypeFromDotProtoPrim _    Fixed32  = pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Word32")
-hsTypeFromDotProtoPrim _    Fixed64  = pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Word64")
-hsTypeFromDotProtoPrim _    SFixed32 = pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Int32")
-hsTypeFromDotProtoPrim _    SFixed64 = pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Int64")
-hsTypeFromDotProtoPrim _    String   = pure $ primType_ "Text"
-hsTypeFromDotProtoPrim _    Bytes    = pure $ primType_ "ByteString"
-hsTypeFromDotProtoPrim _    Bool     = pure $ primType_ "Bool"
-hsTypeFromDotProtoPrim _    Float    = pure $ primType_ "Float"
-hsTypeFromDotProtoPrim _    Double   = pure $ primType_ "Double"
-hsTypeFromDotProtoPrim ctxt (Named msgName) =
+foldDPT :: MonadError CompileError m
+        => (DotProtoType -> HsType -> HsType)
+        -> (TypeContext -> Bool -> DotProtoPrimType -> m HsType)
+        -> TypeContext
+        -> DotProtoType
+        -> m HsType
+foldDPT wrapDPT foldPrim ctxt dpt =
+  let
+      primRep = foldPrim ctxt True
+      prim = foldPrim ctxt False
+      go = foldDPT wrapDPT foldPrim ctxt
+  in
+    wrapDPT dpt <$>
+    case dpt of
+      Prim (Named msgName)
+        | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup msgName ctxt
+        -> HsTyApp (primType_ "Maybe") <$> prim (Named msgName)
+      Prim pType           -> prim pType
+      Optional (Named nm)  -> go (Prim (Named nm))
+      Optional pType       -> HsTyApp (primType_ "Maybe") <$> prim pType
+      Repeated pType       -> HsTyApp (primType_ "Vector") <$> primRep pType
+      NestedRepeated pType -> HsTyApp (primType_ "Vector") <$> prim pType
+      Map k v              -> HsTyApp . HsTyApp (primType_ "Map") <$> prim k <*> go (Prim v) -- need to 'Nest' message types
+
+-- Haskell wrapper for dot proto compound types
+dptToHsWrapper :: TypeContext -> [DotProtoOption] -> DotProtoType -> (HsType -> HsType)
+dptToHsWrapper ctxt opts = \case
+  Repeated (Named tyName)
+    | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
+    -> HsTyApp (protobufType_ "NestedVec")
+  Repeated ty
+    | isUnpacked opts -> HsTyApp (protobufType_ "UnpackedVec")
+    | isPacked opts || isPackable ctxt ty -> HsTyApp (protobufType_ "PackedVec")
+    | otherwise -> HsTyApp (protobufType_ "UnpackedVec")
+  _ -> id
+
+-- Haskell wrapper for primitive dot proto types
+dpptToHsWrapper :: TypeContext -> Bool -> DotProtoPrimType -> (HsType -> HsType)
+dpptToHsWrapper ctxt isRepeated = \case
+  SInt32   -> HsTyApp (protobufType_ "Signed")
+  SInt64   -> HsTyApp (protobufType_ "Signed")
+  Fixed32  -> HsTyApp (protobufType_ "Fixed")
+  Fixed64  -> HsTyApp (protobufType_ "Fixed")
+  SFixed32 -> HsTyApp (protobufType_ "Signed") . HsTyApp (protobufType_ "Fixed")
+  SFixed64 -> HsTyApp (protobufType_ "Signed") . HsTyApp (protobufType_ "Fixed")
+  Named msgName
+    | Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindMessage }) <- M.lookup msgName ctxt
+    , isRepeated
+    -> HsTyApp (protobufType_ "Nested")
+  _ -> id
+
+-- Convert a dot proto prim type to an unwrapped Haskell type
+dpptToHsType :: MonadError CompileError m => TypeContext -> DotProtoPrimType -> m HsType
+dpptToHsType ctxt = \case
+  Int32    -> pure $ primType_ "Int32"
+  Int64    -> pure $ primType_ "Int64"
+  SInt32   -> pure $ primType_ "Int32"
+  SInt64   -> pure $ primType_ "Int64"
+  UInt32   -> pure $ primType_ "Word32"
+  UInt64   -> pure $ primType_ "Word64"
+  Fixed32  -> pure $ primType_ "Word32"
+  Fixed64  -> pure $ primType_ "Word64"
+  SFixed32 -> pure $ primType_ "Int32"
+  SFixed64 -> pure $ primType_ "Int64"
+  String   -> pure $ primType_ "Text"
+  Bytes    -> pure $ primType_ "ByteString"
+  Bool     -> pure $ primType_ "Bool"
+  Float    -> pure $ primType_ "Float"
+  Double   -> pure $ primType_ "Double"
+  Named msgName ->
     case M.lookup msgName ctxt of
       Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
           HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ty msgName
       Just ty -> msgTypeFromDpTypeInfo ty msgName
       Nothing -> noSuchTypeError msgName
+
+-- wrappedHsTypeFromDotProto :: MonadError CompileError m => TypeContext -> DotProtoType -> m HsType
+-- wrappedHsTypeFromDotProto ctxt = \case
+--   Prim (Named msgName)
+--      | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup msgName ctxt
+--      -> HsTyApp (primType_ "Maybe") <$> hsTypeFromDotProtoPrim ctxt (Named msgName)
+--   Prim pType           -> hsTypeFromDotProtoPrim ctxt pType
+--   Optional (Named nm)  -> hsTypeFromDotProto ctxt (Prim (Named nm))
+--   Optional pType       -> HsTyApp (primType_ "Maybe")  <$> hsTypeFromDotProtoPrim ctxt pType
+--   Repeated pType       -> HsTyApp (primType_ "Vector") <$> hsTypeFromDotProtoPrim ctxt pType
+--   NestedRepeated pType -> HsTyApp (primType_ "Vector") <$> hsTypeFromDotProtoPrim ctxt pType
+--   Map k v              -> HsTyApp . HsTyApp (primType_ "Map")
+--                           <$> hsTypeFromDotProtoPrim ctxt k
+--                           <*> hsTypeFromDotProto ctxt (Prim v) -- need to 'Nest' message types
+
+
+-- wrappedHsTypeFromDotProtoPrim :: MonadError CompileError m => TypeContext -> DotProtoPrimType -> HsType
+-- wrappedHsTypeFromDotProtoPrim = undefined
 
 -- | Generate the Haskell type name for a 'DotProtoTypeInfo' for a message /
 --   enumeration being compiled. NB: We ignore the 'dotProtoTypeInfoPackage'
@@ -637,7 +727,7 @@ dotProtoMessageD ctxt parentIdent messageIdent message = do
 
            messagePartFieldD (DotProtoMessageField (DotProtoField _ ty fieldName _ _)) = do
                fullName <- prefixedFieldName messageName =<< dpIdentUnqualName fieldName
-               fullTy <- hsTypeFromDotProto ctxt' ty
+               fullTy <- dptToHsType ctxt' ty
                pure [ ([HsIdent fullName], HsUnBangedTy fullTy ) ]
 
            messagePartFieldD (DotProtoMessageOneOf fieldName _) = do
@@ -668,9 +758,9 @@ dotProtoMessageD ctxt parentIdent messageIdent message = do
                             Prim msg@(Named msgName)
                               | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup msgName ctxt'
                                 -> -- Do not wrap message summands with Maybe.
-                                   hsTypeFromDotProtoPrim ctxt' msg
+                                   dpptToHsType ctxt' msg
 
-                            _   -> hsTypeFromDotProto ctxt' ty
+                            _   -> dptToHsType ctxt' ty
 
                        consName <- prefixedConName fullName =<< dpIdentUnqualName fieldName
                        let ident = HsIdent consName
@@ -755,15 +845,15 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
      let encodeMessageField QualifiedField{recordFieldName, fieldInfo} =
              let recordFieldName' = HsVar (unqual_ (coerce recordFieldName)) in
              case fieldInfo of
-                 FieldNormal _fieldName fieldNum dpType options ->
-                     let fieldE = wrapE ctxt dpType options recordFieldName'
-                     in apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ]
+                 FieldNormal _fieldName fieldNum dpType options -> do
+                     fieldE <- wrapE ctxt dpType options recordFieldName'
+                     pure $ apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ]
 
-                 FieldOneOf OneofField{subfields} ->
+                 FieldOneOf OneofField{subfields} -> do
                       -- Create all pattern match & expr for each constructor:
                       --    Constructor y -> encodeMessageField num (Nested (Just y)) -- for embedded messages
                       --    Constructor y -> encodeMessageField num (ForceEmit y)     -- for everything else
-                      let mkAlt (OneofSubfield fieldNum conName _ dpType options) =
+                      let mkAlt (OneofSubfield fieldNum conName _ dpType options) = do
                             let wrapMaybe
                                    | Prim (Named tyName) <- dpType
                                    , Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
@@ -771,32 +861,34 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                                    | otherwise
                                    = forceEmitE
 
-                                xE = wrapE ctxt dpType options
+                            xE <- wrapE ctxt dpType options
                                    . wrapMaybe
                                    $ HsVar (unqual_ "y")
 
-                            in
-                              alt_ (HsPApp (unqual_ conName) [patVar "y"])
-                                   (HsUnGuardedAlt (apply encodeMessageFieldE [fieldNumberE fieldNum, xE]))
-                                   []
 
-                      in HsCase recordFieldName'
+                            pure $ alt_ (HsPApp (unqual_ conName) [patVar "y"])
+                                        (HsUnGuardedAlt (apply encodeMessageFieldE [fieldNumberE fieldNum, xE]))
+                                        []
+
+                      alts <- mapM mkAlt subfields
+
+                      pure $ HsCase recordFieldName'
                              [ alt_ (HsPApp (haskellName "Nothing") [])
                                     (HsUnGuardedAlt memptyE)
                                     []
                              , alt_ (HsPApp (haskellName "Just") [patVar "x"])
-                                    (HsUnGuardedAlt (HsCase (HsVar (unqual_ "x")) (map mkAlt subfields)))
+                                    (HsUnGuardedAlt (HsCase (HsVar (unqual_ "x")) alts))
                                     []
                              ]
 
-     let decodeMessageField QualifiedField{fieldInfo} =
+     let decodeMessageField QualifiedField{fieldInfo} = do
              case fieldInfo of
                  FieldNormal _fieldName fieldNum dpType options ->
                      unwrapE ctxt dpType options $ apply atE [ decodeMessageFieldE, fieldNumberE fieldNum ]
 
-                 FieldOneOf OneofField{subfields} ->
+                 FieldOneOf OneofField{subfields} -> do
                      -- create a list of (fieldNumber, Cons <$> parser)
-                     let subfieldParserE (OneofSubfield fieldNumber consName _ dpType options) =
+                     let subfieldParserE (OneofSubfield fieldNumber consName _ dpType options) = do
                            let fE = case dpType of
                                       Prim (Named tyName)
                                         | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
@@ -804,16 +896,19 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                                       _ -> HsParen (HsInfixApp (HsVar (haskellName "Just"))
                                                                composeOp
                                                                (HsVar (unqual_ consName)))
-                           in HsTuple
+
+                           alts <- unwrapE ctxt dpType options decodeMessageFieldE
+
+                           pure $ HsTuple
                                 [ fieldNumberE fieldNumber
-                                , HsInfixApp (apply pureE [ fE ])
-                                             apOp
-                                             (unwrapE ctxt dpType options decodeMessageFieldE)
+                                , HsInfixApp (apply pureE [ fE ]) apOp alts
                                 ]
 
-                     in apply oneofE [ HsVar (haskellName "Nothing")
-                                     , HsList (map subfieldParserE subfields)
-                                     ]
+                     parsers <- mapM subfieldParserE subfields
+
+                     pure $  apply oneofE [ HsVar (haskellName "Nothing")
+                                          , HsList parsers
+                                          ]
 
      let dotProtoE = HsList
              [ apply dotProtoFieldC
@@ -832,10 +927,13 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
              | QualifiedField (coerce -> fieldName) _ <- qualifiedFields
              ]
 
-     let encodeMessageE = apply mconcatE [ HsList (map encodeMessageField qualifiedFields) ]
+     encodedFields <- mapM encodeMessageField qualifiedFields
+     decodedFields <- mapM decodeMessageField qualifiedFields
+
+     let encodeMessageE = apply mconcatE [ HsList encodedFields]
      let decodeMessageE = foldl (\f -> HsInfixApp f apOp)
                                 (apply pureE [ HsVar (unqual_ msgName) ])
-                                (map decodeMessageField qualifiedFields)
+                                decodedFields
 
      let encodeMessageDecl = match_ (HsIdent "encodeMessage")
                                     [HsPWildCard, HsPRec (unqual_ msgName) punnedFieldsP]
@@ -1378,13 +1476,16 @@ oneofSubDisjunctBinder = intercalate "_or_" . fmap oneofSubBinder
 
 -- ** Helpers to wrap/unwrap types for protobuf (de-)serialization
 
-wrapE :: TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> HsExp
-wrapE ctxt dpt opts e = HsParen $ maybe id (HsApp . HsParen) (mkWrapE ctxt dpt opts) e
+
+wrapE :: MonadError CompileError m => TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> m HsExp
+wrapE ctxt dpt opts e = HsParen <$> ( (HsApp . HsParen) <$> (coerce <$> dptToHsType ctxt dpt <*> dptToHsTypeWrapped ctxt opts dpt) <*> pure e )-- (mkWrapE ctxt dpt opts) e
 
 -- the unwrapping function has to be fmapped over the parser.
-unwrapE :: TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> HsExp
-unwrapE ctxt dpt opts e = HsParen $ maybe id (\f -> HsInfixApp f fmapOp) (mkUnwrapE ctxt dpt opts) e
+unwrapE :: MonadError CompileError m => TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> m HsExp
+unwrapE ctxt dpt opts e = HsParen <$> ( (\f -> HsInfixApp f fmapOp) <$> (coerce <$> dptToHsTypeWrapped ctxt opts dpt <*> dptToHsType ctxt dpt) <*> pure e )
+ --(mkUnwrapE ctxt dpt opts) e
 
+{-
 maybeCompose :: Maybe HsExp -> Maybe HsExp -> Maybe HsExp
 maybeCompose Nothing e = e
 maybeCompose e Nothing = e
@@ -1459,13 +1560,15 @@ unwrapPrimE ctxt (Named tyName)
     = Just . HsVar . protobufName $ "nested"
 unwrapPrimE _ ty | isSignedPrim ty = Just . HsVar . protobufName $ "signed"
 unwrapPrimE _ _ = Nothing
+-}
 
-isPacked, isUnpacked :: [DotProtoOption] -> Bool
+isPacked :: [DotProtoOption] -> Bool
 isPacked opts =
     case find (\(DotProtoOption name _) -> name == Single "packed") opts of
         Just (DotProtoOption _ (BoolLit x)) -> x
         _ -> False
 
+isUnpacked :: [DotProtoOption] -> Bool
 isUnpacked opts =
     case find (\(DotProtoOption name _) -> name == Single "packed") opts of
         Just (DotProtoOption _ (BoolLit x)) -> not x
@@ -1659,8 +1762,8 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
                            Single nm -> pure nm
                            _ -> invalidMethodNameError rpcName
 
-           requestTy <- hsTypeFromDotProtoPrim ctxt  (Named request)
-           responseTy <- hsTypeFromDotProtoPrim ctxt (Named response)
+           requestTy <- dpptToHsType ctxt  (Named request)
+           responseTy <- dpptToHsType ctxt (Named response)
 
            let streamingType =
                  case (requestStreaming, responseStreaming) of
@@ -1980,7 +2083,10 @@ defaultImports usesGrpc =
     , importDecl_ proto3SuiteJSONPBM        True  (Just jsonpbNS) Nothing
     , importDecl_ proto3SuiteJSONPBM        False  Nothing
                   (Just (False, [ HsIAbs (HsSymbol ".=")
-                                , HsIAbs (HsSymbol ".:") ]))
+                                , HsIAbs (HsSymbol ".:")
+                                ]
+                        )
+                  )
     , importDecl_ proto3WireM               True  (Just protobufNS) Nothing
     , importDecl_ controlApplicativeM       False Nothing
                   (Just (False, [ HsIAbs (HsSymbol "<*>")
@@ -2002,11 +2108,9 @@ defaultImports usesGrpc =
     , importDecl_ dataMapM               True  (Just haskellNS)
                   (Just (False, [ importSym "Map", importSym "mapKeysMonotonic" ]))
     , importDecl_ dataIntM                  True  (Just haskellNS)
-                  (Just (False, [ importSym "Int16", importSym "Int32"
-                                , importSym "Int64" ]))
+                  (Just (False, [ importSym "Int16", importSym "Int32", importSym "Int64" ]))
     , importDecl_ dataWordM                 True  (Just haskellNS)
-                  (Just (False, [ importSym "Word16", importSym "Word32"
-                                , importSym "Word64" ]))
+                  (Just (False, [ importSym "Word16", importSym "Word32", importSym "Word64" ]))
     , importDecl_ dataProxy                 True (Just proxyNS)   Nothing
     , importDecl_ ghcGenericsM              True (Just haskellNS) Nothing
     , importDecl_ ghcEnumM                  True (Just haskellNS) Nothing
@@ -2061,10 +2165,10 @@ haskellNS :: Module
 haskellNS = Module "Hs"
 
 defaultMessageDeriving :: [HsQName]
-defaultMessageDeriving = map haskellName [ "Show", "Eq", "Ord" , "Generic" ]
+defaultMessageDeriving = map haskellName [ "Show", "Eq", "Ord", "Generic" ]
 
 defaultEnumDeriving :: [HsQName]
-defaultEnumDeriving = map haskellName [ "Show", "Bounded", "Eq",   "Ord" , "Generic" ]
+defaultEnumDeriving = map haskellName [ "Show", "Bounded", "Eq", "Ord", "Generic" ]
 
 defaultServiceDeriving :: [HsQName]
 defaultServiceDeriving = map haskellName [ "Generic" ]
