@@ -1478,11 +1478,11 @@ oneofSubDisjunctBinder = intercalate "_or_" . fmap oneofSubBinder
 
 
 wrapE :: MonadError CompileError m => TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> m HsExp
-wrapE ctxt dpt opts e = HsParen <$> ( (HsApp . HsParen) <$> (coerce <$> dptToHsType ctxt dpt <*> dptToHsTypeWrapped ctxt opts dpt) <*> pure e )-- (mkWrapE ctxt dpt opts) e
+wrapE ctxt dpt opts e = HsParen <$> ( (HsApp . HsParen) <$> (coerceE <$> dptToHsType ctxt dpt <*> dptToHsTypeWrapped ctxt opts dpt) <*> pure e )-- (mkWrapE ctxt dpt opts) e
 
 -- the unwrapping function has to be fmapped over the parser.
 unwrapE :: MonadError CompileError m => TypeContext -> DotProtoType -> [DotProtoOption] -> HsExp -> m HsExp
-unwrapE ctxt dpt opts e = HsParen <$> ( (\f -> HsInfixApp f fmapOp) <$> (coerce <$> dptToHsTypeWrapped ctxt opts dpt <*> dptToHsType ctxt dpt) <*> pure e )
+unwrapE ctxt dpt opts e = HsParen <$> ( (\f -> HsInfixApp f fmapOp) <$> (coerceE <$> dptToHsTypeWrapped ctxt opts dpt <*> dptToHsType ctxt dpt) <*> pure e )
  --(mkUnwrapE ctxt dpt opts) e
 
 {-
