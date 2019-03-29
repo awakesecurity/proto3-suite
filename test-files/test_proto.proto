@@ -140,3 +140,13 @@ enum EnumAnnots {
   FOO = 0;
   BAR = 1 [deprecated=true];
 }
+
+message WrappedTrivial {
+  Trivial trivial = 1;
+}
+
+message MapTest {
+  map<string, sint32> prim = 1;
+  map<int32, WrappedTrivial> trivial = 2;
+  map<sint32, sint32> signed= 3; // both the key and value needs to be wrapped with 'Signed'
+}

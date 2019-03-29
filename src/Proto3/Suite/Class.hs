@@ -96,6 +96,7 @@ import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy   as BL
 import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
+import qualified Data.Map               as M
 import           Data.Maybe             (fromMaybe, isNothing)
 import           Data.Monoid            ((<>))
 import           Data.Proxy             (Proxy (..))
@@ -206,6 +207,10 @@ instance HasDefault (Vector a) where
 instance HasDefault (Maybe a) where
   def       = Nothing
   isDefault = isNothing
+
+instance HasDefault (M.Map k v) where
+  def = M.empty
+  isDefault = M.null
 
 -- TODO: Determine if we have a reason for rendering fixed32/sfixed as Fixed
 -- Word32/Int32 in generated datatypes; for other field types, we omit the
@@ -469,13 +474,35 @@ instance MessageField B.ByteString
 instance MessageField BL.ByteString
 instance (Bounded e, Named e, Enum e) => MessageField (Enumerated e)
 
+instance (Ord k, Primitive k, MessageField k, Primitive v, MessageField v) => MessageField (M.Map k v) where
+  encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . M.toList
+
+  -- Data.Map.fromList will retain the last key/value mapping. From the spec:
+  --
+  -- > When parsing from the wire or when merging, if there are duplicate map
+  -- > keys the last key seen is used.
+  decodeMessageField = M.fromList . fromList
+                       <$> repeated (Decode.embedded' (decodeMessage (fieldNumber 1)))
+  protoType _ = messageField (Map (primType (Proxy @k)) (primType (Proxy @v))) Nothing
+
+instance {-# OVERLAPS #-} (Ord k, Primitive k, Named v, Message v, MessageField k) => MessageField (M.Map k (Nested v)) where
+  encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . M.toList
+
+  -- Data.Map.fromList will retain the last key/value mapping. From the spec:
+  --
+  -- > When parsing from the wire or when merging, if there are duplicate map
+  -- > keys the last key seen is used.
+  decodeMessageField = M.fromList . fromList
+                       <$> repeated (Decode.embedded' (decodeMessage (fieldNumber 1)))
+  protoType _ = messageField (Map (primType (Proxy @k)) (Named . Single . nameOf $ Proxy @v)) Nothing
+
 instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
   encodeMessageField = encodePrimitive
 
 instance (Named a, Message a) => MessageField (Nested a) where
   encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . nested
   decodeMessageField = fmap Nested (Decode.embedded (decodeMessage (fieldNumber 1)))
-  protoType _ = messageField (Prim $ Named (Single (nameOf (Proxy @a)))) Nothing
+  protoType _ = messageField (Prim . Named . Single . nameOf $ Proxy @a) Nothing
 
 instance Primitive a => MessageField (UnpackedVec a) where
   encodeMessageField = foldMap . encodePrimitive
@@ -490,7 +517,7 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
     where
       oneMsg :: Parser RawMessage a
       oneMsg = decodeMessage (fieldNumber 1)
-  protoType _ = messageField (NestedRepeated (Named (Single (nameOf (Proxy @a))))) Nothing
+  protoType _ = messageField (NestedRepeated . Named . Single . nameOf $ Proxy @a) Nothing
 
 instance (Bounded e, Enum e, Named e) => MessageField (PackedVec (Enumerated e)) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . foldMap omit
@@ -503,7 +530,7 @@ instance (Bounded e, Enum e, Named e) => MessageField (PackedVec (Enumerated e))
     where
       -- retain only those values which are inside the enum range
       retain = foldMap (pure . Enumerated. Right) . toEnumMay . fromIntegral
-  protoType _ = messageField (Repeated (Named (Single (nameOf (Proxy @e))))) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated . Named . Single . nameOf $ Proxy @e) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Bool) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromBool
@@ -611,6 +638,8 @@ class Message a where
   default dotProto :: GenericMessage (Rep a)
                    => Proxy a -> [DotProtoField]
   dotProto _ = genericDotProto (Proxy @(Rep a))
+
+instance (MessageField k, MessageField v) => Message (k, v)
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy a -> DotProtoDefinition

@@ -208,5 +208,17 @@ write_proto(test_proto_oneof.WithImported(withOneof=test_proto_oneof_import.With
 write_proto(test_proto_oneof.WithImported(withOneof=test_proto_oneof_import.WithOneof(b=19)))
 write_proto(test_proto_oneof.WithImported())
 
+
+# Test case 19: Maps
+write_proto(MapTest( prim={'foo': 1, 'bar': 42, 'baz': 1234567 },
+                     trivial={ 1: WrappedTrivial(trivial=Trivial(trivialField=1)),
+                               2: WrappedTrivial(trivial=Trivial(trivialField=42)),
+                               101: WrappedTrivial(trivial=Trivial(trivialField=1234567)),
+                               79: WrappedTrivial()
+                             },
+                    signed={ 1: 2, 3: 4, 5: 6 }
+                  )
+          )
+
 # Send the special 'done' message
 write_proto(MultipleFields(multiFieldString = "All tests complete"))
