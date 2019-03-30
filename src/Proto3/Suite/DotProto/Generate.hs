@@ -538,7 +538,7 @@ dpptToHsWrapper ctxt isRepeated = \case
   SFixed64 -> HsTyApp (protobufType_ "Signed") . HsTyApp (protobufType_ "Fixed")
   Named msgName
     | Just (DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindMessage }) <- M.lookup msgName ctxt
-    , isRepeated
+    , not isRepeated
     -> HsTyApp (protobufType_ "Nested")
   _ -> id
 
