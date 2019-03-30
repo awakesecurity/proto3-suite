@@ -481,14 +481,14 @@ foldDPT dptToHsCont foldPrim ctxt dpt =
   let
       prim = foldPrim ctxt
       go = foldDPT dptToHsCont foldPrim ctxt
-      coll = dptToHsCont ctxt dpt
+      cont = dptToHsCont ctxt dpt
   in
     case dpt of
-      Prim pType           -> coll <$> prim pType
-      Optional pType       -> coll <$> prim pType
-      Repeated pType       -> coll <$> prim pType
-      NestedRepeated pType -> coll <$> prim pType
-      Map k v  | validMapKey k -> HsTyApp . coll <$> prim k <*> go (Prim v) -- need to 'Nest' message types
+      Prim pType           -> cont <$> prim pType
+      Optional pType       -> cont <$> prim pType
+      Repeated pType       -> cont <$> prim pType
+      NestedRepeated pType -> cont <$> prim pType
+      Map k v  | validMapKey k -> HsTyApp . cont <$> prim k <*> go (Prim v) -- need to 'Nest' message types
                | otherwise -> throwError $ InvalidMapKeyType (show k)
 
 validMapKey :: DotProtoPrimType -> Bool
