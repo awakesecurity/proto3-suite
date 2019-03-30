@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE MagicHash         #-}
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP               #-}
@@ -12,10 +13,9 @@ import qualified Data.ByteString             as B
 import qualified Data.ByteString.Char8       as BC
 import qualified Data.ByteString.Lazy        as BL
 import           Data.Either                 (isRight)
-import           Data.Proxy
 import           Data.String
 import           Data.Semigroup              ((<>))
-import           GHC.Exts                    (fromList)
+import           GHC.Exts                    (fromList, Proxy#)
 import           Proto3.Suite
 import           Proto3.Wire.Decode          (ParseError)
 import qualified Proto3.Wire.Decode          as Decode
@@ -302,14 +302,14 @@ qcDotProtoRoundtrip = testProperty
 --------------------------------------------------------------------------------
 -- Helpers
 
-dotProtoFor :: (Named a, Message a) => Proxy a -> DotProto
+dotProtoFor :: (Named a, Message a) => Proxy# a -> DotProto
 dotProtoFor proxy = DotProto [] [] DotProtoNoPackage
   [ DotProtoMessage (Single (nameOf proxy)) (DotProtoMessageField <$> dotProto proxy)
   ]
   (DotProtoMeta (Path []))
 
-showDotProtoFor :: (Named a, Message a) => Proxy a -> IO ()
-showDotProtoFor = putStrLn . toProtoFileDef . dotProtoFor
+showDotProtoFor :: (Named a, Message a) => Proxy# a -> IO ()
+showDotProtoFor proxy = putStrLn . toProtoFileDef $ dotProtoFor proxy
 
 instance Arbitrary WireType where
   arbitrary = oneof $ map return [Varint, P.Fixed32, P.Fixed64, LengthDelimited]
