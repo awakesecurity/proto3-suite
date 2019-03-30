@@ -869,7 +869,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                                    , Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
                                    = HsParen . HsApp (HsVar (haskellName "Just"))
                                    | otherwise
-                                   = id
+                                   = forceEmitE
 
                             xE <- wrapE ctxt options dpType
                                    . wrapMaybe
@@ -1841,7 +1841,7 @@ dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC, mapC,
   fieldNumberC, singleC, dotsC, pathC, nestedC, anonymousC, dotProtoOptionC,
   identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC,
   unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
-  methodNameC, nothingC, justC, mconcatE, encodeMessageFieldE,
+  methodNameC, nothingC, justC, forceEmitC, mconcatE, encodeMessageFieldE,
   fromStringE, decodeMessageFieldE, pureE, returnE, memptyE, msumE, atE, oneofE,
   succErrorE, predErrorE, toEnumErrorE, fmapE, defaultOptionsE, serverLoopE,
   convertServerHandlerE, convertServerReaderHandlerE, convertServerWriterHandlerE,
@@ -1866,6 +1866,7 @@ stringLitC           = HsVar (protobufName "StringLit")
 intLitC              = HsVar (protobufName "IntLit")
 floatLitC            = HsVar (protobufName "FloatLit")
 boolLitC             = HsVar (protobufName "BoolLit")
+forceEmitC           = HsVar (protobufName "ForceEmit")
 encodeMessageFieldE  = HsVar (protobufName "encodeMessageField")
 decodeMessageFieldE  = HsVar (protobufName "decodeMessageField")
 atE                  = HsVar (protobufName "at")
@@ -1944,6 +1945,9 @@ intP :: Integral a => a -> HsPat
 intP x = (if x < 0 then HsPParen else id) . HsPLit . HsInt . fromIntegral $ x
 
 -- ** Expressions for protobuf-wire types
+
+forceEmitE :: HsExp -> HsExp
+forceEmitE = HsParen . HsApp forceEmitC
 
 fieldNumberE :: FieldNumber -> HsExp
 fieldNumberE = HsParen . HsApp fieldNumberC . intE . getFieldNumber
