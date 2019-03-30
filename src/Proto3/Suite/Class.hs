@@ -410,12 +410,12 @@ instance forall e. (Bounded e, Named e, Enum e) => Primitive (Enumerated e) wher
   encodePrimitive num = Encode.enum num . enumify . coerce @(Enumerated e) @(Either Int e)
     where enumify (Left i) = i
           enumify (Right x) = fromEnum x
-  decodePrimitive = coerce @(Parser RawPrimitive (Either Int e)) @(Parser RawPrimitive (Enumerated e)) Decode.enum
+  decodePrimitive = coerce @(_ (Either Int e)) @(_ (Enumerated e)) Decode.enum
   primType _ = Named (Single (nameOf (proxy# :: Proxy# e)))
 
 instance (Primitive a) => Primitive (ForceEmit a) where
   encodePrimitive num = encodePrimitive num . coerce @(ForceEmit a) @a
-  decodePrimitive     = coerce @(Parser RawPrimitive a) @(Parser RawPrimitive (ForceEmit a)) decodePrimitive
+  decodePrimitive     = coerce @(_ a) @(_ (ForceEmit a)) decodePrimitive
   primType _          = primType (proxy# :: Proxy# a)
 
 -- | This class captures those types which can appear as message fields in
@@ -504,7 +504,7 @@ instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
 instance (Named a, Message a) => MessageField (Nested a) where
   encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1))
                            . coerce @(Nested a) @(Maybe a)
-  decodeMessageField = coerce @(Parser RawField (Maybe a)) @(Parser RawField (Nested a))
+  decodeMessageField = coerce @(_ (Maybe a)) @(_ (Nested a))
                        (Decode.embedded (decodeMessage (fieldNumber 1)))
   protoType _ = messageField (Prim . Named . Single $ nameOf (proxy# :: Proxy# a)) Nothing
 
@@ -570,29 +570,25 @@ instance MessageField (PackedVec Int64) where
 
 instance MessageField (PackedVec (Fixed Word32)) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed32 fn) . coerce @_ @(PackedVec Word32)
-  decodeMessageField = coerce @(Parser RawField (PackedVec Word32))
-                              @(Parser RawField (PackedVec (Fixed Word32)))
+  decodeMessageField = coerce @(_ (PackedVec Word32)) @(_ (PackedVec (Fixed Word32)))
                        (decodePacked Decode.packedFixed32)
   protoType _ = messageField (Repeated DotProto.Fixed32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Fixed Word64)) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed64 fn) . coerce @_ @(PackedVec Word64)
-  decodeMessageField = coerce @(Parser RawField (PackedVec Word64))
-                              @(Parser RawField (PackedVec (Fixed Word64)))
+  decodeMessageField = coerce @(_ (PackedVec Word64)) @(_ (PackedVec (Fixed Word64)))
                        (decodePacked Decode.packedFixed64)
   protoType _ = messageField (Repeated DotProto.Fixed64) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Signed (Fixed Int32))) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed32 fn) . fmap (fromIntegral . coerce @_ @Int32)
-  decodeMessageField = coerce @(Parser RawField (PackedVec Int32))
-                              @(Parser RawField (PackedVec (Signed (Fixed Int32))))
+  decodeMessageField = coerce @(_ (PackedVec Int32)) @(_ (PackedVec (Signed (Fixed Int32))))
                        (decodePacked Decode.packedFixed32)
   protoType _ = messageField (Repeated SFixed32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Signed (Fixed Int64))) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed64 fn) . fmap (fromIntegral . coerce @_ @Int64)
-  decodeMessageField = coerce @(Parser RawField (PackedVec Int64))
-                              @(Parser RawField (PackedVec (Signed (Fixed Int64))))
+  decodeMessageField = coerce @(_ (PackedVec Int64)) @(_ (PackedVec (Signed (Fixed Int64))))
                        (decodePacked Decode.packedFixed64)
   protoType _ = messageField (Repeated SFixed64) (Just DotProto.PackedField)
 
@@ -608,7 +604,7 @@ instance MessageField (PackedVec Double) where
 
 instance (MessageField e, KnownSymbol comments) => MessageField (e // comments) where
   encodeMessageField fn = encodeMessageField fn . unCommented
-  decodeMessageField = fmap Commented decodeMessageField
+  decodeMessageField = coerce @(_ e) @(_ (Commented comments e)) decodeMessageField
   protoType p = (protoType (lowerProxy1 p))
                   { dotProtoFieldComment = Just (symbolVal (lowerProxy2 p)) }
     where
