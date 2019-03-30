@@ -16,6 +16,7 @@ module Proto3.Suite.DotProto.Rendering
   , toProtoFile
   , toProtoFileDef
   , RenderingOptions(..)
+  , Pretty(..)
   ) where
 
 import           Data.Char

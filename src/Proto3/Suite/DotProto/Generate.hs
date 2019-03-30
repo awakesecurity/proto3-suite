@@ -57,6 +57,7 @@ import           Language.Haskell.Parser        (ParseResult(..), parseModule)
 import qualified NeatInterpolation              as Neat
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
+import           Proto3.Suite.DotProto.Rendering (Pretty(..))
 import           Proto3.Suite.DotProto.Internal
 import           Proto3.Wire.Types              (FieldNumber (..))
 import           System.IO                      (writeFile, readFile)
@@ -489,7 +490,7 @@ foldDPT dptToHsCont foldPrim ctxt dpt =
       Repeated pType       -> cont <$> prim pType
       NestedRepeated pType -> cont <$> prim pType
       Map k v  | validMapKey k -> HsTyApp . cont <$> prim k <*> go (Prim v) -- need to 'Nest' message types
-               | otherwise -> throwError $ InvalidMapKeyType (show k)
+               | otherwise -> throwError $ InvalidMapKeyType (show $ pPrint k)
 
 validMapKey :: DotProtoPrimType -> Bool
 validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
