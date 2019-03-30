@@ -492,48 +492,6 @@ foldDPT dptToHsCont foldPrim ctxt dpt =
       Map k v  | validMapKey k -> HsTyApp . cont <$> prim k <*> go (Prim v) -- need to 'Nest' message types
                | otherwise -> throwError $ InvalidMapKeyType (show $ pPrint k)
 
-validMapKey :: DotProtoPrimType -> Bool
-validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
-                      , Fixed32, Fixed64, SFixed32, SFixed64
-                      , String, Bool])
-
-isMessage :: TypeContext -> DotProtoIdentifier -> Bool
-isMessage ctxt n = Just DotProtoKindMessage == (dotProtoTypeInfoKind <$> M.lookup n ctxt)
-
-isPacked :: [DotProtoOption] -> Bool
-isPacked opts =
-    case find (\(DotProtoOption name _) -> name == Single "packed") opts of
-        Just (DotProtoOption _ (BoolLit x)) -> x
-        _ -> False
-
-isUnpacked :: [DotProtoOption] -> Bool
-isUnpacked opts =
-    case find (\(DotProtoOption name _) -> name == Single "packed") opts of
-        Just (DotProtoOption _ (BoolLit x)) -> not x
-        _ -> False
-
--- | Returns 'True' if the given primitive type is packable. The 'TypeContext'
--- is used to distinguish Named enums and messages, only the former of which are
--- packable.
-isPackable :: TypeContext -> DotProtoPrimType -> Bool
-isPackable _ Bytes    = False
-isPackable _ String   = False
-isPackable _ Int32    = True
-isPackable _ Int64    = True
-isPackable _ SInt32   = True
-isPackable _ SInt64   = True
-isPackable _ UInt32   = True
-isPackable _ UInt64   = True
-isPackable _ Fixed32  = True
-isPackable _ Fixed64  = True
-isPackable _ SFixed32 = True
-isPackable _ SFixed64 = True
-isPackable _ Bool     = True
-isPackable _ Float    = True
-isPackable _ Double   = True
-isPackable ctxt (Named tyName) =
-  Just DotProtoKindEnum == (dotProtoTypeInfoKind <$> M.lookup tyName ctxt)
-
 -- Translate DotProtoType constructors to wrapped Haskell container types
 -- (for Message serde instances).
 dptToHsWrappedContType :: TypeContext -> [DotProtoOption] -> DotProtoType -> Maybe (HsType -> HsType)
@@ -593,6 +551,49 @@ dpptToHsType ctxt = \case
           HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ty msgName
       Just ty -> msgTypeFromDpTypeInfo ty msgName
       Nothing -> noSuchTypeError msgName
+
+
+validMapKey :: DotProtoPrimType -> Bool
+validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
+                      , Fixed32, Fixed64, SFixed32, SFixed64
+                      , String, Bool])
+
+isMessage :: TypeContext -> DotProtoIdentifier -> Bool
+isMessage ctxt n = Just DotProtoKindMessage == (dotProtoTypeInfoKind <$> M.lookup n ctxt)
+
+isPacked :: [DotProtoOption] -> Bool
+isPacked opts =
+    case find (\(DotProtoOption name _) -> name == Single "packed") opts of
+        Just (DotProtoOption _ (BoolLit x)) -> x
+        _ -> False
+
+isUnpacked :: [DotProtoOption] -> Bool
+isUnpacked opts =
+    case find (\(DotProtoOption name _) -> name == Single "packed") opts of
+        Just (DotProtoOption _ (BoolLit x)) -> not x
+        _ -> False
+
+-- | Returns 'True' if the given primitive type is packable. The 'TypeContext'
+-- is used to distinguish Named enums and messages, only the former of which are
+-- packable.
+isPackable :: TypeContext -> DotProtoPrimType -> Bool
+isPackable _ Bytes    = False
+isPackable _ String   = False
+isPackable _ Int32    = True
+isPackable _ Int64    = True
+isPackable _ SInt32   = True
+isPackable _ SInt64   = True
+isPackable _ UInt32   = True
+isPackable _ UInt64   = True
+isPackable _ Fixed32  = True
+isPackable _ Fixed64  = True
+isPackable _ SFixed32 = True
+isPackable _ SFixed64 = True
+isPackable _ Bool     = True
+isPackable _ Float    = True
+isPackable _ Double   = True
+isPackable ctxt (Named tyName) =
+  Just DotProtoKindEnum == (dotProtoTypeInfoKind <$> M.lookup tyName ctxt)
 
 -- *** Helper functions for names
 
