@@ -523,14 +523,18 @@ foldDPT dptToHsCont foldPrim ctxt dpt =
       NestedRepeated pType -> coll <$> prim pType
       Map k v              -> HsTyApp . coll <$> prim k <*> prim v --- go (Prim v) -- need to 'Nest' message types
 
+isMessage :: TypeContext -> DotProtoIdentifier -> Bool
+isMessage ctxt n = Just DotProtoKindMessage == (dotProtoTypeInfoKind <$> M.lookup n ctxt)
 
 -- Translate DotProtoType constructors to wrapped Haskell container types
 -- (for Message serde instances).
 dptToHsWrappedContType :: TypeContext -> [DotProtoOption] -> DotProtoType -> Maybe (HsType -> HsType)
 dptToHsWrappedContType ctxt opts = \case
-  Prim (Named _) -> Just $ HsTyApp (protobufType_ "Nested")
+  Prim (Named tyName)
+    | isMessage ctxt tyName
+    -> Just $ HsTyApp (protobufType_ "Nested")
   Repeated (Named tyName)
-    | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
+    | isMessage ctxt tyName
     -> Just $ HsTyApp (protobufType_ "NestedVec")
   Repeated ty
     | isUnpacked opts -> Just $ HsTyApp (protobufType_ "UnpackedVec")
@@ -541,7 +545,7 @@ dptToHsWrappedContType ctxt opts = \case
 -- Translate DotProtoType to Haskell container types.
 dptToHsContType :: TypeContext -> DotProtoType -> HsType -> HsType
 dptToHsContType ctxt = \case
-  Prim (Named tyName) | Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
+  Prim (Named tyName) | isMessage ctxt tyName
                      -> HsTyApp $ primType_ "Maybe"
 --  Optional (Named _) -> Nothing
   Optional _         -> HsTyApp $ primType_ "Maybe"
@@ -595,7 +599,7 @@ dpptToHsType ctxt = \case
 
 -- | Generate the Haskell type name for a 'DotProtoTypeInfo' for a message /
 --   enumeration being compiled. NB: We ignore the 'dotProtoTypeInfoPackage'
---   field Of the 'DotProtoTypeInfo' parameter, instead demanding that we have
+--   field of the 'DotProtoTypeInfo' parameter, instead demanding that we have
 --   been provided with a valid module path in its 'dotProtoTypeInfoModulePath'
 --   field. The latter describes the name of the Haskell module being generated.
 msgTypeFromDpTypeInfo :: MonadError CompileError m
