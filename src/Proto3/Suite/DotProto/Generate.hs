@@ -470,7 +470,7 @@ dptToHsType = foldDPT (const id) (\ctxt _ -> dpptToHsType ctxt)
 -- Convert a dot proto type to a wrapped Haskell type
 dptToHsTypeWrapped :: MonadError CompileError m => TypeContext -> [DotProtoOption] -> DotProtoType -> m HsType
 dptToHsTypeWrapped ctxt opts = foldDPT (dptToHsWrapper ctxt opts)
-                                       (\ctxt isContainer ty -> dpptToHsWrapper ctxt isContainer ty <$> dpptToHsType ctxt ty)
+                                       (\ctxt' isContainer ty -> dpptToHsWrapper ctxt' isContainer ty <$> dpptToHsType ctxt' ty)
                                        ctxt
 
 {-
@@ -537,7 +537,7 @@ dpptToHsWrapper ctxt isRepeated = \case
   SFixed32 -> HsTyApp (protobufType_ "Signed") . HsTyApp (protobufType_ "Fixed")
   SFixed64 -> HsTyApp (protobufType_ "Signed") . HsTyApp (protobufType_ "Fixed")
   Named msgName
-    | Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindMessage }) <- M.lookup msgName ctxt
+    | Just (DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindMessage }) <- M.lookup msgName ctxt
     , isRepeated
     -> HsTyApp (protobufType_ "Nested")
   _ -> id
@@ -1574,8 +1574,8 @@ isUnpacked opts =
         Just (DotProtoOption _ (BoolLit x)) -> not x
         _ -> False
 
-isSignedPrim :: DotProtoPrimType -> Bool
-isSignedPrim ty = ty `elem` [ SFixed32, SFixed64, SInt32, SInt64 ]
+--isSignedPrim :: DotProtoPrimType -> Bool
+--isSignedPrim ty = ty `elem` [ SFixed32, SFixed64, SInt32, SInt64 ]
 
 -- | Returns 'True' if the given primitive type is packable. The 'TypeContext'
 -- is used to distinguish Named enums and messages, only the former of which are

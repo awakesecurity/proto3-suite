@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE TypeApplications    #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -28,6 +29,7 @@ import           Data.Swagger
 import qualified Data.Text                       as T
 import           Data.Proxy
 import qualified Data.Vector                     as V
+import           GHC.Exts                        (Proxy#, proxy#)
 import           GHC.Int
 import           GHC.Word
 import           Proto3.Suite                    (Enumerated (..), Finite (..),
@@ -70,9 +72,9 @@ ppSchema = LC8.putStrLn . encodePretty . toSchema
 -- | JSONPB schemas for protobuf enumerations
 instance (Finite e, Named e) => ToSchema (Enumerated e) where
   declareNamedSchema _ = do
-    let enumName        = nameOf (Proxy @e)
+    let enumName        = nameOf (proxy# :: Proxy# e)
     let dropPrefix      = T.drop (T.length enumName)
-    let enumMemberNames = dropPrefix . fst <$> enumerate (Proxy @e)
+    let enumMemberNames = dropPrefix . fst <$> enumerate (proxy# :: Proxy# e)
     return $ NamedSchema (Just enumName)
            $ mempty
              & type_ .~ SwaggerString

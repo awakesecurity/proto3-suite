@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -84,13 +85,13 @@ import qualified Data.ByteString.Lazy             as LBS
 import           Data.Coerce
 import           Data.Maybe
 import qualified Data.Map                         as M
-import           Data.Proxy
 import           Data.Text                        (Text)
 import qualified Data.Text                        as T
 import qualified Data.Text.Encoding               as T
 import qualified Data.Text.Lazy                   as TL
 import qualified Data.Text.Lazy.Encoding          as TL
 import qualified Data.Vector                      as V
+import           GHC.Exts                         (Proxy#, proxy#)
 import           GHC.Int                          (Int32, Int64)
 import           GHC.Word                         (Word32, Word64)
 import           Proto3.Suite.Class               (HasDefault (def, isDefault),
@@ -240,7 +241,7 @@ jsonPBOptions = Options
 
 -- * Helper types and functions
 
-dropNamedPrefix :: Named a => Proxy a -> String -> String
+dropNamedPrefix :: Named a => Proxy# a -> String -> String
 dropNamedPrefix p = drop (length (nameOf p :: String))
 
 object :: [Options -> [A.Pair]] -> Options -> A.Value
@@ -274,10 +275,10 @@ pairsOrNull fs options = case mconcat fs options of
   nonEmpty -> E.pairs nonEmpty
 
 enumFieldString :: forall a. (Named a, Show a) => a -> A.Value
-enumFieldString = A.String . T.pack . dropNamedPrefix (Proxy @a) . show
+enumFieldString = A.String . T.pack . dropNamedPrefix (proxy# :: Proxy# a) . show
 
 enumFieldEncoding :: forall a. (Named a, Show a) => a -> A.Encoding
-enumFieldEncoding = E.string . dropNamedPrefix (Proxy @a) . show
+enumFieldEncoding = E.string . dropNamedPrefix (proxy# :: Proxy# a) . show
 
 -- | A 'Data.Aeson' 'A.Value' encoder for values which can be
 -- JSONPB-encoded.
