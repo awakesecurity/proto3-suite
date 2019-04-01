@@ -1,5 +1,5 @@
 name:                proto3-suite
-version:             0.2.0.0
+version:             0.3.0.0
 synopsis:            A low level library for writing out data in the Protocol Buffers wire format
 license:             Apache-2.0
 author:              Awake Security

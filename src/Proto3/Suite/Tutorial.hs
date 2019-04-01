@@ -23,6 +23,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -35,8 +36,8 @@ import Data.Int (Int32)
 import Proto3.Suite (Enumerated, Nested, NestedVec, PackedVec,
                      Message, Named, Finite,
                      DotProtoDefinition, enum, message, packageFromDefs, toProtoFileDef)
-import Data.Proxy
 import Data.Word (Word32)
+import GHC.Exts (Proxy#, proxy#)
 import GHC.Generics
 
 -- |
@@ -133,7 +134,7 @@ data Shape
 
 protoFile :: String
 protoFile = toProtoFileDef $ packageFromDefs "examplePackageName"
-  ([ enum    (Proxy :: Proxy Shape)
-   , message (Proxy :: Proxy Foo)
-   , message (Proxy :: Proxy Bar)
+  ([ enum    (proxy# :: Proxy# Shape)
+   , message (proxy# :: Proxy# Foo)
+   , message (proxy# :: Proxy# Bar)
    ] :: [DotProtoDefinition])
