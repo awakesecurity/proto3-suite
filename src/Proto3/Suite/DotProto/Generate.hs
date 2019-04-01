@@ -1488,55 +1488,29 @@ oneofSubDisjunctBinder = intercalate "_or_" . fmap oneofSubBinder
 
 -- ** Helpers to wrap/unwrap types for protobuf (de-)serialization
 
-coerceE :: HsType -> HsType -> Maybe HsExp
-coerceE from to | from == to = Nothing
-coerceE from to = Just $ HsApp (HsApp (HsVar (haskellName "coerce")) (typeApp from)) (typeApp to)
+coerceE :: Bool -> HsType -> HsType -> Maybe HsExp
+coerceE _ from to | from == to = Nothing
+coerceE unsafe from to = Just $ HsApp (HsApp coerceF (typeApp from)) (typeApp to)
   where
     -- Do not add linebreaks to typeapps as that causes parse errors
     pp = prettyPrintStyleMode style{mode=OneLineMode} defaultMode
     typeApp ty = HsVar (UnQual (HsIdent ("@("++ pp ty ++ ")")))
-
-wrapCoerce :: MonadError CompileError m => TypeContext -> [DotProtoOption] -> DotProtoType -> m (Maybe HsExp)
-wrapCoerce ctxt opts dpt = coerceE <$> dptToHsType ctxt dpt <*> dptToHsTypeWrapped opts ctxt dpt
-
-unwrapCoerce :: MonadError CompileError m => TypeContext -> [DotProtoOption] -> DotProtoType -> m (Maybe HsExp)
-unwrapCoerce ctxt opts dpt = coerceE <$> dptToHsTypeWrapped opts ctxt dpt <*> dptToHsType ctxt dpt
+    coerceF | unsafe = HsVar (haskellName "unsafeCoerce")
+            | otherwise  = HsVar (haskellName "coerce")
 
 wrapE :: MonadError CompileError m => TypeContext -> [DotProtoOption] -> DotProtoType -> HsExp -> m HsExp
-wrapE ctxt opts (Map k v) e = do
-  k' <- wrapCoerce ctxt opts (Prim k)
-  v' <- wrapCoerce ctxt opts (Prim v)
-  pure $ HsParen
-       $ maybe e (\f -> HsApp (HsParen f) e)
-                 (maybeCompose (HsApp (HsVar $ haskellName "mapKeysMonotonic") . HsParen <$>  k')
-                               (HsApp fmapE . HsParen <$> v')
-                 )
-wrapE ctxt opts dpt e = do
-  c <- wrapCoerce ctxt opts dpt
-  case c of
-    Nothing -> pure e
-    Just f -> pure $ HsParen (HsApp (HsParen f) e)
+wrapE ctxt opts dpt e = maybe e (\f -> HsParen (HsApp (HsParen f) e)) <$>
+  (coerceE (isMap dpt) <$> dptToHsType ctxt dpt <*> dptToHsTypeWrapped opts ctxt dpt)
 
--- the unwrapping function has to be fmapped over the parser.
 unwrapE :: MonadError CompileError m => TypeContext -> [DotProtoOption] -> DotProtoType -> HsExp -> m HsExp
-unwrapE ctxt opts (Map k v) e = do
-  k' <- unwrapCoerce ctxt opts (Prim k)
-  v' <- unwrapCoerce ctxt opts (Prim v)
-  pure $ HsParen
-       $ maybe e (\f -> HsInfixApp (HsParen f) fmapOp e)
-                 (maybeCompose (HsApp (HsVar $ haskellName "mapKeysMonotonic") . HsParen <$>  k')
-                               (HsApp fmapE . HsParen <$> v')
-                 )
-unwrapE ctxt opts dpt e = do
-  c <- unwrapCoerce ctxt opts dpt
-  case c of
-    Nothing -> pure e
-    Just f -> pure $ HsParen (HsInfixApp (HsParen f) fmapOp e)
+unwrapE ctxt opts dpt e = maybe e (\f -> HsParen (HsApp (HsParen f) e)) <$>
+   (coerceE (isMap dpt) <$> overParser (dptToHsTypeWrapped opts ctxt dpt) <*> overParser (dptToHsType ctxt dpt))
+  where
+    overParser = fmap $ HsTyApp (HsTyVar (HsIdent "_"))
 
-maybeCompose :: Maybe HsExp -> Maybe HsExp -> Maybe HsExp
-maybeCompose Nothing e = e
-maybeCompose e Nothing = e
-maybeCompose (Just e1) (Just e2) = Just $ HsInfixApp e1 composeOp e2
+isMap :: DotProtoType -> Bool
+isMap Map{} = True
+isMap _ = False
 
 internalError :: MonadError CompileError m => String -> m a
 internalError = throwError . InternalError
@@ -2053,6 +2027,7 @@ defaultImports usesGrpc =
     , importDecl_ dataProxy                 True (Just proxyNS)   Nothing
     , importDecl_ ghcGenericsM              True (Just haskellNS) Nothing
     , importDecl_ ghcEnumM                  True (Just haskellNS) Nothing
+    , importDecl_ unsafeCoerceM             True (Just haskellNS) Nothing
     ]
     <>
     if usesGrpc
@@ -2088,6 +2063,7 @@ defaultImports usesGrpc =
     networkGrpcHighLevelServerM      = Module "Network.GRPC.HighLevel.Server"
     networkGrpcHighLevelClientM      = Module "Network.GRPC.HighLevel.Client"
     networkGrpcHighLevelServerUnregM = Module "Network.GRPC.HighLevel.Server.Unregistered"
+    unsafeCoerceM             = Module "Unsafe.Coerce"
 
 #ifdef DHALL
     proto3SuiteDhallPBM       = Module "Proto3.Suite.DhallPB"
