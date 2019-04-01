@@ -177,7 +177,7 @@ instance (Bounded e, Enum e) => HasDefault (Enumerated e) where
     case toEnumMay 0 of
       Nothing -> Enumerated (Left 0)
       Just x -> Enumerated (Right x)
-  isDefault = (== 0) . either id fromEnum . coerce @(Enumerated e) @(Either Int e)
+  isDefault = (== 0) . either id fromEnum . enumerated
 
 instance HasDefault (UnpackedVec a) where
   def = mempty
@@ -189,15 +189,15 @@ instance HasDefault (PackedVec a) where
 
 instance HasDefault (NestedVec a) where
   def = mempty
-  isDefault = null . coerce @(NestedVec a) @(Vector a)
+  isDefault = null . nestedvec
 
 instance HasDefault (Nested a) where
   def = Nested Nothing
-  isDefault = isNothing . coerce @(Nested a) @(Maybe a)
+  isDefault = isNothing . nested
 
 instance (HasDefault a) => HasDefault (ForceEmit a) where
   def       = ForceEmit def
-  isDefault = isDefault . coerce @(ForceEmit a) @a
+  isDefault = isDefault . forceEmit
 
 -- | Used in fields of generated records to represent an unwrapped
 -- 'PackedVec'/'UnpackedVec'
@@ -407,14 +407,14 @@ instance Primitive BL.ByteString where
   primType _ = Bytes
 
 instance forall e. (Bounded e, Named e, Enum e) => Primitive (Enumerated e) where
-  encodePrimitive num = Encode.enum num . enumify . coerce @(Enumerated e) @(Either Int e)
+  encodePrimitive num = Encode.enum num . enumify . enumerated
     where enumify (Left i) = i
           enumify (Right x) = fromEnum x
   decodePrimitive = coerce @(Parser RawPrimitive (Either Int e)) @(Parser RawPrimitive (Enumerated e)) Decode.enum
   primType _ = Named (Single (nameOf (proxy# :: Proxy# e)))
 
 instance (Primitive a) => Primitive (ForceEmit a) where
-  encodePrimitive num = encodePrimitive num . coerce @(ForceEmit a) @a
+  encodePrimitive num = encodePrimitive num . forceEmit
   decodePrimitive     = coerce @(Parser RawPrimitive a) @(Parser RawPrimitive (ForceEmit a)) decodePrimitive
   primType _          = primType (proxy# :: Proxy# a)
 
@@ -572,28 +572,28 @@ instance MessageField (PackedVec (Fixed Word32)) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed32 fn) . coerce @_ @(PackedVec Word32)
   decodeMessageField = coerce @(Parser RawField (PackedVec Word32))
                               @(Parser RawField (PackedVec (Fixed Word32)))
-                       (decodePacked Decode.packedFixed32)
+                              (decodePacked Decode.packedFixed32)
   protoType _ = messageField (Repeated DotProto.Fixed32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Fixed Word64)) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed64 fn) . coerce @_ @(PackedVec Word64)
   decodeMessageField = coerce @(Parser RawField (PackedVec Word64))
                               @(Parser RawField (PackedVec (Fixed Word64)))
-                       (decodePacked Decode.packedFixed64)
+                              (decodePacked Decode.packedFixed64)
   protoType _ = messageField (Repeated DotProto.Fixed64) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Signed (Fixed Int32))) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed32 fn) . fmap (fromIntegral . coerce @_ @Int32)
   decodeMessageField = coerce @(Parser RawField (PackedVec Int32))
                               @(Parser RawField (PackedVec (Signed (Fixed Int32))))
-                       (decodePacked Decode.packedFixed32)
+                             (decodePacked Decode.packedFixed32)
   protoType _ = messageField (Repeated SFixed32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Signed (Fixed Int64))) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed64 fn) . fmap (fromIntegral . coerce @_ @Int64)
   decodeMessageField = coerce @(Parser RawField (PackedVec Int64))
                               @(Parser RawField (PackedVec (Signed (Fixed Int64))))
-                       (decodePacked Decode.packedFixed64)
+                              (decodePacked Decode.packedFixed64)
   protoType _ = messageField (Repeated SFixed64) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Float) where
@@ -608,7 +608,9 @@ instance MessageField (PackedVec Double) where
 
 instance (MessageField e, KnownSymbol comments) => MessageField (e // comments) where
   encodeMessageField fn = encodeMessageField fn . unCommented
-  decodeMessageField = fmap Commented decodeMessageField
+  decodeMessageField = coerce @(Parser RawField e)
+                              @(Parser RawField (Commented comments e))
+                              decodeMessageField
   protoType p = (protoType (lowerProxy1 p))
                   { dotProtoFieldComment = Just (symbolVal (lowerProxy2 p)) }
     where
