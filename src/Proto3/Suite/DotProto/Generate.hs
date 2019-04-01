@@ -2059,11 +2059,11 @@ defaultImports usesGrpc =
     dataProxy                 = Module "Data.Proxy"
     ghcGenericsM              = Module "GHC.Generics"
     ghcEnumM                  = Module "GHC.Enum"
+    unsafeCoerceM             = Module "Unsafe.Coerce"
     networkGrpcHighLevelGeneratedM   = Module "Network.GRPC.HighLevel.Generated"
     networkGrpcHighLevelServerM      = Module "Network.GRPC.HighLevel.Server"
     networkGrpcHighLevelClientM      = Module "Network.GRPC.HighLevel.Client"
     networkGrpcHighLevelServerUnregM = Module "Network.GRPC.HighLevel.Server.Unregistered"
-    unsafeCoerceM             = Module "Unsafe.Coerce"
 
 #ifdef DHALL
     proto3SuiteDhallPBM       = Module "Proto3.Suite.DhallPB"
