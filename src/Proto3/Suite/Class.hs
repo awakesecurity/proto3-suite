@@ -347,7 +347,7 @@ instance Primitive (Signed Int32) where
   primType _ = SInt32
 
 instance Primitive (Signed Int64) where
-  encodePrimitive num = Encode.sint64 num . signed
+  encodePrimitive num = Encode.sint64 num . coerce
   decodePrimitive = coerce Decode.sint64
   primType _ = SInt64
 
