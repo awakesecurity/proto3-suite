@@ -523,8 +523,10 @@ dpptToHsTypeWrapper :: DotProtoPrimType -> HsType -> HsType
 dpptToHsTypeWrapper = \case
   SInt32   -> HsTyApp (protobufType_ "Signed")
   SInt64   -> HsTyApp (protobufType_ "Signed")
-  SFixed32 -> HsTyApp (protobufType_ "Signed")
-  SFixed64 -> HsTyApp (protobufType_ "Signed")
+  SFixed32 -> HsTyApp (protobufType_ "Signed") . HsTyApp (protobufType_ "Fixed")
+  SFixed64 -> HsTyApp (protobufType_ "Signed") . HsTyApp (protobufType_ "Fixed")
+  Fixed32  -> HsTyApp (protobufType_ "Fixed")
+  Fixed64  -> HsTyApp (protobufType_ "Fixed")
   _        -> id
 
 -- Convert a dot proto prim type to an unwrapped Haskell type
@@ -536,10 +538,10 @@ dpptToHsType ctxt = \case
   SInt64   -> pure $ primType_ "Int64"
   UInt32   -> pure $ primType_ "Word32"
   UInt64   -> pure $ primType_ "Word64"
-  Fixed32  -> pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Word32")
-  Fixed64  -> pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Word64")
-  SFixed32 -> pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Int32")
-  SFixed64 -> pure $ HsTyApp (protobufType_ "Fixed") (primType_ "Int64")
+  Fixed32  -> pure $ primType_ "Word32"
+  Fixed64  -> pure $ primType_ "Word64"
+  SFixed32 -> pure $ primType_ "Int32"
+  SFixed64 -> pure $ primType_ "Int64"
   String   -> pure $ primType_ "Text"
   Bytes    -> pure $ primType_ "ByteString"
   Bool     -> pure $ primType_ "Bool"

@@ -180,7 +180,7 @@ parseFromGoldens = testGroup "Parse golden encodings"
   , check "with_enum0.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM1
   , check "with_enum1.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM2
   , check "with_repetition.bin"       $ TP.WithRepetition [1..5]
-  , check "with_fixed.bin"            $ TP.WithFixed (Fixed 16) (Fixed (-123)) (Fixed 4096) (Fixed (-4096))
+  , check "with_fixed.bin"            $ TP.WithFixed 16 (-123) 4096 (-4096)
   , check "with_bytes.bin"            $ TP.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
   , check "with_packing.bin"          $ TP.WithPacking [1,2,3] [1,2,3]
   , check "all_packed_types.bin"      $ TP.AllPackedTypes
@@ -188,12 +188,12 @@ parseFromGoldens = testGroup "Parse golden encodings"
                                           [1,2,3]
                                           [-1,-2,-3]
                                           [-1,-2,-3]
-                                          (fromList $ map Fixed [1..3])
-                                          (fromList $ map Fixed [1..3])
+                                          (fromList [1..3])
+                                          (fromList [1..3])
                                           [1.0,2.0]
                                           [1.0,-1.0]
-                                          (fromList $ map Fixed [1,2,3])
-                                          (fromList $ map Fixed [1,2,3])
+                                          (fromList [1,2,3])
+                                          (fromList [1,2,3])
                                           [False,True]
                                           (Enumerated . Right <$> [TP.EFLD0, TP.EFLD1])
                                           (Enumerated . Right <$> [TP.EFLD0, TP.EFLD1])
