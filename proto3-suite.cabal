@@ -47,6 +47,7 @@ library
                        cereal >= 0.5.1 && <0.6,
                        containers >=0.5 && < 0.7,
                        contravariant >=1.4 && <1.6,
+                       filepath,
                        foldl,
                        hashable,
                        haskell-src ==1.0.*,
