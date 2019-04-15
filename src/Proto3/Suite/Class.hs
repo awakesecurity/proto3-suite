@@ -91,6 +91,7 @@ module Proto3.Suite.Class
   , GenericMessage(..)
   ) where
 
+import           Control.Applicative
 import           Control.Monad
 import qualified Data.ByteString        as B
 import qualified Data.ByteString.Base64 as B64
@@ -672,7 +673,7 @@ class GenericMessage (f :: * -> *) where
 instance GenericMessage U1 where
   type GenericFieldCount U1 = 0
   genericEncodeMessage _ = mempty
-  genericDecodeMessage _ = return U1
+  genericDecodeMessage _ = pure U1
   genericDotProto _      = mempty
 
 instance (KnownNat (GenericFieldCount f), GenericMessage f, GenericMessage g)
@@ -686,7 +687,7 @@ instance (KnownNat (GenericFieldCount f), GenericMessage f, GenericMessage g)
         offset = fromIntegral $ natVal (Proxy @(GenericFieldCount f))
 
     genericDecodeMessage num =
-        liftM2 (:*:) (genericDecodeMessage num)
+        liftA2 (:*:) (genericDecodeMessage num)
                      (genericDecodeMessage num2)
       where
         num2 = FieldNumber $ getFieldNumber num + offset
