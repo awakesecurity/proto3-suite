@@ -34,9 +34,18 @@ let
                   formatting =
                     haskellPackagesNew.callPackage ./nix/formatting.nix { };
 
+                  megaparsec =
+                    haskellPackagesNew.callPackage ./nix/megaparsec.nix { };
+
+                  neat-interpolation =
+                    haskellPackagesNew.callPackage ./nix/neat-interpolation.nix { };
+
                   prettyprinter =
                     pkgsNew.haskell.lib.dontCheck
                       (haskellPackagesNew.callPackage ./nix/prettyprinter.nix { });
+
+                  repline =
+                    haskellPackagesNew.callPackage ./nix/repline.nix { };
 
                   proto3-suite-base =
                     let
