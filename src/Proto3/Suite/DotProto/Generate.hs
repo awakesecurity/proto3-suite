@@ -868,17 +868,18 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                       --    Constructor y -> encodeMessageField num (Nested (Just y)) -- for embedded messages
                       --    Constructor y -> encodeMessageField num (ForceEmit y)     -- for everything else
                       let mkAlt (OneofSubfield fieldNum conName _ dpType options) = do
-                            let wrapMaybe
+                            let isMaybe
                                    | Prim (Named tyName) <- dpType
-                                   , Just DotProtoKindMessage <- dotProtoTypeInfoKind <$> M.lookup tyName ctxt
-                                   = HsParen . HsApp (HsVar (haskellName "Just"))
+                                   = Just DotProtoKindMessage == fmap dotProtoTypeInfoKind (M.lookup tyName ctxt)
                                    | otherwise
-                                   = forceEmitE
+                                   = False
 
-                            xE <- wrapE ctxt options dpType
-                                   . wrapMaybe
+                            let wrapJust = HsParen . HsApp (HsVar (haskellName "Just"))
+
+                            xE <- (if isMaybe then id else fmap forceEmitE)
+                                   . wrapE ctxt options dpType
+                                   . (if isMaybe then wrapJust else id)
                                    $ HsVar (unqual_ "y")
-
 
                             pure $ alt_ (HsPApp (unqual_ conName) [patVar "y"])
                                         (HsUnGuardedAlt (apply encodeMessageFieldE [fieldNumberE fieldNum, xE]))
