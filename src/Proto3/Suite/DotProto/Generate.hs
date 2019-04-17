@@ -209,6 +209,7 @@ renderHsModuleForDotProto extraInstanceFiles dotProto importCtxt = do
   where
     header = [Neat.text|
       {-# LANGUAGE DeriveGeneric     #-}
+      {-# LANGUAGE DeriveAnyClass    #-}
       {-# LANGUAGE DataKinds         #-}
       {-# LANGUAGE GADTs             #-}
       {-# LANGUAGE TypeApplications  #-}
@@ -2011,6 +2012,7 @@ defaultImports usesGrpc =
                         )
                   )
     , importDecl_ controlApplicativeM       True  (Just haskellNS) Nothing
+    , importDecl_ controlDeepSeqM           True  (Just haskellNS) Nothing
     , importDecl_ controlMonadM             True  (Just haskellNS) Nothing
     , importDecl_ dataTextM                 True
                   (Just haskellNS) (Just (False, [ importSym "Text" ]))
@@ -2049,6 +2051,7 @@ defaultImports usesGrpc =
     proto3SuiteJSONPBM        = Module "Proto3.Suite.JSONPB"
     proto3WireM               = Module "Proto3.Wire"
     controlApplicativeM       = Module "Control.Applicative"
+    controlDeepSeqM           = Module "Control.DeepSeq"
     controlMonadM             = Module "Control.Monad"
     dataCoerceM               = Module "Data.Coerce"
     dataTextM                 = Module "Data.Text.Lazy"
@@ -2082,10 +2085,10 @@ haskellNS :: Module
 haskellNS = Module "Hs"
 
 defaultMessageDeriving :: [HsQName]
-defaultMessageDeriving = map haskellName [ "Show", "Eq", "Ord", "Generic" ]
+defaultMessageDeriving = map haskellName [ "Show", "Eq", "Ord", "Generic", "NFData" ]
 
 defaultEnumDeriving :: [HsQName]
-defaultEnumDeriving = map haskellName [ "Show", "Bounded", "Eq", "Ord", "Generic" ]
+defaultEnumDeriving = map haskellName [ "Show", "Bounded", "Eq", "Ord", "Generic", "NFData" ]
 
 defaultServiceDeriving :: [HsQName]
 defaultServiceDeriving = map haskellName [ "Generic" ]
