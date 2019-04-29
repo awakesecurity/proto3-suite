@@ -141,4 +141,4 @@ executable canonicalize-proto-file
                        , range-set-list >=0.1.2 && <0.2
                        , system-filepath
                        , turtle
-  ghc-options:         -O2 -Wall -Werror
+  ghc-options:         -O2 -Wall
