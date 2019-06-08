@@ -20,6 +20,7 @@ import qualified Data.Swagger
 import qualified Data.Text                      as T
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate
+import           Proto3.Suite.DotProto.Generate.Common (fieldLikeName, prefixedEnumFieldName, typeLikeName)
 import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  ToJSONPB (..), eitherDecode,
                                                  encode, defaultOptions)
@@ -41,18 +42,33 @@ codeGenTests = testGroup "Code generator unit tests"
 
 camelCaseMessageNames :: TestTree
 camelCaseMessageNames = testGroup "CamelCasing of message names"
-  [ testCase "Capitalizes letters after underscores" (typeLikeName "protocol_analysis" @?= Right "ProtocolAnalysis")
-  , testCase "Preserves casing of interior letters"  (typeLikeName "analyze_HTTP" @?= Right "AnalyzeHTTP")
-  , testCase "Handles non-alphanumeric characters after underscore" (typeLikeName "analyze_http_2" @?= Right "AnalyzeHttp2")
-  , testCase "Preserves one underscore in double underscore sequence" (typeLikeName "Analyze__HTTP" @?= Right "Analyze_HTTP")
-  , testCase "Handles names prefixed with underscore" (typeLikeName "_message_name" @?= Right "XMessageName")
-  , testCase "Preserves trailing underscore" (typeLikeName "message_name_" @?= Right "MessageName_") ]
+  [ testCase "Capitalizes letters after underscores"
+      $ typeLikeName "protocol_analysis" @?= Right "ProtocolAnalysis"
 
+  , testCase "Preserves casing of interior letters"
+      $ typeLikeName "analyze_HTTP" @?= Right "AnalyzeHTTP"
+
+  , testCase "Handles non-alphanumeric characters after underscore"
+      $ typeLikeName "analyze_http_2" @?= Right "AnalyzeHttp2"
+
+  , testCase "Preserves one underscore in double underscore sequence"
+      $ typeLikeName "Analyze__HTTP" @?= Right "Analyze_HTTP"
+
+  , testCase "Handles names prefixed with underscore"
+      $ typeLikeName "_message_name" @?= Right "XMessageName"
+
+  , testCase "Preserves trailing underscore"
+      $ typeLikeName "message_name_" @?= Right "MessageName_"
+  ]
 
 camelCaseMessageFieldNames :: TestTree
 camelCaseMessageFieldNames = testGroup "camelCasing of field names"
-  [ testCase "Preserves capitalization patterns" (fieldLikeName "IP" @?= "ip")
-  , testCase "Preserves underscores"             (fieldLikeName "IP_address" @?= "ip_address") ]
+  [ testCase "Preserves capitalization patterns"
+      $ fieldLikeName "IP" @?= "ip"
+
+  , testCase "Preserves underscores"
+      $ fieldLikeName "IP_address" @?= "ip_address"
+  ]
 
 don'tAlterEnumFieldNames :: TestTree
 don'tAlterEnumFieldNames
@@ -67,13 +83,12 @@ don'tAlterEnumFieldNames
            ]
   where
     enumName     = "MyEnum"
-    tc fieldName = testCase fieldName
-                 $ prefixedEnumFieldName enumName fieldName
-                     @?= (enumName <> fieldName)
+    tc fieldName = testCase fieldName $
+        prefixedEnumFieldName enumName fieldName @?= (enumName <> fieldName)
 
 setPythonPath :: IO ()
-setPythonPath = Turtle.export "PYTHONPATH" =<< do
-  maybe pyTmpDir ((pyTmpDir <> ":") <>) <$> Turtle.need "PYTHONPATH"
+setPythonPath = Turtle.export "PYTHONPATH" =<<
+  maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) <$> Turtle.need "PYTHONPATH"
 
 simpleEncodeDotProto :: TestTree
 simpleEncodeDotProto =
@@ -128,12 +143,12 @@ compileTestDotProtos = do
   Turtle.mktree pyTmpDir
   forM_ protoFiles $ \protoFile -> do
     compileDotProtoFileOrDie [] hsTmpDir ["test-files"] protoFile
-    (@?= ExitSuccess) =<< Turtle.shell (T.concat [ "protoc --python_out="
-                                                 , pyTmpDir
-                                                 , " --proto_path=test-files"
-                                                 , " test-files/" <> Turtle.format F.fp protoFile
-                                                 ])
-                                       empty
+    let cmd = T.concat [ "protoc --python_out="
+                       , pyTmpDir
+                       , " --proto_path=test-files"
+                       , " test-files/" <> Turtle.format F.fp protoFile
+                       ]
+    (@?= ExitSuccess) =<< Turtle.shell cmd empty
   Turtle.touch (pyTmpDir Turtle.</> "__init__.py")
   where
     protoFiles =

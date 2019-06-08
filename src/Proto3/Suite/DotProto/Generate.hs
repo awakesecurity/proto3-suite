@@ -22,14 +22,6 @@ module Proto3.Suite.DotProto.Generate
   , hsModuleForDotProto
   , renderHsModuleForDotProto
   , readDotProtoWithContext
-
-  -- * Utilities
-  , isPackable
-
-  -- * Exposed for unit-testing
-  , fieldLikeName
-  , prefixedEnumFieldName
-  , typeLikeName
   ) where
 
 import           Control.Applicative
@@ -59,6 +51,8 @@ import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.Rendering (Pretty(..))
 import           Proto3.Suite.DotProto.Internal
+import           Proto3.Suite.DotProto.Generate.Common
+--import           Proto3.Suite.DotProto.Generate.Purescript
 import           Proto3.Wire.Types              (FieldNumber (..))
 import           System.IO                      (writeFile, readFile)
 import           Text.Parsec                    (ParseError)
@@ -68,27 +62,6 @@ import           Turtle.Format                  ((%))
 import qualified Turtle.Format                  as F
 
 -- * Public interface
-
-data CompileError
-  = CircularImport          FilePath
-  | CompileParseError       ParseError
-  | InternalEmptyModulePath
-  | InternalError           String
-  | InvalidMethodName       DotProtoIdentifier
-  | InvalidTypeName         String
-  | InvalidMapKeyType       String
-  | NoPackageDeclaration
-  | NoSuchType              DotProtoIdentifier
-  | Unimplemented           String
-  deriving (Show, Eq)
-
-#if !(MIN_VERSION_mtl(2,2,2))
-liftEither :: MonadError e m => Either e a -> m a
-liftEither x =
-    case x of
-        Left  e -> throwError e
-        Right a -> return a
-#endif
 
 -- | Generate a Haskell module corresponding to a @.proto@ file
 compileDotProtoFile
@@ -123,12 +96,9 @@ compileDotProtoFile
 
     Turtle.mktree (Turtle.directory modulePath)
 
-    listOfExtraInstances <- traverse getExtraInstances extraInstanceFiles
+    extraInstances <- foldMapM getExtraInstances extraInstanceFiles
 
-    let extraInstances = mconcat listOfExtraInstances
-
-    haskellModule <- do
-      renderHsModuleForDotProto extraInstances dotProto importTypeContext
+    haskellModule <- renderHsModuleForDotProto extraInstances dotProto importTypeContext
 
     liftIO (writeFile (FP.encodeString modulePath) haskellModule)
 
@@ -173,11 +143,10 @@ getExtraInstances
     :: (MonadIO m, MonadError CompileError m)
     => FilePath -> m ([HsImportDecl], [HsDecl])
 getExtraInstances extraInstanceFile = do
-  let extraInstanceFileString = FP.encodeString extraInstanceFile
 
-  parseRes <- parseModule <$> liftIO (readFile extraInstanceFileString)
+  contents <- liftIO (readFile (FP.encodeString extraInstanceFile))
 
-  case parseRes of
+  case parseModule contents of
     ParseOk (HsModule _srcloc _mod _es idecls decls) -> do
       let isInstDecl HsInstDecl{} = True
           isInstDecl _            = False
@@ -233,21 +202,19 @@ hsModuleForDotProto
     -- ^
     -> m HsModule
 hsModuleForDotProto
-    _
-    DotProto { protoMeta = DotProtoMeta { metaModulePath = Path [] } }
-    _ =
-    throwError InternalEmptyModulePath
-hsModuleForDotProto
   (extraImports, extraInstances)
   dotProto@DotProto
-    { protoPackage     = DotProtoPackageSpec packageIdentifier
+    { protoPackage
     , protoMeta        = DotProtoMeta { metaModulePath = modulePath }
     , protoDefinitions
     }
   importTypeContext = do
+    packageIdentifier <- protoPackageName protoPackage
     moduleName <- modulePathModName modulePath
 
     typeContextImports <- ctxtImports importTypeContext
+
+    let hasService = any (\case DotProtoService {} -> True; _ -> False) protoDefinitions
 
     let importDeclarations =
           concat [ defaultImports hasService, extraImports, typeContextImports ]
@@ -257,19 +224,13 @@ hsModuleForDotProto
     let toDotProtoDeclaration =
           dotProtoDefinitionD packageIdentifier (typeContext <> importTypeContext)
 
-    let instances = instancesForModule moduleName extraInstances
+    let extraInstances' = instancesForModule moduleName extraInstances
 
-    listOfDeclarations <- traverse toDotProtoDeclaration protoDefinitions
+    decls <- replaceHsInstDecls extraInstances' <$>
+             foldMapM toDotProtoDeclaration protoDefinitions
 
-    let overridenDeclarations =
-          replaceHsInstDecls instances (mconcat listOfDeclarations)
+    return (module_ moduleName Nothing importDeclarations decls)
 
-    return (module_ moduleName Nothing importDeclarations overridenDeclarations)
-  where
-    hasService = not (null [ () | DotProtoService {} <- protoDefinitions ])
-
-hsModuleForDotProto _ _ _ =
-  throwError NoPackageDeclaration
 
 -- This very specific function will only work for the qualification on the very first type
 -- in the object of an instance declaration. Those are the only sort of instance declarations
@@ -335,7 +296,7 @@ readDotProtoWithContext searchPaths toplevelProto = runExceptT $ do
     parse mp fp = parseProtoFile mp fp >>= \case
       Right dp -> do
         let importIt = readImportTypeContext searchPaths toplevelProto (S.singleton toplevelProto)
-        tc <- mconcat <$> mapM importIt (protoImports dp)
+        tc <- foldMapM importIt (protoImports dp)
         pure (dp, tc)
       Left err -> throwError (CompileParseError err)
 
@@ -351,111 +312,33 @@ readImportTypeContext
     -> m TypeContext
 readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
   | path `S.member` alreadyRead = throwError (CircularImport path)
-  | otherwise =
-      do import_ <- liftEither . first CompileParseError =<< importProto searchPaths toplevelFP path
-         case protoPackage import_ of
-           DotProtoPackageSpec importPkg ->
-             do importTypeContext <- dotProtoTypeContext import_
-                let importTypeContext' = flip fmap importTypeContext $ \tyInfo ->
-                      tyInfo { dotProtoTypeInfoPackage    = DotProtoPackageSpec importPkg
-                             , dotProtoTypeInfoModulePath = metaModulePath . protoMeta $ import_
-                             }
-                    qualifiedTypeContext = M.fromList <$>
-                        mapM (\(nm, tyInfo) -> (,tyInfo) <$> concatDotProtoIdentifier importPkg nm)
-                            (M.assocs importTypeContext')
+  | otherwise = do
+         import_ <- liftEither . first CompileParseError =<< importProto searchPaths toplevelFP path
+         importPkg <- protoPackageName (protoPackage import_)
 
-                importTypeContext'' <- (importTypeContext' <>) <$> qualifiedTypeContext
-                (importTypeContext'' <>) . mconcat <$> sequence
-                    [ readImportTypeContext searchPaths toplevelFP (S.insert path alreadyRead) importImport
-                    | importImport@(DotProtoImport DotProtoImportPublic _) <- protoImports import_
-                    ]
-           _ -> throwError NoPackageDeclaration
+         let fixImportTyInfo tyInfo = tyInfo { dotProtoTypeInfoPackage    = DotProtoPackageSpec importPkg
+                                             , dotProtoTypeInfoModulePath = metaModulePath . protoMeta $ import_
+                                             }
+         importTypeContext <- map fixImportTyInfo <$> dotProtoTypeContext import_
 
--- * Type-tracking data structures
+         qualifiedTypeContext <- mapKeysM (concatDotProtoIdentifier importPkg) importTypeContext
 
--- | Whether a definition is an enumeration or a message
-data DotProtoKind = DotProtoKindEnum
-                  | DotProtoKindMessage
-                  deriving (Show, Eq, Ord, Enum, Bounded)
+         let recur = readImportTypeContext searchPaths toplevelFP (S.insert path alreadyRead)
 
--- | Information about messages and enumerations
-data DotProtoTypeInfo = DotProtoTypeInfo
-  { dotProtoTypeInfoPackage    :: DotProtoPackageSpec
-     -- ^ The package this type is defined in
-  , dotProtoTypeInfoParent     :: DotProtoIdentifier
-    -- ^ The message this type is nested under, or 'Anonymous' if it's top-level
-  , dotProtoTypeChildContext   :: TypeContext
-    -- ^ The context that should be used for declarations within the
-    --   scope of this type
-  , dotProtoTypeInfoKind       :: DotProtoKind
-    -- ^ Whether this type is an enumeration or message
-  , dotProtoTypeInfoModulePath :: Path
-    -- ^ The include-relative module path used when importing this module
-  } deriving Show
+         publicImportTCs <- foldMapM recur
+                               . filter ((== DotProtoImportPublic) . dotProtoImportQualifier)
+                               $ protoImports import_
 
--- | A mapping from .proto type identifiers to their type information
-type TypeContext = M.Map DotProtoIdentifier DotProtoTypeInfo
-
--- ** Generating type contexts from ASTs
-
-dotProtoTypeContext :: MonadError CompileError m => DotProto -> m TypeContext
-dotProtoTypeContext DotProto { protoDefinitions
-                             , protoMeta = DotProtoMeta modulePath
-                             }
-  = mconcat <$> mapM (definitionTypeContext modulePath) protoDefinitions
-
-definitionTypeContext
-    :: MonadError CompileError m => Path -> DotProtoDefinition -> m TypeContext
-definitionTypeContext modulePath (DotProtoMessage msgIdent parts) =
-    do childTyContext <-
-          mapM updateDotProtoTypeInfoParent =<<
-          (mconcat <$> sequenceA
-               [ definitionTypeContext modulePath def
-               | DotProtoMessageDefinition def <- parts ])
-
-       qualifiedChildTyContext <- M.fromList <$>
-          mapM (\(nm, tyInfo) -> (,tyInfo) <$>
-                                 concatDotProtoIdentifier msgIdent nm)
-               (M.assocs childTyContext)
-
-       pure (M.singleton msgIdent
-                 (DotProtoTypeInfo DotProtoNoPackage Anonymous
-                      childTyContext DotProtoKindMessage modulePath) <>
-               qualifiedChildTyContext)
-  where updateDotProtoTypeInfoParent tyInfo =
-            do dotProtoTypeInfoParent <-
-                     concatDotProtoIdentifier msgIdent (dotProtoTypeInfoParent tyInfo)
-               pure tyInfo { dotProtoTypeInfoParent }
-definitionTypeContext modulePath (DotProtoEnum enumIdent _) =
-  pure (M.singleton enumIdent
-            (DotProtoTypeInfo DotProtoNoPackage Anonymous mempty DotProtoKindEnum modulePath))
-definitionTypeContext _ _ = pure mempty
-
-concatDotProtoIdentifier :: MonadError CompileError m
-                         => DotProtoIdentifier -> DotProtoIdentifier -> m DotProtoIdentifier
-
-concatDotProtoIdentifier Qualified{} _ = internalError "concatDotProtoIdentifier: Qualified"
-concatDotProtoIdentifier _ Qualified{} = internalError "concatDotProtoIdentifier Qualified"
-
-concatDotProtoIdentifier Anonymous Anonymous = pure Anonymous
-concatDotProtoIdentifier Anonymous b = pure b
-concatDotProtoIdentifier a Anonymous = pure a
-
-concatDotProtoIdentifier (Single a) b = concatDotProtoIdentifier (Dots (Path [a])) b
-concatDotProtoIdentifier a (Single b) = concatDotProtoIdentifier a (Dots (Path [b]))
-
-concatDotProtoIdentifier (Dots (Path a)) (Dots (Path b)) = pure . Dots . Path $ a ++ b
+         pure $ importTypeContext <> qualifiedTypeContext <> publicImportTCs
 
 -- | Given a type context, generates the import statements necessary
 --   to import all the required types.
 ctxtImports :: MonadError CompileError m => TypeContext -> m [HsImportDecl]
-ctxtImports tyCtxt =
-  do imports <- nub <$> sequence
-                          [ modulePathModName modulePath
-                          | DotProtoTypeInfo { dotProtoTypeInfoModulePath = modulePath }
-                             <- M.elems tyCtxt
-                          ]
-     pure [ importDecl_ modName True Nothing Nothing | modName <- imports ]
+ctxtImports = fmap (mkImport . nub)
+            . traverse (modulePathModName . dotProtoTypeInfoModulePath)
+            . M.elems
+  where
+    mkImport modName = importDecl_ modName True Nothing Nothing
 
 -- * Functions to convert 'DotProtoType' into Haskell types
 
@@ -622,8 +505,8 @@ msgTypeFromDpTypeInfo
 -- of this type, generate the corresponding Haskell name
 nestedTypeName :: MonadError CompileError m => DotProtoIdentifier -> String -> m String
 nestedTypeName Anonymous             nm = typeLikeName nm
-nestedTypeName (Single parent)       nm = intercalate "_" <$> sequenceA [ typeLikeName parent , typeLikeName nm ]
-nestedTypeName (Dots (Path parents)) nm = intercalate "_" . (<>[nm]) <$> mapM typeLikeName parents
+nestedTypeName (Single parent)       nm = intercalate "_" <$> traverse typeLikeName [parent, nm]
+nestedTypeName (Dots (Path parents)) nm = intercalate "_" . (<> [nm]) <$> traverse typeLikeName parents
 nestedTypeName (Qualified {})        _  = internalError "nestedTypeName: Qualified"
 
 haskellName, jsonpbName, grpcName, protobufName, proxyName
@@ -642,62 +525,13 @@ dhallPBName :: String -> HsQName
 dhallPBName name = Qual (Module hsDhallPB) (HsIdent name)
 #endif
 
-camelCased :: String -> String
-camelCased s = do
-  (prev, cur) <- zip (Nothing:map Just s) (map Just s ++ [Nothing])
-  case (prev, cur) of
-    (Just '_', Just x) | isAlpha x -> pure (toUpper x)
-    (Just '_', Nothing) -> pure '_'
-    (Just '_', Just '_') -> pure '_'
-    (_, Just '_') -> empty
-    (_, Just x) -> pure x
-    (_, _) -> empty
-
-typeLikeName :: MonadError CompileError m => String -> m String
-typeLikeName ident@(firstChar:remainingChars)
-  | isUpper firstChar = pure (camelCased ident)
-  | isLower firstChar = pure (camelCased (toUpper firstChar:remainingChars))
-  | firstChar == '_'  = pure (camelCased ('X':ident))
-typeLikeName ident = invalidTypeNameError ident
-
-fieldLikeName :: String -> String
-fieldLikeName ident@(firstChar:_)
-  | isUpper firstChar = let (prefix, suffix) = span isUpper ident
-                        in map toLower prefix ++ suffix
-fieldLikeName ident = ident
-
-prefixedEnumFieldName :: String -> String -> String
-prefixedEnumFieldName enumName fieldName = enumName <> fieldName
-
-prefixedConName :: MonadError CompileError m => String -> String -> m String
-prefixedConName msgName conName =
-  (msgName ++) <$> typeLikeName conName
-
--- TODO: This should be ~:: MessageName -> FieldName -> ...; same elsewhere, the
--- String types are a bit of a hassle.
-prefixedFieldName :: MonadError CompileError m => String -> String -> m String
-prefixedFieldName msgName fieldName =
-  (fieldLikeName msgName ++) <$> typeLikeName fieldName
-
-dpIdentUnqualName :: MonadError CompileError m => DotProtoIdentifier -> m String
-dpIdentUnqualName (Single name)       = pure name
-dpIdentUnqualName (Dots (Path names)) = pure (last names)
-dpIdentUnqualName (Qualified _ next)  = dpIdentUnqualName next
-dpIdentUnqualName Anonymous           = internalError "dpIdentUnqualName: Anonymous"
-
-dpIdentQualName :: MonadError CompileError m => DotProtoIdentifier -> m String
-dpIdentQualName (Single name)       = pure name
-dpIdentQualName (Dots (Path names)) = pure (intercalate "." names)
-dpIdentQualName (Qualified _ _)     = internalError "dpIdentQualName: Qualified"
-dpIdentQualName Anonymous           = internalError "dpIdentQualName: Anonymous"
-
 modulePathModName :: MonadError CompileError m => Path -> m Module
 modulePathModName (Path [])    = throwError InternalEmptyModulePath
-modulePathModName (Path comps) = Module <$> (intercalate "." <$> mapM typeLikeName comps)
+modulePathModName (Path comps) = Module . intercalate "." <$> mapM typeLikeName comps
 
 _pkgIdentModName :: MonadError CompileError m => DotProtoIdentifier -> m Module
 _pkgIdentModName (Single s)          = Module <$> typeLikeName s
-_pkgIdentModName (Dots (Path paths)) = Module <$> (intercalate "." <$> mapM typeLikeName paths)
+_pkgIdentModName (Dots (Path paths)) = Module . intercalate "." <$> mapM typeLikeName paths
 _pkgIdentModName _                   = internalError "pkgIdentModName: Malformed package name"
 
 -- * Generate instances for a 'DotProto' package
@@ -705,11 +539,14 @@ _pkgIdentModName _                   = internalError "pkgIdentModName: Malformed
 dotProtoDefinitionD
     :: MonadError CompileError m
     => DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
-dotProtoDefinitionD _ ctxt (DotProtoMessage messageName dotProtoMessage) =
+dotProtoDefinitionD pkgIdent ctxt = \case
+  DotProtoMessage messageName dotProtoMessage ->
     dotProtoMessageD ctxt Anonymous messageName dotProtoMessage
-dotProtoDefinitionD _ _ (DotProtoEnum messageName dotProtoEnum) =
+
+  DotProtoEnum messageName dotProtoEnum ->
     dotProtoEnumD Anonymous messageName dotProtoEnum
-dotProtoDefinitionD pkgIdent ctxt (DotProtoService serviceName dotProtoService) =
+
+  DotProtoService serviceName dotProtoService ->
     dotProtoServiceD pkgIdent ctxt serviceName dotProtoService
 
 -- | Generate 'Named' instance for a type in this package
@@ -799,29 +636,25 @@ dotProtoMessageD ctxt parentIdent messageIdent message = do
 #endif
                     ]
 
-       conDecl <- recDecl_ (HsIdent messageName) . mconcat <$>
-                  mapM messagePartFieldD message
+       conDecl <- recDecl_ (HsIdent messageName) <$> foldMapM messagePartFieldD message
 
-       nestedDecls_ <- mconcat <$>
-           sequence [ nestedDecls def | DotProtoMessageDefinition def <- message]
+       nestedDecls_ <- foldMapM nestedDecls
+                                [ def | DotProtoMessageDefinition def <- message]
 
-       nestedOneofs_ <- mconcat <$>
-           sequence [ nestedOneOfDecls ident fields | DotProtoMessageOneOf ident fields <- message ]
+       nestedOneofs_ <- foldMapM (uncurry nestedOneOfDecls)
+                                 [ (ident, fields) | DotProtoMessageOneOf ident fields <- message ]
 
        messageInst <- messageInstD ctxt' parentIdent messageIdent message
 
        toJSONPBInst   <- toJSONPBMessageInstD   ctxt' parentIdent messageIdent message
        fromJSONPBInst <- fromJSONPBMessageInstD ctxt' parentIdent messageIdent message
 
-       fieldNames <- sequence $ do
-           messagePart <- message
-           dotProtoIdentifier <- case messagePart of
-                 DotProtoMessageField dotProtoField ->
-                   return (dotProtoFieldName dotProtoField)
-                 DotProtoMessageOneOf dotProtoIdentifier _ ->
-                   return dotProtoIdentifier
-                 _ -> empty
-           return (dpIdentUnqualName dotProtoIdentifier)
+       let getName = \case
+             DotProtoMessageField dotProtoField -> return (dotProtoFieldName dotProtoField)
+             DotProtoMessageOneOf dotProtoIdentifier _ -> return dotProtoIdentifier
+             _ -> empty
+
+       fieldNames <- foldMapM (fmap dpIdentUnqualName . getName) message
 
        toSchemaInstance <- toSchemaInstanceDeclaration messageName fieldNames Nothing
 
@@ -1045,7 +878,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
                 let patVarNm = oneofSubBinder sub
                 pure $ alt_ (HsPApp (haskellName "Just")
                                     [ HsPParen
-                                      $ HsPApp (unqual_ conName) [patVar patVarNm]
+                                      (HsPApp (unqual_ conName) [patVar patVarNm])
                                     ]
                             )
                             (HsUnGuardedAlt (pairE pbFldNm patVarNm))
@@ -1416,79 +1249,6 @@ toSchemaInstanceDeclaration messageName fieldNames maybeConstructors = do
                   matchName = HsIdent "declareNamedSchema"
   return instanceDeclaration
 
--- ** Codegen bookkeeping helpers
-
--- | Bookeeping for qualified fields
-data QualifiedField = QualifiedField
-  { recordFieldName :: FieldName
-  , fieldInfo       :: FieldInfo
-  } deriving Show
-
--- | Bookkeeping for fields
-data FieldInfo
-  = FieldOneOf OneofField
-  | FieldNormal FieldName FieldNumber DotProtoType [DotProtoOption]
-  deriving Show
-
--- | Bookkeeping for oneof fields
-data OneofField = OneofField
-  { oneofType :: String
-  , subfields :: [OneofSubfield]
-  } deriving Show
-
--- | Bookkeeping for oneof subfields
-data OneofSubfield = OneofSubfield
-  { subfieldNumber   :: FieldNumber
-  , subfieldConsName :: String
-  , subfieldName     :: FieldName
-  , subfieldType     :: DotProtoType
-  , subfieldOptions  :: [DotProtoOption]
-  } deriving Show
-
-getQualifiedFields
-    :: MonadError CompileError m
-    => String -> [DotProtoMessagePart] -> m [QualifiedField]
-getQualifiedFields msgName msgParts = fmap catMaybes . forM msgParts $ \case
-  DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options _) -> do
-    fieldName <- dpIdentUnqualName fieldIdent
-    qualName  <- prefixedFieldName msgName fieldName
-    pure $ Just $
-      QualifiedField (coerce qualName) (FieldNormal (coerce fieldName) fieldNum dpType options)
-
-  DotProtoMessageOneOf _ [] ->
-    throwError (InternalError "getQualifiedFields: encountered oneof with no oneof fields")
-
-  DotProtoMessageOneOf oneofIdent fields -> do
-    ident <- dpIdentUnqualName oneofIdent
-    oneofName <- prefixedFieldName msgName ident
-    oneofTypeName <- prefixedConName msgName ident
-    fieldElems <- sequence
-                    [ do s <- dpIdentUnqualName subFieldName
-                         c <- prefixedConName oneofTypeName s
-                         pure (OneofSubfield fieldNum c (coerce s) dpType options)
-                    | DotProtoField fieldNum dpType subFieldName options _ <- fields
-                    ]
-    pure $ Just $ QualifiedField (coerce oneofName) (FieldOneOf (OneofField ident fieldElems))
-
-  _ ->
-    pure Nothing
-
--- | Project qualified fields, given a projection function per field type.
-onQF :: (FieldName -> FieldNumber -> a) -- ^ projection for normal fields
-     -> (OneofField -> a)               -- ^ projection for oneof fields
-     -> QualifiedField
-     -> a
-onQF f _ (QualifiedField _ (FieldNormal fldName fldNum _ _)) = f fldName fldNum
-onQF _ g (QualifiedField _ (FieldOneOf fld))                 = g fld
-
-fieldBinder :: FieldNumber -> String
-fieldBinder = ("f" ++) . show
-
-oneofSubBinder :: OneofSubfield -> String
-oneofSubBinder = fieldBinder . subfieldNumber
-
-oneofSubDisjunctBinder :: [OneofSubfield] -> String
-oneofSubDisjunctBinder = intercalate "_or_" . fmap oneofSubBinder
 
 -- ** Helpers to wrap/unwrap types for protobuf (de-)serialization
 
@@ -1512,24 +1272,6 @@ unwrapE ctxt opts dpt e = maybe e (\f -> HsParen (HsApp (HsParen f) e)) <$>
   where
     overParser = fmap $ HsTyApp (HsTyVar (HsIdent "_"))
 
-isMap :: DotProtoType -> Bool
-isMap Map{} = True
-isMap _ = False
-
-internalError :: MonadError CompileError m => String -> m a
-internalError = throwError . InternalError
-
-invalidTypeNameError :: MonadError CompileError m => String -> m a
-invalidTypeNameError = throwError . InvalidTypeName
-
-_unimplementedError :: MonadError CompileError m => String -> m a
-_unimplementedError = throwError . Unimplemented
-
-invalidMethodNameError :: MonadError CompileError m => DotProtoIdentifier -> m a
-invalidMethodNameError = throwError . InvalidMethodName
-
-noSuchTypeError :: MonadError CompileError m => DotProtoIdentifier -> m a
-noSuchTypeError = throwError. NoSuchType
 
 -- ** Generate types and instances for .proto enums
 
@@ -1699,7 +1441,7 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
 
          serviceFieldD _ = pure []
 
-     fieldsD <- mconcat <$> mapM serviceFieldD service
+     fieldsD <- foldMapM serviceFieldD service
 
      serverFuncName <- prefixedFieldName serviceName "server"
      clientFuncName <- prefixedFieldName serviceName "client"

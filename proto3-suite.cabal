@@ -26,6 +26,7 @@ library
                        Proto3.Suite.Class
                        Proto3.Suite.DotProto
                        Proto3.Suite.DotProto.Generate
+                       Proto3.Suite.DotProto.Generate.Common
                        Proto3.Suite.DotProto.AST
                        Proto3.Suite.DotProto.Parsing
                        Proto3.Suite.DotProto.Rendering
@@ -34,6 +35,7 @@ library
                        Proto3.Suite.Types
 
   other-modules:       Proto3.Suite.DotProto.Internal
+                       Proto3.Suite.DotProto.Generate.Purescript
                        Proto3.Suite.DotProto.Generate.Swagger
                        Proto3.Suite.JSONPB.Class
   build-depends:       aeson >= 1.1.1.0 && < 1.5,
