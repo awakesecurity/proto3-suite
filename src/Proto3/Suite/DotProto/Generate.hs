@@ -53,7 +53,6 @@ import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.Rendering (Pretty(..))
 import           Proto3.Suite.DotProto.Internal
-import           Proto3.Suite.DotProto.Generate.Common
 import           Proto3.Wire.Types              (FieldNumber (..))
 import           System.IO                      (writeFile, readFile)
 import           Turtle                         (FilePath)
@@ -300,7 +299,7 @@ readImportTypeContext
 readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
   | path `S.member` alreadyRead = throwError (CircularImport path)
   | otherwise = do
-      import_ <- liftEither . first CompileParseError =<< importProto searchPaths toplevelFP path
+      import_ <- importProto searchPaths toplevelFP path
       importPkg <- protoPackageName (protoPackage import_)
 
       let fixImportTyInfo tyInfo =
@@ -697,7 +696,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
 
          encodeMessageE = apply mconcatE [HsList encodedFields]
 
-         punnedFieldsP = map (fp . coerce . recordFieldName) . qualifiedFields
+         punnedFieldsP = map (fp . coerce . recordFieldName) qualifiedFields
            where fp nm = HsPFieldPat (unqual_ nm) (HsPVar (HsIdent nm))
 
 

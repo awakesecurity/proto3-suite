@@ -36,7 +36,7 @@ import qualified Turtle
 -- module path to be injected into the AST as part of 'DotProtoMeta' metadata on
 -- a successful parse.
 parseProto :: Path -> String -> Either ParseError DotProto
-parseProto modulePath = parseProtoFile modulePath ""
+parseProto modulePath = parseProtoWithFile modulePath ""
 
 parseProtoWithFile :: Path -> String -> String -> Either ParseError DotProto
 parseProtoWithFile modulePath filePath = parse (runProtoParser (topLevel modulePath)) filePath

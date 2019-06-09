@@ -20,7 +20,7 @@ import qualified Data.Swagger
 import qualified Data.Text                      as T
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate
-import           Proto3.Suite.DotProto.Generate.Common (fieldLikeName, prefixedEnumFieldName, typeLikeName)
+import           Proto3.Suite.DotProto.Internal (fieldLikeName, prefixedEnumFieldName, typeLikeName)
 import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  ToJSONPB (..), eitherDecode,
                                                  encode, defaultOptions)
