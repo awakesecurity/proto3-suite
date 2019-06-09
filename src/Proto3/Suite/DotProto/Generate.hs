@@ -57,8 +57,6 @@ import           Proto3.Wire.Types              (FieldNumber (..))
 import           System.IO                      (writeFile, readFile)
 import           Turtle                         (FilePath)
 import qualified Turtle
-import           Turtle.Format                  ((%))
-import qualified Turtle.Format                  as F
 
 --
 -- * Public interface
@@ -268,26 +266,16 @@ readDotProtoWithContext [] dotProtoPath = do
   cwd <- Turtle.pwd
   readDotProtoWithContext [cwd] dotProtoPath
 
-readDotProtoWithContext searchPaths toplevelProto = runExceptT $ do
+readDotProtoWithContext searchPaths toplevelProto = runExceptT $
   findProto searchPaths toplevelProto >>= \case
-    Found mp fp     -> parse mp fp
-    BadModulePath e -> fatalBadModulePath toplevelProto e
-    NotFound        -> dieLines [Neat.text|
-      Error: failed to find file "${toplevelProtoText}", after looking in
-      the following locations (controlled via the --includeDir switch(es)):
-
-      $searchPathsText
-    |]
-  where
-    parse mp fp = parseProtoFile mp fp >>= \case
+    BadModulePath e -> dieLines (badModulePathErrorMsg toplevelProto e)
+    NotFound        -> dieLines (toplevelNotFoundErrorMsg searchPaths toplevelProto)
+    Found mp fp     -> parseProtoFile mp fp >>= \case
+      Left err -> throwError (CompileParseError err)
       Right dp -> do
         let importIt = readImportTypeContext searchPaths toplevelProto (S.singleton toplevelProto)
         tc <- foldMapM importIt (protoImports dp)
         pure (dp, tc)
-      Left err -> throwError (CompileParseError err)
-
-    searchPathsText   = T.unlines (Turtle.format ("  "%F.fp) . (</> toplevelProto) <$> searchPaths)
-    toplevelProtoText = Turtle.format F.fp toplevelProto
 
 readImportTypeContext
     :: (MonadError CompileError m, MonadIO m)

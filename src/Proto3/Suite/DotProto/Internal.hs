@@ -138,7 +138,7 @@ toModulePath fp0@(fromMaybe fp0 . FP.stripPrefix "./" -> fp)
     = case FP.stripPrefix "../" fp of
         Just{}  -> Left "expected include-relative path, but the path started with ../"
         Nothing
-          | T.isInfixOf ".." (Turtle.format F.fp . FP.collapse $ fp)
+          | T.isInfixOf ".." . Turtle.format F.fp . FP.collapse $ fp
             -> Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
           | otherwise
             -> Right
@@ -154,15 +154,6 @@ toModulePath fp0@(fromMaybe fp0 . FP.stripPrefix "./" -> fp)
              . Turtle.dropExtension
              $ fp
 
-fatalBadModulePath :: MonadIO m => FilePath -> String -> m a
-fatalBadModulePath (Turtle.format F.fp -> fp) (T.pack -> rsn) =
-  dieLines [Neat.text|
-    Error: failed when computing the "module path" for "${fp}": ${rsn}
-
-    Please ensure that the provided path to a .proto file is specified as
-    relative to some --includeDir path and that it has the .proto suffix.
-  |]
-
 -- | @importProto searchPaths toplevel inc@ attempts to import include-relative
 -- @inc@ after locating it somewhere in the @searchPaths@; @toplevel@ is simply
 -- the path of toplevel .proto being processed so we can report it in an error
@@ -170,20 +161,11 @@ fatalBadModulePath (Turtle.format F.fp -> fp) (T.pack -> rsn) =
 -- import or if it cannot construct a valid module path from it.
 importProto :: (MonadIO m, MonadError CompileError m)
             => [FilePath] -> FilePath -> FilePath -> m DotProto
-importProto paths (Turtle.format F.fp -> toplevelProtoText) protoFP =
+importProto paths toplevelProto protoFP =
   findProto paths protoFP >>= \case
+    BadModulePath e -> dieLines (badModulePathErrorMsg protoFP e)
+    NotFound        -> dieLines (importNotFoundErrorMsg paths toplevelProto protoFP)
     Found mp fp     -> liftEither . first CompileParseError =<< parseProtoFile mp fp
-    BadModulePath e -> fatalBadModulePath protoFP e
-    NotFound        -> dieLines [Neat.text|
-      Error: while processing include statements in "${toplevelProtoText}", failed
-      to find the imported file "${protoFPText}", after looking in the following
-      locations (controlled via the --includeDir switch(es)):
-
-      $pathsText
-    |]
-  where
-    pathsText   = T.unlines (Turtle.format ("  "%F.fp) . (</> protoFP) <$> paths)
-    protoFPText = Turtle.format F.fp protoFP
 
 data FindProtoResult
   = Found Path FilePath
@@ -207,17 +189,55 @@ findProto searchPaths protoFP
                      True <- Turtle.testfile fp
                      pure fp
 
-absolutePathErrorMsg :: T.Text
-absolutePathErrorMsg = [Neat.text|
-      Error: Absolute paths to .proto files, whether on the command line or
-      in include directives, are not currently permitted; rather, all .proto
-      filenames must be relative to the current directory, or relative to some
-      search path specified via --includeDir.
+-- * Pretty Error Messages
 
-      This is because we currently use the include-relative name to decide
-      the structure of the Haskell module tree that we emit during code
-      generation.
-      |]
+badModulePathErrorMsg :: FilePath -> String -> T.Text
+badModulePathErrorMsg (Turtle.format F.fp -> fp) (T.pack -> rsn) =
+  [Neat.text|
+    Error: failed when computing the "module path" for "${fp}": ${rsn}
+
+    Please ensure that the provided path to a .proto file is specified as
+    relative to some --includeDir path and that it has the .proto suffix.
+  |]
+
+importNotFoundErrorMsg :: [FilePath] -> FilePath -> FilePath -> T.Text
+importNotFoundErrorMsg paths toplevelProto protoFP =
+    [Neat.text|
+      Error: while processing include statements in "${toplevelProtoText}", failed
+      to find the imported file "${protoFPText}", after looking in the following
+      locations (controlled via the --includeDir switch(es)):
+
+      $pathsText
+    |]
+  where
+    pathsText = T.unlines (Turtle.format ("  "%F.fp) . (</> protoFP) <$> paths)
+    toplevelProtoText = Turtle.format F.fp toplevelProto
+    protoFPText = Turtle.format F.fp protoFP
+
+toplevelNotFoundErrorMsg :: [FilePath] -> FilePath -> T.Text
+toplevelNotFoundErrorMsg searchPaths toplevelProto =
+    [Neat.text|
+      Error: failed to find file "${toplevelProtoText}", after looking in
+      the following locations (controlled via the --includeDir switch(es)):
+
+      $searchPathsText
+    |]
+  where
+    searchPathsText   = T.unlines (Turtle.format ("  "%F.fp) . (</> toplevelProto) <$> searchPaths)
+    toplevelProtoText = Turtle.format F.fp toplevelProto
+
+absolutePathErrorMsg :: T.Text
+absolutePathErrorMsg =
+    [Neat.text|
+     Error: Absolute paths to .proto files, whether on the command line or
+     in include directives, are not currently permitted; rather, all .proto
+     filenames must be relative to the current directory, or relative to some
+     search path specified via --includeDir.
+
+     This is because we currently use the include-relative name to decide
+     the structure of the Haskell module tree that we emit during code
+     generation.
+    |]
 
 --------------------------------------------------------------------------------
 --
