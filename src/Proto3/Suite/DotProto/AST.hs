@@ -1,6 +1,7 @@
 -- | Fairly straightforward AST encoding of the .proto grammar
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE RecordWildCards            #-}
 
 module Proto3.Suite.DotProto.AST
@@ -26,10 +27,13 @@ module Proto3.Suite.DotProto.AST
     , Streaming(..)
     , DotProtoServicePart(..)
     , DotProtoMessagePart(..)
+    , _messageDefinition
+    , _messageOneOf
     , DotProtoField(..)
     , DotProtoReservedField(..)
   ) where
 
+import           Control.Lens              (Prism', prism)
 import           Data.String               (IsString)
 import qualified Filesystem.Path.CurrentOS as FP
 import           Numeric.Natural
@@ -335,6 +339,12 @@ data DotProtoMessagePart
   | DotProtoMessageDefinition DotProtoDefinition
   | DotProtoMessageReserved   [DotProtoReservedField]
   deriving (Show, Eq)
+
+_messageDefinition :: Prism' DotProtoMessagePart DotProtoDefinition
+_messageDefinition = prism DotProtoMessageDefinition (\case DotProtoMessageDefinition d -> Right d; x -> Left x)
+
+_messageOneOf :: Prism' DotProtoMessagePart (DotProtoIdentifier, [DotProtoField])
+_messageOneOf = prism (uncurry DotProtoMessageOneOf) (\case DotProtoMessageOneOf x y -> Right (x,y); x -> Left x)
 
 instance Arbitrary DotProtoMessagePart where
   arbitrary = oneof

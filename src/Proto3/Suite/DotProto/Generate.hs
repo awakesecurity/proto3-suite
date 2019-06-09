@@ -29,7 +29,7 @@ module Proto3.Suite.DotProto.Generate
 import           Control.Applicative
 import           Control.Arrow                  ((&&&))
 import           Control.Monad.Except
-import           Control.Lens                   (ix, over)
+import           Control.Lens                   (ix, over, filtered)
 import           Data.Bifunctor                 (first)
 import           Data.Char
 import           Data.Coerce
@@ -231,28 +231,29 @@ instancesForModule m = foldr go []
 -- | For each thing in @base@ replaces it if it finds a matching @override@
 replaceHsInstDecls :: [HsDecl] -> [HsDecl] -> [HsDecl]
 replaceHsInstDecls overrides base = concatMap mbReplace base
-  where -- instances defined separately from data type definition:
-        mbReplace hid@(HsInstDecl _ _ qn tys _) =
-            (: []) . fromMaybe hid $ search qn tys
+  where
+    -- instances defined separately from data type definition:
+    mbReplace hid@(HsInstDecl _ _ qn tys _) =
+        (: []) . fromMaybe hid $ search qn tys
 
-        -- instances listed in "deriving" clause of data type definition:
-        mbReplace (HsDataDecl loc ctx tyn names def insts) =
-            let (filtered,customized) = partitionEithers (map (deriv tyn) insts)
-            in HsDataDecl loc ctx tyn names def filtered : customized
+    -- instances listed in "deriving" clause of data type definition:
+    mbReplace (HsDataDecl loc ctx tyn names def insts) =
+        let (uncustomized, customized) = partitionEithers (map (deriv tyn) insts)
+        in HsDataDecl loc ctx tyn names def uncustomized : customized
 
-        -- irrelevant declarations remain unchanged:
-        mbReplace hid = [hid]
+    -- irrelevant declarations remain unchanged:
+    mbReplace hid = [hid]
 
-        deriv tyn qn = maybe (Left qn) Right $ search qn [HsTyCon (UnQual tyn)]
+    deriv tyn qn = maybe (Left qn) Right $ search qn [HsTyCon (UnQual tyn)]
 
-        search qn tys = find (\x -> Just (unQual qn,tys) == getSig x) overrides
+    search qn tys = find (\x -> Just (unQual qn,tys) == getSig x) overrides
 
-        getSig (HsInstDecl _ _ qn tys _) = Just (unQual qn,tys)
-        getSig _ = Nothing
+    getSig (HsInstDecl _ _ qn tys _) = Just (unQual qn,tys)
+    getSig _ = Nothing
 
-        unQual (Qual _ n) = Just n
-        unQual (UnQual n) = Just n
-        unQual (Special _) = Nothing
+    unQual (Qual _ n) = Just n
+    unQual (UnQual n) = Just n
+    unQual (Special _) = Nothing
 
 -- | Parses the file at the given path and produces an AST along with a
 -- 'TypeContext' representing all types from imported @.proto@ files, using the
@@ -311,8 +312,8 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
       qualifiedTypeContext <- mapKeysM (concatDotProtoIdentifier importPkg) importTypeContext
 
       let recur = readImportTypeContext searchPaths toplevelFP (S.insert path alreadyRead)
-      let transitiveImports = [ i | i@(DotProtoImport DotProtoImportPublic _) <- protoImports import_]
-      transitiveImportsTC <- foldMapM recur transitiveImports
+      let isPublic (DotProtoImport q _) = q == DotProtoImportPublic
+      transitiveImportsTC <- foldMapOfM (traverse . filtered isPublic) recur (protoImports import_)
 
       pure $ importTypeContext <> qualifiedTypeContext <> transitiveImportsTC
 
@@ -564,11 +565,9 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     conDecl <- recDecl_ (HsIdent messageName) <$>
                  foldMapM (messagePartFieldD messageName) messageParts
 
-    nestedDecls_  <- foldMapM nestedDecls
-                              [ def | DotProtoMessageDefinition def <- messageParts]
+    nestedDecls_  <- foldMapOfM (traverse . _messageDefinition) nestedDecls messageParts
 
-    nestedOneofs_ <- foldMapM (uncurry $ nestedOneOfDecls messageName)
-                              [ (ident, fields) | DotProtoMessageOneOf ident fields <- messageParts ]
+    nestedOneofs_ <- foldMapOfM (traverse . _messageOneOf) (uncurry $ nestedOneOfDecls messageName) messageParts
 
     messageInst   <- messageInstD ctxt' parentIdent messageIdent messageParts
 

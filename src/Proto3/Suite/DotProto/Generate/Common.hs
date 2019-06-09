@@ -8,6 +8,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE RankNTypes      #-}
 
 module Proto3.Suite.DotProto.Generate.Common where
 import           Control.Applicative
@@ -15,6 +16,7 @@ import           Control.Monad.Except
 import           Control.Lens                   (Lens', lens)
 import           Data.Char
 import           Data.Coerce
+import           Data.Functor.Compose
 import           Data.Foldable
 import           Data.List                      (find, intercalate)
 import qualified Data.Map                       as M
@@ -41,6 +43,11 @@ liftEither x =
 
 foldMapM :: (Foldable t, Monad m, Monoid b) => (a -> m b) -> t a -> m b
 foldMapM f = foldM (\b a -> (b <>) <$> f a) mempty
+
+type GettingM r s a = forall m. Applicative m => (a -> Compose m (Const r) a) -> s -> Compose m (Const r) s
+
+foldMapOfM :: Monad m => GettingM r s a -> (a -> m r) -> s -> m r
+foldMapOfM l f = fmap getConst . getCompose . l (Compose . fmap Const . f)
 
 mapKeysM :: (Monad m, Ord k2) => (k1 -> m k2) -> M.Map k1 a -> m (M.Map k2 a)
 mapKeysM f = fmap M.fromList . traverse (fmap swap . traverse f . swap) . M.assocs
@@ -87,8 +94,9 @@ definitionTypeContext :: MonadError CompileError m
 definitionTypeContext modulePath (DotProtoMessage msgIdent parts) = do
   let updateParent = tiParent (concatDotProtoIdentifier msgIdent)
 
-  childTyContext <- foldMapM (traverse updateParent <=< definitionTypeContext modulePath)
-                             [def | DotProtoMessageDefinition def <- parts]
+  childTyContext <- foldMapOfM (traverse . _messageDefinition)
+                               (definitionTypeContext modulePath >=> traverse updateParent)
+                               parts
 
   qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier msgIdent) childTyContext
 
