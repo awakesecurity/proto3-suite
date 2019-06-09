@@ -197,7 +197,18 @@ data FindProtoResult
 -- error if the given pathname is not relative.
 findProto :: MonadIO m => [FilePath] -> FilePath -> m FindProtoResult
 findProto searchPaths protoFP
-  | Turtle.absolute protoFP = dieLines [Neat.text|
+  | Turtle.absolute protoFP = dieLines absolutePathErrorMsg
+  | otherwise = case toModulePath protoFP of
+      Left e -> pure (BadModulePath e)
+      Right mp -> fmap (maybe NotFound (Found mp))
+                . flip Turtle.fold FL.head
+                $ do sp <- Turtle.select searchPaths
+                     let fp = sp </> protoFP
+                     True <- Turtle.testfile fp
+                     pure fp
+
+absolutePathErrorMsg :: T.Text
+absolutePathErrorMsg = [Neat.text|
       Error: Absolute paths to .proto files, whether on the command line or
       in include directives, are not currently permitted; rather, all .proto
       filenames must be relative to the current directory, or relative to some
@@ -207,16 +218,6 @@ findProto searchPaths protoFP
       the structure of the Haskell module tree that we emit during code
       generation.
       |]
-  | otherwise = case toModulePath protoFP of
-      Left e -> pure (BadModulePath e)
-      Right mp -> do
-        let findIt = do
-              sp <- Turtle.select searchPaths
-              let fp = sp </> protoFP
-              True <- Turtle.testfile fp
-              pure fp
-
-        maybe NotFound (Found mp) <$> Turtle.fold findIt FL.head
 
 --------------------------------------------------------------------------------
 --
