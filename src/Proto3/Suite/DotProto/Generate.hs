@@ -29,7 +29,7 @@ module Proto3.Suite.DotProto.Generate
 import           Control.Applicative
 import           Control.Arrow                  ((&&&))
 import           Control.Monad.Except
-import           Control.Lens                   ((^..), (<&>), ix, over, filtered)
+import           Control.Lens                   (ix, over, filtered)
 import           Data.Bifunctor                 (first)
 import           Data.Char
 import           Data.Coerce
@@ -311,9 +311,11 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
 
       qualifiedTypeContext <- mapKeysM (concatDotProtoIdentifier importPkg) importTypeContext
 
-      let recur = readImportTypeContext searchPaths toplevelFP (S.insert path alreadyRead)
       let isPublic (DotProtoImport q _) = q == DotProtoImportPublic
-      transitiveImportsTC <- foldMapOfM (traverse . filtered isPublic) recur (protoImports import_)
+      transitiveImportsTC <-
+        foldMapOfM (traverse . filtered isPublic)
+                   (readImportTypeContext searchPaths toplevelFP (S.insert path alreadyRead))
+                   (protoImports import_)
 
       pure $ importTypeContext <> qualifiedTypeContext <> transitiveImportsTC
 
@@ -685,37 +687,40 @@ messageInstD
 messageInstD ctxt parentIdent msgIdent messageParts = do
      msgName         <- qualifiedMessageName parentIdent msgIdent
      qualifiedFields <- getQualifiedFields msgName messageParts
+
      encodedFields   <- mapM encodeMessageField qualifiedFields
      decodedFields   <- mapM decodeMessageField qualifiedFields
-
-     let encodeMessageE = apply mconcatE [ HsList encodedFields]
-     let decodeMessageE = foldl (\f -> HsInfixApp f apOp)
-                                (apply pureE [ HsVar (unqual_ msgName) ])
-                                decodedFields
-
-     let punnedFieldsP =
-             [ HsPFieldPat (unqual_ fieldName) (HsPVar (HsIdent fieldName))
-             | QualifiedField (coerce -> fieldName) _ <- qualifiedFields
-             ]
-
-     let dotProtoE = HsList $
-           messageParts^..traverse._messageField <&> \DotProtoField{..} ->
-             apply dotProtoFieldC
-                  [ fieldNumberE dotProtoFieldNumber
-                   , dpTypeE dotProtoFieldType
-                   , dpIdentE dotProtoFieldName
-                   , HsList (map optionE dotProtoFieldOptions)
-                   , maybeE (HsLit . HsString) dotProtoFieldComment
-                   ]
 
      let encodeMessageDecl = match_ (HsIdent "encodeMessage")
                                     [HsPWildCard, HsPRec (unqual_ msgName) punnedFieldsP]
                                     (HsUnGuardedRhs encodeMessageE) []
+
+         encodeMessageE = apply mconcatE [HsList encodedFields]
+
+         punnedFieldsP = map (fp . coerce . recordFieldName) . qualifiedFields
+           where fp nm = HsPFieldPat (unqual_ nm) (HsPVar (HsIdent nm))
+
+
      let decodeMessageDecl = match_ (HsIdent "decodeMessage") [ HsPWildCard ]
                                     (HsUnGuardedRhs decodeMessageE) []
 
-     let dotProtoDecl      = match_ (HsIdent "dotProto") [HsPWildCard]
-                                    (HsUnGuardedRhs dotProtoE) []
+         decodeMessageE = foldl (\f -> HsInfixApp f apOp)
+                                (apply pureE [ HsVar (unqual_ msgName) ])
+                                decodedFields
+
+     let dotProtoDecl = match_ (HsIdent "dotProto") [HsPWildCard]
+                               (HsUnGuardedRhs dotProtoE) []
+
+         dotProtoE = HsList $ do
+           DotProtoMessageField DotProtoField{..} <- messageParts
+           pure $ apply dotProtoFieldC
+                        [ fieldNumberE dotProtoFieldNumber
+                        , dpTypeE dotProtoFieldType
+                        , dpIdentE dotProtoFieldName
+                        , HsList (map optionE dotProtoFieldOptions)
+                        , maybeE (HsLit . HsString) dotProtoFieldComment
+                        ]
+
 
      pure $ instDecl_ (protobufName "Message")
                       [ type_ msgName ]
@@ -870,7 +875,8 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
         noInline = HsApp (HsParen (HsInfixApp (HsLit (HsString typeName))
                                               toJSONPBOp
-                                              (apply (HsVar (jsonpbName retJsonCtor)) [ HsList [caseBnd], opts ])))
+                                              (apply (HsVar (jsonpbName retJsonCtor))
+                                                     [ HsList [caseBnd], opts ])))
                          opts
 
         yesInline = HsApp caseBnd opts
@@ -1013,7 +1019,8 @@ fromJSONInstDecl :: String -> HsDecl
 fromJSONInstDecl typeName =
   instDecl_ (jsonpbName "FromJSON")
             [ type_ typeName ]
-            [ HsFunBind [match_ (HsIdent "parseJSON") [] (HsUnGuardedRhs (HsVar (jsonpbName "parseJSONPB"))) []
+            [ HsFunBind [match_ (HsIdent "parseJSON") []
+                                (HsUnGuardedRhs (HsVar (jsonpbName "parseJSONPB"))) []
                         ]
             ]
 
@@ -1131,8 +1138,7 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
 
             let stmt0 = HsLetStmt [ HsFunBind
                                     [ HsMatch l declareIdentifier []
-                                               (HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef")))
-                                               []
+                                               (HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))) []
                                     ]
                                   ]
 
@@ -1148,8 +1154,7 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
               arguments = map toArgument fieldNames
 
               patternBind = HsPatBind l HsPWildCard
-                                        (HsUnGuardedRhs (applicativeApply messageConstructor arguments))
-                                        []
+                                        (HsUnGuardedRhs (applicativeApply messageConstructor arguments)) []
 
           returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
 
@@ -1172,8 +1177,7 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
 
             let stmt0 = HsLetStmt [ HsFunBind
                                       [ HsMatch l declareIdentifier []
-                                                 (HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef")))
-                                                 []
+                                                 (HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))) []
                                       ]
                                   ]
             let stmt1 = HsGenerator l (HsPVar (HsIdent qualifiedFieldName))
@@ -1184,10 +1188,8 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
                   where
                     arguments = [ toArgument fieldName ]
 
-                    rightHandSide =
-                      HsUnGuardedRhs (applicativeApply (HsCon (UnQual constructor)) arguments)
-
-                    patternBind = HsPatBind l HsPWildCard rightHandSide []
+                    patternBind = HsPatBind l HsPWildCard
+                                              (HsUnGuardedRhs (applicativeApply (HsCon (UnQual constructor)) arguments)) []
 
             [stmt0, stmt1] ++ inferenceStatement
 
