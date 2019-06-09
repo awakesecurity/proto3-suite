@@ -28,6 +28,7 @@ module Proto3.Suite.DotProto.AST
     , DotProtoServicePart(..)
     , DotProtoServiceRPCGuts(..)
     , DotProtoMessagePart(..)
+    , _messageField
     , _messageDefinition
     , _messageOneOf
     , DotProtoField(..)
@@ -339,13 +340,13 @@ instance Arbitrary DotProtoServiceRPCGuts where
 
 data DotProtoMessagePart
   = DotProtoMessageField DotProtoField
-  | DotProtoMessageOneOf
-      { dotProtoOneOfName   :: DotProtoIdentifier
-      , dotProtoOneOfFields :: [DotProtoField]
-      }
+  | DotProtoMessageOneOf DotProtoIdentifier [DotProtoField]
   | DotProtoMessageDefinition DotProtoDefinition
   | DotProtoMessageReserved   [DotProtoReservedField]
   deriving (Show, Eq)
+
+_messageField :: Prism' DotProtoMessagePart DotProtoField
+_messageField = prism DotProtoMessageField (\case DotProtoMessageField d -> Right d; x -> Left x)
 
 _messageDefinition :: Prism' DotProtoMessagePart DotProtoDefinition
 _messageDefinition = prism DotProtoMessageDefinition (\case DotProtoMessageDefinition d -> Right d; x -> Left x)
@@ -366,9 +367,9 @@ instance Arbitrary DotProtoMessagePart where
         return (DotProtoMessageField field)
 
       arbitraryOneOf = do
-        dotProtoOneOfName   <- arbitrarySingleIdentifier
-        dotProtoOneOfFields <- smallListOf arbitrary
-        return (DotProtoMessageOneOf {..})
+        name   <- arbitrarySingleIdentifier
+        fields <- smallListOf arbitrary
+        return (DotProtoMessageOneOf name fields)
 
       arbitraryDefinition = do
         definition <- arbitrary

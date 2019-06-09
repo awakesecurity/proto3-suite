@@ -29,7 +29,7 @@ module Proto3.Suite.DotProto.Generate
 import           Control.Applicative
 import           Control.Arrow                  ((&&&))
 import           Control.Monad.Except
-import           Control.Lens                   (ix, over, filtered)
+import           Control.Lens                   ((^..), (<&>), ix, over, filtered)
 import           Data.Bifunctor                 (first)
 import           Data.Char
 import           Data.Coerce
@@ -698,17 +698,15 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
              | QualifiedField (coerce -> fieldName) _ <- qualifiedFields
              ]
 
-     let dotProtoE = HsList
-             [ apply dotProtoFieldC
-                  [ fieldNumberE fieldNum
-                  , dpTypeE dpType
-                  , dpIdentE fieldIdent
-                  , HsList (map optionE options)
-                  , maybeE (HsLit . HsString) comments
-                  ]
-             | DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options comments)
-                <- messageParts
-             ]
+     let dotProtoE = HsList $
+           messageParts^..traverse._messageField <&> \DotProtoField{..} ->
+             apply dotProtoFieldC
+                  [ fieldNumberE dotProtoFieldNumber
+                   , dpTypeE dotProtoFieldType
+                   , dpIdentE dotProtoFieldName
+                   , HsList (map optionE dotProtoFieldOptions)
+                   , maybeE (HsLit . HsString) dotProtoFieldComment
+                   ]
 
      let encodeMessageDecl = match_ (HsIdent "encodeMessage")
                                     [HsPWildCard, HsPRec (unqual_ msgName) punnedFieldsP]
@@ -1404,8 +1402,7 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
              serverFuncD =
                match_ (HsIdent serverFuncName)
                       [ HsPRec (unqual_ serviceName)
-                               [ HsPFieldPat (unqual_ methodName)
-                                             (HsPVar (HsIdent methodName))
+                               [ HsPFieldPat (unqual_ methodName) (HsPVar (HsIdent methodName))
                                | (_, methodName, _, _, _) <- fieldsD
                                ]
                       , HsPApp (unqual_ "ServiceOptions")
