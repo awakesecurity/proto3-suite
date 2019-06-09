@@ -273,11 +273,14 @@ data OneofSubfield = OneofSubfield
 getQualifiedFields :: MonadError CompileError m
                    => String -> [DotProtoMessagePart] -> m [QualifiedField]
 getQualifiedFields msgName msgParts = flip foldMapM msgParts $ \case
-  DotProtoMessageField (DotProtoField fieldNum dpType fieldIdent options _) -> do
-    fieldName <- dpIdentUnqualName fieldIdent
+  DotProtoMessageField DotProtoField{..} -> do
+    fieldName <- dpIdentUnqualName dotProtoFieldName
     qualName  <- prefixedFieldName msgName fieldName
     pure . (:[]) $ QualifiedField { recordFieldName = coerce qualName
-                                  , fieldInfo = FieldNormal (coerce fieldName) fieldNum dpType options
+                                  , fieldInfo = FieldNormal (coerce fieldName)
+                                                            dotProtoFieldNumber
+                                                            dotProtoFieldType
+                                                            dotProtoFieldOptions
                                   }
 
   DotProtoMessageOneOf _ [] ->
@@ -288,10 +291,10 @@ getQualifiedFields msgName msgParts = flip foldMapM msgParts $ \case
     oneofName <- prefixedFieldName msgName ident
     oneofTypeName <- prefixedConName msgName ident
 
-    let mkSubfield (DotProtoField fieldNum dpType subFieldName options _) = do
-            s <- dpIdentUnqualName subFieldName
+    let mkSubfield DotProtoField{..} = do
+            s <- dpIdentUnqualName dotProtoFieldName
             c <- prefixedConName oneofTypeName s
-            pure [OneofSubfield fieldNum c (coerce s) dpType options]
+            pure [OneofSubfield dotProtoFieldNumber c (coerce s) dotProtoFieldType dotProtoFieldOptions]
         mkSubfield DotProtoEmptyField = pure []
 
     fieldElems <- foldMapM mkSubfield fields

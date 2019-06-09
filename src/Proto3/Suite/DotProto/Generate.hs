@@ -613,9 +613,9 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
                 <> ctxt
 
     messagePartFieldD :: String -> DotProtoMessagePart -> m [([HsName], HsBangType)]
-    messagePartFieldD messageName (DotProtoMessageField (DotProtoField _ ty fieldName _ _)) = do
-      fullName <- prefixedFieldName messageName =<< dpIdentUnqualName fieldName
-      fullTy <- dptToHsType ctxt' ty
+    messagePartFieldD messageName (DotProtoMessageField DotProtoField{..}) = do
+      fullName <- prefixedFieldName messageName =<< dpIdentUnqualName dotProtoFieldName
+      fullTy <- dptToHsType ctxt' dotProtoFieldType
       pure [ ([HsIdent fullName], HsUnBangedTy fullTy ) ]
 
     messagePartFieldD messageName (DotProtoMessageOneOf fieldName _) = do
@@ -657,16 +657,16 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
            ]
 
     oneOfCons :: String -> DotProtoField -> m (HsConDecl, HsName)
-    oneOfCons fullName (DotProtoField _ ty fieldName _ _) = do
-       consTy <- case ty of
+    oneOfCons fullName DotProtoField{..} = do
+       consTy <- case dotProtoFieldType of
             Prim msg@(Named msgName)
               | isMessage ctxt' msgName
                 -> -- Do not wrap message summands with Maybe.
                    dpptToHsType ctxt' msg
 
-            _   -> dptToHsType ctxt' ty
+            _   -> dptToHsType ctxt' dotProtoFieldType
 
-       consName <- prefixedConName fullName =<< dpIdentUnqualName fieldName
+       consName <- prefixedConName fullName =<< dpIdentUnqualName dotProtoFieldName
        let ident = HsIdent consName
        pure (conDecl_ ident [HsUnBangedTy consTy], ident)
 
