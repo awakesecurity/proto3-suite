@@ -562,49 +562,51 @@ dotProtoMessageD
     -> m [HsDecl]
 dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     messageName <- qualifiedMessageName parentIdent messageIdent
-    conDecl <- recDecl_ (HsIdent messageName) <$>
-                 foldMapM (messagePartFieldD messageName) messageParts
 
-    nestedDecls_  <- foldMapOfM (traverse . _messageDefinition) nestedDecls messageParts
-
-    nestedOneofs_ <- foldMapOfM (traverse . _messageOneOf) (uncurry $ nestedOneOfDecls messageName) messageParts
-
-    messageInst   <- messageInstD ctxt' parentIdent messageIdent messageParts
-
-    toJSONPBInst   <- toJSONPBMessageInstD   ctxt' parentIdent messageIdent messageParts
-    fromJSONPBInst <- fromJSONPBMessageInstD ctxt' parentIdent messageIdent messageParts
+    let mkDataDecl flds =
+           dataDecl_ messageName
+                     [ recDecl_ (HsIdent messageName) flds ]
+                     defaultMessageDeriving
 
     let getName = \case
           DotProtoMessageField fld     -> [dotProtoFieldName fld]
           DotProtoMessageOneOf ident _ -> [ident]
           _                            -> []
 
-    fieldNames <- foldMapM (traverse dpIdentUnqualName . getName) messageParts
+    foldMapM id
+      [ sequence
+          [ mkDataDecl <$> foldMapM (messagePartFieldD messageName) messageParts
+          , pure (namedInstD messageName)
+          , messageInstD ctxt' parentIdent messageIdent messageParts
 
-    toSchemaInstance <- toSchemaInstanceDeclaration messageName fieldNames Nothing
+          , toJSONPBMessageInstD   ctxt' parentIdent messageIdent messageParts
+          , fromJSONPBMessageInstD ctxt' parentIdent messageIdent messageParts
 
-    let decls =
-         [ dataDecl_ messageName [ conDecl ] defaultMessageDeriving
-         , namedInstD messageName
-         , messageInst
-         , toJSONPBInst
-         , fromJSONPBInst
-           -- Generate Aeson instances in terms of JSONPB instances
-         , toJSONInstDecl messageName
-         , fromJSONInstDecl messageName
-         -- And the Swagger ToSchema instance corresponding to JSONPB encodings
-         , toSchemaInstance
+            -- Generate Aeson instances in terms of JSONPB instances
+          , pure (toJSONInstDecl messageName)
+          , pure (fromJSONInstDecl messageName)
+
+          -- And the Swagger ToSchema instance corresponding to JSONPB encodings
+          , toSchemaInstanceDeclaration messageName Nothing
+              =<< foldMapM (traverse dpIdentUnqualName . getName) messageParts
 
 #ifdef DHALL
-         -- Generate Dhall instances
-         , dhallInterpretInstDecl messageName
-         , dhallInjectInstDecl messageName
+          -- Generate Dhall instances
+          , pure (dhallInterpretInstDecl messageName)
+          , pure (dhallInjectInstDecl messageName)
 #endif
-         ]
-         <> nestedOneofs_
-         <> nestedDecls_
+          ]
 
-    pure decls
+      -- Nested regular and oneof message decls
+      , foldMapOfM (traverse . _messageDefinition)
+                   nestedDecls
+                   messageParts
+
+      , foldMapOfM (traverse . _messageOneOf)
+                   (uncurry $ nestedOneOfDecls messageName)
+                   messageParts
+      ]
+
   where
     ctxt' :: TypeContext
     ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup messageIdent ctxt)
@@ -641,9 +643,8 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
 
       (cons, idents) <- fmap unzip (mapM (oneOfCons fullName) fields)
 
-      fieldNames <- mapM (dpIdentUnqualName . dotProtoFieldName) fields
-
-      toSchemaInstance <- toSchemaInstanceDeclaration fullName fieldNames (Just idents)
+      toSchemaInstance <- toSchemaInstanceDeclaration fullName (Just idents)
+                            =<< mapM (dpIdentUnqualName . dotProtoFieldName) fields
 
       pure [ dataDecl_ fullName cons defaultMessageDeriving
            , namedInstD fullName
@@ -1025,12 +1026,12 @@ toSchemaInstanceDeclaration
     :: MonadError CompileError m
     => String
     -- ^ Name of the message type to create an instance for
-    -> [String]
-    -- ^ Field names
     -> Maybe [HsName]
     -- ^ Oneof constructors
+    -> [String]
+    -- ^ Field names
     -> m HsDecl
-toSchemaInstanceDeclaration messageName fieldNames maybeConstructors = do
+toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
   qualifiedFieldNames <- mapM (prefixedFieldName messageName) fieldNames
 
   let messageConstructor = HsCon (UnQual (HsIdent messageName))
