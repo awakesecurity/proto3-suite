@@ -66,6 +66,7 @@ data CompileError
   | CompileParseError       ParseError
   | InternalEmptyModulePath
   | InternalError           String
+  | InvalidPackageName      DotProtoIdentifier
   | InvalidMethodName       DotProtoIdentifier
   | InvalidTypeName         String
   | InvalidMapKeyType       String
@@ -141,6 +142,46 @@ definitionTypeContext modulePath (DotProtoEnum enumIdent _) = do
 
 definitionTypeContext _ _ = pure mempty
 
+
+isMessage :: TypeContext -> DotProtoIdentifier -> Bool
+isMessage ctxt n = Just DotProtoKindMessage == (dotProtoTypeInfoKind <$> M.lookup n ctxt)
+
+isPacked :: [DotProtoOption] -> Bool
+isPacked opts =
+    case find (\(DotProtoOption name _) -> name == Single "packed") opts of
+        Just (DotProtoOption _ (BoolLit x)) -> x
+        _ -> False
+
+isUnpacked :: [DotProtoOption] -> Bool
+isUnpacked opts =
+    case find (\(DotProtoOption name _) -> name == Single "packed") opts of
+        Just (DotProtoOption _ (BoolLit x)) -> not x
+        _ -> False
+
+-- | Returns 'True' if the given primitive type is packable. The 'TypeContext'
+-- is used to distinguish Named enums and messages, only the former of which are
+-- packable.
+isPackable :: TypeContext -> DotProtoPrimType -> Bool
+isPackable _ Bytes    = False
+isPackable _ String   = False
+isPackable _ Int32    = True
+isPackable _ Int64    = True
+isPackable _ SInt32   = True
+isPackable _ SInt64   = True
+isPackable _ UInt32   = True
+isPackable _ UInt64   = True
+isPackable _ Fixed32  = True
+isPackable _ Fixed64  = True
+isPackable _ SFixed32 = True
+isPackable _ SFixed64 = True
+isPackable _ Bool     = True
+isPackable _ Float    = True
+isPackable _ Double   = True
+isPackable ctxt (Named tyName) =
+  Just DotProtoKindEnum == (dotProtoTypeInfoKind <$> M.lookup tyName ctxt)
+
+
+
 concatDotProtoIdentifier :: MonadError CompileError m
                          => DotProtoIdentifier -> DotProtoIdentifier -> m DotProtoIdentifier
 concatDotProtoIdentifier i1 i2 = case (i1, i2) of
@@ -200,6 +241,17 @@ dpIdentQualName (Single name)       = pure name
 dpIdentQualName (Dots (Path names)) = pure (intercalate "." names)
 dpIdentQualName (Qualified _ _)     = internalError "dpIdentQualName: Qualified"
 dpIdentQualName Anonymous           = internalError "dpIdentQualName: Anonymous"
+
+-- | Given a 'DotProtoIdentifier' for the parent type and the unqualified name
+-- of this type, generate the corresponding Haskell name
+nestedTypeName :: MonadError CompileError m => DotProtoIdentifier -> String -> m String
+nestedTypeName Anonymous             nm = typeLikeName nm
+nestedTypeName (Single parent)       nm = intercalate "_" <$> traverse typeLikeName [parent, nm]
+nestedTypeName (Dots (Path parents)) nm = intercalate "_" . (<> [nm]) <$> traverse typeLikeName parents
+nestedTypeName (Qualified {})        _  = internalError "nestedTypeName: Qualified"
+
+qualifiedMessageName :: MonadError CompileError m => DotProtoIdentifier -> DotProtoIdentifier -> m String
+qualifiedMessageName parentIdent msgIdent = nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
 
 -- ** Codegen bookkeeping helpers
 
