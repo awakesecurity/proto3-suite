@@ -11,41 +11,20 @@
 
 module Proto3.Suite.DotProto.Generate.Common where
 import           Control.Applicative
-import           Control.Arrow                  ((&&&))
 import           Control.Monad.Except
-import           Control.Lens                   (Lens', lens, ix, over)
-import           Data.Bifunctor                 (first)
+import           Control.Lens                   (Lens', lens)
 import           Data.Char
 import           Data.Coerce
-import           Data.Either                    (partitionEithers)
 import           Data.Foldable
-import           Data.List                      (find, intercalate, nub, sortBy,
-                                                 stripPrefix)
+import           Data.List                      (find, intercalate)
 import qualified Data.Map                       as M
-import           Data.Maybe                     (catMaybes, fromMaybe)
 import           Data.Monoid
-import           Data.Ord                       (comparing)
-import qualified Data.Set                       as S
-import           Data.String                    (fromString)
-import qualified Data.Text                      as T
 import           Data.Tuple                     (swap)
-import           Filesystem.Path.CurrentOS      ((</>), (<.>))
-import qualified Filesystem.Path.CurrentOS      as FP
-import           Language.Haskell.Pretty
-import           Language.Haskell.Syntax
-import           Language.Haskell.Parser        (ParseResult(..), parseModule)
-import qualified NeatInterpolation              as Neat
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
-import           Proto3.Suite.DotProto.Rendering (Pretty(..))
-import           Proto3.Suite.DotProto.Internal
 import           Proto3.Wire.Types              (FieldNumber (..))
-import           System.IO                      (writeFile, readFile)
 import           Text.Parsec                    (ParseError)
 import           Turtle                         (FilePath)
-import qualified Turtle
-import           Turtle.Format                  ((%))
-import qualified Turtle.Format                  as F
 
 #if !(MIN_VERSION_mtl(2,2,2))
 liftEither :: MonadError e m => Either e a -> m a
@@ -112,8 +91,8 @@ dotProtoTypeContext DotProto { protoDefinitions
                              }
   = foldMapM (definitionTypeContext modulePath) protoDefinitions
 
-definitionTypeContext
-    :: MonadError CompileError m => Path -> DotProtoDefinition -> m TypeContext
+definitionTypeContext :: MonadError CompileError m
+                      => Path -> DotProtoDefinition -> m TypeContext
 definitionTypeContext modulePath (DotProtoMessage msgIdent parts) = do
   let updateParent = tiParent (concatDotProtoIdentifier msgIdent)
 
