@@ -26,6 +26,7 @@ module Proto3.Suite.DotProto.AST
     , DotProtoEnumPart(..)
     , Streaming(..)
     , DotProtoServicePart(..)
+    , DotProtoServiceRPCGuts(..)
     , DotProtoMessagePart(..)
     , _messageDefinition
     , _messageOneOf
@@ -300,10 +301,7 @@ instance Arbitrary Streaming where
 -- [refactor] add named accessors to ServiceRPC
 --            break this into two types
 data DotProtoServicePart
-  = DotProtoServiceRPC    DotProtoIdentifier
-                          (DotProtoIdentifier, Streaming)
-                          (DotProtoIdentifier, Streaming)
-                          [DotProtoOption]
+  = DotProtoServiceRPC  DotProtoServiceRPCGuts
   | DotProtoServiceOption DotProtoOption
   | DotProtoServiceEmpty
   deriving (Show, Eq)
@@ -314,21 +312,30 @@ instance Arbitrary DotProtoServicePart where
     , arbitraryServiceOption
     ]
     where
-      arbitraryServiceRPC = do
-        identifier <- arbitrarySingleIdentifier
-        rpcClause0 <- arbitraryRPCClause
-        rpcClause1 <- arbitraryRPCClause
-        options    <- smallListOf arbitrary
-        return (DotProtoServiceRPC identifier rpcClause0 rpcClause1 options)
-        where
-          arbitraryRPCClause = do
-            identifier <- arbitraryIdentifier
-            streaming  <- arbitrary
-            return (identifier, streaming)
+      arbitraryServiceRPC = DotProtoServiceRPC <$> arbitrary
 
       arbitraryServiceOption = do
         option <- arbitrary
         return (DotProtoServiceOption option)
+
+data DotProtoServiceRPCGuts = DotProtoServiceRPCGuts
+  { rpcGutsName :: DotProtoIdentifier
+  , rpcGutsRequestType :: DotProtoIdentifier
+  , rpcGutsRequestStreaming :: Streaming
+  , rpcGutsResponseType :: DotProtoIdentifier
+  , rpcGutsResponseStreaming :: Streaming
+  , rpcGutsOptions :: [DotProtoOption]
+  } deriving (Show, Eq)
+
+instance Arbitrary DotProtoServiceRPCGuts where
+  arbitrary = do
+    rpcGutsName <- arbitrarySingleIdentifier
+    rpcGutsRequestType <- arbitraryIdentifier
+    rpcGutsRequestStreaming  <- arbitrary
+    rpcGutsResponseType <- arbitraryIdentifier
+    rpcGutsResponseStreaming  <- arbitrary
+    rpcGutsOptions <- smallListOf arbitrary
+    return DotProtoServiceRPCGuts{..}
 
 data DotProtoMessagePart
   = DotProtoMessageField DotProtoField

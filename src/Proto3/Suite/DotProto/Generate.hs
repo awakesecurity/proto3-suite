@@ -527,14 +527,14 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
 dotProtoDefinitionD :: MonadError CompileError m
                     => DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
 dotProtoDefinitionD pkgIdent ctxt = \case
-  DotProtoMessage messageName dotProtoMessage ->
-    dotProtoMessageD ctxt Anonymous messageName dotProtoMessage
+  DotProtoMessage messageName messageParts ->
+    dotProtoMessageD ctxt Anonymous messageName messageParts
 
-  DotProtoEnum messageName dotProtoEnum ->
-    dotProtoEnumD Anonymous messageName dotProtoEnum
+  DotProtoEnum enumName enumParts ->
+    dotProtoEnumD Anonymous enumName enumParts
 
-  DotProtoService serviceName dotProtoService ->
-    dotProtoServiceD pkgIdent ctxt serviceName dotProtoService
+  DotProtoService serviceName serviceParts ->
+    dotProtoServiceD pkgIdent ctxt serviceName serviceParts
 
 -- | Generate 'Named' instance for a type in this package
 namedInstD :: String -> HsDecl
@@ -1352,36 +1352,35 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
 
      let endpointPrefix = "/" ++ packageName ++ "." ++ serviceName ++ "/"
 
-     let serviceFieldD
-            (DotProtoServiceRPC rpcName
-                                (request, requestStreaming)
-                                (response, responseStreaming)
-                                _options
-            )
-           = do fullName <- prefixedFieldName serviceName =<<
-                            dpIdentUnqualName rpcName
+     let serviceFieldD (DotProtoServiceRPC DotProtoServiceRPCGuts{..}) = do
+           fullName <- prefixedFieldName serviceName =<< dpIdentUnqualName rpcGutsName
 
-                methodName <- case rpcName of
-                                Single nm -> pure nm
-                                _ -> invalidMethodNameError rpcName
+           methodName <- case rpcGutsName of
+                           Single nm -> pure nm
+                           _ -> invalidMethodNameError rpcGutsName
 
-                requestTy <- dpptToHsType ctxt  (Named request)
-                responseTy <- dpptToHsType ctxt (Named response)
+           requestTy  <- dpptToHsType ctxt (Named rpcGutsRequestType)
+           responseTy <- dpptToHsType ctxt (Named rpcGutsResponseType)
 
-                let streamingType =
-                      case (requestStreaming, responseStreaming) of
-                        (Streaming, Streaming)       -> biDiStreamingC
-                        (Streaming, NonStreaming)    -> clientStreamingC
-                        (NonStreaming, Streaming)    -> serverStreamingC
-                        (NonStreaming, NonStreaming) -> normalC
+           let streamingType =
+                 case (rpcGutsRequestStreaming, rpcGutsResponseStreaming) of
+                   (Streaming, Streaming)       -> biDiStreamingC
+                   (Streaming, NonStreaming)    -> clientStreamingC
+                   (NonStreaming, Streaming)    -> serverStreamingC
+                   (NonStreaming, NonStreaming) -> normalC
 
-                pure [ ( endpointPrefix ++ methodName
-                       , fullName, requestStreaming, responseStreaming
-                       , HsUnBangedTy $
-                         HsTyFun (tyApp (HsTyVar (HsIdent "request")) [streamingType, requestTy, responseTy])
-                                 (tyApp ioT [tyApp (HsTyVar (HsIdent "response")) [streamingType, responseTy]])
-                       )
-                     ]
+           pure [ ( endpointPrefix ++ methodName
+                  , fullName, rpcGutsRequestStreaming, rpcGutsResponseStreaming
+                  , HsUnBangedTy $
+                    HsTyFun (tyApp (HsTyVar (HsIdent "request"))
+                                   [streamingType, requestTy, responseTy])
+                            (tyApp ioT
+                                   [tyApp (HsTyVar (HsIdent "response"))
+                                          [streamingType, responseTy]
+                                   ]
+                            )
+                  )
+                ]
 
          serviceFieldD _ = pure []
 
@@ -1396,8 +1395,9 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
      let serverT = tyApp (HsTyCon (unqual_ serviceName))
                          [ serverRequestT, serverResponseT ]
 
-     let serviceServerTypeD = HsTypeSig l [ HsIdent serverFuncName ]
-                                        (HsQualType [] (HsTyFun serverT (HsTyFun serviceOptionsC ioActionT)))
+     let serviceServerTypeD =
+            HsTypeSig l [ HsIdent serverFuncName ]
+                        (HsQualType [] (HsTyFun serverT (HsTyFun serviceOptionsC ioActionT)))
 
      let serviceServerD = HsFunBind [serverFuncD]
            where

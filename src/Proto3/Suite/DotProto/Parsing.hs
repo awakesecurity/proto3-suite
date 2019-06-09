@@ -2,6 +2,7 @@
 --   It uses String for easier compatibility with DotProto.Generator, which needs it for not very good reasons
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
@@ -232,9 +233,9 @@ topOption = symbol "option" *> inlineOption <* semi
 -- service statements
 
 servicePart :: ProtoParser DotProtoServicePart
-servicePart = rpc
-          <|> (DotProtoServiceOption <$> topOption)
-          <|> empty $> DotProtoServiceEmpty
+servicePart = DotProtoServiceRPC <$> rpc
+          <|> DotProtoServiceOption <$> topOption
+          <|> DotProtoServiceEmpty <$ empty
 
 rpcOptions :: ProtoParser [DotProtoOption]
 rpcOptions = braces $ many topOption
@@ -245,14 +246,14 @@ rpcClause = do
   -- NB: Distinguish "stream stream.foo" from "stream.foo"
   try (symbol "stream" *> sid Streaming) <|> sid NonStreaming
 
-rpc :: ProtoParser DotProtoServicePart
+rpc :: ProtoParser DotProtoServiceRPCGuts
 rpc = do symbol "rpc"
-         name <- singleIdentifier
-         subjecttype <- parens rpcClause
+         rpcGutsName <- singleIdentifier
+         (rpcGutsRequestType, rpcGutsRequestStreaming) <- parens rpcClause
          symbol "returns"
-         returntype <- parens rpcClause
-         options <- rpcOptions <|> (semi $> [])
-         return $ DotProtoServiceRPC name subjecttype returntype options
+         (rpcGutsResponseType, rpcGutsResponseStreaming) <- parens rpcClause
+         rpcGutsOptions <- rpcOptions <|> (semi $> [])
+         return DotProtoServiceRPCGuts{..}
 
 service :: ProtoParser DotProtoDefinition
 service = do symbol "service"
