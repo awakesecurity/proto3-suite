@@ -811,9 +811,9 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
     let applyE nm oneofNm =
           apply (HsVar (jsonpbName nm))
-                [ HsList (onQF defPairE (oneofCaseE oneofNm) <$> qualFields) ]
+                [ HsList (foldQF defPairE (oneofCaseE oneofNm) <$> qualFields) ]
 
-    let patBinder = onQF (const fieldBinder) (oneofSubDisjunctBinder . subfields)
+    let patBinder = foldQF (const fieldBinder) (oneofSubDisjunctBinder . subfields)
     let matchE nm appNm oneofAppNm =
           match_
             (HsIdent nm)
@@ -924,7 +924,7 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
           where
             fieldAps = foldl (\f -> HsInfixApp f apOp)
                              (apply pureE [ HsVar (unqual_ msgName) ])
-                             (onQF normalParserE oneofParserE <$> qualFields)
+                             (foldQF normalParserE oneofParserE <$> qualFields)
 
     let parseJSONPBDecl =
           match_ (HsIdent "parseJSONPB") [] (HsUnGuardedRhs parseJSONPBE) []

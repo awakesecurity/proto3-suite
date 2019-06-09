@@ -26,6 +26,11 @@ import           Proto3.Wire.Types              (FieldNumber (..))
 import           Text.Parsec                    (ParseError)
 import           Turtle                         (FilePath)
 
+--------------------------------------------------------------------------------
+--
+-- * Utilities
+--
+
 #if !(MIN_VERSION_mtl(2,2,2))
 liftEither :: MonadError e m => Either e a -> m a
 liftEither x =
@@ -40,27 +45,13 @@ foldMapM f = foldM (\b a -> (b <>) <$> f a) mempty
 mapKeysM :: (Monad m, Ord k2) => (k1 -> m k2) -> M.Map k1 a -> m (M.Map k2 a)
 mapKeysM f = fmap M.fromList . traverse (fmap swap . traverse f . swap) . M.assocs
 
-data CompileError
-  = CircularImport          FilePath
-  | CompileParseError       ParseError
-  | InternalEmptyModulePath
-  | InternalError           String
-  | InvalidPackageName      DotProtoIdentifier
-  | InvalidMethodName       DotProtoIdentifier
-  | InvalidTypeName         String
-  | InvalidMapKeyType       String
-  | NoPackageDeclaration
-  | NoSuchType              DotProtoIdentifier
-  | Unimplemented           String
-  deriving (Show, Eq)
+--------------------------------------------------------------------------------
+--
+-- * Type context
+--
 
-
--- * Type-tracking data structures
-
--- | Whether a definition is an enumeration or a message
-data DotProtoKind = DotProtoKindEnum
-                  | DotProtoKindMessage
-                  deriving (Show, Eq, Ord, Enum, Bounded)
+-- | A mapping from .proto type identifiers to their type information
+type TypeContext = M.Map DotProtoIdentifier DotProtoTypeInfo
 
 -- | Information about messages and enumerations
 data DotProtoTypeInfo = DotProtoTypeInfo
@@ -80,16 +71,16 @@ data DotProtoTypeInfo = DotProtoTypeInfo
 tiParent :: Lens' DotProtoTypeInfo DotProtoIdentifier
 tiParent = lens dotProtoTypeInfoParent (\d p -> d{ dotProtoTypeInfoParent = p })
 
--- | A mapping from .proto type identifiers to their type information
-type TypeContext = M.Map DotProtoIdentifier DotProtoTypeInfo
+-- | Whether a definition is an enumeration or a message
+data DotProtoKind = DotProtoKindEnum
+                  | DotProtoKindMessage
+                  deriving (Show, Eq, Ord, Enum, Bounded)
 
 -- ** Generating type contexts from ASTs
 
 dotProtoTypeContext :: MonadError CompileError m => DotProto -> m TypeContext
-dotProtoTypeContext DotProto { protoDefinitions
-                             , protoMeta = DotProtoMeta modulePath
-                             }
-  = foldMapM (definitionTypeContext modulePath) protoDefinitions
+dotProtoTypeContext DotProto{..} =
+  foldMapM (definitionTypeContext (metaModulePath protoMeta)) protoDefinitions
 
 definitionTypeContext :: MonadError CompileError m
                       => Path -> DotProtoDefinition -> m TypeContext
@@ -159,18 +150,25 @@ isPackable _ Double   = True
 isPackable ctxt (Named tyName) =
   Just DotProtoKindEnum == (dotProtoTypeInfoKind <$> M.lookup tyName ctxt)
 
+isMap :: DotProtoType -> Bool
+isMap Map{} = True
+isMap _ = False
 
+--------------------------------------------------------------------------------
+--
+-- * Name resolution
+--
 
 concatDotProtoIdentifier :: MonadError CompileError m
                          => DotProtoIdentifier -> DotProtoIdentifier -> m DotProtoIdentifier
 concatDotProtoIdentifier i1 i2 = case (i1, i2) of
-  (Qualified{}  ,  _          )  -> internalError "concatDotProtoIdentifier: Qualified"
-  (_            , Qualified{} )  -> internalError "concatDotProtoIdentifier Qualified"
-  (Anonymous    , Anonymous   )  -> pure Anonymous
-  (Anonymous    , b           )  -> pure b
-  (a            , Anonymous   )  -> pure a
-  (Single a     , b           )  -> concatDotProtoIdentifier (Dots (Path [a])) b
-  (a            , Single b    )  -> concatDotProtoIdentifier a (Dots (Path [b]))
+  (Qualified{}  ,  _           ) -> internalError "concatDotProtoIdentifier: Qualified"
+  (_            , Qualified{}  ) -> internalError "concatDotProtoIdentifier Qualified"
+  (Anonymous    , Anonymous    ) -> pure Anonymous
+  (Anonymous    , b            ) -> pure b
+  (a            , Anonymous    ) -> pure a
+  (Single a     , b            ) -> concatDotProtoIdentifier (Dots (Path [a])) b
+  (a            , Single b     ) -> concatDotProtoIdentifier a (Dots (Path [b]))
   (Dots (Path a), Dots (Path b)) -> pure (Dots (Path (a ++ b)))
 
 camelCased :: String -> String
@@ -232,7 +230,10 @@ nestedTypeName (Qualified {})        _  = internalError "nestedTypeName: Qualifi
 qualifiedMessageName :: MonadError CompileError m => DotProtoIdentifier -> DotProtoIdentifier -> m String
 qualifiedMessageName parentIdent msgIdent = nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
 
+--------------------------------------------------------------------------------
+--
 -- ** Codegen bookkeeping helpers
+--
 
 -- | Bookeeping for qualified fields
 data QualifiedField = QualifiedField
@@ -293,12 +294,12 @@ getQualifiedFields msgName msgParts = flip foldMapM msgParts $ \case
   _ -> pure []
 
 -- | Project qualified fields, given a projection function per field type.
-onQF :: (FieldName -> FieldNumber -> a) -- ^ projection for normal fields
-     -> (OneofField -> a)               -- ^ projection for oneof fields
-     -> QualifiedField
-     -> a
-onQF f _ (QualifiedField _ (FieldNormal fldName fldNum _ _)) = f fldName fldNum
-onQF _ g (QualifiedField _ (FieldOneOf fld))                 = g fld
+foldQF :: (FieldName -> FieldNumber -> a) -- ^ projection for normal fields
+       -> (OneofField -> a)               -- ^ projection for oneof fields
+       -> QualifiedField
+       -> a
+foldQF f _ (QualifiedField _ (FieldNormal fldName fldNum _ _)) = f fldName fldNum
+foldQF _ g (QualifiedField _ (FieldOneOf fld))                 = g fld
 
 fieldBinder :: FieldNumber -> String
 fieldBinder = ("f" ++) . show
@@ -309,9 +310,25 @@ oneofSubBinder = fieldBinder . subfieldNumber
 oneofSubDisjunctBinder :: [OneofSubfield] -> String
 oneofSubDisjunctBinder = intercalate "_or_" . fmap oneofSubBinder
 
-isMap :: DotProtoType -> Bool
-isMap Map{} = True
-isMap _ = False
+--------------------------------------------------------------------------------
+--
+-- * Errors
+--
+
+data CompileError
+  = CircularImport          FilePath
+  | CompileParseError       ParseError
+  | InternalEmptyModulePath
+  | InternalError           String
+  | InvalidPackageName      DotProtoIdentifier
+  | InvalidMethodName       DotProtoIdentifier
+  | InvalidTypeName         String
+  | InvalidMapKeyType       String
+  | NoPackageDeclaration
+  | NoSuchType              DotProtoIdentifier
+  | Unimplemented           String
+  deriving (Show, Eq)
+
 
 internalError :: MonadError CompileError m => String -> m a
 internalError = throwError . InternalError
