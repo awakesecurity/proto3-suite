@@ -75,7 +75,7 @@ compileDotProtoFile
     -- ^ Path to @.proto@ file (relative to search path)
     -> IO (Either CompileError ())
 compileDotProtoFile extraInstanceFiles outputDirectory searchPaths dotProtoPath = runExceptT $ do
-    (dotProto, importTypeContext) <- ExceptT (readDotProtoWithContext searchPaths dotProtoPath)
+    (dotProto, importTypeContext) <- readDotProtoWithContext searchPaths dotProtoPath
 
     let DotProto     { protoMeta      } = dotProto
     let DotProtoMeta { metaModulePath } = protoMeta
@@ -257,16 +257,17 @@ replaceHsInstDecls overrides base = concatMap mbReplace base
 -- first parameter as a list of paths to search for imported files. Terminates
 -- with exit code 1 when an included file cannot be found in the search path.
 readDotProtoWithContext
-    :: [FilePath]
+    :: (MonadError CompileError m, MonadIO m)
+    => [FilePath]
     -> FilePath
-    -> IO (Either CompileError (DotProto, TypeContext))
+    -> m (DotProto, TypeContext)
 readDotProtoWithContext [] dotProtoPath = do
   -- If we're not given a search path, default to using the current working
   -- directory, as `protoc` does
   cwd <- Turtle.pwd
   readDotProtoWithContext [cwd] dotProtoPath
 
-readDotProtoWithContext searchPaths toplevelProto = runExceptT $
+readDotProtoWithContext searchPaths toplevelProto =
   findProto searchPaths toplevelProto >>= \case
     BadModulePath e -> dieLines (badModulePathErrorMsg toplevelProto e)
     NotFound        -> dieLines (toplevelNotFoundErrorMsg searchPaths toplevelProto)
