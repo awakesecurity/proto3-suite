@@ -35,7 +35,8 @@ import           Filesystem.Path.CurrentOS ((</>))
 import qualified Filesystem.Path.CurrentOS as FP
 import qualified NeatInterpolation         as Neat
 import           Prelude                   hiding (FilePath)
-import           Proto3.Suite.DotProto
+import           Proto3.Suite.DotProto.AST
+import           Proto3.Suite.DotProto.Parsing
 import           Proto3.Wire.Types         (FieldNumber (..))
 import           System.FilePath           (isPathSeparator)
 import           Text.Parsec               (ParseError)
@@ -209,14 +210,13 @@ findProto searchPaths protoFP
   | otherwise = case toModulePath protoFP of
       Left e -> pure (BadModulePath e)
       Right mp -> do
-        mfp <- flip Turtle.fold FL.head $ do
-          sp <- Turtle.select searchPaths
-          let fp = sp </> protoFP
-          True <- Turtle.testfile fp
-          pure fp
-        case mfp of
-          Nothing -> pure NotFound
-          Just fp -> pure (Found mp fp)
+        let findIt = do
+              sp <- Turtle.select searchPaths
+              let fp = sp </> protoFP
+              True <- Turtle.testfile fp
+              pure fp
+
+        maybe NotFound (Found mp) <$> Turtle.fold findIt FL.head
 
 --------------------------------------------------------------------------------
 --
