@@ -18,6 +18,7 @@ import           Control.Applicative
 import qualified Control.Foldl             as FL
 import           Control.Lens              (Lens', lens, over)
 import           Control.Lens.Cons         (_head)
+import           Control.Monad
 import           Control.Monad.Except
 import           Data.Bifunctor            (first)
 import           Data.Char
@@ -163,15 +164,17 @@ importProto :: (MonadIO m, MonadError CompileError m)
             => [FilePath] -> FilePath -> FilePath -> m DotProto
 importProto paths toplevelProto protoFP =
   findProto paths protoFP >>= \case
-    BadModulePath e -> dieLines (badModulePathErrorMsg protoFP e)
-    NotFound        -> dieLines (importNotFoundErrorMsg paths toplevelProto protoFP)
-    Found mp fp     -> liftEither . first CompileParseError =<< parseProtoFile mp fp
+    Left e
+      -> dieLines (badModulePathErrorMsg protoFP e)
+    Right Nothing
+      | toplevelProto == protoFP
+        -> dieLines (toplevelNotFoundErrorMsg paths toplevelProto)
+      | otherwise
+        -> dieLines (importNotFoundErrorMsg paths toplevelProto protoFP)
+    Right (Just (mp, fp))
+      -> liftEither . first CompileParseError =<< parseProtoFile mp fp
 
-data FindProtoResult
-  = Found Path FilePath
-  | NotFound
-  | BadModulePath String
-  deriving (Eq, Show)
+type FindProtoResult = Either String (Maybe (Path, FilePath))
 
 -- | Attempts to locate the first (if any) filename that exists on the given
 -- search paths, and constructs the "module path" from the given
@@ -180,14 +183,12 @@ data FindProtoResult
 findProto :: MonadIO m => [FilePath] -> FilePath -> m FindProtoResult
 findProto searchPaths protoFP
   | Turtle.absolute protoFP = dieLines absolutePathErrorMsg
-  | otherwise = case toModulePath protoFP of
-      Left e -> pure (BadModulePath e)
-      Right mp -> fmap (maybe NotFound (Found mp))
-                . flip Turtle.fold FL.head
-                $ do sp <- Turtle.select searchPaths
+  | otherwise = forM (toModulePath protoFP) $ \mp ->
+                  flip Turtle.fold FL.head $ do
+                     sp <- Turtle.select searchPaths
                      let fp = sp </> protoFP
                      True <- Turtle.testfile fp
-                     pure fp
+                     pure (mp, fp)
 
 -- * Pretty Error Messages
 

@@ -261,23 +261,19 @@ readDotProtoWithContext
     => [FilePath]
     -> FilePath
     -> m (DotProto, TypeContext)
-readDotProtoWithContext [] dotProtoPath = do
+readDotProtoWithContext [] toplevelProto = do
   -- If we're not given a search path, default to using the current working
   -- directory, as `protoc` does
   cwd <- Turtle.pwd
-  readDotProtoWithContext [cwd] dotProtoPath
+  readDotProtoWithContext [cwd] toplevelProto
 
-readDotProtoWithContext searchPaths toplevelProto =
-  findProto searchPaths toplevelProto >>= \case
-    BadModulePath e -> dieLines (badModulePathErrorMsg toplevelProto e)
-    NotFound        -> dieLines (toplevelNotFoundErrorMsg searchPaths toplevelProto)
-    Found mp fp     -> parseProtoFile mp fp >>= \case
-      Left err -> throwError (CompileParseError err)
-      Right dp -> do
-        let importIt = readImportTypeContext searchPaths toplevelProto (S.singleton toplevelProto)
-        tc <- foldMapM importIt (protoImports dp)
-        pure (dp, tc)
+readDotProtoWithContext searchPaths toplevelProto = do
+  dp <- importProto searchPaths toplevelProto toplevelProto
+  let importIt = readImportTypeContext searchPaths toplevelProto (S.singleton toplevelProto)
+  tc <- foldMapM importIt (protoImports dp)
+  pure (dp, tc)
 
+-- | Build the type context for an import, resolving transitive imports.
 readImportTypeContext
     :: (MonadError CompileError m, MonadIO m)
     => [FilePath]
@@ -307,7 +303,7 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
 
       pure $ importTypeContext <> qualifiedTypeContext <> transitiveImportsTC
 
--- | Given a type context, generates the import statements necessary
+-- | Given a type context, generates the Haskell import statements necessary
 --   to import all the required types.
 ctxtImports :: MonadError CompileError m => TypeContext -> m [HsImportDecl]
 ctxtImports = fmap (map mkImport . nub)
