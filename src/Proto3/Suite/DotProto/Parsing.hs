@@ -1,10 +1,11 @@
 -- | This module contains a near-direct translation of the proto3 grammar
 --   It uses String for easier compatibility with DotProto.Generator, which needs it for not very good reasons
 
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module Proto3.Suite.DotProto.Parsing
@@ -35,7 +36,10 @@ import qualified Turtle
 -- module path to be injected into the AST as part of 'DotProtoMeta' metadata on
 -- a successful parse.
 parseProto :: Path -> String -> Either ParseError DotProto
-parseProto modulePath = parse (runProtoParser (topLevel modulePath)) ""
+parseProto modulePath = parseProtoFile modulePath ""
+
+parseProtoWithFile :: Path -> String -> String -> Either ParseError DotProto
+parseProtoWithFile modulePath filePath = parse (runProtoParser (topLevel modulePath)) filePath
 
 -- | @parseProtoFile mp fp@ reads and parses the .proto file found at @fp@. @mp@
 -- is used downstream during code generation when we need to generate names
@@ -43,8 +47,8 @@ parseProto modulePath = parse (runProtoParser (topLevel modulePath)) ""
 -- relative to some @--includeDir@.
 parseProtoFile :: Turtle.MonadIO m
                => Path -> Turtle.FilePath -> m (Either ParseError DotProto)
-parseProtoFile modulePath =
-  fmap (parseProto modulePath) . Turtle.liftIO . readFile . FP.encodeString
+parseProtoFile modulePath (FP.encodeString -> fp) =
+  parseProtoWithFile modulePath fp <$> Turtle.liftIO (readFile fp)
 
 ----------------------------------------
 -- convenience
@@ -55,9 +59,9 @@ newtype ProtoParser a = ProtoParser { runProtoParser :: Parser a }
            , Parsing, CharParsing, LookAheadParsing)
 
 instance TokenParsing ProtoParser where
-  someSpace   = TokenStyle.buildSomeSpaceParser
-                  (ProtoParser someSpace)
-                  TokenStyle.javaCommentStyle
+  someSpace = TokenStyle.buildSomeSpaceParser
+                (ProtoParser someSpace)
+                TokenStyle.javaCommentStyle
   -- use the default implementation for other methods:
   -- nesting, semi, highlight, token
 
