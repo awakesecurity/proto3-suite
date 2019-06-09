@@ -57,12 +57,19 @@ liftEither :: MonadError e m => Either e a -> m a
 liftEither = either throwError pure
 #endif
 
+-- | Like 'foldMap', but with an effectful projection.
 foldMapM :: (Foldable t, Monad m, Monoid b) => (a -> m b) -> t a -> m b
 foldMapM f = foldM (\b a -> (b <>) <$> f a) mempty
 
+-- | Like 'Control.Lens.Getter.Getting', but allows for retrieving the 'r'
+-- element in some Applicative context 'm'.
 type GettingM r s a = forall m. Applicative m => (a -> Compose m (Const r) a) -> s -> Compose m (Const r) s
 
-foldMapOfM :: Monad m => GettingM r s a -> (a -> m r) -> s -> m r
+-- | Given an effectful projection from 'a' into a monoid 'r', retrieve the sum
+-- of all 'a' values in an 's' structure as targetted by the 'GettingM' optic.
+-- Note that the Monoid constraint on 'r' is implicit via 'Const', but we
+-- note it in the type for clarity.
+foldMapOfM :: (Applicative m, Monoid r) => GettingM r s a -> (a -> m r) -> s -> m r
 foldMapOfM l f = fmap getConst . getCompose . l (Compose . fmap Const . f)
 
 mapKeysM :: (Monad m, Ord k2) => (k1 -> m k2) -> M.Map k1 a -> m (M.Map k2 a)
