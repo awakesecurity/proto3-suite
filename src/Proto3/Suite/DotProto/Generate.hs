@@ -29,7 +29,7 @@ module Proto3.Suite.DotProto.Generate
 import           Control.Applicative
 import           Control.Arrow                  ((&&&))
 import           Control.Monad.Except
-import           Control.Lens                   (ix, over, filtered)
+import           Control.Lens                   ((&), ix, over, filtered)
 import           Data.Bifunctor                 (first)
 import           Data.Char
 import           Data.Coerce
@@ -1659,99 +1659,69 @@ dpPrimTypeE ty =
 
 defaultImports :: Bool -> [HsImportDecl]
 defaultImports usesGrpc =
-    [ importDecl_ preludeM                  True  (Just haskellNS)  Nothing
-
+    [ importDecl_ (m "Prelude")               & qualified haskellNS  & everything
+    , importDecl_ (m "Proto3.Suite.Class")    & qualified protobufNS & everything
 #ifdef DHALL
-    , importDecl_ proto3SuiteDhallPBM       True  (Just (Module hsDhallPB)) Nothing
+    , importDecl_ (m "Proto3.Suite.DhallPB")  & qualified (m hsDhallPB) & everything
 #endif
-
-    , importDecl_ dataProtobufWireDotProtoM True  (Just protobufNS) Nothing
-    , importDecl_ dataProtobufWireTypesM    True  (Just protobufNS) Nothing
-    , importDecl_ dataProtobufWireClassM    True  (Just protobufNS) Nothing
-    , importDecl_ proto3SuiteJSONPBM        True  (Just jsonpbNS) Nothing
-    , importDecl_ proto3SuiteJSONPBM        False  Nothing
-                  (Just (False, [ HsIAbs (HsSymbol ".=")
-                                , HsIAbs (HsSymbol ".:")
-                                ]
-                        )
-                  )
-    , importDecl_ proto3WireM               True  (Just protobufNS) Nothing
-    , importDecl_ controlApplicativeM       False Nothing
-                  (Just (False, [ HsIAbs (HsSymbol "<*>")
-                                , HsIAbs (HsSymbol "<|>")
-                                , HsIAbs (HsSymbol "<$>")
-                                ]
-                        )
-                  )
-    , importDecl_ controlApplicativeM       True  (Just haskellNS) Nothing
-    , importDecl_ controlDeepSeqM           True  (Just haskellNS) Nothing
-    , importDecl_ controlMonadM             True  (Just haskellNS) Nothing
-    , importDecl_ dataTextM                 True
-                  (Just haskellNS) (Just (False, [ importSym "Text" ]))
-    , importDecl_ dataByteStringM           True  (Just haskellNS) Nothing
-    , importDecl_ dataCoerceM               True  (Just haskellNS) Nothing
-    , importDecl_ dataStringM               True  (Just haskellNS)
-                  (Just (False, [ importSym "fromString" ]))
-    , importDecl_ dataVectorM               True  (Just haskellNS)
-                  (Just (False, [ importSym "Vector" ]))
-    , importDecl_ dataMapM               True  (Just haskellNS)
-                  (Just (False, [ importSym "Map", importSym "mapKeysMonotonic" ]))
-    , importDecl_ dataIntM                  True  (Just haskellNS)
-                  (Just (False, [ importSym "Int16", importSym "Int32", importSym "Int64" ]))
-    , importDecl_ dataWordM                 True  (Just haskellNS)
-                  (Just (False, [ importSym "Word16", importSym "Word32", importSym "Word64" ]))
-    , importDecl_ dataProxy                 True (Just proxyNS)   Nothing
-    , importDecl_ ghcGenericsM              True (Just haskellNS) Nothing
-    , importDecl_ ghcEnumM                  True (Just haskellNS) Nothing
-    , importDecl_ unsafeCoerceM             True (Just haskellNS) Nothing
+    , importDecl_ (m "Proto3.Suite.DotProto") & qualified protobufNS & everything
+    , importDecl_ (m "Proto3.Suite.JSONPB")   & qualified jsonpbNS   & everything
+    , importDecl_ (m "Proto3.Suite.JSONPB")   & unqualified          & selecting  [s".=", s".:"]
+    , importDecl_ (m "Proto3.Suite.Types")    & qualified protobufNS & everything
+    , importDecl_ (m "Proto3.Wire")           & qualified protobufNS & everything
+    , importDecl_ (m "Control.Applicative")   & qualified haskellNS  & everything
+    , importDecl_ (m "Control.Applicative")   & unqualified          & selecting  [s"<*>", s"<|>", s"<$>"]
+    , importDecl_ (m "Control.DeepSeq")       & qualified haskellNS  & everything
+    , importDecl_ (m "Control.Monad")         & qualified haskellNS  & everything
+    , importDecl_ (m "Data.ByteString")       & qualified haskellNS  & everything
+    , importDecl_ (m "Data.Coerce")           & qualified haskellNS  & everything
+    , importDecl_ (m "Data.Int")              & qualified haskellNS  & selecting  [i"Int16", i"Int32", i"Int64"]
+    , importDecl_ (m "Data.Map")              & qualified haskellNS  & selecting  [i"Map", i"mapKeysMonotonic"]
+    , importDecl_ (m "Data.Proxy")            & qualified proxyNS    & everything
+    , importDecl_ (m "Data.String")           & qualified haskellNS  & selecting  [i"fromString"]
+    , importDecl_ (m "Data.Text.Lazy")        & qualified haskellNS  & selecting  [i"Text"]
+    , importDecl_ (m "Data.Vector")           & qualified haskellNS  & selecting  [i"Vector"]
+    , importDecl_ (m "Data.Word")             & qualified haskellNS  & selecting  [i"Word16", i"Word32", i"Word64"]
+    , importDecl_ (m "GHC.Enum")              & qualified haskellNS  & everything
+    , importDecl_ (m "GHC.Generics")          & qualified haskellNS  & everything
+    , importDecl_ (m "Unsafe.Coerce")         & qualified haskellNS  & everything
     ]
     <>
-    if usesGrpc
-      then [ importDecl_ networkGrpcHighLevelGeneratedM   False (Just grpcNS) Nothing
-           , importDecl_ networkGrpcHighLevelClientM      False (Just grpcNS) Nothing
-           , importDecl_ networkGrpcHighLevelServerM      False (Just grpcNS)
-                 (Just (True, [ importSym "serverLoop" ]))
-           , importDecl_ networkGrpcHighLevelServerUnregM False (Just grpcNS)
-                 (Just (False, [ importSym "serverLoop" ]))
-           ]
-      else []
+    (if not usesGrpc then [] else
+    [ importDecl_ (m "Network.GRPC.HighLevel.Generated")           & alias grpcNS & everything
+    , importDecl_ (m "Network.GRPC.HighLevel.Client")              & alias grpcNS & everything
+    , importDecl_ (m "Network.GRPC.HighLevel.Server")              & alias grpcNS & hiding    [i"serverLoop"]
+    , importDecl_ (m "Network.GRPC.HighLevel.Server.Unregistered") & alias grpcNS & selecting [i"serverLoop"]
+    ])
   where
-    preludeM                  = Module "Prelude"
-    dataProtobufWireDotProtoM = Module "Proto3.Suite.DotProto"
-    dataProtobufWireClassM    = Module "Proto3.Suite.Class"
-    dataProtobufWireTypesM    = Module "Proto3.Suite.Types"
-    proto3SuiteJSONPBM        = Module "Proto3.Suite.JSONPB"
-    proto3WireM               = Module "Proto3.Wire"
-    controlApplicativeM       = Module "Control.Applicative"
-    controlDeepSeqM           = Module "Control.DeepSeq"
-    controlMonadM             = Module "Control.Monad"
-    dataCoerceM               = Module "Data.Coerce"
-    dataTextM                 = Module "Data.Text.Lazy"
-    dataByteStringM           = Module "Data.ByteString"
-    dataStringM               = Module "Data.String"
-    dataIntM                  = Module "Data.Int"
-    dataVectorM               = Module "Data.Vector"
-    dataMapM                  = Module "Data.Map"
-    dataWordM                 = Module "Data.Word"
-    dataProxy                 = Module "Data.Proxy"
-    ghcGenericsM              = Module "GHC.Generics"
-    ghcEnumM                  = Module "GHC.Enum"
-    unsafeCoerceM             = Module "Unsafe.Coerce"
-    networkGrpcHighLevelGeneratedM   = Module "Network.GRPC.HighLevel.Generated"
-    networkGrpcHighLevelServerM      = Module "Network.GRPC.HighLevel.Server"
-    networkGrpcHighLevelClientM      = Module "Network.GRPC.HighLevel.Client"
-    networkGrpcHighLevelServerUnregM = Module "Network.GRPC.HighLevel.Server.Unregistered"
+    m = Module
+    i = HsIAbs . HsIdent
+    s = HsIAbs . HsSymbol
 
-#ifdef DHALL
-    proto3SuiteDhallPBM       = Module "Proto3.Suite.DhallPB"
-#endif
+    grpcNS                    = m "HsGRPC"
+    jsonpbNS                  = m "HsJSONPB"
+    protobufNS                = m "HsProtobuf"
+    proxyNS                   = m "Proxy"
 
-    grpcNS                    = Module "HsGRPC"
-    jsonpbNS                  = Module "HsJSONPB"
-    protobufNS                = Module "HsProtobuf"
-    proxyNS                   = Module "Proxy"
+    -- staged constructors for importDecl
+    qualified :: Module -> (Bool -> Maybe Module -> a)  -> a
+    qualified m' f = f True (Just m')
 
-    importSym = HsIAbs . HsIdent
+    unqualified :: (Bool -> Maybe Module -> a) -> a
+    unqualified f = f False Nothing
+
+    -- import unqualified AND also under a namespace
+    alias :: Module -> (Bool -> Maybe Module -> a) -> a
+    alias m' f = f False (Just m')
+
+    selecting :: [HsImportSpec] -> (Maybe (Bool, [HsImportSpec]) -> a) -> a
+    selecting is f = f (Just (False, is))
+
+    hiding :: [HsImportSpec] -> (Maybe (Bool, [HsImportSpec]) -> a) -> a
+    hiding is f =  f (Just (True, is))
+
+    everything :: (Maybe (Bool, [HsImportSpec]) -> a) -> a
+    everything f = f Nothing
 
 haskellNS :: Module
 haskellNS = Module "Hs"
