@@ -18,7 +18,6 @@ import           Data.Proxy                     (Proxy(..))
 import           Data.String                    (IsString)
 import           Data.Swagger                   (ToSchema)
 import qualified Data.Swagger
-import qualified Data.List.NonEmpty as NE
 import qualified Data.Text                      as T
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate
@@ -130,12 +129,10 @@ simpleDecodeDotProto =
 
 -- E.g. dumpAST ["test-files"] "test_proto.proto"
 dumpAST :: [FilePath] -> FilePath -> IO ()
-dumpAST incs fp = act >>= either (putStrLn . show) putStrLn
-  where
-    act = runExceptT $ do
-             (dp, tc) <- readDotProtoWithContext incs fp
-             src <- renderHsModuleForDotProto mempty dp tc
-             pure src
+dumpAST incs fp = (either (error . show) putStrLn <=< runExceptT) $ do
+  (dp, tc) <- readDotProtoWithContext incs fp
+  src <- renderHsModuleForDotProto mempty dp tc
+  pure src
 
 hsTmpDir, pyTmpDir :: IsString a => a
 hsTmpDir = "test-files/hs-tmp"

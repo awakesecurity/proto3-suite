@@ -33,7 +33,7 @@ module Proto3.Suite.DotProto.Generate
 
 import           Control.Applicative
 import           Control.Arrow                  ((&&&))
-import           Control.Lens                   ((&), ix, over, filtered)
+import           Control.Lens                   ((&), ix, over, has, filtered)
 import           Control.Monad.Except
 import           Data.Bifunctor                 (first)
 import           Data.Char
@@ -56,6 +56,7 @@ import           Language.Haskell.Syntax
 import qualified NeatInterpolation              as Neat
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
+import           Proto3.Suite.DotProto.AST.Lens
 import           Proto3.Suite.DotProto.Internal
 import           Proto3.Suite.DotProto.Rendering (Pretty(..))
 import           Proto3.Wire.Types              (FieldNumber (..))
@@ -156,7 +157,7 @@ hsModuleForDotProto
 
        typeContextImports <- ctxtImports importTypeContext
 
-       let hasService = any (\case DotProtoService {} -> True; _ -> False) protoDefinitions
+       let hasService = has (traverse._DotProtoService) protoDefinitions
 
        let importDeclarations =
              concat [ defaultImports hasService, extraImports, typeContextImports ]
@@ -1313,25 +1314,25 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
 
      let endpointPrefix = "/" ++ packageName ++ "." ++ serviceName ++ "/"
 
-     let serviceFieldD (DotProtoServiceRPC DotProtoServiceRPCGuts{..}) = do
-           fullName <- prefixedFieldName serviceName =<< dpIdentUnqualName rpcGutsName
+     let serviceFieldD (DotProtoServiceRPCMethod RPCMethod{..}) = do
+           fullName <- prefixedFieldName serviceName =<< dpIdentUnqualName rpcMethodName
 
-           methodName <- case rpcGutsName of
+           methodName <- case rpcMethodName of
                            Single nm -> pure nm
-                           _ -> invalidMethodNameError rpcGutsName
+                           _ -> invalidMethodNameError rpcMethodName
 
-           requestTy  <- dpptToHsType ctxt (Named rpcGutsRequestType)
-           responseTy <- dpptToHsType ctxt (Named rpcGutsResponseType)
+           requestTy  <- dpptToHsType ctxt (Named rpcMethodRequestType)
+           responseTy <- dpptToHsType ctxt (Named rpcMethodResponseType)
 
            let streamingType =
-                 case (rpcGutsRequestStreaming, rpcGutsResponseStreaming) of
+                 case (rpcMethodRequestStreaming, rpcMethodResponseStreaming) of
                    (Streaming, Streaming)       -> biDiStreamingC
                    (Streaming, NonStreaming)    -> clientStreamingC
                    (NonStreaming, Streaming)    -> serverStreamingC
                    (NonStreaming, NonStreaming) -> normalC
 
            pure [ ( endpointPrefix ++ methodName
-                  , fullName, rpcGutsRequestStreaming, rpcGutsResponseStreaming
+                  , fullName, rpcMethodRequestStreaming, rpcMethodResponseStreaming
                   , HsUnBangedTy $
                     HsTyFun (tyApp (HsTyVar (HsIdent "request"))
                                    [streamingType, requestTy, responseTy])

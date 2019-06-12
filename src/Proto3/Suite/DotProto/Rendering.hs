@@ -145,15 +145,15 @@ prettyPrintProtoDefinition opts = defn where
     = PP.empty
 
 instance Pretty DotProtoServicePart where
-  pPrint (DotProtoServiceRPC DotProtoServiceRPCGuts{..})
+  pPrint (DotProtoServiceRPCMethod RPCMethod{..})
     =   PP.text "rpc"
-    <+> pPrint rpcGutsName
-    <+> PP.parens (pPrint rpcGutsRequestStreaming <+> pPrint rpcGutsRequestType)
+    <+> pPrint rpcMethodName
+    <+> PP.parens (pPrint rpcMethodRequestStreaming <+> pPrint rpcMethodRequestType)
     <+> PP.text "returns"
-    <+> PP.parens (pPrint rpcGutsResponseStreaming <+> pPrint rpcGutsResponseType)
-    <+> case rpcGutsOptions of
+    <+> PP.parens (pPrint rpcMethodResponseStreaming <+> pPrint rpcMethodResponseType)
+    <+> case rpcMethodOptions of
           [] -> PP.text ";"
-          _  -> PP.braces . PP.vcat $ topOption <$> rpcGutsOptions
+          _  -> PP.braces . PP.vcat $ topOption <$> rpcMethodOptions
   pPrint (DotProtoServiceOption option) = topOption option
   pPrint DotProtoServiceEmpty           = PP.empty
 

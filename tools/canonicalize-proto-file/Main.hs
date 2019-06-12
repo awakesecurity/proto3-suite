@@ -216,25 +216,25 @@ instance Canonicalize [DotProtoServicePart] where
 instance CanonicalRank DotProtoServicePart
                        (Either (Maybe DotProtoOption) DotProtoIdentifier) where
   canonicalRank = \case
-    DotProtoServiceRPC guts -> Right (rpcGutsName guts)
+    DotProtoServiceRPCMethod method -> Right (rpcMethodName method)
     DotProtoServiceOption option -> Left (Just option)
     DotProtoServiceEmpty -> Left Nothing
 
 instance Canonicalize DotProtoServicePart where
   canonicalize = \case
-    DotProtoServiceRPC guts ->
-      DotProtoServiceRPC (canonicalize guts)
+    DotProtoServiceRPCMethod guts ->
+      DotProtoServiceRPCMethod (canonicalize guts)
     DotProtoServiceOption option ->
       DotProtoServiceOption (canonicalize option)
     DotProtoServiceEmpty ->
       DotProtoServiceEmpty
 
-instance Canonicalize DotProtoServiceRPCGuts where
-  canonicalize (DotProtoServiceRPCGuts name reqN reqS rspN rspS options) =
-    DotProtoServiceRPCGuts (canonicalize name)
-                           (canonicalize reqN) reqS
-                           (canonicalize rspN) rspS
-                           (canonicalize options)
+instance Canonicalize RPCMethod where
+  canonicalize (RPCMethod name reqN reqS rspN rspS options) =
+    RPCMethod (canonicalize name)
+              (canonicalize reqN) reqS
+              (canonicalize rspN) rspS
+              (canonicalize options)
 
 instance Canonicalize DotProtoValue where
   canonicalize = \case

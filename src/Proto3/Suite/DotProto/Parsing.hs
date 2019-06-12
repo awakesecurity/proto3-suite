@@ -239,7 +239,7 @@ topOption = symbol "option" *> inlineOption <* semi
 -- service statements
 
 servicePart :: ProtoParser DotProtoServicePart
-servicePart = DotProtoServiceRPC <$> rpc
+servicePart = DotProtoServiceRPCMethod <$> rpc
           <|> DotProtoServiceOption <$> topOption
           <|> DotProtoServiceEmpty <$ empty
 
@@ -252,14 +252,14 @@ rpcClause = do
   -- NB: Distinguish "stream stream.foo" from "stream.foo"
   try (symbol "stream" *> sid Streaming) <|> sid NonStreaming
 
-rpc :: ProtoParser DotProtoServiceRPCGuts
+rpc :: ProtoParser RPCMethod
 rpc = do symbol "rpc"
-         rpcGutsName <- singleIdentifier
-         (rpcGutsRequestType, rpcGutsRequestStreaming) <- parens rpcClause
+         rpcMethodName <- singleIdentifier
+         (rpcMethodRequestType, rpcMethodRequestStreaming) <- parens rpcClause
          symbol "returns"
-         (rpcGutsResponseType, rpcGutsResponseStreaming) <- parens rpcClause
-         rpcGutsOptions <- rpcOptions <|> (semi $> [])
-         return DotProtoServiceRPCGuts{..}
+         (rpcMethodResponseType, rpcMethodResponseStreaming) <- parens rpcClause
+         rpcMethodOptions <- rpcOptions <|> (semi $> [])
+         return RPCMethod{..}
 
 service :: ProtoParser DotProtoDefinition
 service = do symbol "service"

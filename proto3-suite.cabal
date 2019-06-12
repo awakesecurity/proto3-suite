@@ -27,6 +27,7 @@ library
                        Proto3.Suite.DotProto
                        Proto3.Suite.DotProto.Generate
                        Proto3.Suite.DotProto.AST
+                       Proto3.Suite.DotProto.AST.Lens
                        Proto3.Suite.DotProto.Parsing
                        Proto3.Suite.DotProto.Rendering
                        Proto3.Suite.JSONPB
