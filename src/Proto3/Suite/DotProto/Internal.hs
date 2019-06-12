@@ -150,21 +150,18 @@ toModulePath fp0@(fromMaybe fp0 . FP.stripPrefix "./" -> fp)
           | T.isInfixOf ".." . Turtle.format F.fp . FP.collapse $ fp
             -> Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
           | otherwise
-            ->
-             let process = dropWhile null -- Remove a potential preceding empty component which
-                                          -- arose from a preceding '.' in the input path, which we
-                                          -- want to ignore. E.g. ".foo.proto" => ["","Foo"].
-                         . fmap (T.unpack . over _head toUpper)
-                         . concatMap (T.splitOn ".")
-                         . T.split isPathSeparator
-                         . Turtle.format F.fp
-                         . FP.collapse
-                         . Turtle.dropExtension
-             in
-               case process fp of
-                 [] -> Left "empty path after canonicalization"
-                 (x:xs) -> Right (Path (x NE.:| xs))
-
+            -> maybe (Left "empty path after canonicalization") (Right . Path)
+             . NE.nonEmpty
+             . dropWhile null -- Remove a potential preceding empty component which
+                              -- arose from a preceding '.' in the input path, which we
+                              -- want to ignore. E.g. ".foo.proto" => ["","Foo"].
+             . fmap (T.unpack . over _head toUpper)
+             . concatMap (T.splitOn ".")
+             . T.split isPathSeparator
+             . Turtle.format F.fp
+             . FP.collapse
+             . Turtle.dropExtension
+             $ fp
 
 -- | @importProto searchPaths toplevel inc@ attempts to import include-relative
 -- @inc@ after locating it somewhere in the @searchPaths@; @toplevel@ is simply
