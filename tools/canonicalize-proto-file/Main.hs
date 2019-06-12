@@ -15,6 +15,7 @@ module Main (main) where
 
 import           Control.Monad.Except
 import           Data.List                        (sort, sortOn)
+import qualified Data.List.NonEmpty              as NE
 import           Data.RangeSet.List               (fromRangeList, toRangeList)
 import           Data.Semigroup                   (Min(..), Option(..))
 import           Options.Generic
@@ -246,7 +247,7 @@ instance Canonicalize DotProtoValue where
 instance Canonicalize DotProtoIdentifier where
   canonicalize = \case
     Single part -> Single part
-    Dots (Path [part]) -> Single part
+    Dots (Path (part NE.:| [])) -> Single part
     Dots path -> Dots path
     Qualified x y -> Qualified (canonicalize x) (canonicalize y)
     Anonymous -> Anonymous

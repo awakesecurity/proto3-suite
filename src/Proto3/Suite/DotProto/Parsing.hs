@@ -2,6 +2,7 @@
 --   It uses String for easier compatibility with DotProto.Generator, which needs it for not very good reasons
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
@@ -15,6 +16,7 @@ module Proto3.Suite.DotProto.Parsing
 
 import Control.Applicative hiding (empty)
 import Control.Monad
+import qualified Data.List.NonEmpty as NE
 import Data.Functor
 import qualified Data.Text as T
 import qualified Filesystem.Path.CurrentOS as FP
@@ -81,10 +83,10 @@ identifierName = do h <- letter
 
 -- Parses a full identifier, without consuming trailing space.
 _identifier :: ProtoParser DotProtoIdentifier
-_identifier = do is <- identifierName `sepBy1` string "."
-                 return $ case is of
-                   [i] -> Single i
-                   _   -> Dots (Path is)
+_identifier = identifierName `sepBy1` string "." >>= \case
+                []  -> fail "impossible"
+                [i] -> pure (Single i)
+                (i:is) -> pure (Dots (Path (i NE.:| is)))
 
 singleIdentifier :: ProtoParser DotProtoIdentifier
 singleIdentifier = Single <$> token identifierName

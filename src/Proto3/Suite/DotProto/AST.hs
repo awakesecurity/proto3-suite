@@ -23,7 +23,7 @@ module Proto3.Suite.DotProto.AST
     , DotProtoValue(..)
     , DotProtoPrimType(..)
     , Packing(..)
-    , Path(..)
+    , Path(..), fakePath
     , DotProtoType(..)
     , DotProtoEnumValue
     , DotProtoEnumPart(..)
@@ -74,7 +74,11 @@ newtype PackageName = PackageName
 instance Show PackageName where
   show = show . getPackageName
 
-newtype Path = Path { components :: [String] } deriving (Show, Eq, Ord, Generic)
+newtype Path = Path { components :: NE.NonEmpty String } deriving (Show, Eq, Ord, Generic)
+
+-- Used for testing
+fakePath :: Path
+fakePath = Path ("" NE.:| [])
 
 data DotProtoIdentifier
   = Single String
@@ -172,7 +176,7 @@ _metaModulePath :: Lens' DotProtoMeta Path
 _metaModulePath = lens metaModulePath (\dp m -> dp { metaModulePath = m })
 
 instance Arbitrary DotProtoMeta where
-  arbitrary = pure . DotProtoMeta . Path $ []
+  arbitrary = pure (DotProtoMeta fakePath)
 
 -- | This data structure represents a .proto file
 --   The actual source order of protobuf statements isn't meaningful so
@@ -458,7 +462,7 @@ arbitraryPathIdentifier :: Gen DotProtoIdentifier
 arbitraryPathIdentifier = do
   name  <- arbitraryIdentifierName
   names <- smallListOf1 arbitraryIdentifierName
-  pure . Dots . Path $ name:names
+  pure . Dots . Path $ name NE.:| names
 
 arbitraryNestedIdentifier :: Gen DotProtoIdentifier
 arbitraryNestedIdentifier = do

@@ -39,6 +39,7 @@ import           Data.Char
 import           Data.Coerce
 import           Data.Either                    (partitionEithers)
 import           Data.List                      (find, intercalate, nub, sortBy, stripPrefix)
+import qualified Data.List.NonEmpty             as NE
 import qualified Data.Map                       as M
 import           Data.Maybe                     (fromMaybe)
 import           Data.Monoid
@@ -86,11 +87,10 @@ compileDotProtoFile CompileArgs{..} = runExceptT $ do
     let DotProtoMeta { metaModulePath } = protoMeta
     let Path         { components     } = metaModulePath
 
-    when (null components) (throwError InternalEmptyModulePath)
 
     modulePathPieces <- traverse typeLikeName components
 
-    let relativePath = FP.concat (map fromString modulePathPieces) <.> "hs"
+    let relativePath = FP.concat (map fromString $ NE.toList modulePathPieces) <.> "hs"
     let modulePath   = outputDir </> relativePath
 
     Turtle.mktree (Turtle.directory modulePath)
@@ -333,8 +333,7 @@ protobufName name = Qual (Module "HsProtobuf") (HsIdent name)
 proxyName    name = Qual (Module "Proxy")      (HsIdent name)
 
 modulePathModName :: MonadError CompileError m => Path -> m Module
-modulePathModName (Path [])    = throwError InternalEmptyModulePath
-modulePathModName (Path comps) = Module . intercalate "." <$> mapM typeLikeName comps
+modulePathModName (Path comps) = Module . intercalate "." <$> traverse typeLikeName (NE.toList comps)
 
 _pkgIdentModName :: MonadError CompileError m => DotProtoIdentifier -> m Module
 _pkgIdentModName (Single s)  = Module <$> typeLikeName s
@@ -374,16 +373,16 @@ coerceE unsafe from to = Just $ HsApp (HsApp coerceF (typeApp from)) (typeApp to
   where
     -- Do not add linebreaks to typeapps as that causes parse errors
     pp = prettyPrintStyleMode style{mode=OneLineMode} defaultMode
-    typeApp ty = HsVar (UnQual (HsIdent ("@("++ pp ty ++ ")")))
+    typeApp ty = uvar_ ("@("++ pp ty ++ ")")
     coerceF | unsafe = HsVar (haskellName "unsafeCoerce")
             | otherwise  = HsVar (haskellName "coerce")
 
 wrapE :: MonadError CompileError m => TypeContext -> [DotProtoOption] -> DotProtoType -> HsExp -> m HsExp
-wrapE ctxt opts dpt e = maybe e (\f -> HsParen (HsApp (HsParen f) e)) <$>
+wrapE ctxt opts dpt e = maybe e (\f -> apply f [e]) <$>
   (coerceE (isMap dpt) <$> dptToHsType ctxt dpt <*> dptToHsTypeWrapped opts ctxt dpt)
 
 unwrapE :: MonadError CompileError m => TypeContext -> [DotProtoOption] -> DotProtoType -> HsExp -> m HsExp
-unwrapE ctxt opts dpt e = maybe e (\f -> HsParen (HsApp (HsParen f) e)) <$>
+unwrapE ctxt opts dpt e = maybe e (\f -> apply f [e]) <$>
    (coerceE (isMap dpt) <$> overParser (dptToHsTypeWrapped opts ctxt dpt) <*> overParser (dptToHsType ctxt dpt))
   where
     overParser = fmap $ HsTyApp (HsTyVar (HsIdent "_"))
@@ -525,7 +524,7 @@ namedInstD messageName =
   where
     nameOfDecl = match_ (HsIdent "nameOf") [HsPWildCard]
                         (HsUnGuardedRhs (apply fromStringE
-                                               [ HsLit (HsString messageName) ]))
+                                               [ str_ messageName ]))
                         []
 
 -- ** Generate types and instances for .proto messages
@@ -683,7 +682,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                                     (HsUnGuardedRhs decodeMessageE) []
 
          decodeMessageE = foldl (\f -> HsInfixApp f apOp)
-                                (apply pureE [ HsVar (unqual_ msgName) ])
+                                (apply pureE [ uvar_ msgName ])
                                 decodedFields
 
      let dotProtoDecl = match_ (HsIdent "dotProto") [HsPWildCard]
@@ -709,7 +708,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
   where
     encodeMessageField :: QualifiedField -> m HsExp
     encodeMessageField QualifiedField{recordFieldName, fieldInfo} =
-      let recordFieldName' = HsVar (unqual_ (coerce recordFieldName)) in
+      let recordFieldName' = uvar_ (coerce recordFieldName) in
       case fieldInfo of
         FieldNormal _fieldName fieldNum dpType options -> do
             fieldE <- wrapE ctxt options dpType recordFieldName'
@@ -722,7 +721,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                            (HsUnGuardedAlt memptyE)
                            []
                     , alt_ (HsPApp (haskellName "Just") [patVar "x"])
-                           (HsUnGuardedAlt (HsCase (HsVar (unqual_ "x")) alts))
+                           (HsUnGuardedAlt (HsCase (uvar_ "x") alts))
                            []
                     ]
           where
@@ -741,7 +740,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
               xE <- (if isMaybe then id else fmap forceEmitE)
                      . wrapE ctxt options dpType
                      . (if isMaybe then wrapJust else id)
-                     $ HsVar (unqual_ "y")
+                     $ uvar_ "y"
 
               pure $ alt_ (HsPApp (unqual_ conName) [patVar "y"])
                           (HsUnGuardedAlt (apply encodeMessageFieldE [fieldNumberE fieldNum, xE]))
@@ -763,11 +762,11 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
             -- create a list of (fieldNumber, Cons <$> parser)
             subfieldParserE (OneofSubfield fieldNumber consName _ dpType options) = do
               let fE | Prim (Named tyName) <- dpType, isMessage ctxt tyName
-                     = HsParen (HsApp fmapE (HsVar (unqual_ consName)))
+                     = HsParen (HsApp fmapE (uvar_ consName))
                      | otherwise
                      = HsParen (HsInfixApp (HsVar (haskellName "Just"))
                                            composeOp
-                                           (HsVar (unqual_ consName)))
+                                           (uvar_ consName))
 
               alts <- unwrapE ctxt options dpType decodeMessageFieldE
 
@@ -813,17 +812,15 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
     -- E.g.
     -- "another" .= f2 -- always succeeds (produces default value on missing field)
     defPairE fldName fldNum =
-      HsInfixApp (HsLit (HsString (coerce fldName)))
+      HsInfixApp (str_ (coerce fldName))
                  toJSONPBOp
-                 (HsVar (unqual_ (fieldBinder fldNum)))
+                 (uvar_ (fieldBinder fldNum))
 
     -- E.g.
     -- HsJSONPB.pair "name" f4 -- fails on missing field
     pairE fldNm varNm =
       apply (HsVar (jsonpbName "pair"))
-            [ HsLit (HsString (coerce fldNm))
-            , HsVar (unqual_ varNm)
-            ]
+            [ str_ (coerce fldNm) , uvar_ varNm]
 
     -- Suppose we have a sum type Foo, nested inside a message Bar.
     -- We want to generate the following:
@@ -844,14 +841,14 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
           $ HsLambda l [patVar optsStr] (HsIf dontInline noInline yesInline)
       where
         optsStr = "options"
-        opts    = HsVar (unqual_ optsStr)
+        opts    = uvar_ optsStr
 
         caseName = "encode" <> over (ix 0) toUpper typeName
-        caseBnd = HsVar (unqual_ caseName)
+        caseBnd = uvar_ caseName
 
         dontInline = HsApp (HsVar (jsonpbName "optEmitNamedOneof")) opts
 
-        noInline = HsApp (HsParen (HsInfixApp (HsLit (HsString typeName))
+        noInline = HsApp (HsParen (HsInfixApp (str_ typeName)
                                               toJSONPBOp
                                               (apply (HsVar (jsonpbName retJsonCtor))
                                                      [ HsList [caseBnd], opts ])))
@@ -871,7 +868,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
         caseExpr = HsParen $
             HsCase disjunctName (altEs <> [fallthroughE])
           where
-            disjunctName = HsVar (unqual_ (oneofSubDisjunctBinder subfields))
+            disjunctName = uvar_ (oneofSubDisjunctBinder subfields)
             altEs = do
               sub@(OneofSubfield _ conName pbFldNm _ _) <- subfields
               let patVarNm = oneofSubBinder sub
@@ -900,12 +897,12 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
 
     let parseJSONPBE =
           apply (HsVar (jsonpbName "withObject"))
-                [ HsLit (HsString msgName)
+                [ str_ msgName
                 , HsParen (HsLambda l [lambdaPVar] fieldAps)
                 ]
           where
             fieldAps = foldl (\f -> HsInfixApp f apOp)
-                             (apply pureE [ HsVar (unqual_ msgName) ])
+                             (apply pureE [ uvar_ msgName ])
                              (foldQF normalParserE oneofParserE <$> qualFields)
 
     let parseJSONPBDecl =
@@ -916,7 +913,7 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
                    [ HsFunBind [ parseJSONPBDecl ] ])
   where
     lambdaPVar = patVar "obj"
-    lambdaVar  = HsVar (unqual_ "obj")
+    lambdaVar  = uvar_ "obj"
 
     -- E.g., for message
     --   message Something { oneof name_or_id { string name = _; int32 someid = _; } }
@@ -937,12 +934,12 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
                 ]
                 (HsInfixApp parseWrapped altOp parseUnwrapped)
       where
-        oneofTyLit = HsLit (HsString oneofType) -- FIXME
+        oneofTyLit = str_ oneofType -- FIXME
 
         letBndStr  = "parse" <> over (ix 0) toUpper oneofType
-        letBndName = HsVar (unqual_ letBndStr)
+        letBndName = uvar_ letBndStr
         letArgStr  = "parseObj"
-        letArgName = HsVar (unqual_ letArgStr)
+        letArgName = uvar_ letArgStr
 
         parseWrapped = HsParen $
           HsInfixApp (HsParen (HsInfixApp lambdaVar parseJSONPBOp oneofTyLit))
@@ -966,17 +963,17 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
               = HsInfixApp
                   (HsInfixApp (HsVar (haskellName "Just"))
                               composeOp
-                              (HsVar (unqual_ subfieldConsName)))
+                              (uvar_ subfieldConsName))
                   fmapOp
                   (apply (HsVar (jsonpbName "parseField"))
                          [ letArgName
-                         , HsLit (HsString (coerce subfieldName))])
+                         , str_ (coerce subfieldName)])
 
     -- E.g. obj .: "someid"
     normalParserE fldNm _ =
       HsInfixApp lambdaVar
                  parseJSONPBOp
-                 (HsLit (HsString (coerce fldNm)))
+                 (str_(coerce fldNm))
 
 -- *** Generate default Aeson To/FromJSON and Swagger ToSchema instances
 -- (These are defined in terms of ToJSONPB)
@@ -1019,7 +1016,7 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
 
   let messageConstructor = HsCon (UnQual (HsIdent messageName))
 
-  let _namedSchemaNameExpression = HsApp justC (HsLit (HsString messageName))
+  let _namedSchemaNameExpression = HsApp justC (str_ messageName)
 
       -- { _paramSchemaType = HsJSONPB.SwaggerObject
       -- }
@@ -1039,12 +1036,7 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
       -- ]
   let properties = HsList $ do
         (fieldName, qualifiedFieldName) <- zip fieldNames qualifiedFieldNames
-
-        let string = HsLit (HsString fieldName)
-
-        let variable = HsVar (UnQual (HsIdent qualifiedFieldName))
-
-        return (HsTuple [ string, variable ])
+        return (HsTuple [ str_  fieldName, uvar_ qualifiedFieldName ])
 
   let _schemaPropertiesExpression =
         HsApp (HsVar (jsonpbName "insOrdFromList")) properties
@@ -1095,7 +1087,7 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
 
   let toArgument fieldName = HsApp asProxy declare
         where
-          declare = HsVar (UnQual (HsIdent (toDeclareName fieldName)))
+          declare = uvar_ (toDeclareName fieldName)
 
           asProxy = HsVar (jsonpbName "asProxy")
 
@@ -1211,7 +1203,7 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
               $ traverse (traverse (fmap (prefixedEnumFieldName enumName) . dpIdentUnqualName))
                          [ (i, conIdent) | DotProtoEnumField conIdent i _options <- enumParts ]
 
-  let enumNameE = HsLit (HsString enumName)
+  let enumNameE = str_ enumName
       -- TODO assert that there is more than one enumeration constructor
       ((minEnumVal, maxEnumVal), enumConNames) = first (minimum &&& maximum) $ unzip enumCons
 
@@ -1233,19 +1225,19 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
       toEnumDPatterns =
           [ match_ (HsIdent "toEnum")
                    [ intP conIdx ]
-                   (HsUnGuardedRhs (HsVar (unqual_ conName))) []
+                   (HsUnGuardedRhs (uvar_ conName)) []
           | (conIdx, conName) <- enumCons ]
 
       succDPattern thisCon nextCon =
           match_ (HsIdent "succ") [ HsPApp (unqual_ thisCon) [] ]
-                 (HsUnGuardedRhs (HsVar (unqual_ nextCon))) []
+                 (HsUnGuardedRhs (uvar_ nextCon)) []
       predDPattern thisCon prevCon =
           match_ (HsIdent "pred") [ HsPApp (unqual_ thisCon) [] ]
-                 (HsUnGuardedRhs (HsVar (unqual_ prevCon))) []
+                 (HsUnGuardedRhs (uvar_ prevCon)) []
 
       toEnumFailure   = match_ (HsIdent "toEnum") [ HsPVar (HsIdent "i") ]
                                (HsUnGuardedRhs
-                                  (apply toEnumErrorE [enumNameE , HsVar (unqual_ "i") , boundsE]))
+                                  (apply toEnumErrorE [enumNameE , uvar_ "i" , boundsE]))
                                []
       succFailure     = match_ (HsIdent "succ") [ HsPWildCard ]
                                (HsUnGuardedRhs (HsApp succErrorE enumNameE)) []
@@ -1257,7 +1249,7 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
         where
           matchConName conName = match_ (HsIdent "parseJSONPB") [pat conName]
                                         (HsUnGuardedRhs
-                                           (HsApp pureE (HsVar (unqual_ conName))))
+                                           (HsApp pureE (uvar_ conName)))
                                         []
 
           pat nm = HsPApp (jsonpbName "String") [ HsPLit (HsString (tryStripEnumName nm)) ]
@@ -1267,7 +1259,7 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
           mismatch = match_ (HsIdent "parseJSONPB") [patVar "v"]
                             (HsUnGuardedRhs
                                   (apply (HsVar (jsonpbName "typeMismatch"))
-                                    [ HsLit (HsString enumName), HsVar (unqual_ "v") ]))
+                                    [ str_ enumName, uvar_ "v" ]))
                             []
 
 
@@ -1275,14 +1267,14 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
         match_ (HsIdent "toJSONPB") [ patVar "x", HsPWildCard ]
           (HsUnGuardedRhs
              (HsApp (HsVar (jsonpbName "enumFieldString"))
-                    (HsVar (unqual_ "x"))))
+                    (uvar_ "x")))
           []
 
       toEncodingPBDecl =
         match_ (HsIdent "toEncodingPB") [ patVar "x", HsPWildCard ]
           (HsUnGuardedRhs
              (HsApp (HsVar (jsonpbName "enumFieldEncoding"))
-                    (HsVar (unqual_ "x"))))
+                    (uvar_ "x")))
           []
 
   pure [ dataDecl_ enumName
@@ -1400,11 +1392,11 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
                       []
 
              handlerE handlerC adapterE methodName hsName =
-                 apply handlerC [ apply methodNameC [ HsLit (HsString methodName) ]
-                                , apply adapterE [ HsVar (unqual_ hsName) ]
+                 apply handlerC [ apply methodNameC [ str_ methodName ]
+                                , apply adapterE [ uvar_ hsName ]
                                 ]
 
-             update u v = HsFieldUpdate (unqual_ u) (HsVar (unqual_ v))
+             update u v = HsFieldUpdate (unqual_ u) (uvar_ v)
 
              serverOptsE = HsRecUpdate defaultOptionsE
                  [ HsFieldUpdate (grpcName "optNormalHandlers") $
@@ -1453,16 +1445,16 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
                                    ( HsUnGuardedRhs clientRecE ) []
 
               clientRecE = foldl (\f -> HsInfixApp f apOp)
-                                 (apply pureE [ HsVar (unqual_ serviceName) ])
+                                 (apply pureE [ uvar_ serviceName ])
                                  [ HsParen $ HsInfixApp clientRequestE' apOp (registerClientMethodE endpointName)
                                  | (endpointName, _, _, _, _) <- fieldsD
                                  ]
 
-              clientRequestE' = apply pureE [ apply clientRequestE [ HsVar (unqual_ "client") ] ]
+              clientRequestE' = apply pureE [ apply clientRequestE [ uvar_ "client" ] ]
 
               registerClientMethodE endpoint =
-                apply clientRegisterMethodE [ HsVar (unqual_ "client")
-                                            , apply methodNameC [ HsLit (HsString endpoint) ]
+                apply clientRegisterMethodE [ uvar_ "client"
+                                            , apply methodNameC [ str_ endpoint ]
                                             ]
 
      pure [ HsDataDecl l  [] (HsIdent serviceName)
@@ -1583,6 +1575,9 @@ toJSONPBOp = HsQVarOp (UnQual (HsSymbol ".="))
 parseJSONPBOp :: HsQOp
 parseJSONPBOp = HsQVarOp (UnQual (HsSymbol ".:"))
 
+neConsOp :: HsQOp
+neConsOp = HsQVarOp (Qual haskellNS (HsSymbol ":|"))
+
 intE :: Integral a => a -> HsExp
 intE x = (if x < 0 then HsParen else id) . HsLit . HsInt . fromIntegral $ x
 
@@ -1602,14 +1597,15 @@ maybeE _ Nothing = nothingC
 maybeE f (Just a) = HsApp justC (f a)
 
 dpIdentE :: DotProtoIdentifier -> HsExp
-dpIdentE (Single n)       = apply singleC [ HsLit (HsString n) ]
-dpIdentE (Dots (Path ns)) = apply dotsC [apply pathC [ HsList (map (HsLit . HsString) ns) ] ]
+dpIdentE (Single n)       = apply singleC [ str_ n ]
+dpIdentE (Dots (Path (n NE.:| ns)))
+  = apply dotsC [ apply pathC [ HsParen (HsInfixApp (str_ n) neConsOp (HsList (map str_ ns))) ] ]
 dpIdentE (Qualified a b)  = apply nestedC [ dpIdentE a, dpIdentE b ]
 dpIdentE Anonymous        = anonymousC
 
 dpValueE :: DotProtoValue -> HsExp
 dpValueE (Identifier nm) = apply identifierC [ dpIdentE nm ]
-dpValueE (StringLit s)   = apply stringLitC  [ HsLit (HsString s) ]
+dpValueE (StringLit s)   = apply stringLitC  [ str_ s ]
 dpValueE (IntLit i)      = apply intLitC     [ HsLit (HsInt (fromIntegral i)) ]
 dpValueE (FloatLit f)    = apply floatLitC   [ HsLit (HsFrac (toRational f)) ]
 dpValueE (BoolLit True)  = apply boolLitC    [ trueC ]
@@ -1670,6 +1666,7 @@ defaultImports usesGrpc =
     , importDecl_ (m "Data.ByteString")       & qualified haskellNS  & everything
     , importDecl_ (m "Data.Coerce")           & qualified haskellNS  & everything
     , importDecl_ (m "Data.Int")              & qualified haskellNS  & selecting  [i"Int16", i"Int32", i"Int64"]
+    , importDecl_ (m "Data.List.NonEmpty")    & qualified haskellNS  & selecting  [HsIThingAll (HsIdent "NonEmpty")]
     , importDecl_ (m "Data.Map")              & qualified haskellNS  & selecting  [i"Map", i"mapKeysMonotonic"]
     , importDecl_ (m "Data.Proxy")            & qualified proxyNS    & everything
     , importDecl_ (m "Data.String")           & qualified haskellNS  & selecting  [i"fromString"]
@@ -1689,8 +1686,8 @@ defaultImports usesGrpc =
     ])
   where
     m = Module
-    i = HsIAbs . HsIdent
-    s = HsIAbs . HsSymbol
+    i = HsIVar . HsIdent
+    s = HsIVar . HsSymbol
 
     grpcNS                    = m "HsGRPC"
     jsonpbNS                  = m "HsJSONPB"
@@ -1771,6 +1768,9 @@ match_ = HsMatch l
 unqual_ :: String -> HsQName
 unqual_ = UnQual . HsIdent
 
+uvar_ :: String -> HsExp
+uvar_ = HsVar . unqual_
+
 protobufType_, primType_ :: String -> HsType
 protobufType_ = HsTyCon . protobufName
 primType_ = HsTyCon . haskellName
@@ -1783,6 +1783,9 @@ patVar =  HsPVar . HsIdent
 
 alt_ :: HsPat -> HsGuardedAlts -> [HsDecl] -> HsAlt
 alt_ = HsAlt l
+
+str_ :: String -> HsExp
+str_ = HsLit . HsString
 
 -- | For some reason, haskell-src-exts needs this 'SrcLoc' parameter
 --   for some data constructors. Its value does not affect

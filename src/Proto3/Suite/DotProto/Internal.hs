@@ -27,6 +27,7 @@ import           Data.Either
 import           Data.Foldable
 import           Data.Functor.Compose
 import           Data.List                 (find, intercalate)
+import qualified Data.List.NonEmpty        as NE
 import qualified Data.Map                  as M
 import           Data.Maybe                (fromMaybe)
 import           Data.Monoid
@@ -119,23 +120,23 @@ dieLines (Turtle.textToLines -> msg) = do
 -- Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
 --
 -- >>> toModulePath "google/protobuf/timestamp.proto"
--- Right (Path {components = ["Google","Protobuf","Timestamp"]})
+-- Right (Path {components = "Google" :| ["Protobuf","Timestamp"]})
 --
 -- >>> toModulePath "a/b/c/google.protobuf.timestamp.proto"
--- Right (Path {components = ["A","B","C","Google","Protobuf","Timestamp"]})
+-- Right (Path {components = "A" :| ["B","C","Google","Protobuf","Timestamp"]})
 --
 -- >>> toModulePath "foo/FiLeName_underscore.and.then.some.dots.proto"
--- Right (Path {components = ["Foo","FiLeName_underscore","And","Then","Some","Dots"]})
+-- Right (Path {components = "Foo" :| ["FiLeName_underscore","And","Then","Some","Dots"]})
 --
 -- >>> toModulePath "foo/bar/././baz/../boggle.proto"
--- Right (Path {components = ["Foo","Bar","Boggle"]})
+-- Right (Path {components = "Foo" :| ["Bar","Boggle"]})
 --
 -- >>> toModulePath "./foo.proto"
--- Right (Path {components = ["Foo"]})
+-- Right (Path {components = "Foo" :| []})
 --
 -- NB: We ignore preceding single '.' characters
 -- >>> toModulePath ".foo.proto"
--- Right (Path {components = ["Foo"]})
+-- Right (Path {components = "Foo" :| []})
 toModulePath :: FilePath -> Either String Path
 toModulePath fp0@(fromMaybe fp0 . FP.stripPrefix "./" -> fp)
   | Turtle.absolute fp
@@ -149,18 +150,21 @@ toModulePath fp0@(fromMaybe fp0 . FP.stripPrefix "./" -> fp)
           | T.isInfixOf ".." . Turtle.format F.fp . FP.collapse $ fp
             -> Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
           | otherwise
-            -> Right
-             . Path
-             . dropWhile null -- Remove a potential preceding empty component which
-                              -- arose from a preceding '.' in the input path, which we
-                              -- want to ignore. E.g. ".foo.proto" => ["","Foo"].
-             . fmap (T.unpack . over _head toUpper)
-             . concatMap (T.splitOn ".")
-             . T.split isPathSeparator
-             . Turtle.format F.fp
-             . FP.collapse
-             . Turtle.dropExtension
-             $ fp
+            ->
+             let process = dropWhile null -- Remove a potential preceding empty component which
+                                          -- arose from a preceding '.' in the input path, which we
+                                          -- want to ignore. E.g. ".foo.proto" => ["","Foo"].
+                         . fmap (T.unpack . over _head toUpper)
+                         . concatMap (T.splitOn ".")
+                         . T.split isPathSeparator
+                         . Turtle.format F.fp
+                         . FP.collapse
+                         . Turtle.dropExtension
+             in
+               case process fp of
+                 [] -> Left "empty path after canonicalization"
+                 (x:xs) -> Right (Path (x NE.:| xs))
+
 
 -- | @importProto searchPaths toplevel inc@ attempts to import include-relative
 -- @inc@ after locating it somewhere in the @searchPaths@; @toplevel@ is simply
@@ -370,9 +374,9 @@ concatDotProtoIdentifier i1 i2 = case (i1, i2) of
   (Anonymous    , Anonymous    ) -> pure Anonymous
   (Anonymous    , b            ) -> pure b
   (a            , Anonymous    ) -> pure a
-  (Single a     , b            ) -> concatDotProtoIdentifier (Dots (Path [a])) b
-  (a            , Single b     ) -> concatDotProtoIdentifier a (Dots (Path [b]))
-  (Dots (Path a), Dots (Path b)) -> pure (Dots (Path (a ++ b)))
+  (Single a     , b            ) -> concatDotProtoIdentifier (Dots (Path (pure a))) b
+  (a            , Single b     ) -> concatDotProtoIdentifier a (Dots (Path (pure b)))
+  (Dots (Path a), Dots (Path b)) -> pure (Dots (Path (a <> b)))
 
 camelCased :: String -> String
 camelCased s = do
@@ -412,13 +416,13 @@ prefixedFieldName msgName fieldName = (fieldLikeName msgName ++) <$> typeLikeNam
 
 dpIdentUnqualName :: MonadError CompileError m => DotProtoIdentifier -> m String
 dpIdentUnqualName (Single name)       = pure name
-dpIdentUnqualName (Dots (Path names)) = pure (last names)
+dpIdentUnqualName (Dots (Path names)) = pure (NE.last names)
 dpIdentUnqualName (Qualified _ next)  = dpIdentUnqualName next
 dpIdentUnqualName Anonymous           = internalError "dpIdentUnqualName: Anonymous"
 
 dpIdentQualName :: MonadError CompileError m => DotProtoIdentifier -> m String
 dpIdentQualName (Single name)       = pure name
-dpIdentQualName (Dots (Path names)) = pure (intercalate "." names)
+dpIdentQualName (Dots (Path names)) = pure (intercalate "." (NE.toList names))
 dpIdentQualName (Qualified _ _)     = internalError "dpIdentQualName: Qualified"
 dpIdentQualName Anonymous           = internalError "dpIdentQualName: Anonymous"
 
@@ -427,7 +431,7 @@ dpIdentQualName Anonymous           = internalError "dpIdentQualName: Anonymous"
 nestedTypeName :: MonadError CompileError m => DotProtoIdentifier -> String -> m String
 nestedTypeName Anonymous             nm = typeLikeName nm
 nestedTypeName (Single parent)       nm = intercalate "_" <$> traverse typeLikeName [parent, nm]
-nestedTypeName (Dots (Path parents)) nm = intercalate "_" . (<> [nm]) <$> traverse typeLikeName parents
+nestedTypeName (Dots (Path parents)) nm = intercalate "_" . (<> [nm]) <$> traverse typeLikeName (NE.toList parents)
 nestedTypeName (Qualified {})        _  = internalError "nestedTypeName: Qualified"
 
 qualifiedMessageName :: MonadError CompileError m => DotProtoIdentifier -> DotProtoIdentifier -> m String
@@ -524,7 +528,6 @@ oneofSubDisjunctBinder = intercalate "_or_" . fmap oneofSubBinder
 data CompileError
   = CircularImport          FilePath
   | CompileParseError       ParseError
-  | InternalEmptyModulePath
   | InternalError           String
   | InvalidPackageName      DotProtoIdentifier
   | InvalidMethodName       DotProtoIdentifier

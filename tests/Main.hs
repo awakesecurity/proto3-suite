@@ -13,6 +13,7 @@ import qualified Data.ByteString             as B
 import qualified Data.ByteString.Char8       as BC
 import qualified Data.ByteString.Lazy        as BL
 import           Data.Either                 (isRight)
+import qualified Data.List.NonEmpty          as NE
 import           Data.String
 import           Data.Semigroup              ((<>))
 import           GHC.Exts                    (fromList, Proxy#)
@@ -223,7 +224,8 @@ testParser fp p reference = do
 testDotProtoParse :: FilePath -> DotProto -> Assertion
 testDotProtoParse file ast = do
   contents <- readFile file
-  case parseProto (Path []) contents of
+  let path = metaModulePath $ protoMeta ast
+  case parseProto path contents of
     Left err     -> error $ show err
     Right result -> ast @=? result
 
@@ -232,7 +234,8 @@ testDotProtoPrint ast expected = expected @=? toProtoFileDef ast
 
 testDotProtoRoundtrip :: DotProto -> Assertion
 testDotProtoRoundtrip ast =
-  Right ast @=? parseProto (Path []) (toProtoFileDef ast)
+  let path = metaModulePath $ protoMeta ast in
+  Right ast @=? parseProto path (toProtoFileDef ast)
 
 dotProtoUnitTests :: TestTree
 dotProtoUnitTests = testGroup ".proto parsing tests"
@@ -244,7 +247,7 @@ dotProtoUnitTests = testGroup ".proto parsing tests"
   ]
 
 trivialDotProto :: DotProto
-trivialDotProto = DotProto [] [] DotProtoNoPackage [] (DotProtoMeta (Path []))
+trivialDotProto = DotProto [] [] DotProtoNoPackage [] (DotProtoMeta (Path $ "test-files" NE.:| ["trivial"]))
 
 dotProtoParseTrivial :: TestTree
 dotProtoParseTrivial = testCase
@@ -268,7 +271,7 @@ dotProtoSimpleMessage = DotProto [] [] DotProtoNoPackage
           DotProtoField (fieldNumber 1) (Prim Int32) (Single "testfield") [] Nothing
       ]
   ]
-  (DotProtoMeta (Path []))
+  (DotProtoMeta (Path ("test-files" NE.:| ["simple"])))
 
 dotProtoRoundtripSimpleMessage :: TestTree
 dotProtoRoundtripSimpleMessage = testCase
@@ -281,7 +284,7 @@ qcDotProtoRoundtrip = testProperty
   where
     roundtrip :: DotProto -> Property
     roundtrip ast = let generated = toProtoFileDef ast
-                    in case parseProto (Path []) generated of
+                    in case parseProto fakePath generated of
                       Left err     -> error $ formatParseError err generated
                       Right result -> counterexample (formatMismatch ast generated result ) (ast == result)
 
@@ -306,7 +309,7 @@ dotProtoFor :: (Named a, Message a) => Proxy# a -> DotProto
 dotProtoFor proxy = DotProto [] [] DotProtoNoPackage
   [ DotProtoMessage (Single (nameOf proxy)) (DotProtoMessageField <$> dotProto proxy)
   ]
-  (DotProtoMeta (Path []))
+  (DotProtoMeta (Path $ "mypath" NE.:| []))
 
 showDotProtoFor :: (Named a, Message a) => Proxy# a -> IO ()
 showDotProtoFor proxy = putStrLn . toProtoFileDef $ dotProtoFor proxy

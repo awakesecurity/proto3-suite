@@ -20,6 +20,7 @@ module Proto3.Suite.DotProto.Rendering
   ) where
 
 import           Data.Char
+import qualified Data.List.NonEmpty              as NE
 import qualified Data.Text                       as T
 import           Filesystem.Path.CurrentOS       (toText)
 #if (MIN_VERSION_base(4,11,0))
@@ -162,7 +163,7 @@ instance Pretty Streaming where
 
 instance Pretty DotProtoIdentifier where
   pPrint (Single name)                    = PP.text name
-  pPrint (Dots (Path names))              = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> names
+  pPrint (Dots (Path names))              = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> NE.toList names
   pPrint (Qualified qualifier identifier) = PP.parens (pPrint qualifier) <> PP.text "." <> pPrint identifier
   pPrint Anonymous                        = PP.empty
 
@@ -218,4 +219,4 @@ toProtoFileDef = toProtoFile defRenderingOptions
 
 packageFromDefs :: String -> [DotProtoDefinition] -> DotProto
 packageFromDefs package defs =
-  DotProto [] [] (DotProtoPackageSpec $ Single package) defs (DotProtoMeta $ Path [])
+  DotProto [] [] (DotProtoPackageSpec $ Single package) defs (DotProtoMeta fakePath)

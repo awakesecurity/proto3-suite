@@ -9,6 +9,7 @@ module TestCodeGen where
 import           ArbitraryGeneratedTestTypes    ()
 import           Control.Applicative
 import           Control.Monad
+import           Control.Monad.Except
 import qualified Data.Aeson
 import qualified Data.ByteString.Lazy           as LBS
 import qualified Data.ByteString.Lazy.Char8     as LBS8
@@ -17,6 +18,7 @@ import           Data.Proxy                     (Proxy(..))
 import           Data.String                    (IsString)
 import           Data.Swagger                   (ToSchema)
 import qualified Data.Swagger
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Text                      as T
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate
@@ -96,13 +98,13 @@ simpleEncodeDotProto =
     $ do
          compileTestDotProtos
          -- Compile our generated encoder
-         (@?= ExitSuccess) =<< Turtle.proc "tests/encode.sh" [hsTmpDir] empty
+         Turtle.proc "tests/encode.sh" [hsTmpDir] empty >>= (@?= ExitSuccess)
 
          -- The python encoder test exits with a special error code to indicate
          -- all tests were successful
          setPythonPath
          let cmd = hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py"
-         (@?= ExitFailure 12) =<< Turtle.shell cmd empty
+         Turtle.shell cmd empty >>= (@?= ExitFailure 12)
 
          -- Not using bracket so that we can inspect the output to fix the tests
          Turtle.rmtree hsTmpDir
@@ -114,11 +116,11 @@ simpleDecodeDotProto =
     $ do
          compileTestDotProtos
          -- Compile our generated decoder
-         (@?= ExitSuccess) =<< Turtle.proc "tests/decode.sh" [hsTmpDir] empty
+         Turtle.proc "tests/decode.sh" [hsTmpDir] empty >>= (@?= ExitSuccess)
 
          setPythonPath
          let cmd = "python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto "
-         (@?= ExitSuccess) =<< Turtle.shell cmd empty
+         Turtle.shell cmd empty >>= (@?= ExitSuccess)
 
          -- Not using bracket so that we can inspect the output to fix the tests
          Turtle.rmtree hsTmpDir
@@ -128,10 +130,12 @@ simpleDecodeDotProto =
 
 -- E.g. dumpAST ["test-files"] "test_proto.proto"
 dumpAST :: [FilePath] -> FilePath -> IO ()
-dumpAST incs fp = do
-  Right (dp, tc) <- readDotProtoWithContext incs fp
-  let Right src = renderHsModuleForDotProto mempty dp tc
-  putStrLn src
+dumpAST incs fp = act >>= either (putStrLn . show) putStrLn
+  where
+    act = runExceptT $ do
+             (dp, tc) <- readDotProtoWithContext incs fp
+             src <- renderHsModuleForDotProto mempty dp tc
+             pure src
 
 hsTmpDir, pyTmpDir :: IsString a => a
 hsTmpDir = "test-files/hs-tmp"
@@ -141,22 +145,29 @@ compileTestDotProtos :: IO ()
 compileTestDotProtos = do
   Turtle.mktree hsTmpDir
   Turtle.mktree pyTmpDir
+  let protoFiles =
+        [ "test_proto.proto"
+        , "test_proto_import.proto"
+        , "test_proto_oneof.proto"
+        , "test_proto_oneof_import.proto"
+        ]
+
   forM_ protoFiles $ \protoFile -> do
-    compileDotProtoFileOrDie [] hsTmpDir ["test-files"] protoFile
+    compileDotProtoFileOrDie
+        CompileArgs{ includeDir = ["test-files"]
+                   , extraInstanceFiles = []
+                   , outputDir = hsTmpDir
+                   , inputProto = protoFile
+                   }
+
     let cmd = T.concat [ "protoc --python_out="
                        , pyTmpDir
                        , " --proto_path=test-files"
                        , " test-files/" <> Turtle.format F.fp protoFile
                        ]
-    (@?= ExitSuccess) =<< Turtle.shell cmd empty
+    Turtle.shell cmd empty >>= (@?= ExitSuccess)
+
   Turtle.touch (pyTmpDir Turtle.</> "__init__.py")
-  where
-    protoFiles =
-      [ "test_proto.proto"
-      , "test_proto_import.proto"
-      , "test_proto_oneof.proto"
-      , "test_proto_oneof_import.proto"
-      ]
 
 -- * Doctests for JSONPB
 
