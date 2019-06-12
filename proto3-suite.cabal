@@ -55,6 +55,7 @@ library
                        lens,
                        mtl ==2.2.*,
                        neat-interpolation,
+                       optparse-generic,
                        parsec >= 3.1.9 && <3.2.0,
                        parsers >= 0.12 && <0.13,
                        pretty ==1.1.*,

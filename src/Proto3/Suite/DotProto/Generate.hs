@@ -28,14 +28,13 @@ module Proto3.Suite.DotProto.Generate
 
 import           Control.Applicative
 import           Control.Arrow                  ((&&&))
-import           Control.Monad.Except
 import           Control.Lens                   ((&), ix, over, filtered)
+import           Control.Monad.Except
 import           Data.Bifunctor                 (first)
 import           Data.Char
 import           Data.Coerce
 import           Data.Either                    (partitionEithers)
-import           Data.List                      (find, intercalate, nub, sortBy,
-                                                 stripPrefix)
+import           Data.List                      (find, intercalate, nub, sortBy, stripPrefix)
 import qualified Data.Map                       as M
 import           Data.Maybe                     (fromMaybe)
 import           Data.Monoid
@@ -45,37 +44,39 @@ import           Data.String                    (fromString)
 import qualified Data.Text                      as T
 import           Filesystem.Path.CurrentOS      ((</>), (<.>))
 import qualified Filesystem.Path.CurrentOS      as FP
+import           Language.Haskell.Parser        (ParseResult(..), parseModule)
 import           Language.Haskell.Pretty
 import           Language.Haskell.Syntax
-import           Language.Haskell.Parser        (ParseResult(..), parseModule)
 import qualified NeatInterpolation              as Neat
+import           Options.Generic
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
-import           Proto3.Suite.DotProto.Rendering (Pretty(..))
 import           Proto3.Suite.DotProto.Internal
+import           Proto3.Suite.DotProto.Rendering (Pretty(..))
 import           Proto3.Wire.Types              (FieldNumber (..))
 import           System.IO                      (writeFile, readFile)
-import           Turtle                         (FilePath)
 import qualified Turtle
+import           Turtle                         (FilePath)
+
 
 --
 -- * Public interface
 --
 
+data CompileArgs w = CompileArgs
+  { searchPaths        :: w ::: [FilePath] <?> "Path to search for included .proto files (can be repeated, and paths will be searched in order; the current directory is used if this option is not provided)"
+  , extraInstanceFiles :: w ::: [FilePath] <?> "Additional file to provide instances that would otherwise be generated. Can be used multiple times. Types for which instance overrides are given must be fully qualified."
+  , inputProto         :: w ::: FilePath   <?> "Path to input .proto file"
+  , outputDirectory    :: w ::: FilePath   <?> "Output directory path where generated Haskell modules will be written (directory is created if it does not exist; note that files in the output directory may be overwritten!)"
+  } deriving Generic
+instance ParseRecord (Args Wrapped)
+deriving instance Show (Args Unwrapped)
+
+
 -- | Generate a Haskell module corresponding to a @.proto@ file
-compileDotProtoFile
-    :: [FilePath]
-    -- ^ Haskell modules containing instances used to override default generated
-    -- instances
-    -> FilePath
-    -- ^ Output directory
-    -> [FilePath]
-    -- ^ List of search paths
-    -> FilePath
-    -- ^ Path to @.proto@ file (relative to search path)
-    -> IO (Either CompileError ())
-compileDotProtoFile extraInstanceFiles outputDirectory searchPaths dotProtoPath = runExceptT $ do
-    (dotProto, importTypeContext) <- readDotProtoWithContext searchPaths dotProtoPath
+compileDotProtoFile :: CompileArgs Unwrapped -> IO (Either CompileError ())
+compileDotProtoFile CompileArgs{..} = runExceptT $ do
+    (dotProto, importTypeContext) <- readDotProtoWithContext searchPaths inputProto
 
     let DotProto     { protoMeta      } = dotProto
     let DotProtoMeta { metaModulePath } = protoMeta
@@ -98,29 +99,18 @@ compileDotProtoFile extraInstanceFiles outputDirectory searchPaths dotProtoPath 
 
 -- | As 'compileDotProtoFile', except terminates the program with an error
 -- message on failure.
-compileDotProtoFileOrDie
-    :: [FilePath]
-    -- ^ Haskell modules containing instances used to override default generated
-    -- instances
-    -> FilePath
-    -- ^ Output directory
-    -> [FilePath]
-    -- ^ List of search paths
-    -> FilePath
-    -- ^ Path to @.proto@ file (relative to search path)
-    -> IO ()
-compileDotProtoFileOrDie extraInstanceFiles outputDirectory searchPaths dotProtoPath =
-     compileDotProtoFile extraInstanceFiles outputDirectory searchPaths dotProtoPath >>= \case
-         Left e -> do
-           -- TODO: pretty print the error messages
-           let errText          = Turtle.format Turtle.w  e
-           let dotProtoPathText = Turtle.format Turtle.fp dotProtoPath
-           dieLines [Neat.text|
-             Error: failed to compile "${dotProtoPathText}":
+compileDotProtoFileOrDie :: CompileArgs Unwrapped -> IO ()
+compileDotProtoFileOrDie args = compileDotProtoFile args >>= \case
+  Left e -> do
+    -- TODO: pretty print the error messages
+    let errText          = Turtle.format Turtle.w  e
+    let dotProtoPathText = Turtle.format Turtle.fp (dotProtoPath args)
+    dieLines [Neat.text|
+      Error: failed to compile "${dotProtoPathText}":
 
-             ${errText}
-           |]
-         _ -> pure ()
+      ${errText}
+    |]
+  _ -> pure ()
 
 -- | Compile a 'DotProto' AST into a 'String' representing the Haskell
 --   source of a module implementing types and instances for the .proto
