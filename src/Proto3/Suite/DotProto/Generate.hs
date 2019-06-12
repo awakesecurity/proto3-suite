@@ -12,6 +12,7 @@
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE TupleSections             #-}
+{-# LANGUAGE TypeApplications          #-}
 {-# LANGUAGE TypeOperators             #-}
 {-# LANGUAGE ViewPatterns              #-}
 
@@ -32,7 +33,7 @@ module Proto3.Suite.DotProto.Generate
 
 import           Control.Applicative
 import           Control.Arrow                  ((&&&))
-import           Control.Lens                   ((&), ix, over, filtered, traverseOf, _Wrapped')
+import           Control.Lens                   ((&), ix, over, filtered)
 import           Control.Monad.Except
 import           Data.Bifunctor                 (first)
 import           Data.Char
@@ -78,17 +79,8 @@ data CompileArgs = CompileArgs
 compileDotProtoFile :: CompileArgs -> IO (Either CompileError ())
 compileDotProtoFile CompileArgs{..} = runExceptT $ do
     (dotProto, importTypeContext) <- readDotProtoWithContext includeDir inputProto
---    modulePathPieces <- undefined
-    -- modulePathPieces :: [String] <- traverseOf (_protoMeta._metaModulePath._Wrapped'.traverse)
-    --                                            typeLikeName
-    --                                            dotProto
-    -- when (null modulePathPieces) (throwError InternalEmptyModulePath)
-    let DotProto     { protoMeta      } = dotProto
-    let DotProtoMeta { metaModulePath } = protoMeta
-    let Path         { components     } = metaModulePath
 
-
-    modulePathPieces <- traverse typeLikeName components
+    modulePathPieces <- traverse typeLikeName . components . metaModulePath . protoMeta $ dotProto
 
     let relativePath = FP.concat (map fromString $ NE.toList modulePathPieces) <.> "hs"
     let modulePath   = outputDir </> relativePath
@@ -152,35 +144,34 @@ hsModuleForDotProto
     -- ^
     -> m HsModule
 hsModuleForDotProto
-  (extraImports, extraInstances)
-  dotProto@DotProto
-    { protoPackage
-    , protoMeta        = DotProtoMeta { metaModulePath = modulePath }
-    , protoDefinitions
-    }
-  importTypeContext = do
-    packageIdentifier <- protoPackageName protoPackage
-    moduleName <- modulePathModName modulePath
+    (extraImports, extraInstances)
+    dotProto@DotProto{ protoMeta = DotProtoMeta { metaModulePath = modulePath }
+                     , protoPackage
+                     , protoDefinitions
+                     }
+    importTypeContext
+  = do
+       packageIdentifier <- protoPackageName protoPackage
+       moduleName <- modulePathModName modulePath
 
-    typeContextImports <- ctxtImports importTypeContext
+       typeContextImports <- ctxtImports importTypeContext
 
-    let hasService = any (\case DotProtoService {} -> True; _ -> False) protoDefinitions
+       let hasService = any (\case DotProtoService {} -> True; _ -> False) protoDefinitions
 
-    let importDeclarations =
-          concat [ defaultImports hasService, extraImports, typeContextImports ]
+       let importDeclarations =
+             concat [ defaultImports hasService, extraImports, typeContextImports ]
 
-    typeContext <- dotProtoTypeContext dotProto
+       typeContext <- dotProtoTypeContext dotProto
 
-    let toDotProtoDeclaration =
-          dotProtoDefinitionD packageIdentifier (typeContext <> importTypeContext)
+       let toDotProtoDeclaration =
+             dotProtoDefinitionD packageIdentifier (typeContext <> importTypeContext)
 
-    let extraInstances' = instancesForModule moduleName extraInstances
+       let extraInstances' = instancesForModule moduleName extraInstances
 
-    decls <- replaceHsInstDecls extraInstances' <$>
-             foldMapM toDotProtoDeclaration protoDefinitions
+       decls <- replaceHsInstDecls extraInstances' <$>
+                foldMapM toDotProtoDeclaration protoDefinitions
 
-    return (module_ moduleName Nothing importDeclarations decls)
-
+       return (module_ moduleName Nothing importDeclarations decls)
 
 getExtraInstances
     :: (MonadIO m, MonadError CompileError m)
