@@ -78,7 +78,7 @@ newtype Path = Path { components :: NE.NonEmpty String } deriving (Show, Eq, Ord
 
 -- Used for testing
 fakePath :: Path
-fakePath = Path ("" NE.:| [])
+fakePath = Path ("fakePath" NE.:| [])
 
 data DotProtoIdentifier
   = Single String
