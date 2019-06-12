@@ -1,5 +1,6 @@
 -- | Fairly straightforward AST encoding of the .proto grammar
 
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE RecordWildCards            #-}
@@ -16,7 +17,9 @@ module Proto3.Suite.DotProto.AST
     , DotProtoOption(..)
     , DotProtoDefinition(..)
     , DotProtoMeta(..)
+    , _metaModulePath
     , DotProto(..)
+    , _protoMeta
     , DotProtoValue(..)
     , DotProtoPrimType(..)
     , Packing(..)
@@ -35,8 +38,10 @@ module Proto3.Suite.DotProto.AST
     , DotProtoReservedField(..)
   ) where
 
-import           Control.Lens              (Prism', prism)
+import           Control.Lens              (Lens', lens, Prism', prism)
+import qualified Data.List.NonEmpty        as NE
 import           Data.String               (IsString)
+import           GHC.Generics              (Generic)
 import qualified Filesystem.Path.CurrentOS as FP
 import           Numeric.Natural
 import           Prelude                   hiding (FilePath)
@@ -69,7 +74,7 @@ newtype PackageName = PackageName
 instance Show PackageName where
   show = show . getPackageName
 
-newtype Path = Path { components :: [String] } deriving (Show, Eq, Ord)
+newtype Path = Path { components :: [String] } deriving (Show, Eq, Ord, Generic)
 
 data DotProtoIdentifier
   = Single String
@@ -163,6 +168,9 @@ data DotProtoMeta = DotProtoMeta
     -- during code generation.
   } deriving (Show, Eq)
 
+_metaModulePath :: Lens' DotProtoMeta Path
+_metaModulePath = lens metaModulePath (\dp m -> dp { metaModulePath = m })
+
 instance Arbitrary DotProtoMeta where
   arbitrary = pure . DotProtoMeta . Path $ []
 
@@ -177,6 +185,9 @@ data DotProto = DotProto
   , protoDefinitions :: [DotProtoDefinition]
   , protoMeta        :: DotProtoMeta
   } deriving (Show, Eq)
+
+_protoMeta :: Lens' DotProto DotProtoMeta
+_protoMeta = lens protoMeta (\dp m -> dp { protoMeta = m })
 
 instance Arbitrary DotProto where
   arbitrary = do

@@ -13,6 +13,7 @@
 
 module Main (main) where
 
+import           Control.Monad.Except
 import           Data.List                        (sort, sortOn)
 import           Data.RangeSet.List               (fromRangeList, toRangeList)
 import           Data.Semigroup                   (Min(..), Option(..))
@@ -34,7 +35,7 @@ deriving instance Show (Args Unwrapped)
 main :: IO ()
 main = do
   Args{..} :: Args Unwrapped <- unwrapRecord "Dumps a canonicalized .proto file to stdout"
-  readDotProtoWithContext includeDir proto >>= \case
+  runExceptT (readDotProtoWithContext includeDir proto) >>= \case
     Left err      -> fail (show err)
     Right (dp, _) -> putStr (toProtoFile defRenderingOptions (canonicalize dp))
 
@@ -214,21 +215,25 @@ instance Canonicalize [DotProtoServicePart] where
 instance CanonicalRank DotProtoServicePart
                        (Either (Maybe DotProtoOption) DotProtoIdentifier) where
   canonicalRank = \case
-    DotProtoServiceRPC name _ _ _ -> Right name
+    DotProtoServiceRPC guts -> Right (rpcGutsName guts)
     DotProtoServiceOption option -> Left (Just option)
     DotProtoServiceEmpty -> Left Nothing
 
 instance Canonicalize DotProtoServicePart where
   canonicalize = \case
-    DotProtoServiceRPC name (reqN, reqS) (rspN, rspS) options ->
-      DotProtoServiceRPC (canonicalize name)
-                         (canonicalize reqN, reqS)
-                         (canonicalize rspN, rspS)
-                         (canonicalize options)
+    DotProtoServiceRPC guts ->
+      DotProtoServiceRPC (canonicalize guts)
     DotProtoServiceOption option ->
       DotProtoServiceOption (canonicalize option)
     DotProtoServiceEmpty ->
       DotProtoServiceEmpty
+
+instance Canonicalize DotProtoServiceRPCGuts where
+  canonicalize (DotProtoServiceRPCGuts name reqN reqS rspN rspS options) =
+    DotProtoServiceRPCGuts (canonicalize name)
+                           (canonicalize reqN) reqS
+                           (canonicalize rspN) rspS
+                           (canonicalize options)
 
 instance Canonicalize DotProtoValue where
   canonicalize = \case

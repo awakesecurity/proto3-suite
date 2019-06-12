@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP                       #-}
+{-# LANGUAGE DataKinds                 #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE MultiWayIf                #-}
 {-# LANGUAGE NamedFieldPuns            #-}
@@ -8,7 +10,9 @@
 {-# LANGUAGE QuasiQuotes               #-}
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE TupleSections             #-}
+{-# LANGUAGE TypeOperators             #-}
 {-# LANGUAGE ViewPatterns              #-}
 
 {-| This module provides functions to generate Haskell declarations for protobuf
@@ -18,7 +22,7 @@
 module Proto3.Suite.DotProto.Generate
   ( CompileError(..)
   , TypeContext
-
+  , CompileArgs(..)
   , compileDotProtoFile
   , compileDotProtoFileOrDie
   , hsModuleForDotProto
@@ -28,7 +32,7 @@ module Proto3.Suite.DotProto.Generate
 
 import           Control.Applicative
 import           Control.Arrow                  ((&&&))
-import           Control.Lens                   ((&), ix, over, filtered)
+import           Control.Lens                   ((&), ix, over, filtered, traverseOf, _Wrapped')
 import           Control.Monad.Except
 import           Data.Bifunctor                 (first)
 import           Data.Char
@@ -48,7 +52,6 @@ import           Language.Haskell.Parser        (ParseResult(..), parseModule)
 import           Language.Haskell.Pretty
 import           Language.Haskell.Syntax
 import qualified NeatInterpolation              as Neat
-import           Options.Generic
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.Internal
@@ -63,31 +66,32 @@ import           Turtle                         (FilePath)
 -- * Public interface
 --
 
-data CompileArgs w = CompileArgs
-  { searchPaths        :: w ::: [FilePath] <?> "Path to search for included .proto files (can be repeated, and paths will be searched in order; the current directory is used if this option is not provided)"
-  , extraInstanceFiles :: w ::: [FilePath] <?> "Additional file to provide instances that would otherwise be generated. Can be used multiple times. Types for which instance overrides are given must be fully qualified."
-  , inputProto         :: w ::: FilePath   <?> "Path to input .proto file"
-  , outputDirectory    :: w ::: FilePath   <?> "Output directory path where generated Haskell modules will be written (directory is created if it does not exist; note that files in the output directory may be overwritten!)"
-  } deriving Generic
-instance ParseRecord (Args Wrapped)
-deriving instance Show (Args Unwrapped)
-
+data CompileArgs = CompileArgs
+  { includeDir         :: [FilePath]
+  , extraInstanceFiles :: [FilePath]
+  , inputProto         :: FilePath
+  , outputDir          :: FilePath
+  }
 
 -- | Generate a Haskell module corresponding to a @.proto@ file
-compileDotProtoFile :: CompileArgs Unwrapped -> IO (Either CompileError ())
+compileDotProtoFile :: CompileArgs -> IO (Either CompileError ())
 compileDotProtoFile CompileArgs{..} = runExceptT $ do
-    (dotProto, importTypeContext) <- readDotProtoWithContext searchPaths inputProto
-
+    (dotProto, importTypeContext) <- readDotProtoWithContext includeDir inputProto
+--    modulePathPieces <- undefined
+    -- modulePathPieces :: [String] <- traverseOf (_protoMeta._metaModulePath._Wrapped'.traverse)
+    --                                            typeLikeName
+    --                                            dotProto
+    -- when (null modulePathPieces) (throwError InternalEmptyModulePath)
     let DotProto     { protoMeta      } = dotProto
     let DotProtoMeta { metaModulePath } = protoMeta
     let Path         { components     } = metaModulePath
 
     when (null components) (throwError InternalEmptyModulePath)
 
-    typeLikeComponents <- traverse typeLikeName components
+    modulePathPieces <- traverse typeLikeName components
 
-    let relativePath = FP.concat (map fromString typeLikeComponents) <.> "hs"
-    let modulePath   = outputDirectory </> relativePath
+    let relativePath = FP.concat (map fromString modulePathPieces) <.> "hs"
+    let modulePath   = outputDir </> relativePath
 
     Turtle.mktree (Turtle.directory modulePath)
 
@@ -99,12 +103,12 @@ compileDotProtoFile CompileArgs{..} = runExceptT $ do
 
 -- | As 'compileDotProtoFile', except terminates the program with an error
 -- message on failure.
-compileDotProtoFileOrDie :: CompileArgs Unwrapped -> IO ()
+compileDotProtoFileOrDie :: CompileArgs -> IO ()
 compileDotProtoFileOrDie args = compileDotProtoFile args >>= \case
   Left e -> do
     -- TODO: pretty print the error messages
     let errText          = Turtle.format Turtle.w  e
-    let dotProtoPathText = Turtle.format Turtle.fp (dotProtoPath args)
+    let dotProtoPathText = Turtle.format Turtle.fp (inputProto args)
     dieLines [Neat.text|
       Error: failed to compile "${dotProtoPathText}":
 
