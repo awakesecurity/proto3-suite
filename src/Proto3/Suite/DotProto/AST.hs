@@ -28,14 +28,12 @@ module Proto3.Suite.DotProto.AST
     , DotProtoServicePart(..)
     , RPCMethod(..)
     , DotProtoMessagePart(..)
-    , _messageField
-    , _messageDefinition
-    , _messageOneOf
     , DotProtoField(..)
     , DotProtoReservedField(..)
   ) where
 
-import           Control.Lens              (Prism', prism)
+import           Control.Applicative
+import           Control.Monad
 import qualified Data.List.NonEmpty        as NE
 import           Data.String               (IsString)
 import qualified Filesystem.Path.CurrentOS as FP
@@ -342,15 +340,6 @@ data DotProtoMessagePart
   | DotProtoMessageDefinition DotProtoDefinition
   | DotProtoMessageReserved   [DotProtoReservedField]
   deriving (Show, Eq)
-
-_messageField :: Prism' DotProtoMessagePart DotProtoField
-_messageField = prism DotProtoMessageField (\case DotProtoMessageField d -> Right d; x -> Left x)
-
-_messageDefinition :: Prism' DotProtoMessagePart DotProtoDefinition
-_messageDefinition = prism DotProtoMessageDefinition (\case DotProtoMessageDefinition d -> Right d; x -> Left x)
-
-_messageOneOf :: Prism' DotProtoMessagePart (DotProtoIdentifier, [DotProtoField])
-_messageOneOf = prism (uncurry DotProtoMessageOneOf) (\case DotProtoMessageOneOf x y -> Right (x,y); x -> Left x)
 
 instance Arbitrary DotProtoMessagePart where
   arbitrary = oneof

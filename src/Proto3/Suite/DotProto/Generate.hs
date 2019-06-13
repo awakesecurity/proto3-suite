@@ -569,11 +569,11 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
           ]
 
       -- Nested regular and oneof message decls
-      , foldMapOfM (traverse . _messageDefinition)
+      , foldMapOfM (traverse . _DotProtoMessageDefinition)
                    nestedDecls
                    messageParts
 
-      , foldMapOfM (traverse . _messageOneOf)
+      , foldMapOfM (traverse . _DotProtoMessageOneOf)
                    (uncurry $ nestedOneOfDecls messageName)
                    messageParts
       ]

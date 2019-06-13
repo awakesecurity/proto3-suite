@@ -38,6 +38,7 @@ import qualified Filesystem.Path.CurrentOS as FP
 import qualified NeatInterpolation         as Neat
 import           Prelude                   hiding (FilePath)
 import           Proto3.Suite.DotProto.AST
+import           Proto3.Suite.DotProto.AST.Lens
 import           Proto3.Suite.DotProto.Parsing
 import           Proto3.Wire.Types         (FieldNumber (..))
 import           System.FilePath           (isPathSeparator)
@@ -290,7 +291,7 @@ definitionTypeContext :: MonadError CompileError m
 definitionTypeContext modulePath (DotProtoMessage msgIdent parts) = do
   let updateParent = tiParent (concatDotProtoIdentifier msgIdent)
 
-  childTyContext <- foldMapOfM (traverse . _messageDefinition)
+  childTyContext <- foldMapOfM (traverse . _DotProtoMessageDefinition)
                                (definitionTypeContext modulePath >=> traverse updateParent)
                                parts
 
