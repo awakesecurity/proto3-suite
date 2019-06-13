@@ -1307,10 +1307,8 @@ dotProtoServiceD
     -> [DotProtoServicePart]
     -> m [HsDecl]
 dotProtoServiceD pkgIdent ctxt serviceIdent service = do
-     serviceNameUnqual <- dpIdentUnqualName serviceIdent
+     serviceName <- typeLikeName =<< dpIdentUnqualName serviceIdent
      packageName <- dpIdentQualName pkgIdent
-
-     serviceName <- typeLikeName serviceNameUnqual
 
      let endpointPrefix = "/" ++ packageName ++ "." ++ serviceName ++ "/"
 
