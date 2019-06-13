@@ -1,9 +1,12 @@
 -- | This module contains a near-direct translation of the proto3 grammar
 --   It uses String for easier compatibility with DotProto.Generator, which needs it for not very good reasons
 
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module Proto3.Suite.DotProto.Parsing
@@ -13,6 +16,7 @@ module Proto3.Suite.DotProto.Parsing
 
 import Control.Applicative hiding (empty)
 import Control.Monad
+import qualified Data.List.NonEmpty as NE
 import Data.Functor
 import qualified Data.Text as T
 import qualified Filesystem.Path.CurrentOS as FP
@@ -34,7 +38,10 @@ import qualified Turtle
 -- module path to be injected into the AST as part of 'DotProtoMeta' metadata on
 -- a successful parse.
 parseProto :: Path -> String -> Either ParseError DotProto
-parseProto modulePath = parse (runProtoParser (topLevel modulePath)) ""
+parseProto modulePath = parseProtoWithFile modulePath ""
+
+parseProtoWithFile :: Path -> String -> String -> Either ParseError DotProto
+parseProtoWithFile modulePath filePath = parse (runProtoParser (topLevel modulePath)) filePath
 
 -- | @parseProtoFile mp fp@ reads and parses the .proto file found at @fp@. @mp@
 -- is used downstream during code generation when we need to generate names
@@ -42,8 +49,8 @@ parseProto modulePath = parse (runProtoParser (topLevel modulePath)) ""
 -- relative to some @--includeDir@.
 parseProtoFile :: Turtle.MonadIO m
                => Path -> Turtle.FilePath -> m (Either ParseError DotProto)
-parseProtoFile modulePath =
-  fmap (parseProto modulePath) . Turtle.liftIO . readFile . FP.encodeString
+parseProtoFile modulePath (FP.encodeString -> fp) =
+  parseProtoWithFile modulePath fp <$> Turtle.liftIO (readFile fp)
 
 ----------------------------------------
 -- convenience
@@ -54,9 +61,9 @@ newtype ProtoParser a = ProtoParser { runProtoParser :: Parser a }
            , Parsing, CharParsing, LookAheadParsing)
 
 instance TokenParsing ProtoParser where
-  someSpace   = TokenStyle.buildSomeSpaceParser
-                  (ProtoParser someSpace)
-                  TokenStyle.javaCommentStyle
+  someSpace = TokenStyle.buildSomeSpaceParser
+                (ProtoParser someSpace)
+                TokenStyle.javaCommentStyle
   -- use the default implementation for other methods:
   -- nesting, semi, highlight, token
 
@@ -76,10 +83,10 @@ identifierName = do h <- letter
 
 -- Parses a full identifier, without consuming trailing space.
 _identifier :: ProtoParser DotProtoIdentifier
-_identifier = do is <- identifierName `sepBy1` string "."
-                 return $ case is of
-                   [i] -> Single i
-                   _   -> Dots (Path is)
+_identifier = identifierName `sepBy1` string "." >>= \case
+                []  -> fail "impossible"
+                [i] -> pure (Single i)
+                (i:is) -> pure (Dots (Path (i NE.:| is)))
 
 singleIdentifier :: ProtoParser DotProtoIdentifier
 singleIdentifier = Single <$> token identifierName
@@ -232,9 +239,9 @@ topOption = symbol "option" *> inlineOption <* semi
 -- service statements
 
 servicePart :: ProtoParser DotProtoServicePart
-servicePart = rpc
-          <|> (DotProtoServiceOption <$> topOption)
-          <|> empty $> DotProtoServiceEmpty
+servicePart = DotProtoServiceRPCMethod <$> rpc
+          <|> DotProtoServiceOption <$> topOption
+          <|> DotProtoServiceEmpty <$ empty
 
 rpcOptions :: ProtoParser [DotProtoOption]
 rpcOptions = braces $ many topOption
@@ -245,14 +252,14 @@ rpcClause = do
   -- NB: Distinguish "stream stream.foo" from "stream.foo"
   try (symbol "stream" *> sid Streaming) <|> sid NonStreaming
 
-rpc :: ProtoParser DotProtoServicePart
+rpc :: ProtoParser RPCMethod
 rpc = do symbol "rpc"
-         name <- singleIdentifier
-         subjecttype <- parens rpcClause
+         rpcMethodName <- singleIdentifier
+         (rpcMethodRequestType, rpcMethodRequestStreaming) <- parens rpcClause
          symbol "returns"
-         returntype <- parens rpcClause
-         options <- rpcOptions <|> (semi $> [])
-         return $ DotProtoServiceRPC name subjecttype returntype options
+         (rpcMethodResponseType, rpcMethodResponseStreaming) <- parens rpcClause
+         rpcMethodOptions <- rpcOptions <|> (semi $> [])
+         return RPCMethod{..}
 
 service :: ProtoParser DotProtoDefinition
 service = do symbol "service"

@@ -9,6 +9,7 @@ module TestCodeGen where
 import           ArbitraryGeneratedTestTypes    ()
 import           Control.Applicative
 import           Control.Monad
+import           Control.Monad.Except
 import qualified Data.Aeson
 import qualified Data.ByteString.Lazy           as LBS
 import qualified Data.ByteString.Lazy.Char8     as LBS8
@@ -20,6 +21,7 @@ import qualified Data.Swagger
 import qualified Data.Text                      as T
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate
+import           Proto3.Suite.DotProto          (fieldLikeName, prefixedEnumFieldName, typeLikeName)
 import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  ToJSONPB (..), eitherDecode,
                                                  encode, defaultOptions)
@@ -41,18 +43,33 @@ codeGenTests = testGroup "Code generator unit tests"
 
 camelCaseMessageNames :: TestTree
 camelCaseMessageNames = testGroup "CamelCasing of message names"
-  [ testCase "Capitalizes letters after underscores" (typeLikeName "protocol_analysis" @?= Right "ProtocolAnalysis")
-  , testCase "Preserves casing of interior letters"  (typeLikeName "analyze_HTTP" @?= Right "AnalyzeHTTP")
-  , testCase "Handles non-alphanumeric characters after underscore" (typeLikeName "analyze_http_2" @?= Right "AnalyzeHttp2")
-  , testCase "Preserves one underscore in double underscore sequence" (typeLikeName "Analyze__HTTP" @?= Right "Analyze_HTTP")
-  , testCase "Handles names prefixed with underscore" (typeLikeName "_message_name" @?= Right "XMessageName")
-  , testCase "Preserves trailing underscore" (typeLikeName "message_name_" @?= Right "MessageName_") ]
+  [ testCase "Capitalizes letters after underscores"
+      $ typeLikeName "protocol_analysis" @?= Right "ProtocolAnalysis"
 
+  , testCase "Preserves casing of interior letters"
+      $ typeLikeName "analyze_HTTP" @?= Right "AnalyzeHTTP"
+
+  , testCase "Handles non-alphanumeric characters after underscore"
+      $ typeLikeName "analyze_http_2" @?= Right "AnalyzeHttp2"
+
+  , testCase "Preserves one underscore in double underscore sequence"
+      $ typeLikeName "Analyze__HTTP" @?= Right "Analyze_HTTP"
+
+  , testCase "Handles names prefixed with underscore"
+      $ typeLikeName "_message_name" @?= Right "XMessageName"
+
+  , testCase "Preserves trailing underscore"
+      $ typeLikeName "message_name_" @?= Right "MessageName_"
+  ]
 
 camelCaseMessageFieldNames :: TestTree
 camelCaseMessageFieldNames = testGroup "camelCasing of field names"
-  [ testCase "Preserves capitalization patterns" (fieldLikeName "IP" @?= "ip")
-  , testCase "Preserves underscores"             (fieldLikeName "IP_address" @?= "ip_address") ]
+  [ testCase "Preserves capitalization patterns"
+      $ fieldLikeName "IP" @?= "ip"
+
+  , testCase "Preserves underscores"
+      $ fieldLikeName "IP_address" @?= "ip_address"
+  ]
 
 don'tAlterEnumFieldNames :: TestTree
 don'tAlterEnumFieldNames
@@ -67,13 +84,12 @@ don'tAlterEnumFieldNames
            ]
   where
     enumName     = "MyEnum"
-    tc fieldName = testCase fieldName
-                 $ prefixedEnumFieldName enumName fieldName
-                     @?= (enumName <> fieldName)
+    tc fieldName = testCase fieldName $
+        prefixedEnumFieldName enumName fieldName @?= (enumName <> fieldName)
 
 setPythonPath :: IO ()
-setPythonPath = Turtle.export "PYTHONPATH" =<< do
-  maybe pyTmpDir ((pyTmpDir <> ":") <>) <$> Turtle.need "PYTHONPATH"
+setPythonPath = Turtle.export "PYTHONPATH" =<<
+  maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) <$> Turtle.need "PYTHONPATH"
 
 simpleEncodeDotProto :: TestTree
 simpleEncodeDotProto =
@@ -81,13 +97,13 @@ simpleEncodeDotProto =
     $ do
          compileTestDotProtos
          -- Compile our generated encoder
-         (@?= ExitSuccess) =<< Turtle.proc "tests/encode.sh" [hsTmpDir] empty
+         Turtle.proc "tests/encode.sh" [hsTmpDir] empty >>= (@?= ExitSuccess)
 
          -- The python encoder test exits with a special error code to indicate
          -- all tests were successful
          setPythonPath
          let cmd = hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py"
-         (@?= ExitFailure 12) =<< Turtle.shell cmd empty
+         Turtle.shell cmd empty >>= (@?= ExitFailure 12)
 
          -- Not using bracket so that we can inspect the output to fix the tests
          Turtle.rmtree hsTmpDir
@@ -99,11 +115,11 @@ simpleDecodeDotProto =
     $ do
          compileTestDotProtos
          -- Compile our generated decoder
-         (@?= ExitSuccess) =<< Turtle.proc "tests/decode.sh" [hsTmpDir] empty
+         Turtle.proc "tests/decode.sh" [hsTmpDir] empty >>= (@?= ExitSuccess)
 
          setPythonPath
          let cmd = "python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto "
-         (@?= ExitSuccess) =<< Turtle.shell cmd empty
+         Turtle.shell cmd empty >>= (@?= ExitSuccess)
 
          -- Not using bracket so that we can inspect the output to fix the tests
          Turtle.rmtree hsTmpDir
@@ -113,10 +129,10 @@ simpleDecodeDotProto =
 
 -- E.g. dumpAST ["test-files"] "test_proto.proto"
 dumpAST :: [FilePath] -> FilePath -> IO ()
-dumpAST incs fp = do
-  Right (dp, tc) <- readDotProtoWithContext incs fp
-  let Right src = renderHsModuleForDotProto mempty dp tc
-  putStrLn src
+dumpAST incs fp = (either (error . show) putStrLn <=< runExceptT) $ do
+  (dp, tc) <- readDotProtoWithContext incs fp
+  src <- renderHsModuleForDotProto mempty dp tc
+  pure src
 
 hsTmpDir, pyTmpDir :: IsString a => a
 hsTmpDir = "test-files/hs-tmp"
@@ -126,22 +142,29 @@ compileTestDotProtos :: IO ()
 compileTestDotProtos = do
   Turtle.mktree hsTmpDir
   Turtle.mktree pyTmpDir
+  let protoFiles =
+        [ "test_proto.proto"
+        , "test_proto_import.proto"
+        , "test_proto_oneof.proto"
+        , "test_proto_oneof_import.proto"
+        ]
+
   forM_ protoFiles $ \protoFile -> do
-    compileDotProtoFileOrDie [] hsTmpDir ["test-files"] protoFile
-    (@?= ExitSuccess) =<< Turtle.shell (T.concat [ "protoc --python_out="
-                                                 , pyTmpDir
-                                                 , " --proto_path=test-files"
-                                                 , " test-files/" <> Turtle.format F.fp protoFile
-                                                 ])
-                                       empty
+    compileDotProtoFileOrDie
+        CompileArgs{ includeDir = ["test-files"]
+                   , extraInstanceFiles = []
+                   , outputDir = hsTmpDir
+                   , inputProto = protoFile
+                   }
+
+    let cmd = T.concat [ "protoc --python_out="
+                       , pyTmpDir
+                       , " --proto_path=test-files"
+                       , " test-files/" <> Turtle.format F.fp protoFile
+                       ]
+    Turtle.shell cmd empty >>= (@?= ExitSuccess)
+
   Turtle.touch (pyTmpDir Turtle.</> "__init__.py")
-  where
-    protoFiles =
-      [ "test_proto.proto"
-      , "test_proto_import.proto"
-      , "test_proto_oneof.proto"
-      , "test_proto_oneof_import.proto"
-      ]
 
 -- * Doctests for JSONPB
 

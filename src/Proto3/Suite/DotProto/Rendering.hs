@@ -20,6 +20,7 @@ module Proto3.Suite.DotProto.Rendering
   ) where
 
 import           Data.Char
+import qualified Data.List.NonEmpty              as NE
 import qualified Data.Text                       as T
 import           Filesystem.Path.CurrentOS       (toText)
 #if (MIN_VERSION_base(4,11,0))
@@ -144,15 +145,15 @@ prettyPrintProtoDefinition opts = defn where
     = PP.empty
 
 instance Pretty DotProtoServicePart where
-  pPrint (DotProtoServiceRPC name (callname, callstrm) (retname, retstrm) options)
+  pPrint (DotProtoServiceRPCMethod RPCMethod{..})
     =   PP.text "rpc"
-    <+> pPrint name
-    <+> PP.parens (pPrint callstrm <+> pPrint callname)
+    <+> pPrint rpcMethodName
+    <+> PP.parens (pPrint rpcMethodRequestStreaming <+> pPrint rpcMethodRequestType)
     <+> PP.text "returns"
-    <+> PP.parens (pPrint retstrm <+> pPrint retname)
-    <+> case options of
+    <+> PP.parens (pPrint rpcMethodResponseStreaming <+> pPrint rpcMethodResponseType)
+    <+> case rpcMethodOptions of
           [] -> PP.text ";"
-          _  -> PP.braces . PP.vcat $ topOption <$> options
+          _  -> PP.braces . PP.vcat $ topOption <$> rpcMethodOptions
   pPrint (DotProtoServiceOption option) = topOption option
   pPrint DotProtoServiceEmpty           = PP.empty
 
@@ -162,7 +163,7 @@ instance Pretty Streaming where
 
 instance Pretty DotProtoIdentifier where
   pPrint (Single name)                    = PP.text name
-  pPrint (Dots (Path names))              = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> names
+  pPrint (Dots (Path names))              = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> NE.toList names
   pPrint (Qualified qualifier identifier) = PP.parens (pPrint qualifier) <> PP.text "." <> pPrint identifier
   pPrint Anonymous                        = PP.empty
 
@@ -218,4 +219,4 @@ toProtoFileDef = toProtoFile defRenderingOptions
 
 packageFromDefs :: String -> [DotProtoDefinition] -> DotProto
 packageFromDefs package defs =
-  DotProto [] [] (DotProtoPackageSpec $ Single package) defs (DotProtoMeta $ Path [])
+  DotProto [] [] (DotProtoPackageSpec $ Single package) defs (DotProtoMeta fakePath)

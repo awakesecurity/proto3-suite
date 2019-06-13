@@ -13,7 +13,9 @@
 
 module Main (main) where
 
+import           Control.Monad.Except
 import           Data.List                        (sort, sortOn)
+import qualified Data.List.NonEmpty              as NE
 import           Data.RangeSet.List               (fromRangeList, toRangeList)
 import           Data.Semigroup                   (Min(..), Option(..))
 import           Options.Generic
@@ -34,7 +36,7 @@ deriving instance Show (Args Unwrapped)
 main :: IO ()
 main = do
   Args{..} :: Args Unwrapped <- unwrapRecord "Dumps a canonicalized .proto file to stdout"
-  readDotProtoWithContext includeDir proto >>= \case
+  runExceptT (readDotProtoWithContext includeDir proto) >>= \case
     Left err      -> fail (show err)
     Right (dp, _) -> putStr (toProtoFile defRenderingOptions (canonicalize dp))
 
@@ -214,21 +216,25 @@ instance Canonicalize [DotProtoServicePart] where
 instance CanonicalRank DotProtoServicePart
                        (Either (Maybe DotProtoOption) DotProtoIdentifier) where
   canonicalRank = \case
-    DotProtoServiceRPC name _ _ _ -> Right name
+    DotProtoServiceRPCMethod method -> Right (rpcMethodName method)
     DotProtoServiceOption option -> Left (Just option)
     DotProtoServiceEmpty -> Left Nothing
 
 instance Canonicalize DotProtoServicePart where
   canonicalize = \case
-    DotProtoServiceRPC name (reqN, reqS) (rspN, rspS) options ->
-      DotProtoServiceRPC (canonicalize name)
-                         (canonicalize reqN, reqS)
-                         (canonicalize rspN, rspS)
-                         (canonicalize options)
+    DotProtoServiceRPCMethod guts ->
+      DotProtoServiceRPCMethod (canonicalize guts)
     DotProtoServiceOption option ->
       DotProtoServiceOption (canonicalize option)
     DotProtoServiceEmpty ->
       DotProtoServiceEmpty
+
+instance Canonicalize RPCMethod where
+  canonicalize (RPCMethod name reqN reqS rspN rspS options) =
+    RPCMethod (canonicalize name)
+              (canonicalize reqN) reqS
+              (canonicalize rspN) rspS
+              (canonicalize options)
 
 instance Canonicalize DotProtoValue where
   canonicalize = \case
@@ -241,7 +247,7 @@ instance Canonicalize DotProtoValue where
 instance Canonicalize DotProtoIdentifier where
   canonicalize = \case
     Single part -> Single part
-    Dots (Path [part]) -> Single part
+    Dots (Path (part NE.:| [])) -> Single part
     Dots path -> Dots path
     Qualified x y -> Qualified (canonicalize x) (canonicalize y)
     Anonymous -> Anonymous

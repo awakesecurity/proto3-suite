@@ -1,6 +1,7 @@
 -- | Fairly straightforward AST encoding of the .proto grammar
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE RecordWildCards            #-}
 
 module Proto3.Suite.DotProto.AST
@@ -19,17 +20,21 @@ module Proto3.Suite.DotProto.AST
     , DotProtoValue(..)
     , DotProtoPrimType(..)
     , Packing(..)
-    , Path(..)
+    , Path(..), fakePath
     , DotProtoType(..)
     , DotProtoEnumValue
     , DotProtoEnumPart(..)
     , Streaming(..)
     , DotProtoServicePart(..)
+    , RPCMethod(..)
     , DotProtoMessagePart(..)
     , DotProtoField(..)
     , DotProtoReservedField(..)
   ) where
 
+import           Control.Applicative
+import           Control.Monad
+import qualified Data.List.NonEmpty        as NE
 import           Data.String               (IsString)
 import qualified Filesystem.Path.CurrentOS as FP
 import           Numeric.Natural
@@ -63,7 +68,11 @@ newtype PackageName = PackageName
 instance Show PackageName where
   show = show . getPackageName
 
-newtype Path = Path { components :: [String] } deriving (Show, Eq, Ord)
+newtype Path = Path { components :: NE.NonEmpty String } deriving (Show, Eq, Ord)
+
+-- Used for testing
+fakePath :: Path
+fakePath = Path ("fakePath" NE.:| [])
 
 data DotProtoIdentifier
   = Single String
@@ -132,6 +141,7 @@ data DotProtoDefinition
   | DotProtoService DotProtoIdentifier [DotProtoServicePart]
   deriving (Show, Eq)
 
+
 instance Arbitrary DotProtoDefinition where
   arbitrary = oneof [arbitraryMessage, arbitraryEnum]
     where
@@ -158,7 +168,7 @@ data DotProtoMeta = DotProtoMeta
   } deriving (Show, Eq)
 
 instance Arbitrary DotProtoMeta where
-  arbitrary = pure . DotProtoMeta . Path $ []
+  arbitrary = pure (DotProtoMeta fakePath)
 
 -- | This data structure represents a .proto file
 --   The actual source order of protobuf statements isn't meaningful so
@@ -293,45 +303,40 @@ data Streaming
 instance Arbitrary Streaming where
   arbitrary = elements [Streaming, NonStreaming]
 
--- [refactor] add named accessors to ServiceRPC
---            break this into two types
 data DotProtoServicePart
-  = DotProtoServiceRPC    DotProtoIdentifier
-                          (DotProtoIdentifier, Streaming)
-                          (DotProtoIdentifier, Streaming)
-                          [DotProtoOption]
+  = DotProtoServiceRPCMethod RPCMethod
   | DotProtoServiceOption DotProtoOption
   | DotProtoServiceEmpty
   deriving (Show, Eq)
 
 instance Arbitrary DotProtoServicePart where
   arbitrary = oneof
-    [ arbitraryServiceRPC
-    , arbitraryServiceOption
+    [ DotProtoServiceRPCMethod <$> arbitrary
+    , DotProtoServiceOption <$> arbitrary
     ]
-    where
-      arbitraryServiceRPC = do
-        identifier <- arbitrarySingleIdentifier
-        rpcClause0 <- arbitraryRPCClause
-        rpcClause1 <- arbitraryRPCClause
-        options    <- smallListOf arbitrary
-        return (DotProtoServiceRPC identifier rpcClause0 rpcClause1 options)
-        where
-          arbitraryRPCClause = do
-            identifier <- arbitraryIdentifier
-            streaming  <- arbitrary
-            return (identifier, streaming)
 
-      arbitraryServiceOption = do
-        option <- arbitrary
-        return (DotProtoServiceOption option)
+data RPCMethod = RPCMethod
+  { rpcMethodName :: DotProtoIdentifier
+  , rpcMethodRequestType :: DotProtoIdentifier
+  , rpcMethodRequestStreaming :: Streaming
+  , rpcMethodResponseType :: DotProtoIdentifier
+  , rpcMethodResponseStreaming :: Streaming
+  , rpcMethodOptions :: [DotProtoOption]
+  } deriving (Show, Eq)
+
+instance Arbitrary RPCMethod where
+  arbitrary = do
+    rpcMethodName <- arbitrarySingleIdentifier
+    rpcMethodRequestType <- arbitraryIdentifier
+    rpcMethodRequestStreaming  <- arbitrary
+    rpcMethodResponseType <- arbitraryIdentifier
+    rpcMethodResponseStreaming  <- arbitrary
+    rpcMethodOptions <- smallListOf arbitrary
+    return RPCMethod{..}
 
 data DotProtoMessagePart
   = DotProtoMessageField DotProtoField
-  | DotProtoMessageOneOf
-      { dotProtoOneOfName   :: DotProtoIdentifier
-      , dotProtoOneOfFields :: [DotProtoField]
-      }
+  | DotProtoMessageOneOf DotProtoIdentifier [DotProtoField]
   | DotProtoMessageDefinition DotProtoDefinition
   | DotProtoMessageReserved   [DotProtoReservedField]
   deriving (Show, Eq)
@@ -349,9 +354,9 @@ instance Arbitrary DotProtoMessagePart where
         return (DotProtoMessageField field)
 
       arbitraryOneOf = do
-        dotProtoOneOfName   <- arbitrarySingleIdentifier
-        dotProtoOneOfFields <- smallListOf arbitrary
-        return (DotProtoMessageOneOf {..})
+        name   <- arbitrarySingleIdentifier
+        fields <- smallListOf arbitrary
+        return (DotProtoMessageOneOf name fields)
 
       arbitraryDefinition = do
         definition <- arbitrary
@@ -429,7 +434,7 @@ arbitraryPathIdentifier :: Gen DotProtoIdentifier
 arbitraryPathIdentifier = do
   name  <- arbitraryIdentifierName
   names <- smallListOf1 arbitraryIdentifierName
-  pure . Dots . Path $ name:names
+  pure . Dots . Path $ name NE.:| names
 
 arbitraryNestedIdentifier :: Gen DotProtoIdentifier
 arbitraryNestedIdentifier = do
