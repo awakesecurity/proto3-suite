@@ -156,6 +156,10 @@ instance HasDefault Word32 where def = 0
 instance HasDefault Word64 where def = 0
 instance HasDefault (Signed Int32) where def = 0
 instance HasDefault (Signed Int64) where def = 0
+-- | Used in generated records to represent @sfixed32@
+instance HasDefault (Fixed Int32) where def = 0
+-- | Used in generated records to represent @sfixed64@
+instance HasDefault (Fixed Int64) where def = 0
 instance HasDefault (Fixed Word32) where def = 0
 instance HasDefault (Fixed Word64) where def = 0
 instance HasDefault (Signed (Fixed Int32)) where def = 0
@@ -220,24 +224,9 @@ instance HasDefault (M.Map k v) where
   def = M.empty
   isDefault = M.null
 
--- TODO: Determine if we have a reason for rendering fixed32/sfixed as Fixed
--- Word32/Int32 in generated datatypes; for other field types, we omit the
--- newtype wrappers in the type signature but un/wrap them as needed in the
--- encode/decodeMessage implementations. These Fixed wrappers can probably be
--- removed and the type interface would be more consistent with other types, but
--- until that occurs, the following two instances are needed.
---
--- Tracked by https://github.com/awakesecurity/proto3-suite/issues/30.
-
--- | Used in generated records to represent @sfixed32@
-instance HasDefault (Fixed Int32)
-
--- | Used in generated records to represent @sfixed64@
-instance HasDefault (Fixed Int64)
-
 class GenericHasDefault (a :: * -> *) where
   genericDef :: a x
-instance HasDefault a => GenericHasDefault (Rec0 a) where
+instance HasDefault a => GenericHasDefault (K1 i a) where
   genericDef = K1 (def @a)
 instance (GenericHasDefault f, GenericHasDefault g) => GenericHasDefault (f :*: g) where
   genericDef = genericDef @f :*: genericDef @g
@@ -249,7 +238,6 @@ instance (Datatype c, GenericHasDefault f) => GenericHasDefault (D1 c f) where
   genericDef = M1 (genericDef @f)
 instance (Selector c, GenericHasDefault f) => GenericHasDefault (S1 c f) where
   genericDef = M1 (genericDef @f)
-
 
 -- | This class captures those types whose names need to appear in .proto files.
 --
