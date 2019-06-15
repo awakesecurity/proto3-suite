@@ -261,6 +261,8 @@ compileTestDotProtos = do
 --
 -- >>> def :: MultipleFields
 -- MultipleFields {multipleFieldsMultiFieldDouble = 0.0, multipleFieldsMultiFieldFloat = 0.0, multipleFieldsMultiFieldInt32 = 0, multipleFieldsMultiFieldInt64 = 0, multipleFieldsMultiFieldString = "", multipleFieldsMultiFieldBool = False}
+-- >>> def :: WithNesting
+-- WithNesting {withNestingNestedMessage = Nothing}
 -- >>> def :: WithNestingRepeated
 -- WithNestingRepeated {withNestingRepeatedNestedMessages = []}
 -- >>> def :: WithEnum
