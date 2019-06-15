@@ -556,6 +556,7 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
           , pure (namedInstD messageName)
           , pure (hasDefaultInstD messageName)
           , messageInstD ctxt' parentIdent messageIdent messageParts
+
           , toJSONPBMessageInstD   ctxt' parentIdent messageIdent messageParts
           , fromJSONPBMessageInstD ctxt' parentIdent messageIdent messageParts
 
