@@ -126,7 +126,7 @@ class HasDefault a where
   -- | The default value for this type.
   def :: a
 
-  default def :: (Generic a, GenericDefault (Rep a)) => a
+  default def :: (Generic a, GenericHasDefault (Rep a)) => a
   def = to (genericDef @(Rep a))
 
   isDefault :: a -> Bool
@@ -235,19 +235,19 @@ instance HasDefault (Fixed Int32)
 -- | Used in generated records to represent @sfixed64@
 instance HasDefault (Fixed Int64)
 
-class GenericDefault (a :: * -> *) where
+class GenericHasDefault (a :: * -> *) where
   genericDef :: a x
-instance HasDefault a => GenericDefault (Rec0 a) where
+instance HasDefault a => GenericHasDefault (Rec0 a) where
   genericDef = K1 (def @a)
-instance (GenericDefault f, GenericDefault g) => GenericDefault (f :*: g) where
+instance (GenericHasDefault f, GenericHasDefault g) => GenericHasDefault (f :*: g) where
   genericDef = genericDef @f :*: genericDef @g
-instance (GenericDefault f, GenericDefault g) => GenericDefault (f :+: g) where
+instance (GenericHasDefault f, GenericHasDefault g) => GenericHasDefault (f :+: g) where
   genericDef = L1 (genericDef @f)
-instance (Constructor c, GenericDefault f) => GenericDefault (C1 c f) where
+instance (Constructor c, GenericHasDefault f) => GenericHasDefault (C1 c f) where
   genericDef = M1 (genericDef @f)
-instance (Datatype c, GenericDefault f) => GenericDefault (D1 c f) where
+instance (Datatype c, GenericHasDefault f) => GenericHasDefault (D1 c f) where
   genericDef = M1 (genericDef @f)
-instance (Selector c, GenericDefault f) => GenericDefault (S1 c f) where
+instance (Selector c, GenericHasDefault f) => GenericHasDefault (S1 c f) where
   genericDef = M1 (genericDef @f)
 
 
