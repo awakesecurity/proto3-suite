@@ -232,13 +232,13 @@ instance (GenericHasDefault f, GenericHasDefault g) => GenericHasDefault (f :*: 
   genericDef = genericDef @f :*: genericDef @g
 instance (GenericHasDefault f, GenericHasDefault g) => GenericHasDefault (f :+: g) where
   genericDef = L1 (genericDef @f)
-instance {-# OVERLAPPING #-} (Constructor c) => GenericHasDefault (C1 c U1) where
-  genericDef = M1 U1 -- unit constructor
-instance (Constructor c, GenericHasDefault f) => GenericHasDefault (C1 c f) where
+instance GenericHasDefault U1 where
+  genericDef = U1 -- unit constructor
+instance (Constructor i, GenericHasDefault f) => GenericHasDefault (C1 i f) where
   genericDef = M1 (genericDef @f)
-instance (Datatype c, GenericHasDefault f) => GenericHasDefault (D1 c f) where
+instance (Datatype i, GenericHasDefault f) => GenericHasDefault (D1 i f) where
   genericDef = M1 (genericDef @f)
-instance (Selector c, GenericHasDefault f) => GenericHasDefault (S1 c f) where
+instance (Selector i, GenericHasDefault f) => GenericHasDefault (S1 i f) where
   genericDef = M1 (genericDef @f)
 
 -- | This class captures those types whose names need to appear in .proto files.
