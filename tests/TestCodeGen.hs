@@ -256,6 +256,15 @@ compileTestDotProtos = do
 -- {"properties":{"dummy":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"}},"type":"object"}
 -- >>> schemaOf @(Enumerated DummyEnum)
 -- {"type":"string","enum":["DUMMY0","DUMMY1"]}
+--
+-- Generic HasDefault
+--
+-- >>> def :: MultipleFields
+-- MultipleFields {multipleFieldsMultiFieldDouble = 0.0, multipleFieldsMultiFieldFloat = 0.0, multipleFieldsMultiFieldInt32 = 0, multipleFieldsMultiFieldInt64 = 0, multipleFieldsMultiFieldString = "", multipleFieldsMultiFieldBool = False}
+-- >>> def :: WithNestingRepeated
+-- WithNestingRepeated {withNestingRepeatedNestedMessages = []}
+-- >>> def :: WithEnum
+-- WithEnum {withEnumEnumField = Enumerated {enumerated = Right WithEnum_TestEnumENUM1}}
 
 -- * Helper quickcheck props
 

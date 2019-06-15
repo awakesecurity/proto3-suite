@@ -519,6 +519,12 @@ namedInstD messageName =
                                                [ str_ messageName ]))
                         []
 
+hasDefaultInstD :: String -> HsDecl
+hasDefaultInstD messageName =
+  instDecl_ (protobufName "HasDefault")
+      [ type_ messageName ]
+      [ ]
+
 -- ** Generate types and instances for .proto messages
 
 -- | Generate data types, 'Bounded', 'Enum', 'FromJSONPB', 'Named', 'Message',
@@ -548,8 +554,8 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
       [ sequence
           [ mkDataDecl <$> foldMapM (messagePartFieldD messageName) messageParts
           , pure (namedInstD messageName)
+          , pure (hasDefaultInstD messageName)
           , messageInstD ctxt' parentIdent messageIdent messageParts
-
           , toJSONPBMessageInstD   ctxt' parentIdent messageIdent messageParts
           , fromJSONPBMessageInstD ctxt' parentIdent messageIdent messageParts
 
@@ -1273,6 +1279,7 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
                    [ conDecl_ (HsIdent con) [] | con <- enumConNames ]
                    defaultEnumDeriving
        , namedInstD enumName
+       , hasDefaultInstD enumName
        , instDecl_ (haskellName "Enum") [ type_ enumName ]
                    [ HsFunBind toEnumD, HsFunBind fromEnumD
                    , HsFunBind succD, HsFunBind predD ]
