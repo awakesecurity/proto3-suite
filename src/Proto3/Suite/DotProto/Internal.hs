@@ -288,7 +288,7 @@ dotProtoTypeContext DotProto{..} =
 
 definitionTypeContext :: MonadError CompileError m
                       => Path -> DotProtoDefinition -> m TypeContext
-definitionTypeContext modulePath (DotProtoMessage msgIdent parts) = do
+definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
   let updateParent = tiParent (concatDotProtoIdentifier msgIdent)
 
   childTyContext <- foldMapOfM (traverse . _DotProtoMessageDefinition)
@@ -306,7 +306,7 @@ definitionTypeContext modulePath (DotProtoMessage msgIdent parts) = do
 
   pure $ M.singleton msgIdent tyInfo <> qualifiedChildTyContext
 
-definitionTypeContext modulePath (DotProtoEnum enumIdent _) = do
+definitionTypeContext modulePath (DotProtoEnum _ enumIdent _) = do
   let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
                                 , dotProtoTypeInfoParent =  Anonymous
                                 , dotProtoTypeChildContext = mempty

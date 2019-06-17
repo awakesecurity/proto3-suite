@@ -498,13 +498,13 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
 dotProtoDefinitionD :: MonadError CompileError m
                     => DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
 dotProtoDefinitionD pkgIdent ctxt = \case
-  DotProtoMessage messageName messageParts ->
+  DotProtoMessage _ messageName messageParts ->
     dotProtoMessageD ctxt Anonymous messageName messageParts
 
-  DotProtoEnum enumName enumParts ->
+  DotProtoEnum _ enumName enumParts ->
     dotProtoEnumD Anonymous enumName enumParts
 
-  DotProtoService serviceName serviceParts ->
+  DotProtoService _ serviceName serviceParts ->
     dotProtoServiceD pkgIdent ctxt serviceName serviceParts
 
 -- | Generate 'Named' instance for a type in this package
@@ -605,11 +605,11 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     messagePartFieldD _ _ = pure []
 
     nestedDecls :: DotProtoDefinition -> m [HsDecl]
-    nestedDecls (DotProtoMessage subMsgName subMessageDef) = do
+    nestedDecls (DotProtoMessage _ subMsgName subMessageDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
       dotProtoMessageD ctxt' parentIdent' subMsgName subMessageDef
 
-    nestedDecls (DotProtoEnum subEnumName subEnumDef) = do
+    nestedDecls (DotProtoEnum _ subEnumName subEnumDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
       dotProtoEnumD parentIdent' subEnumName subEnumDef
 

@@ -277,7 +277,8 @@ class Enum a => Finite a where
 
 -- | Generate metadata for an enum type.
 enum :: (Finite e, Named e) => Proxy# e -> DotProtoDefinition
-enum pr = DotProtoEnum (Single $ nameOf pr) (map enumField $ enumerate pr)
+enum pr =
+    DotProtoEnum Nothing (Single $ nameOf pr) (map enumField $ enumerate pr)
   where
     enumField (name, value) = DotProtoEnumField (Single name) value []
 
@@ -669,7 +670,8 @@ instance (MessageField k, MessageField v) => Message (k, v)
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy# a -> DotProtoDefinition
-message proxy = DotProtoMessage (Single $ nameOf proxy)
+message proxy = DotProtoMessage Nothing
+                                (Single $ nameOf proxy)
                                 (DotProtoMessageField <$> dotProto proxy)
 
 -- * Generic Instances

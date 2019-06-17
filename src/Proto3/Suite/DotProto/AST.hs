@@ -136,9 +136,9 @@ instance Arbitrary DotProtoOption where
 
 -- | Top-level protocol definitions
 data DotProtoDefinition
-  = DotProtoMessage DotProtoIdentifier [DotProtoMessagePart]
-  | DotProtoEnum    DotProtoIdentifier [DotProtoEnumPart]
-  | DotProtoService DotProtoIdentifier [DotProtoServicePart]
+  = DotProtoMessage (Maybe String) DotProtoIdentifier [DotProtoMessagePart]
+  | DotProtoEnum    (Maybe String) DotProtoIdentifier [DotProtoEnumPart]
+  | DotProtoService (Maybe String) DotProtoIdentifier [DotProtoServicePart]
   deriving (Show, Eq)
 
 
@@ -146,14 +146,16 @@ instance Arbitrary DotProtoDefinition where
   arbitrary = oneof [arbitraryMessage, arbitraryEnum]
     where
       arbitraryMessage = do
+        comment    <- pure Nothing  -- until parser supports comments
         identifier <- arbitrarySingleIdentifier
         parts      <- smallListOf arbitrary
-        return (DotProtoMessage identifier parts)
+        return (DotProtoMessage comment identifier parts)
 
       arbitraryEnum = do
+        comment    <- pure Nothing  -- until parser supports comments
         identifier <- arbitrarySingleIdentifier
         parts      <- smallListOf arbitrary
-        return (DotProtoEnum identifier parts)
+        return (DotProtoEnum comment identifier parts)
 
 -- | Tracks misc metadata about the AST
 data DotProtoMeta = DotProtoMeta
@@ -417,9 +419,10 @@ instance Arbitrary DotProtoReservedField where
 
 _arbitraryService :: Gen DotProtoDefinition
 _arbitraryService = do
+  comment    <- pure Nothing  -- until parser supports comments
   identifier <- arbitrarySingleIdentifier
   parts      <- smallListOf arbitrary
-  return (DotProtoService identifier parts)
+  return (DotProtoService comment identifier parts)
 
 arbitraryIdentifierName :: Gen String
 arbitraryIdentifierName = do
