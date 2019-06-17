@@ -20,6 +20,7 @@ module Proto3.Suite.DotProto.Rendering
   ) where
 
 import           Data.Char
+import           Data.Function                   ((&))
 import qualified Data.List.NonEmpty              as NE
 import qualified Data.Text                       as T
 import           Filesystem.Path.CurrentOS       (toText)
@@ -129,8 +130,11 @@ prettyPrintProtoDefinition opts = defn where
     <+> pPrint number
     <+> optionAnnotation options
     <>  PP.text ";"
-    <>  maybe PP.empty (PP.text . (" // " ++)) comments
+    & maybe id (flip ($$) . PP.nest 2 . comment) comments
   field _ DotProtoEmptyField = PP.empty
+
+  comment :: String -> PP.Doc
+  comment = PP.vcat . map (PP.text . ("// " ++)) . lines
 
   enumPart :: DotProtoIdentifier -> DotProtoEnumPart -> PP.Doc
   enumPart msgName (DotProtoEnumField name value options)
