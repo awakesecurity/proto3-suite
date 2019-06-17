@@ -226,7 +226,7 @@ instance HasDefault (M.Map k v) where
 
 class GenericHasDefault (f :: * -> *) where
   genericDef :: f x
-instance HasDefault a => GenericHasDefault (K1 i f) where
+instance HasDefault f => GenericHasDefault (K1 i f) where
   genericDef = K1 (def @f)
 instance (GenericHasDefault f, GenericHasDefault g) => GenericHasDefault (f :*: g) where
   genericDef = genericDef @f :*: genericDef @g
