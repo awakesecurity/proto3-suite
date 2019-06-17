@@ -20,6 +20,7 @@ module Proto3.Suite.DotProto.Rendering
   ) where
 
 import           Data.Char
+import           Data.Function                   ((&))
 import qualified Data.List.NonEmpty              as NE
 import qualified Data.Text                       as T
 import           Filesystem.Path.CurrentOS       (toText)
@@ -98,19 +99,19 @@ topOption o = PP.text "option" <+> pPrint o <> PP.text ";"
 instance Pretty DotProtoOption where
   pPrint (DotProtoOption key value) = pPrint key <+> PP.text "=" <+> pPrint value
 
+-- Put the final closing brace on the next line.
+-- This is important, since the final field might have a comment, and
+-- the brace cannot be part of the comment.
+-- We could use block comments instead, once the parser/lexer supports them.
+vbraces :: PP.Doc -> PP.Doc -> PP.Doc
+vbraces header body = header <+> PP.char '{' $$ PP.nest 2 body $$ PP.char '}'
+
 prettyPrintProtoDefinition :: RenderingOptions -> DotProtoDefinition -> PP.Doc
 prettyPrintProtoDefinition opts = defn where
   defn :: DotProtoDefinition -> PP.Doc
-  defn (DotProtoMessage name parts) = PP.text "message" <+> pPrint name <+> (braces $ PP.vcat $ msgPart name <$> parts)
-  defn (DotProtoEnum    name parts) = PP.text "enum"    <+> pPrint name <+> (PP.braces $ PP.vcat $ enumPart name <$> parts)
-  defn (DotProtoService name parts) = PP.text "service" <+> pPrint name <+> (PP.braces $ PP.vcat $ pPrint <$> parts)
-
-  -- Put the final closing brace on the next line.
-  -- This is important, since the final field might have a comment, and
-  -- the brace cannot be part of the comment.
-  -- We could use block comments instead, once the parser/lexer supports them.
-  braces :: PP.Doc -> PP.Doc
-  braces = ($$ PP.text "}") . (PP.text "{" <+>)
+  defn (DotProtoMessage name parts) = vbraces (PP.text "message" <+> pPrint name) (PP.vcat $ msgPart name <$> parts)
+  defn (DotProtoEnum    name parts) = vbraces (PP.text "enum"    <+> pPrint name) (PP.vcat $ enumPart name <$> parts)
+  defn (DotProtoService name parts) = vbraces (PP.text "service" <+> pPrint name) (PP.vcat $ pPrint <$> parts)
 
   msgPart :: DotProtoIdentifier -> DotProtoMessagePart -> PP.Doc
   msgPart msgName (DotProtoMessageField f)           = field msgName f
@@ -119,7 +120,7 @@ prettyPrintProtoDefinition opts = defn where
     =   PP.text "reserved"
     <+> (PP.hcat . PP.punctuate (PP.text ", ") $ pPrint <$> reservations)
     <>  PP.text ";"
-  msgPart msgName (DotProtoMessageOneOf name fields)     = PP.text "oneof" <+> pPrint name <+> (PP.braces $ PP.vcat $ field msgName <$> fields)
+  msgPart msgName (DotProtoMessageOneOf name fields)     = vbraces (PP.text "oneof" <+> pPrint name) (PP.vcat $ field msgName <$> fields)
 
   field :: DotProtoIdentifier -> DotProtoField -> PP.Doc
   field msgName (DotProtoField number mtype name options comments)
@@ -129,8 +130,11 @@ prettyPrintProtoDefinition opts = defn where
     <+> pPrint number
     <+> optionAnnotation options
     <>  PP.text ";"
-    <>  maybe PP.empty (PP.text . (" // " ++)) comments
+    & maybe id (flip ($$) . PP.nest 2 . comment) comments
   field _ DotProtoEmptyField = PP.empty
+
+  comment :: String -> PP.Doc
+  comment = PP.vcat . map (PP.text . ("// " ++)) . lines
 
   enumPart :: DotProtoIdentifier -> DotProtoEnumPart -> PP.Doc
   enumPart msgName (DotProtoEnumField name value options)
