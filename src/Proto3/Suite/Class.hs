@@ -126,9 +126,8 @@ class HasDefault a where
   -- | The default value for this type.
   def :: a
 
-  -- | Numeric types default to zero
-  default def :: Num a => a
-  def = 0
+  default def :: (Generic a, GenericHasDefault (Rep a)) => a
+  def = to (genericDef @(Rep a))
 
   isDefault :: a -> Bool
 
@@ -145,18 +144,28 @@ omittingDefault f p
   | isDefault p = mempty
   | otherwise = f p
 
-instance HasDefault Int32
-instance HasDefault Int64
-instance HasDefault Word32
-instance HasDefault Word64
-instance HasDefault (Signed Int32)
-instance HasDefault (Signed Int64)
-instance HasDefault (Fixed Word32)
-instance HasDefault (Fixed Word64)
-instance HasDefault (Signed (Fixed Int32))
-instance HasDefault (Signed (Fixed Int64))
-instance HasDefault Float
-instance HasDefault Double
+-- -- | Numeric types default to zero
+-- instance Num a => HasDefault a where def = 0
+
+instance HasDefault Int where def = 0
+instance HasDefault Integer where def = 0
+
+instance HasDefault Int32 where def = 0
+instance HasDefault Int64 where def = 0
+instance HasDefault Word32 where def = 0
+instance HasDefault Word64 where def = 0
+instance HasDefault (Signed Int32) where def = 0
+instance HasDefault (Signed Int64) where def = 0
+-- | Used in generated records to represent @sfixed32@
+instance HasDefault (Fixed Int32) where def = 0
+-- | Used in generated records to represent @sfixed64@
+instance HasDefault (Fixed Int64) where def = 0
+instance HasDefault (Fixed Word32) where def = 0
+instance HasDefault (Fixed Word64) where def = 0
+instance HasDefault (Signed (Fixed Int32)) where def = 0
+instance HasDefault (Signed (Fixed Int64)) where def = 0
+instance HasDefault Float where def = 0
+instance HasDefault Double where def = 0
 
 instance HasDefault Bool where
   def = False
@@ -215,20 +224,22 @@ instance HasDefault (M.Map k v) where
   def = M.empty
   isDefault = M.null
 
--- TODO: Determine if we have a reason for rendering fixed32/sfixed as Fixed
--- Word32/Int32 in generated datatypes; for other field types, we omit the
--- newtype wrappers in the type signature but un/wrap them as needed in the
--- encode/decodeMessage implementations. These Fixed wrappers can probably be
--- removed and the type interface would be more consistent with other types, but
--- until that occurs, the following two instances are needed.
---
--- Tracked by https://github.com/awakesecurity/proto3-suite/issues/30.
-
--- | Used in generated records to represent @sfixed32@
-instance HasDefault (Fixed Int32)
-
--- | Used in generated records to represent @sfixed64@
-instance HasDefault (Fixed Int64)
+class GenericHasDefault (f :: * -> *) where
+  genericDef :: f x
+instance HasDefault a => GenericHasDefault (K1 i f) where
+  genericDef = K1 (def @f)
+instance (GenericHasDefault f, GenericHasDefault g) => GenericHasDefault (f :*: g) where
+  genericDef = genericDef @f :*: genericDef @g
+instance (GenericHasDefault f, GenericHasDefault g) => GenericHasDefault (f :+: g) where
+  genericDef = L1 (genericDef @f)
+instance GenericHasDefault U1 where
+  genericDef = U1 -- unit constructor
+instance (Constructor i, GenericHasDefault f) => GenericHasDefault (C1 i f) where
+  genericDef = M1 (genericDef @f)
+instance (Datatype i, GenericHasDefault f) => GenericHasDefault (D1 i f) where
+  genericDef = M1 (genericDef @f)
+instance (Selector i, GenericHasDefault f) => GenericHasDefault (S1 i f) where
+  genericDef = M1 (genericDef @f)
 
 -- | This class captures those types whose names need to appear in .proto files.
 --
