@@ -99,7 +99,10 @@ instance Pretty DotProtoOption where
   pPrint (DotProtoOption key value) = pPrint key <+> PP.text "=" <+> pPrint value
 
 renderComment :: String -> PP.Doc
-renderComment = PP.vcat . map (PP.text . ("// " ++)) . lines
+renderComment = PP.vcat . map ((PP.text "//" <+>) . textIfNonempty) . lines
+  where
+    textIfNonempty [] = PP.empty
+    textIfNonempty text = PP.text text
 
 -- Put the final closing brace on the next line.
 -- This is important, since the final field might have a comment, and
