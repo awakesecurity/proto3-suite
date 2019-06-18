@@ -495,7 +495,7 @@ instance (Ord k, Primitive k, MessageField k, Primitive v, MessageField v) => Me
   --
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
-  decodeMessageField = M.fromList . fromList
+  decodeMessageField = M.fromList
                        <$> repeated (Decode.embedded' (decodeMessage (fieldNumber 1)))
   protoType _ = messageField (Map (primType (proxy# :: Proxy# k)) (primType (proxy# :: Proxy# v))) Nothing
 
@@ -506,7 +506,7 @@ instance {-# OVERLAPS #-} (Ord k, Primitive k, Named v, Message v, MessageField 
   --
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
-  decodeMessageField = M.fromList . fromList
+  decodeMessageField = M.fromList
                        <$> repeated (Decode.embedded' (decodeMessage (fieldNumber 1)))
   protoType _ = messageField (Map (primType (proxy# :: Proxy# k)) (Named . Single $ nameOf (proxy# :: Proxy# v))) Nothing
 
