@@ -20,7 +20,6 @@ module Proto3.Suite.DotProto.Rendering
   ) where
 
 import           Data.Char
-import           Data.Function                   ((&))
 import qualified Data.List.NonEmpty              as NE
 import qualified Data.Text                       as T
 import           Filesystem.Path.CurrentOS       (toText)
@@ -102,9 +101,6 @@ instance Pretty DotProtoOption where
 renderComment :: String -> PP.Doc
 renderComment = PP.vcat . map (PP.text . ("// " ++)) . lines
 
-prefixAnyComment :: Maybe String -> PP.Doc -> PP.Doc
-prefixAnyComment = maybe id (($$) . renderComment)
-
 -- Put the final closing brace on the next line.
 -- This is important, since the final field might have a comment, and
 -- the brace cannot be part of the comment.
@@ -115,11 +111,11 @@ vbraces header body = header <+> PP.char '{' $$ PP.nest 2 body $$ PP.char '}'
 prettyPrintProtoDefinition :: RenderingOptions -> DotProtoDefinition -> PP.Doc
 prettyPrintProtoDefinition opts = defn where
   defn :: DotProtoDefinition -> PP.Doc
-  defn (DotProtoMessage comment name parts) = prefixAnyComment comment $
+  defn (DotProtoMessage comment name parts) = renderComment comment $$
     vbraces (PP.text "message" <+> pPrint name) (PP.vcat $ msgPart name <$> parts)
-  defn (DotProtoEnum    comment name parts) = prefixAnyComment comment $
+  defn (DotProtoEnum    comment name parts) = renderComment comment $$
     vbraces (PP.text "enum"    <+> pPrint name) (PP.vcat $ enumPart name <$> parts)
-  defn (DotProtoService comment name parts) = prefixAnyComment comment $
+  defn (DotProtoService comment name parts) = renderComment comment $$
     vbraces (PP.text "service" <+> pPrint name) (PP.vcat $ pPrint <$> parts)
 
   msgPart :: DotProtoIdentifier -> DotProtoMessagePart -> PP.Doc
@@ -139,7 +135,7 @@ prettyPrintProtoDefinition opts = defn where
     <+> pPrint number
     <+> optionAnnotation options
     <>  PP.text ";"
-    & maybe id (flip ($$) . PP.nest 2 . renderComment) comments
+    $$  PP.nest 2 (renderComment comments)
   field _ DotProtoEmptyField = PP.empty
 
   enumPart :: DotProtoIdentifier -> DotProtoEnumPart -> PP.Doc

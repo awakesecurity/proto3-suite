@@ -277,8 +277,7 @@ class Enum a => Finite a where
 
 -- | Generate metadata for an enum type.
 enum :: (Finite e, Named e) => Proxy# e -> DotProtoDefinition
-enum pr =
-    DotProtoEnum Nothing (Single $ nameOf pr) (map enumField $ enumerate pr)
+enum pr = DotProtoEnum "" (Single $ nameOf pr) (map enumField $ enumerate pr)
   where
     enumField (name, value) = DotProtoEnumField (Single name) value []
 
@@ -460,7 +459,7 @@ messageField ty packing = DotProtoField
     , dotProtoFieldType = ty
     , dotProtoFieldName = Anonymous
     , dotProtoFieldOptions = packingOption
-    , dotProtoFieldComment = Nothing
+    , dotProtoFieldComment = ""
     }
   where
     packingOption = maybe [] (toDotProtoOption . isPacked) packing
@@ -625,7 +624,7 @@ instance (MessageField e, KnownSymbol comments) => MessageField (e // comments) 
                               @(Parser RawField (Commented comments e))
                               decodeMessageField
   protoType p = (protoType (lowerProxy1 p))
-                  { dotProtoFieldComment = Just (symbolVal (lowerProxy2 p)) }
+                  { dotProtoFieldComment = symbolVal (lowerProxy2 p) }
     where
       lowerProxy1 :: forall f (a :: k). Proxy# (f a) -> Proxy# a
       lowerProxy1 _ = proxy#
@@ -670,7 +669,7 @@ instance (MessageField k, MessageField v) => Message (k, v)
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy# a -> DotProtoDefinition
-message proxy = DotProtoMessage Nothing
+message proxy = DotProtoMessage ""
                                 (Single $ nameOf proxy)
                                 (DotProtoMessageField <$> dotProto proxy)
 

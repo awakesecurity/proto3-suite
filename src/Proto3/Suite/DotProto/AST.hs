@@ -136,9 +136,9 @@ instance Arbitrary DotProtoOption where
 
 -- | Top-level protocol definitions
 data DotProtoDefinition
-  = DotProtoMessage (Maybe String) DotProtoIdentifier [DotProtoMessagePart]
-  | DotProtoEnum    (Maybe String) DotProtoIdentifier [DotProtoEnumPart]
-  | DotProtoService (Maybe String) DotProtoIdentifier [DotProtoServicePart]
+  = DotProtoMessage String DotProtoIdentifier [DotProtoMessagePart]
+  | DotProtoEnum    String DotProtoIdentifier [DotProtoEnumPart]
+  | DotProtoService String DotProtoIdentifier [DotProtoServicePart]
   deriving (Show, Eq)
 
 
@@ -146,13 +146,13 @@ instance Arbitrary DotProtoDefinition where
   arbitrary = oneof [arbitraryMessage, arbitraryEnum]
     where
       arbitraryMessage = do
-        comment    <- pure Nothing  -- until parser supports comments
+        comment    <- pure mempty  -- until parser supports comments
         identifier <- arbitrarySingleIdentifier
         parts      <- smallListOf arbitrary
         return (DotProtoMessage comment identifier parts)
 
       arbitraryEnum = do
-        comment    <- pure Nothing  -- until parser supports comments
+        comment    <- pure mempty  -- until parser supports comments
         identifier <- arbitrarySingleIdentifier
         parts      <- smallListOf arbitrary
         return (DotProtoEnum comment identifier parts)
@@ -376,7 +376,7 @@ data DotProtoField = DotProtoField
   , dotProtoFieldType    :: DotProtoType
   , dotProtoFieldName    :: DotProtoIdentifier
   , dotProtoFieldOptions :: [DotProtoOption]
-  , dotProtoFieldComment :: Maybe String
+  , dotProtoFieldComment :: String
   }
   | DotProtoEmptyField
   deriving (Show, Eq)
@@ -388,7 +388,7 @@ instance Arbitrary DotProtoField where
     dotProtoFieldName    <- arbitraryIdentifier
     dotProtoFieldOptions <- smallListOf arbitrary
     -- TODO: Generate random comments once the parser supports comments
-    dotProtoFieldComment <- pure Nothing
+    dotProtoFieldComment <- pure mempty
     return (DotProtoField {..})
 
 data DotProtoReservedField
@@ -419,7 +419,7 @@ instance Arbitrary DotProtoReservedField where
 
 _arbitraryService :: Gen DotProtoDefinition
 _arbitraryService = do
-  comment    <- pure Nothing  -- until parser supports comments
+  comment    <- pure mempty  -- until parser supports comments
   identifier <- arbitrarySingleIdentifier
   parts      <- smallListOf arbitrary
   return (DotProtoService comment identifier parts)

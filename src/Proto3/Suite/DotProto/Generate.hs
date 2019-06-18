@@ -694,7 +694,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                         , dpTypeE dotProtoFieldType
                         , dpIdentE dotProtoFieldName
                         , HsList (map optionE dotProtoFieldOptions)
-                        , maybeE (HsLit . HsString) dotProtoFieldComment
+                        , HsLit (HsString dotProtoFieldComment)
                         ]
 
 
@@ -1476,7 +1476,7 @@ dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC, mapC,
   fieldNumberC, singleC, dotsC, pathC, nestedC, anonymousC, dotProtoOptionC,
   identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC,
   unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
-  methodNameC, nothingC, justC, forceEmitC, mconcatE, encodeMessageFieldE,
+  methodNameC, justC, forceEmitC, mconcatE, encodeMessageFieldE,
   fromStringE, decodeMessageFieldE, pureE, returnE, memptyE, msumE, atE, oneofE,
   succErrorE, predErrorE, toEnumErrorE, fmapE, defaultOptionsE, serverLoopE,
   convertServerHandlerE, convertServerReaderHandlerE, convertServerWriterHandlerE,
@@ -1509,7 +1509,6 @@ oneofE               = HsVar (protobufName "oneof")
 
 trueC                       = HsVar (haskellName "True")
 falseC                      = HsVar (haskellName "False")
-nothingC                    = HsVar (haskellName "Nothing")
 justC                       = HsVar (haskellName "Just")
 mconcatE                    = HsVar (haskellName "mconcat")
 fromStringE                 = HsVar (haskellName "fromString")
@@ -1589,10 +1588,6 @@ forceEmitE = HsParen . HsApp forceEmitC
 
 fieldNumberE :: FieldNumber -> HsExp
 fieldNumberE = HsParen . HsApp fieldNumberC . intE . getFieldNumber
-
-maybeE :: (a -> HsExp) -> Maybe a -> HsExp
-maybeE _ Nothing = nothingC
-maybeE f (Just a) = HsApp justC (f a)
 
 dpIdentE :: DotProtoIdentifier -> HsExp
 dpIdentE (Single n)       = apply singleC [ str_ n ]

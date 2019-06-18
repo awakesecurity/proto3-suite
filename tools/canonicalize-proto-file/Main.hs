@@ -92,11 +92,11 @@ instance CanonicalRank DotProtoDefinition (Int, DotProtoIdentifier) where
 instance Canonicalize DotProtoDefinition where
   canonicalize = \case
     DotProtoMessage _ name parts ->
-      DotProtoMessage Nothing (canonicalize name) (canonicalize parts)
+      DotProtoMessage "" (canonicalize name) (canonicalize parts)
     DotProtoEnum    _ name parts ->
-      DotProtoEnum    Nothing (canonicalize name) (canonicalize parts)
+      DotProtoEnum    "" (canonicalize name) (canonicalize parts)
     DotProtoService _ name parts ->
-      DotProtoService Nothing (canonicalize name) (canonicalize parts)
+      DotProtoService "" (canonicalize name) (canonicalize parts)
 
 instance Canonicalize [DotProtoMessagePart] where
   canonicalize parts = canonicalSort (resNumbers ++ resNames ++ other)
@@ -159,8 +159,8 @@ instance Canonicalize DotProtoField where
     , dotProtoFieldType = canonicalize dotProtoFieldType
     , dotProtoFieldName = canonicalize dotProtoFieldName
     , dotProtoFieldOptions = canonicalize dotProtoFieldOptions
-    , dotProtoFieldComment = Nothing  -- In future we might add a command-line
-                                      -- option to preserve comments.
+    , dotProtoFieldComment = ""  -- In future we might add a command-line
+                                 -- option to preserve comments.
     }
   canonicalize DotProtoEmptyField = DotProtoEmptyField
 
