@@ -694,7 +694,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                         , dpTypeE dotProtoFieldType
                         , dpIdentE dotProtoFieldName
                         , HsList (map optionE dotProtoFieldOptions)
-                        , HsLit (HsString dotProtoFieldComment)
+                        , str_ dotProtoFieldComment
                         ]
 
 
