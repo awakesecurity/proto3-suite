@@ -30,7 +30,7 @@ import           Data.List                 (find, intercalate)
 import qualified Data.List.NonEmpty        as NE
 import qualified Data.Map                  as M
 import           Data.Maybe                (fromMaybe)
-import           Data.Monoid
+import           Data.Semigroup            (Semigroup(..))
 import qualified Data.Text                 as T
 import           Data.Tuple                (swap)
 import           Filesystem.Path.CurrentOS ((</>))
@@ -60,7 +60,8 @@ liftEither = either throwError pure
 #endif
 
 -- | Like 'foldMap', but with an effectful projection.
-foldMapM :: (Foldable t, Monad m, Monoid b) => (a -> m b) -> t a -> m b
+foldMapM ::
+  (Foldable t, Monad m, Monoid b, Semigroup b) => (a -> m b) -> t a -> m b
 foldMapM f = foldM (\b a -> (b <>) <$> f a) mempty
 
 -- | Like 'Control.Lens.Getter.Getting', but allows for retrieving the 'r'
@@ -288,7 +289,7 @@ dotProtoTypeContext DotProto{..} =
 
 definitionTypeContext :: MonadError CompileError m
                       => Path -> DotProtoDefinition -> m TypeContext
-definitionTypeContext modulePath (DotProtoMessage msgIdent parts) = do
+definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
   let updateParent = tiParent (concatDotProtoIdentifier msgIdent)
 
   childTyContext <- foldMapOfM (traverse . _DotProtoMessageDefinition)
@@ -306,7 +307,7 @@ definitionTypeContext modulePath (DotProtoMessage msgIdent parts) = do
 
   pure $ M.singleton msgIdent tyInfo <> qualifiedChildTyContext
 
-definitionTypeContext modulePath (DotProtoEnum enumIdent _) = do
+definitionTypeContext modulePath (DotProtoEnum _ enumIdent _) = do
   let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
                                 , dotProtoTypeInfoParent =  Anonymous
                                 , dotProtoTypeChildContext = mempty

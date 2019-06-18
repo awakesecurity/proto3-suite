@@ -20,7 +20,6 @@ module Proto3.Suite.DotProto.Rendering
   ) where
 
 import           Data.Char
-import           Data.Function                   ((&))
 import qualified Data.List.NonEmpty              as NE
 import qualified Data.Text                       as T
 import           Filesystem.Path.CurrentOS       (toText)
@@ -99,6 +98,12 @@ topOption o = PP.text "option" <+> pPrint o <> PP.text ";"
 instance Pretty DotProtoOption where
   pPrint (DotProtoOption key value) = pPrint key <+> PP.text "=" <+> pPrint value
 
+renderComment :: String -> PP.Doc
+renderComment = PP.vcat . map ((PP.text "//" <+>) . textIfNonempty) . lines
+  where
+    textIfNonempty [] = PP.empty
+    textIfNonempty text = PP.text text
+
 -- Put the final closing brace on the next line.
 -- This is important, since the final field might have a comment, and
 -- the brace cannot be part of the comment.
@@ -109,9 +114,12 @@ vbraces header body = header <+> PP.char '{' $$ PP.nest 2 body $$ PP.char '}'
 prettyPrintProtoDefinition :: RenderingOptions -> DotProtoDefinition -> PP.Doc
 prettyPrintProtoDefinition opts = defn where
   defn :: DotProtoDefinition -> PP.Doc
-  defn (DotProtoMessage name parts) = vbraces (PP.text "message" <+> pPrint name) (PP.vcat $ msgPart name <$> parts)
-  defn (DotProtoEnum    name parts) = vbraces (PP.text "enum"    <+> pPrint name) (PP.vcat $ enumPart name <$> parts)
-  defn (DotProtoService name parts) = vbraces (PP.text "service" <+> pPrint name) (PP.vcat $ pPrint <$> parts)
+  defn (DotProtoMessage comment name parts) = renderComment comment $$
+    vbraces (PP.text "message" <+> pPrint name) (PP.vcat $ msgPart name <$> parts)
+  defn (DotProtoEnum    comment name parts) = renderComment comment $$
+    vbraces (PP.text "enum"    <+> pPrint name) (PP.vcat $ enumPart name <$> parts)
+  defn (DotProtoService comment name parts) = renderComment comment $$
+    vbraces (PP.text "service" <+> pPrint name) (PP.vcat $ pPrint <$> parts)
 
   msgPart :: DotProtoIdentifier -> DotProtoMessagePart -> PP.Doc
   msgPart msgName (DotProtoMessageField f)           = field msgName f
@@ -130,11 +138,8 @@ prettyPrintProtoDefinition opts = defn where
     <+> pPrint number
     <+> optionAnnotation options
     <>  PP.text ";"
-    & maybe id (flip ($$) . PP.nest 2 . comment) comments
+    $$  PP.nest 2 (renderComment comments)
   field _ DotProtoEmptyField = PP.empty
-
-  comment :: String -> PP.Doc
-  comment = PP.vcat . map (PP.text . ("// " ++)) . lines
 
   enumPart :: DotProtoIdentifier -> DotProtoEnumPart -> PP.Doc
   enumPart msgName (DotProtoEnumField name value options)

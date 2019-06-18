@@ -265,7 +265,7 @@ service :: ProtoParser DotProtoDefinition
 service = do symbol "service"
              name <- singleIdentifier
              statements <- braces (many servicePart)
-             return $ DotProtoService name statements
+             return $ DotProtoService mempty name statements
 
 --------------------------------------------------------------------------------
 -- message definitions
@@ -274,7 +274,7 @@ message :: ProtoParser DotProtoDefinition
 message = do symbol "message"
              name <- singleIdentifier
              body <- braces (many messagePart)
-             return $ DotProtoMessage name body
+             return $ DotProtoMessage mempty name body
 
 messageOneOf :: ProtoParser DotProtoMessagePart
 messageOneOf = do symbol "oneof"
@@ -306,7 +306,7 @@ messageField = do mtype <- messageType
                   mnumber <- fieldNumber
                   moptions <- optionAnnotation
                   semi
-                  return $ DotProtoField mnumber mtype mname moptions Nothing
+                  return $ DotProtoField mnumber mtype mname moptions mempty
 
 --------------------------------------------------------------------------------
 -- enumerations
@@ -329,7 +329,7 @@ enum :: ProtoParser DotProtoDefinition
 enum = do symbol "enum"
           ename <- singleIdentifier
           ebody <- braces (many enumStatement)
-          return $ DotProtoEnum ename ebody
+          return $ DotProtoEnum mempty ename ebody
 
 --------------------------------------------------------------------------------
 -- field reservations

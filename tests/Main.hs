@@ -265,9 +265,9 @@ dotProtoRoundtripTrivial = testCase
 
 dotProtoSimpleMessage :: DotProto
 dotProtoSimpleMessage = DotProto [] [] DotProtoNoPackage
-  [ DotProtoMessage (Single "MessageTest")
+  [ DotProtoMessage "" (Single "MessageTest")
       [ DotProtoMessageField $
-          DotProtoField (fieldNumber 1) (Prim Int32) (Single "testfield") [] Nothing
+          DotProtoField (fieldNumber 1) (Prim Int32) (Single "testfield") [] ""
       ]
   ]
   (DotProtoMeta (Path ("test-files" NE.:| ["simple"])))
@@ -306,7 +306,8 @@ qcDotProtoRoundtrip = testProperty
 
 dotProtoFor :: (Named a, Message a) => Proxy# a -> DotProto
 dotProtoFor proxy = DotProto [] [] DotProtoNoPackage
-  [ DotProtoMessage (Single (nameOf proxy)) (DotProtoMessageField <$> dotProto proxy)
+  [ DotProtoMessage
+      "" (Single (nameOf proxy)) (DotProtoMessageField <$> dotProto proxy)
   ]
   (DotProtoMeta (Path $ "mypath" NE.:| []))
 

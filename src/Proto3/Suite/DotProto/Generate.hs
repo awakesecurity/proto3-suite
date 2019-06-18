@@ -498,13 +498,13 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
 dotProtoDefinitionD :: MonadError CompileError m
                     => DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
 dotProtoDefinitionD pkgIdent ctxt = \case
-  DotProtoMessage messageName messageParts ->
+  DotProtoMessage _ messageName messageParts ->
     dotProtoMessageD ctxt Anonymous messageName messageParts
 
-  DotProtoEnum enumName enumParts ->
+  DotProtoEnum _ enumName enumParts ->
     dotProtoEnumD Anonymous enumName enumParts
 
-  DotProtoService serviceName serviceParts ->
+  DotProtoService _ serviceName serviceParts ->
     dotProtoServiceD pkgIdent ctxt serviceName serviceParts
 
 -- | Generate 'Named' instance for a type in this package
@@ -605,11 +605,11 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     messagePartFieldD _ _ = pure []
 
     nestedDecls :: DotProtoDefinition -> m [HsDecl]
-    nestedDecls (DotProtoMessage subMsgName subMessageDef) = do
+    nestedDecls (DotProtoMessage _ subMsgName subMessageDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
       dotProtoMessageD ctxt' parentIdent' subMsgName subMessageDef
 
-    nestedDecls (DotProtoEnum subEnumName subEnumDef) = do
+    nestedDecls (DotProtoEnum _ subEnumName subEnumDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
       dotProtoEnumD parentIdent' subEnumName subEnumDef
 
@@ -694,7 +694,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                         , dpTypeE dotProtoFieldType
                         , dpIdentE dotProtoFieldName
                         , HsList (map optionE dotProtoFieldOptions)
-                        , maybeE (HsLit . HsString) dotProtoFieldComment
+                        , str_ dotProtoFieldComment
                         ]
 
 
@@ -1476,7 +1476,7 @@ dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC, mapC,
   fieldNumberC, singleC, dotsC, pathC, nestedC, anonymousC, dotProtoOptionC,
   identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC,
   unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
-  methodNameC, nothingC, justC, forceEmitC, mconcatE, encodeMessageFieldE,
+  methodNameC, justC, forceEmitC, mconcatE, encodeMessageFieldE,
   fromStringE, decodeMessageFieldE, pureE, returnE, memptyE, msumE, atE, oneofE,
   succErrorE, predErrorE, toEnumErrorE, fmapE, defaultOptionsE, serverLoopE,
   convertServerHandlerE, convertServerReaderHandlerE, convertServerWriterHandlerE,
@@ -1509,7 +1509,6 @@ oneofE               = HsVar (protobufName "oneof")
 
 trueC                       = HsVar (haskellName "True")
 falseC                      = HsVar (haskellName "False")
-nothingC                    = HsVar (haskellName "Nothing")
 justC                       = HsVar (haskellName "Just")
 mconcatE                    = HsVar (haskellName "mconcat")
 fromStringE                 = HsVar (haskellName "fromString")
@@ -1589,10 +1588,6 @@ forceEmitE = HsParen . HsApp forceEmitC
 
 fieldNumberE :: FieldNumber -> HsExp
 fieldNumberE = HsParen . HsApp fieldNumberC . intE . getFieldNumber
-
-maybeE :: (a -> HsExp) -> Maybe a -> HsExp
-maybeE _ Nothing = nothingC
-maybeE f (Just a) = HsApp justC (f a)
 
 dpIdentE :: DotProtoIdentifier -> HsExp
 dpIdentE (Single n)       = apply singleC [ str_ n ]

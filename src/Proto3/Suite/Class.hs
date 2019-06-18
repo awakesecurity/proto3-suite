@@ -97,6 +97,7 @@ import qualified Data.ByteString        as B
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy   as BL
 import           Data.Coerce            (coerce)
+import qualified Data.Foldable          as Foldable
 import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
 import qualified Data.Map               as M
@@ -277,7 +278,7 @@ class Enum a => Finite a where
 
 -- | Generate metadata for an enum type.
 enum :: (Finite e, Named e) => Proxy# e -> DotProtoDefinition
-enum pr = DotProtoEnum (Single $ nameOf pr) (map enumField $ enumerate pr)
+enum pr = DotProtoEnum "" (Single $ nameOf pr) (map enumField $ enumerate pr)
   where
     enumField (name, value) = DotProtoEnumField (Single name) value []
 
@@ -459,7 +460,7 @@ messageField ty packing = DotProtoField
     , dotProtoFieldType = ty
     , dotProtoFieldName = Anonymous
     , dotProtoFieldOptions = packingOption
-    , dotProtoFieldComment = Nothing
+    , dotProtoFieldComment = ""
     }
   where
     packingOption = maybe [] (toDotProtoOption . isPacked) packing
@@ -495,7 +496,7 @@ instance (Ord k, Primitive k, MessageField k, Primitive v, MessageField v) => Me
   --
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
-  decodeMessageField = M.fromList . fromList
+  decodeMessageField = M.fromList . Foldable.toList
                        <$> repeated (Decode.embedded' (decodeMessage (fieldNumber 1)))
   protoType _ = messageField (Map (primType (proxy# :: Proxy# k)) (primType (proxy# :: Proxy# v))) Nothing
 
@@ -506,7 +507,7 @@ instance {-# OVERLAPS #-} (Ord k, Primitive k, Named v, Message v, MessageField 
   --
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
-  decodeMessageField = M.fromList . fromList
+  decodeMessageField = M.fromList . Foldable.toList
                        <$> repeated (Decode.embedded' (decodeMessage (fieldNumber 1)))
   protoType _ = messageField (Map (primType (proxy# :: Proxy# k)) (Named . Single $ nameOf (proxy# :: Proxy# v))) Nothing
 
@@ -522,14 +523,16 @@ instance (Named a, Message a) => MessageField (Nested a) where
 
 instance Primitive a => MessageField (UnpackedVec a) where
   encodeMessageField = foldMap . encodePrimitive
-  decodeMessageField = UnpackedVec . fromList <$> repeated decodePrimitive
+  decodeMessageField =
+    UnpackedVec . fromList . Foldable.toList <$> repeated decodePrimitive
   protoType _ = messageField (Repeated $ primType (proxy# :: Proxy# a)) (Just DotProto.UnpackedField)
 
 instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
   encodeMessageField fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
                           . coerce @(NestedVec a) @(Vector a)
-  decodeMessageField = fmap (coerce @(Vector a) @(NestedVec a) . fromList)
-                            (repeated (Decode.embedded' oneMsg))
+  decodeMessageField =
+      fmap (coerce @(Vector a) @(NestedVec a) . fromList . Foldable.toList)
+           (repeated (Decode.embedded' oneMsg))
     where
       oneMsg :: Parser RawMessage a
       oneMsg = decodeMessage (fieldNumber 1)
@@ -624,7 +627,7 @@ instance (MessageField e, KnownSymbol comments) => MessageField (e // comments) 
                               @(Parser RawField (Commented comments e))
                               decodeMessageField
   protoType p = (protoType (lowerProxy1 p))
-                  { dotProtoFieldComment = Just (symbolVal (lowerProxy2 p)) }
+                  { dotProtoFieldComment = symbolVal (lowerProxy2 p) }
     where
       lowerProxy1 :: forall f (a :: k). Proxy# (f a) -> Proxy# a
       lowerProxy1 _ = proxy#
@@ -636,7 +639,7 @@ decodePacked
   :: Parser RawPrimitive [a]
   -> Parser RawField (PackedVec a)
 decodePacked = Parser
-             . fmap (fmap pack)
+             . fmap (fmap (pack . Foldable.toList))
              . TR.traverse
              . runParser
   where
@@ -669,7 +672,8 @@ instance (MessageField k, MessageField v) => Message (k, v)
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy# a -> DotProtoDefinition
-message proxy = DotProtoMessage (Single $ nameOf proxy)
+message proxy = DotProtoMessage ""
+                                (Single $ nameOf proxy)
                                 (DotProtoMessageField <$> dotProto proxy)
 
 -- * Generic Instances
