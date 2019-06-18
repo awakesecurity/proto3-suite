@@ -97,6 +97,7 @@ import qualified Data.ByteString        as B
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy   as BL
 import           Data.Coerce            (coerce)
+import qualified Data.Foldable          as Foldable
 import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
 import qualified Data.Map               as M
@@ -495,7 +496,7 @@ instance (Ord k, Primitive k, MessageField k, Primitive v, MessageField v) => Me
   --
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
-  decodeMessageField = M.fromList
+  decodeMessageField = M.fromList . Foldable.toList
                        <$> repeated (Decode.embedded' (decodeMessage (fieldNumber 1)))
   protoType _ = messageField (Map (primType (proxy# :: Proxy# k)) (primType (proxy# :: Proxy# v))) Nothing
 
@@ -506,7 +507,7 @@ instance {-# OVERLAPS #-} (Ord k, Primitive k, Named v, Message v, MessageField 
   --
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
-  decodeMessageField = M.fromList
+  decodeMessageField = M.fromList . Foldable.toList
                        <$> repeated (Decode.embedded' (decodeMessage (fieldNumber 1)))
   protoType _ = messageField (Map (primType (proxy# :: Proxy# k)) (Named . Single $ nameOf (proxy# :: Proxy# v))) Nothing
 
@@ -522,14 +523,16 @@ instance (Named a, Message a) => MessageField (Nested a) where
 
 instance Primitive a => MessageField (UnpackedVec a) where
   encodeMessageField = foldMap . encodePrimitive
-  decodeMessageField = UnpackedVec . fromList <$> repeated decodePrimitive
+  decodeMessageField =
+    UnpackedVec . fromList . Foldable.toList <$> repeated decodePrimitive
   protoType _ = messageField (Repeated $ primType (proxy# :: Proxy# a)) (Just DotProto.UnpackedField)
 
 instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
   encodeMessageField fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
                           . coerce @(NestedVec a) @(Vector a)
-  decodeMessageField = fmap (coerce @(Vector a) @(NestedVec a) . fromList)
-                            (repeated (Decode.embedded' oneMsg))
+  decodeMessageField =
+      fmap (coerce @(Vector a) @(NestedVec a) . fromList . Foldable.toList)
+           (repeated (Decode.embedded' oneMsg))
     where
       oneMsg :: Parser RawMessage a
       oneMsg = decodeMessage (fieldNumber 1)
@@ -636,7 +639,7 @@ decodePacked
   :: Parser RawPrimitive [a]
   -> Parser RawField (PackedVec a)
 decodePacked = Parser
-             . fmap (fmap pack)
+             . fmap (fmap (pack . Foldable.toList))
              . TR.traverse
              . runParser
   where
