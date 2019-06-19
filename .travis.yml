@@ -13,7 +13,7 @@ install: |
 
 before_cache: |
   if [ ! -e ~/nix-cache ]; then
-    cp -a /nix/* $HOME/nix-cache
+    cp -a /nix/* ~/nix-cache
   fi
 
 cache:
