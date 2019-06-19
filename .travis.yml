@@ -7,7 +7,7 @@ sudo: required
 
 install: |
   if [ -e ~/nix-cache ]; then
-    sudo rm -rf /nix/*
+    sudo rm -rf -- /nix/*
     cp -a ~/nix-cache/* /nix
   fi
 
