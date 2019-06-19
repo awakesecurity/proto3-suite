@@ -6,7 +6,7 @@ script: nix-build --attr proto3-suite-linux --arg enableDhall true release.nix
 sudo: required
 
 install: |
-  if [ -e ~/nix-cache ]; then
+  if [ -e ~/nix-cache && -d ~/nix-cache ]; then
     sudo rm -rf -- /nix/*
     cp -a ~/nix-cache/* /nix
   fi
