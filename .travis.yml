@@ -1,2 +1,21 @@
 language: nix
+
 script: nix-build --attr proto3-suite-linux --arg enableDhall true release.nix
+
+## Caching: https://github.com/travis-ci/travis-ci/issues/6604
+sudo: required
+
+install: |
+  if [ "$(ls -A $HOME/nix-cache)" ]; then
+    sudo rm -rf /nix/*
+    cp -a $HOME/nix-cache/* /nix
+  fi
+
+before_cache: |
+  if [ ! "$(ls -A $HOME/nix-cache)" ]; then
+    cp -a /nix/* $HOME/nix-cache
+  fi
+
+cache:
+  directories:
+    - $HOME/nix-cache
