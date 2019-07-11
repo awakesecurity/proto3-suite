@@ -9,13 +9,14 @@ install: |
   if [ -d ~/nix-cache ]
   then
     sudo rm -rf -- /nix/*
-    cp -a ~/nix-cache/. /nix
+    (cd ~/nix-cache && tar c -f - .) | (cd /nix && sudo tar x -k -f - 2> /dev/null || true)
   fi
 
 before_cache: |
   sudo nix-collect-garbage --delete-older-than 7d --dry-run
-  rm -rf ~/nix-cache
-  cp -a /nix/. ~/nix-cache
+  sudo rm -rf ~/nix-cache
+  mkdir ~/nix-cache
+  (cd ~/nix && tar c -f - .) | (cd ~/nix-cache && tar x -f -)
 
 cache:
   directories:
