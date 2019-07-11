@@ -9,6 +9,9 @@ install: |
   if [ -e ~/nix-cache ]
   then
     ls -ld ~/nix-cache
+    echo ===============
+    find ~/nix-cache -cmin -1440 -type d -print
+    echo ---------------
     if [ -z "$(find ~/nix-cache -cmin -1440 -type d -print)" ]
     then
       echo "Nix store cache: is obsolete: will re-create."
