@@ -6,31 +6,15 @@ script: nix-build --attr proto3-suite-linux --arg enableDhall true release.nix
 sudo: required
 
 install: |
-  if [ -e ~/nix-cache/UPDATED ]
+  if [ -d ~/nix-cache ]
   then
-    # 86400 seconds = 24 hours
-    if [ $(date +%s) -le $(expr $(cat ~/nix-cache/UPDATED) + 86400) ]
-    then
-      echo "Nix cache: is current: will use and NOT update."
-      cp -a ~/nix-cache/. /nix
-    else
-      echo "Nix cache: is obsolete: will re-create."
-      rm -rf ~/nix-cache
-    fi
-  else
-    echo "Nix cache: does not exist or lacks UPDATED file: will create."
-    rm -rf ~/nix-cache
+    cp -a ~/nix-cache/. /nix
   fi
 
 before_cache: |
-  if [ -e ~/nix-cache ]
-  then
-    echo "Nix cache: after build: keeping previous cache."
-  else
-    echo "Nix cache: after build: saving new cache."
-    cp -a /nix/. ~/nix-cache
-    date +%s > ~/nix-cache/UPDATED
-  fi
+  nix-collect-garbage --delete-older-than 7d --dry-run
+  rm -rf ~/nix-cache
+  cp -a /nix/. ~/nix-cache
 
 cache:
   directories:
