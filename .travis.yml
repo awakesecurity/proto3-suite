@@ -8,7 +8,7 @@ sudo: required
 install: |
   if [ -e ~/nix-cache ]
   then
-    if [ -z "$(find ~/nix-cache -cmin -86400 -type d -print)" ]
+    if [ -z "$(find ~/nix-cache -cmin -1440 -type d -print)" ]
     then
       echo "Nix store cache: is obsolete: will re-create."
       rm -rf ~/nix-cache
