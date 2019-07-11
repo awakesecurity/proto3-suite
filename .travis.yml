@@ -6,14 +6,28 @@ script: nix-build --attr proto3-suite-linux --arg enableDhall true release.nix
 sudo: required
 
 install: |
-  if [ -e ~/nix-cache && -d ~/nix-cache ]; then
-    sudo rm -rf -- /nix/*
-    cp -a ~/nix-cache/* /nix
+  if [ -e ~/nix-cache ]
+  then
+    if [ -z "$(find ~/nix-cache -cmin -86400 -type d -print)" ]
+    then
+      echo "Nix store cache: is obsolete: will re-create."
+      rm -rf ~/nix-cache
+    else
+      echo "Nix store cache: is current: will use and NOT update."
+      sudo rm -rf -- /nix/*
+      cp -a ~/nix-cache/. /nix
+    fi
+  else
+    echo "Nix store cache: does not exist: will create."
   fi
 
 before_cache: |
-  if [ ! -e ~/nix-cache ]; then
-    cp -a /nix/* ~/nix-cache
+  if [ -e ~/nix-cache ]
+  then
+    echo "Nix store cache: after build: keeping previous cache."
+  else
+    echo "Nix store cache: after build: saving new cache."
+    cp -a /nix/. ~/nix-cache
   fi
 
 cache:
