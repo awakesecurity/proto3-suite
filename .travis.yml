@@ -6,7 +6,6 @@ script: nix-build --attr proto3-suite-linux --arg enableDhall true release.nix
 sudo: required
 
 install: |
-  set +x
   if [ -e ~/nix-cache ]
   then
     if [ -z "$(find ~/nix-cache -cmin -1440 -type d -print)" ]
@@ -15,7 +14,6 @@ install: |
       rm -rf ~/nix-cache
     else
       echo "Nix store cache: is current: will use and NOT update."
-      sudo rm -rf -- /nix/*
       cp -a ~/nix-cache/. /nix
     fi
   else
