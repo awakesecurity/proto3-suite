@@ -13,7 +13,7 @@ install: |
   fi
 
 before_cache: |
-  nix-collect-garbage --delete-older-than 7d --dry-run
+  sudo nix-collect-garbage --delete-older-than 7d --dry-run
   rm -rf ~/nix-cache
   cp -a /nix/. ~/nix-cache
 
