@@ -1196,12 +1196,21 @@ dotProtoEnumD
 dotProtoEnumD parentIdent enumIdent enumParts = do
   enumName <- qualifiedMessageName parentIdent enumIdent
 
-  enumCons <- fmap (sortBy (comparing fst))
-              $ traverse (traverse (fmap (prefixedEnumFieldName enumName) . dpIdentUnqualName))
-                         [ (i, conIdent) | DotProtoEnumField conIdent i _options <- enumParts ]
+  let enumeratorDecls =
+        [ (i, conIdent) | DotProtoEnumField conIdent i _options <- enumParts ]
 
-  let -- TODO assert that there is more than one enumeration constructor
-      enumConNames = map snd enumCons
+  case enumeratorDecls of
+    [] -> throwError $ EmptyEnumeration enumName
+    (i, conIdent) : _
+      | i == 0 -> return ()
+      | otherwise -> throwError $ NonzeroFirstEnumeration enumName conIdent i
+
+  enumCons <- fmap (sortBy (comparing fst)) $
+    traverse (traverse
+                (fmap (prefixedEnumFieldName enumName) . dpIdentUnqualName))
+             enumeratorDecls
+
+  let enumConNames = map snd enumCons
 
       minBoundD =
           [ match_ (HsIdent "minBound")
