@@ -5,17 +5,9 @@ script: nix-build --attr proto3-suite-linux --arg enableDhall true release.nix
 ## Caching: https://github.com/travis-ci/travis-ci/issues/6604
 sudo: required
 
-install: |
-  if [ -d ~/nix-cache ]
-  then
-    sudo cp -an ~/nix-cache/. /nix
-  fi
-
 before_cache: |
   sudo nix-collect-garbage --delete-older-than 7d --dry-run
-  sudo rm -rf ~/nix-cache
-  sudo cp -a /nix/. ~/nix-cache
 
 cache:
   directories:
-    - ~/nix-cache
+    - /nix
