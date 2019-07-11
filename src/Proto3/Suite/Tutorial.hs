@@ -101,16 +101,12 @@ instance Named Bar
 -- >   = Circle
 -- >   | Square
 -- >   | Triangle
--- >   deriving (Generic, Enum, Finite, Named)
--- >
--- > instance ProtoEnum Shape
+-- >   deriving (Bounded, Eq, Enum, Finite, Generic, Named, Ord, ProtoEnum)
 data Shape
   = Circle
   | Square
   | Triangle
-  deriving (Bounded, Eq, Enum, Finite, Generic, Named, Ord)
-
-instance ProtoEnum Shape
+  deriving (Bounded, Eq, Enum, Finite, Generic, Named, Ord, ProtoEnum)
 
 -- |
 -- == Generating a .proto file
