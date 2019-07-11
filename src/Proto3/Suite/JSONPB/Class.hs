@@ -97,6 +97,7 @@ import           GHC.Word                         (Word32, Word64)
 import           Proto3.Suite.Class               (HasDefault (def, isDefault),
                                                    Named (nameOf))
 import           Proto3.Suite.Types               (Enumerated (..), Fixed (..))
+import           Proto3.Wire.Class                (ProtoEnum(..))
 
 -- * Typeclass definitions
 
@@ -477,7 +478,7 @@ instance ToJSONPB e => ToJSONPB (Enumerated e) where
   toJSONPB     = enumToJSONPB toJSONPB A.Null
   toEncodingPB = enumToJSONPB toEncodingPB E.null_
 
-instance (Bounded e, Enum e, FromJSONPB e) => FromJSONPB (Enumerated e) where
+instance (ProtoEnum e, FromJSONPB e) => FromJSONPB (Enumerated e) where
   parseJSONPB A.Null = pure def -- So CG does not have to handle this case in
                                 -- every generated instance
   parseJSONPB v      = Enumerated . Right <$> parseJSONPB v

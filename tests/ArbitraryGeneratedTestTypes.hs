@@ -5,9 +5,9 @@ module ArbitraryGeneratedTestTypes where
 import qualified Data.Text.Lazy        as T
 import qualified Data.Vector           as V
 import qualified Proto3.Suite.Types as DotProto
-import           Test.QuickCheck       (Arbitrary, arbitrary,
-                                        arbitraryBoundedEnum, listOf)
+import           Test.QuickCheck       (Arbitrary, arbitrary, listOf)
 import qualified Test.QuickCheck       as QC
+import           Test.QuickCheck.Arbitrary.Generic (genericArbitrary)
 import           TestProto
 import qualified TestProtoImport
 import qualified TestProtoOneof
@@ -27,7 +27,7 @@ instance Arbitrary MultipleFields where
     <*> arbitrary
 
 instance Arbitrary WithEnum_TestEnum where
-  arbitrary = arbitraryBoundedEnum
+  arbitrary = genericArbitrary
 
 instance Arbitrary WithEnum where
   arbitrary = WithEnum <$> arbitrary
@@ -59,7 +59,7 @@ instance Arbitrary AllPackedTypes where
       <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       <*> arbitrary <*> arbEnums  <*> arbEnums
     where
-      arbEnums = V.fromList <$> listOf (DotProto.Enumerated . Right <$> arbitraryBoundedEnum)
+      arbEnums = V.fromList <$> listOf (DotProto.Enumerated . Right <$> genericArbitrary)
 
 instance Arbitrary SignedInts where
   arbitrary = SignedInts <$> arbitrary <*> arbitrary
@@ -130,7 +130,7 @@ instance Arbitrary TestProtoOneof.SomethingPickOne where
       , TestProtoOneof.SomethingPickOneDummyMsg1  <$> arbitrary
       , TestProtoOneof.SomethingPickOneDummyMsg2  <$> arbitrary
       , TestProtoOneof.SomethingPickOneDummyEnum . DotProto.Enumerated . Right
-        <$> arbitraryBoundedEnum
+        <$> genericArbitrary
       ]
 
 instance Arbitrary TestProtoOneof.WithImported where

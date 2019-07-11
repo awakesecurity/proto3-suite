@@ -34,6 +34,7 @@ module Proto3.Suite.DotProto.AST
 
 import           Control.Applicative
 import           Control.Monad
+import           Data.Int                  (Int32)
 import qualified Data.List.NonEmpty        as NE
 import           Data.String               (IsString)
 import qualified Filesystem.Path.CurrentOS as FP
@@ -276,7 +277,7 @@ data DotProtoType
 instance Arbitrary DotProtoType where
   arbitrary = oneof [fmap Prim arbitrary]
 
-type DotProtoEnumValue = Int
+type DotProtoEnumValue = Int32
 
 data DotProtoEnumPart
   = DotProtoEnumField DotProtoIdentifier DotProtoEnumValue [DotProtoOption]

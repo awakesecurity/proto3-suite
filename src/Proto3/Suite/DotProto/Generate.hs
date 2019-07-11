@@ -32,10 +32,8 @@ module Proto3.Suite.DotProto.Generate
   ) where
 
 import           Control.Applicative
-import           Control.Arrow                  ((&&&))
 import           Control.Lens                   ((&), ix, over, has, filtered)
 import           Control.Monad.Except
-import           Data.Bifunctor                 (first)
 import           Data.Char
 import           Data.Coerce
 import           Data.Either                    (partitionEithers)
@@ -1202,46 +1200,64 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
               $ traverse (traverse (fmap (prefixedEnumFieldName enumName) . dpIdentUnqualName))
                          [ (i, conIdent) | DotProtoEnumField conIdent i _options <- enumParts ]
 
-  let enumNameE = str_ enumName
-      -- TODO assert that there is more than one enumeration constructor
-      ((minEnumVal, maxEnumVal), enumConNames) = first (minimum &&& maximum) $ unzip enumCons
+  let -- TODO assert that there is more than one enumeration constructor
+      enumConNames = map snd enumCons
 
-      boundsE = HsTuple
-                  [ HsExpTypeSig l (intE minEnumVal) (HsQualType [] (HsTyCon (haskellName "Int")))
-                  , intE maxEnumVal
-                  ]
+      minBoundD =
+          [ match_ (HsIdent "minBound")
+                   []
+                   (HsUnGuardedRhs (uvar_ (head enumConNames)))
+                   []
+          ]
 
-      toEnumD = toEnumDPatterns <> [ toEnumFailure ]
-      fromEnumD =
-          [ match_ (HsIdent "fromEnum") [ HsPApp (unqual_ conName) [] ]
+      maxBoundD =
+          [ match_ (HsIdent "maxBound")
+                   []
+                   (HsUnGuardedRhs (uvar_ (last enumConNames)))
+                   []
+          ]
+
+      compareD =
+          [ match_ (HsIdent "compare")
+                   [ patVar "x", patVar "y" ]
+                   (HsUnGuardedRhs
+                       (HsApp
+                           (HsApp
+                               (HsVar (haskellName "compare"))
+                               (HsParen
+                                   (HsApp (HsVar(protobufName "fromProtoEnum"))
+                                          (uvar_ "x")
+                                   )
+                               )
+                           )
+                           (HsParen
+                               (HsApp (HsVar (protobufName "fromProtoEnum"))
+                                      (uvar_ "y")
+                               )
+                           )
+                       )
+                   )
+                   []
+          ]
+
+      fromProtoEnumD =
+          [ match_ (HsIdent "fromProtoEnum") [ HsPApp (unqual_ conName) [] ]
                    (HsUnGuardedRhs (intE conIdx))
                    []
           | (conIdx, conName) <- enumCons
           ]
-      succD = zipWith succDPattern enumConNames (tail enumConNames) <> [ succFailure ]
-      predD = zipWith predDPattern (tail enumConNames) enumConNames <> [ predFailure ]
 
-      toEnumDPatterns =
-          [ match_ (HsIdent "toEnum")
+      toProtoEnumMayD =
+          [ match_ (HsIdent "toProtoEnumMay")
                    [ intP conIdx ]
-                   (HsUnGuardedRhs (uvar_ conName)) []
-          | (conIdx, conName) <- enumCons ]
-
-      succDPattern thisCon nextCon =
-          match_ (HsIdent "succ") [ HsPApp (unqual_ thisCon) [] ]
-                 (HsUnGuardedRhs (uvar_ nextCon)) []
-      predDPattern thisCon prevCon =
-          match_ (HsIdent "pred") [ HsPApp (unqual_ thisCon) [] ]
-                 (HsUnGuardedRhs (uvar_ prevCon)) []
-
-      toEnumFailure   = match_ (HsIdent "toEnum") [ HsPVar (HsIdent "i") ]
-                               (HsUnGuardedRhs
-                                  (apply toEnumErrorE [enumNameE , uvar_ "i" , boundsE]))
-                               []
-      succFailure     = match_ (HsIdent "succ") [ HsPWildCard ]
-                               (HsUnGuardedRhs (HsApp succErrorE enumNameE)) []
-      predFailure     = match_ (HsIdent "pred") [ HsPWildCard ]
-                               (HsUnGuardedRhs (HsApp predErrorE enumNameE)) []
+                   (HsUnGuardedRhs (HsApp justC (uvar_ conName)))
+                   []
+          | (conIdx, conName) <- enumCons ] ++
+          [ match_ (HsIdent "toProtoEnumMay")
+                   [ HsPWildCard ]
+                   (HsUnGuardedRhs nothingC)
+                   []
+          ]
 
       parseJSONPBDecls :: [HsMatch]
       parseJSONPBDecls = foldr ((:) . matchConName) [mismatch] enumConNames
@@ -1281,9 +1297,16 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
                    defaultEnumDeriving
        , namedInstD enumName
        , hasDefaultInstD enumName
-       , instDecl_ (haskellName "Enum") [ type_ enumName ]
-                   [ HsFunBind toEnumD, HsFunBind fromEnumD
-                   , HsFunBind succD, HsFunBind predD ]
+       , instDecl_ (haskellName "Bounded") [ type_ enumName ]
+                   [ HsFunBind minBoundD
+                   , HsFunBind maxBoundD
+                   ]
+       , instDecl_ (haskellName "Ord") [ type_ enumName ]
+                   [ HsFunBind compareD ]
+       , instDecl_ (protobufName "ProtoEnum") [ type_ enumName ]
+                   [ HsFunBind toProtoEnumMayD
+                   , HsFunBind fromProtoEnumD
+                   ]
        , instDecl_ (jsonpbName "ToJSONPB") [ type_ enumName ]
                    [ HsFunBind [toJSONPBDecl]
                    , HsFunBind [toEncodingPBDecl]
@@ -1476,10 +1499,10 @@ dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC, mapC,
   fieldNumberC, singleC, dotsC, pathC, nestedC, anonymousC, dotProtoOptionC,
   identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC,
   unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
-  methodNameC, justC, forceEmitC, mconcatE, encodeMessageFieldE,
+  methodNameC, nothingC, justC, forceEmitC, mconcatE, encodeMessageFieldE,
   fromStringE, decodeMessageFieldE, pureE, returnE, memptyE, msumE, atE, oneofE,
-  succErrorE, predErrorE, toEnumErrorE, fmapE, defaultOptionsE, serverLoopE,
-  convertServerHandlerE, convertServerReaderHandlerE, convertServerWriterHandlerE,
+  fmapE, defaultOptionsE, serverLoopE, convertServerHandlerE,
+  convertServerReaderHandlerE, convertServerWriterHandlerE,
   convertServerRWHandlerE, clientRegisterMethodE, clientRequestE :: HsExp
 
 dotProtoFieldC       = HsVar (protobufName "DotProtoField")
@@ -1509,6 +1532,7 @@ oneofE               = HsVar (protobufName "oneof")
 
 trueC                       = HsVar (haskellName "True")
 falseC                      = HsVar (haskellName "False")
+nothingC                    = HsVar (haskellName "Nothing")
 justC                       = HsVar (haskellName "Just")
 mconcatE                    = HsVar (haskellName "mconcat")
 fromStringE                 = HsVar (haskellName "fromString")
@@ -1516,9 +1540,6 @@ pureE                       = HsVar (haskellName "pure")
 returnE                     = HsVar (haskellName "return")
 memptyE                     = HsVar (haskellName "mempty")
 msumE                       = HsVar (haskellName "msum")
-succErrorE                  = HsVar (haskellName "succError")
-predErrorE                  = HsVar (haskellName "predError")
-toEnumErrorE                = HsVar (haskellName "toEnumError")
 fmapE                       = HsVar (haskellName "fmap")
 
 unaryHandlerC               = HsVar (grpcName "UnaryHandler")
@@ -1714,7 +1735,7 @@ defaultMessageDeriving :: [HsQName]
 defaultMessageDeriving = map haskellName [ "Show", "Eq", "Ord", "Generic", "NFData" ]
 
 defaultEnumDeriving :: [HsQName]
-defaultEnumDeriving = map haskellName [ "Show", "Bounded", "Eq", "Ord", "Generic", "NFData" ]
+defaultEnumDeriving = map haskellName [ "Show", "Eq", "Generic", "NFData" ]
 
 defaultServiceDeriving :: [HsQName]
 defaultServiceDeriving = map haskellName [ "Generic" ]

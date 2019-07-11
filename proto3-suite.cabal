@@ -1,5 +1,5 @@
 name:                proto3-suite
-version:             0.4.0.0
+version:             0.5.0.0
 synopsis:            A low level library for writing out data in the Protocol Buffers wire format
 license:             Apache-2.0
 author:              Awake Security
@@ -60,7 +60,7 @@ library
                        parsers >= 0.12 && <0.13,
                        pretty ==1.1.*,
                        pretty-show >= 1.6.12 && < 2.0,
-                       proto3-wire == 1.0.*,
+                       proto3-wire == 1.1.*,
                        QuickCheck >=2.10 && <2.13,
                        quickcheck-instances < 0.4,
                        safe ==0.3.*,
@@ -105,10 +105,11 @@ test-suite tests
                        containers >=0.5 && < 0.7,
                        deepseq ==1.4.*,
                        doctest,
+                       generic-arbitrary,
                        mtl ==2.2.*,
                        pretty-show >= 1.6.12 && < 2.0,
                        proto3-suite,
-                       proto3-wire == 1.0.*,
+                       proto3-wire == 1.1.*,
                        semigroups ==0.18.*,
                        swagger2,
                        tasty >= 0.11 && <1.2,
@@ -141,7 +142,7 @@ executable canonicalize-proto-file
                        , mtl ==2.2.*
                        , optparse-generic
                        , proto3-suite
-                       , proto3-wire == 1.0.*
+                       , proto3-wire == 1.1.*
                        , range-set-list >=0.1.2 && <0.2
                        , system-filepath
                        , turtle
