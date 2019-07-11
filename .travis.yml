@@ -8,15 +8,13 @@ sudo: required
 install: |
   if [ -d ~/nix-cache ]
   then
-    sudo rm -rf -- /nix/*
-    (cd ~/nix-cache && tar c -f - .) | (cd /nix && sudo tar x -k -f - 2> /dev/null || true)
+    cp -an ~/nix-cache/. /nix
   fi
 
 before_cache: |
   sudo nix-collect-garbage --delete-older-than 7d --dry-run
   sudo rm -rf ~/nix-cache
-  mkdir ~/nix-cache
-  (cd ~/nix && tar c -f - .) | (cd ~/nix-cache && tar x -f -)
+  cp -a /nix/. ~/nix-cache
 
 cache:
   directories:
