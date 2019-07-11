@@ -6,7 +6,7 @@ script: nix-build --attr proto3-suite-linux --arg enableDhall true release.nix
 sudo: required
 
 before_cache: |
-  sudo nix-collect-garbage --delete-older-than 7d --dry-run
+  nix-collect-garbage --delete-older-than 7d --dry-run
 
 cache:
   directories:
