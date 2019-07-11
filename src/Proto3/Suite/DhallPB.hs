@@ -28,7 +28,7 @@ import qualified Dhall
 
 instance Dhall.Interpret a => Dhall.Interpret (Enumerated a)
 
-instance Dhall.Interpret a => Dhall.Interpret (Either Int a)
+instance Dhall.Interpret a => Dhall.Interpret (Either Int32 a)
 
 --------------------------------------------------------------------------------
 -- Interpret the strict and lazy ByteString types
@@ -114,7 +114,7 @@ instance (Dhall.Interpret k, Dhall.Interpret v, Ord k) =>
 
 instance Dhall.Inject a => Dhall.Inject (Enumerated a)
 
-instance Dhall.Inject a => Dhall.Inject (Either Int a)
+instance Dhall.Inject a => Dhall.Inject (Either Int32 a)
 
 --------------------------------------------------------------------------------
 -- Inject integer scalar types
