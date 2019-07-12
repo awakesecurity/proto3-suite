@@ -3,10 +3,13 @@ language: nix
 script: nix-build --attr proto3-suite-linux --arg enableDhall true release.nix
 
 ## Caching: https://github.com/travis-ci/travis-ci/issues/6604
+## But we deviate from that advice by caching "/nix" directly.
+## We collect garbage to avoid the cache growing indefinitely.
+
 sudo: required
 
 before_cache: |
-  nix-collect-garbage --delete-older-than   7d
+  nix-collect-garbage --delete-older-than 7d
 
 cache:
   directories:
