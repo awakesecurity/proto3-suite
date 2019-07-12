@@ -1,6 +1,9 @@
 language: nix
 
-script: nix-build --add-drv-link --attr proto3-suite-linux --arg enableDhall true release.nix && nix-build --out-link shell.result shell.nix
+script: |
+  DERIVATION=$(nix-instantiate --attr proto3-suite-linux --arg enableDhall true release.nix)
+  nix-env --set "${DERIVATION}" --profile buildDependencies
+  nix-store --realise "${DERIVATION}"
 
 ## Caching: https://github.com/travis-ci/travis-ci/issues/6604
 ## But we deviate from that advice by caching "/nix" directly.
