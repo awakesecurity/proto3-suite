@@ -3,7 +3,8 @@ language: nix
 script: |
   DERIVATION=$(nix-instantiate --attr proto3-suite-linux --arg enableDhall true release.nix)
   nix-env --set "${DERIVATION}" --profile buildDependencies
-  nix-store --realise "${DERIVATION}"
+  RESULT=$(nix-store --realise "${DERIVATION}")
+  nix-env --set "${RESULT}" --profile buildResult
 
 ## Caching: https://github.com/travis-ci/travis-ci/issues/6604
 ## But we deviate from that advice by caching "/nix" directly.
