@@ -1,4 +1,5 @@
 {-# LANGUAGE DefaultSignatures   #-}
+{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -92,12 +93,14 @@ import qualified Data.Text.Lazy                   as TL
 import qualified Data.Text.Lazy.Encoding          as TL
 import qualified Data.Vector                      as V
 import           GHC.Exts                         (Proxy#, proxy#)
+import           GHC.Generics                     (Generic)
 import           GHC.Int                          (Int32, Int64)
 import           GHC.Word                         (Word32, Word64)
 import           Proto3.Suite.Class               (HasDefault (def, isDefault),
                                                    Named (nameOf))
 import           Proto3.Suite.Types               (Enumerated (..), Fixed (..))
 import           Proto3.Wire.Class                (ProtoEnum(..))
+import           Test.QuickCheck.Arbitrary        (Arbitrary(..))
 
 -- * Typeclass definitions
 
@@ -224,7 +227,10 @@ data Options = Options
   --
   -- > MyMessage (Animal (Cat "Simba")) => { "animal": { "cat": "Simba" } }
   --
-  } deriving Show
+  } deriving (Eq, Generic, Show)
+
+instance Arbitrary Options where
+  arbitrary = Options <$> arbitrary <*> arbitrary
 
 -- | Default options for JSON encoding. By default, all options are @True@.
 defaultOptions :: Options
