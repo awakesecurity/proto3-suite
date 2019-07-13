@@ -12,8 +12,8 @@ script: |
 
 sudo: required
 
-before_cache: |
-  nix-collect-garbage --delete-older-than 7d
+## before_cache: |
+##   nix-collect-garbage --delete-older-than 7d
 
 cache:
   directories:
