@@ -3,11 +3,14 @@ language: nix
 script: |
   set -x
   DERIVATION=$(nix-instantiate --attr proto3-suite-linux --arg enableDhall true release.nix)
-  nix-env --set "${DERIVATION}" --profile buildDependencies
+  ln -s "${DERIVATION}" /nix/var/nix/gcroots/buildDependencies
+  echo "1==============================="
+  nix-store --gc --print-roots
+  echo "1-------------------------------"
   nix-store --realise "${DERIVATION}"
-  echo "==============================="
-  nix-store --query --roots
-  echo "-------------------------------"
+  echo "2==============================="
+  nix-store --gc --print-roots
+  echo "2-------------------------------"
 
 ## Caching: https://github.com/travis-ci/travis-ci/issues/6604
 ## But we deviate from that advice by caching "/nix" directly.
@@ -17,10 +20,11 @@ sudo: required
 
 before_cache: |
   set -x
-  nix-store --query --roots
-  echo "==============================="
+  echo "3==============================="
+  nix-store --gc --print-roots
+  echo "3-------------------------------"
   nix-collect-garbage --delete-older-than 7d
-  echo "-------------------------------"
+  echo "3..............................."
 
 cache:
   directories:
