@@ -22,7 +22,7 @@ before_cache: |
   nix-store --gc --print-roots
   echo "3-------------------------------"
   nix-collect-garbage --delete-older-than 7d
-  echo "3..............................."
+  echo "3_______________________________"
 
 cache:
   directories:
