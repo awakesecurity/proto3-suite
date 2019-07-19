@@ -1,9 +1,13 @@
 language: nix
 
 script: |
+  set -x
   DERIVATION=$(nix-instantiate --attr proto3-suite-linux --arg enableDhall true release.nix)
   nix-env --set "${DERIVATION}" --profile buildDependencies
   nix-store --realise "${DERIVATION}"
+  echo "==============================="
+  nix-store --query --roots
+  echo "-------------------------------"
 
 ## Caching: https://github.com/travis-ci/travis-ci/issues/6604
 ## But we deviate from that advice by caching "/nix" directly.
@@ -11,8 +15,12 @@ script: |
 
 sudo: required
 
-## before_cache: |
-##   nix-collect-garbage --delete-older-than 7d
+before_cache: |
+  set -x
+  nix-store --query --roots
+  echo "==============================="
+  nix-collect-garbage --delete-older-than 7d
+  echo "-------------------------------"
 
 cache:
   directories:
