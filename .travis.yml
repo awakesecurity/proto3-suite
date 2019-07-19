@@ -22,7 +22,7 @@ before_cache: |
   nix-store --gc --print-roots
   echo "3-------------------------------"
   nix-store --gc --option keep-outputs true
-  echo "3_______________________________"
+  echo "3..............................."
 
 cache:
   directories:
