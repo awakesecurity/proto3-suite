@@ -116,11 +116,11 @@ import           GHC.TypeLits
 import           Proto3.Suite.DotProto  as DotProto
 import           Proto3.Suite.Types     as Wire
 import           Proto3.Wire
+import           Proto3.Wire.Class      (ProtoEnum(..))
 import           Proto3.Wire.Decode     (ParseError, Parser (..), RawField,
                                          RawMessage, RawPrimitive, runParser)
 import qualified Proto3.Wire.Decode     as Decode
 import qualified Proto3.Wire.Encode     as Encode
-import           Safe                   (toEnumMay)
 
 -- | A class for types with default values per the protocol buffers spec.
 class HasDefault a where
@@ -183,12 +183,9 @@ instance HasDefault B.ByteString where
 instance HasDefault BL.ByteString where
   def = mempty
 
-instance (Bounded e, Enum e) => HasDefault (Enumerated e) where
-  def =
-    case toEnumMay 0 of
-      Nothing -> Enumerated (Left 0)
-      Just x -> Enumerated (Right x)
-  isDefault = (== 0) . either id fromEnum . enumerated
+instance ProtoEnum e => HasDefault (Enumerated e) where
+  def = Enumerated $ maybe (Left 0) Right (toProtoEnumMay 0)
+  isDefault = (== 0) . either id fromProtoEnum . enumerated
 
 instance HasDefault (UnpackedVec a) where
   def = mempty
@@ -263,18 +260,20 @@ instance Datatype d => GenericNamed (M1 D d f) where
 --
 -- This class can be derived whenever a sum type is an instance of 'Generic',
 -- and only consists of zero-argument constructors. The derived instance should
--- be compatible with derived `Enum` instances, in the sense that
+-- be compatible with `ProtoEnum` instances, in the sense that
 --
--- > map (toEnum . fst) enumerate
+-- > map (fromJust . toProtoEnumMay . snd) enumerate
 --
 -- should enumerate all values of the type without runtime errors.
-class Enum a => Finite a where
+class ProtoEnum a => Finite a where
   -- | Enumerate values of a finite type, along with names of constructors.
-  enumerate :: IsString string => Proxy# a -> [(string, Int)]
+  enumerate :: IsString string => Proxy# a -> [(string, Int32)]
 
-  default enumerate :: (IsString string, GenericFinite (Rep a))
-                    => Proxy# a -> [(string, Int)]
-  enumerate _ = snd (genericEnumerate (proxy# :: Proxy# (Rep a)) 0)
+  default enumerate ::
+    (IsString string, Generic a, GenericFinite (Rep a)) =>
+    Proxy# a -> [(string, Int32)]
+  enumerate _ =
+    fmap (fromProtoEnum . (to :: Rep a p -> a)) <$> genericEnumerate
 
 -- | Generate metadata for an enum type.
 enum :: (Finite e, Named e) => Proxy# e -> DotProtoDefinition
@@ -283,26 +282,22 @@ enum pr = DotProtoEnum "" (Single $ nameOf pr) (map enumField $ enumerate pr)
     enumField (name, value) = DotProtoEnumField (Single name) value []
 
 class GenericFinite (f :: * -> *) where
-  genericEnumerate :: IsString string => Proxy# f -> Int -> (Int, [(string, Int)])
+  genericEnumerate :: IsString string => [(string, f p)]
 
 instance ( GenericFinite f
          , GenericFinite g
          ) => GenericFinite (f :+: g) where
-  genericEnumerate _ i =
-    let (j, e1) = genericEnumerate (proxy# :: Proxy# f) i
-        (k, e2) = genericEnumerate (proxy# :: Proxy# g) j
-    in (k, e1 <> e2)
+  genericEnumerate =
+    (fmap L1 <$> genericEnumerate) <>
+    (fmap R1 <$> genericEnumerate)
 
-instance Constructor c => GenericFinite (M1 C c f) where
-  genericEnumerate _ i = (i + 1, [ (fromString name, i) ])
+instance Constructor c => GenericFinite (M1 C c U1) where
+  genericEnumerate = [ (fromString name, M1 U1) ]
     where
       name = conName (undefined :: M1 C c f ())
 
 instance GenericFinite f => GenericFinite (M1 D t f) where
-  genericEnumerate _ = genericEnumerate (proxy# :: Proxy# f)
-
-instance GenericFinite f => GenericFinite (M1 S t f) where
-  genericEnumerate _ = genericEnumerate (proxy# :: Proxy# f)
+  genericEnumerate = fmap M1 <$> genericEnumerate
 
 -- | This class captures those types which correspond to primitives in
 -- the protocol buffers specification.
@@ -385,7 +380,7 @@ instance Primitive (Signed (Fixed Int64)) where
   primType _ = SFixed64
 
 instance Primitive Bool where
-  encodePrimitive = Encode.enum
+  encodePrimitive = Encode.bool
   decodePrimitive = Decode.bool
   primType _ = Bool
 
@@ -419,11 +414,12 @@ instance Primitive BL.ByteString where
   decodePrimitive = Decode.lazyByteString
   primType _ = Bytes
 
-instance forall e. (Bounded e, Named e, Enum e) => Primitive (Enumerated e) where
-  encodePrimitive num = Encode.enum num . enumify . enumerated
-    where enumify (Left i) = i
-          enumify (Right x) = fromEnum x
-  decodePrimitive = coerce @(Parser RawPrimitive (Either Int e)) @(Parser RawPrimitive (Enumerated e)) Decode.enum
+instance forall e. (Named e, ProtoEnum e) => Primitive (Enumerated e) where
+  encodePrimitive num = either (Encode.int32 num) (Encode.enum num) . enumerated
+  decodePrimitive = coerce
+    @(Parser RawPrimitive (Either Int32 e))
+    @(Parser RawPrimitive (Enumerated e))
+    Decode.enum
   primType _ = Named (Single (nameOf (proxy# :: Proxy# e)))
 
 instance (Primitive a) => Primitive (ForceEmit a) where
@@ -487,7 +483,7 @@ instance MessageField T.Text
 instance MessageField TL.Text
 instance MessageField B.ByteString
 instance MessageField BL.ByteString
-instance (Bounded e, Named e, Enum e) => MessageField (Enumerated e)
+instance (Named e, ProtoEnum e) => MessageField (Enumerated e)
 
 instance (Ord k, Primitive k, MessageField k, Primitive v, MessageField v) => MessageField (M.Map k v) where
   encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . M.toList
@@ -538,17 +534,17 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
       oneMsg = decodeMessage (fieldNumber 1)
   protoType _ = messageField (NestedRepeated . Named . Single $ nameOf (proxy# :: Proxy# a)) Nothing
 
-instance (Bounded e, Enum e, Named e) => MessageField (PackedVec (Enumerated e)) where
+instance (Named e, ProtoEnum e) => MessageField (PackedVec (Enumerated e)) where
   encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . foldMap omit
     where
       -- omit values which are outside the enum range
       omit :: Enumerated e -> PackedVec Word64
-      omit (Enumerated (Right e)) = pure . fromIntegral . fromEnum $ e
+      omit (Enumerated (Right e)) = pure . fromIntegral . fromProtoEnum $ e
       omit _                      = mempty
   decodeMessageField = decodePacked (foldMap retain <$> Decode.packedVarints @Word64)
     where
       -- retain only those values which are inside the enum range
-      retain = foldMap (pure . Enumerated. Right) . toEnumMay . fromIntegral
+      retain = foldMap (pure . Enumerated . Right) . toProtoEnumMay . fromIntegral
   protoType _ = messageField (Repeated . Named . Single $ nameOf (proxy# :: Proxy# e)) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Bool) where

@@ -26,6 +26,7 @@ import           Data.Coerce
 import           Data.Either
 import           Data.Foldable
 import           Data.Functor.Compose
+import           Data.Int                  (Int32)
 import           Data.List                 (find, intercalate)
 import qualified Data.List.NonEmpty        as NE
 import qualified Data.Map                  as M
@@ -534,6 +535,8 @@ data CompileError
   | InvalidMapKeyType       String
   | NoPackageDeclaration
   | NoSuchType              DotProtoIdentifier
+  | NonzeroFirstEnumeration String DotProtoIdentifier Int32
+  | EmptyEnumeration        String
   | Unimplemented           String
   deriving (Show, Eq)
 

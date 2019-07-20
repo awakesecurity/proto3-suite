@@ -33,12 +33,13 @@
 module Proto3.Suite.Tutorial where
 
 import Data.Int (Int32)
-import Proto3.Suite (Enumerated, Nested, NestedVec, PackedVec,
-                     Message, Named, Finite,
-                     DotProtoDefinition, enum, message, packageFromDefs, toProtoFileDef)
 import Data.Word (Word32)
 import GHC.Exts (Proxy#, proxy#)
 import GHC.Generics
+import Proto3.Suite (Enumerated, Nested, NestedVec, PackedVec,
+                     Message, Named, Finite, DotProtoDefinition,
+                     enum, message, packageFromDefs, toProtoFileDef)
+import Proto3.Wire.Class (ProtoEnum)
 
 -- |
 -- == Defining Message Types
@@ -92,20 +93,20 @@ instance Named Bar
 -- |
 -- == Enumerations
 --
--- Enumerated types can be used by deriving the 'Enum', 'Finite' and 'Named'
--- classes. Each of these instances are implied by a 'Generic' instance, so can
--- be derived as follows:
+-- Enumerated types can be used by deriving the 'Bounded', 'Enum', 'ProtoEnum',
+-- 'Finite', and 'Named' classes.  Each of these instances are implied by
+-- a 'Generic' instance, so can be derived as follows:
 --
 -- > data Shape
 -- >   = Circle
 -- >   | Square
 -- >   | Triangle
--- >   deriving (Generic, Enum, Finite, Named)
+-- >   deriving (Bounded, Eq, Enum, Finite, Generic, Named, Ord, ProtoEnum)
 data Shape
   = Circle
   | Square
   | Triangle
-  deriving (Bounded, Eq, Enum, Finite, Generic, Named, Ord)
+  deriving (Bounded, Eq, Enum, Finite, Generic, Named, Ord, ProtoEnum)
 
 -- |
 -- == Generating a .proto file

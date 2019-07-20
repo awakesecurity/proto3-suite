@@ -145,7 +145,7 @@ prettyPrintProtoDefinition opts = defn where
   enumPart msgName (DotProtoEnumField name value options)
     = roEnumMemberName opts msgName name
     <+> PP.text "="
-    <+> pPrint value
+    <+> pPrint (fromIntegral value :: Int)
     <+> optionAnnotation options
     <> PP.text ";"
   enumPart _       (DotProtoEnumOption opt)

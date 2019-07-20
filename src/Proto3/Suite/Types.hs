@@ -31,9 +31,11 @@ import           Control.Applicative
 import           Control.DeepSeq (NFData)
 import           GHC.Exts (IsList(..))
 import           GHC.Generics
+import           Data.Int (Int32)
 import           Data.Semigroup (Semigroup)
 import qualified Data.Vector as V
 import           GHC.TypeLits (Symbol)
+import           Proto3.Wire.Class (ProtoEnum(..))
 import           Test.QuickCheck (Arbitrary(..))
 
 -- | 'Fixed' provides a way to encode integers in the fixed-width wire formats.
@@ -48,16 +50,14 @@ newtype Signed a = Signed { signed :: a }
 
 -- | 'Enumerated' lifts any type with an 'IsEnum' instance so that it can be encoded
 -- with 'HasEncoding'.
-newtype Enumerated a = Enumerated { enumerated :: Either Int a }
+newtype Enumerated a = Enumerated { enumerated :: Either Int32 a }
   deriving (Show, Eq, Ord, Generic, NFData
            , Functor, Foldable, Traversable)
 
-instance (Bounded a, Enum a) => Arbitrary (Enumerated a) where
+instance ProtoEnum a => Arbitrary (Enumerated a) where
   arbitrary = do
     i <- arbitrary
-    if i < fromEnum (minBound :: a) || i > fromEnum (maxBound :: a)
-       then return $ Enumerated $ Left i
-       else return $ Enumerated $ Right (toEnum i)
+    return . Enumerated $ maybe (Left i) Right (toProtoEnumMay i)
 
 -- | 'PackedVec' provides a way to encode packed lists of basic protobuf types into
 -- the wire format.
