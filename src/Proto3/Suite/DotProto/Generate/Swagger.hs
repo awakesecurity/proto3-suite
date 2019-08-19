@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE FlexibleContexts    #-}
@@ -17,7 +18,11 @@ module Proto3.Suite.DotProto.Generate.Swagger
   )
 where
 
+#if MIN_VERSION_swagger2(2,4,0)
+import           Control.Lens                    ((&), (?~))
+#else
 import           Control.Lens                    ((&), (.~), (?~))
+#endif
 import           Data.Aeson                      (Value (String))
 import           Data.Aeson.Encode.Pretty        (encodePretty)
 import           Data.ByteString                 (ByteString)
@@ -55,7 +60,11 @@ instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (V.Vector ByteString)) w
   declareNamedSchema _ = return (NamedSchema Nothing schema_)
     where
       schema_ = mempty
+#if MIN_VERSION_swagger2(2,4,0)
+        & type_ ?~ SwaggerArray
+#else
         & type_ .~ SwaggerArray
+#endif
         & items ?~ SwaggerItemsObject (Inline byteSchema)
 
 {-| This is a convenience function that uses type inference to select the
@@ -66,7 +75,7 @@ asProxy _ = Proxy
 
 -- | Pretty-prints a schema. Useful when playing around with schemas in the
 -- REPL.
-ppSchema :: ToSchema a => proxy a -> IO ()
+ppSchema :: ToSchema a => Proxy a -> IO ()
 ppSchema = LC8.putStrLn . encodePretty . toSchema
 
 -- | JSONPB schemas for protobuf enumerations
@@ -77,7 +86,11 @@ instance (Finite e, Named e) => ToSchema (Enumerated e) where
     let enumMemberNames = dropPrefix . fst <$> enumerate (proxy# :: Proxy# e)
     return $ NamedSchema (Just enumName)
            $ mempty
+#if MIN_VERSION_swagger2(2,4,0)
+             & type_ ?~ SwaggerString
+#else
              & type_ .~ SwaggerString
+#endif
              & enum_ ?~ fmap String enumMemberNames
 
 instance ToSchema (Fixed Int32) where

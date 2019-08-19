@@ -1023,7 +1023,11 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
         where
           _paramSchemaType = jsonpbName "_paramSchemaType"
 
+#if MIN_VERSION_swagger2(2,4,0)
+          _paramSchemaTypeExpression = HsApp justC (HsVar (jsonpbName "SwaggerObject"))
+#else
           _paramSchemaTypeExpression = HsVar (jsonpbName "SwaggerObject")
+#endif
 
   let _schemaParamSchemaExpression = HsRecUpdate memptyE paramSchemaUpdates
 
