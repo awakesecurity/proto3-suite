@@ -1,6 +1,7 @@
 -- | This module contains a near-direct translation of the proto3 grammar
 --   It uses String for easier compatibility with DotProto.Generator, which needs it for not very good reasons
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -14,8 +15,12 @@ module Proto3.Suite.DotProto.Parsing
   , parseProtoFile
   ) where
 
+import Prelude hiding (fail)
 import Control.Applicative hiding (empty)
-import Control.Monad
+import Control.Monad hiding (fail)
+#if !MIN_VERSION_base(4,13,0)
+import Control.Monad.Fail
+#endif
 import qualified Data.List.NonEmpty as NE
 import Data.Functor
 import qualified Data.Text as T
@@ -57,7 +62,7 @@ parseProtoFile modulePath (FP.encodeString -> fp) =
 
 -- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
 newtype ProtoParser a = ProtoParser { runProtoParser :: Parser a }
-  deriving ( Functor, Applicative, Alternative, Monad, MonadPlus
+  deriving ( Functor, Applicative, Alternative, Monad, MonadFail, MonadPlus
            , Parsing, CharParsing, LookAheadParsing)
 
 instance TokenParsing ProtoParser where
