@@ -29,7 +29,8 @@ let
               haskellPackagesNew: haskellPackagesOld:
                 rec {
                   dhall =
-                    haskellPackagesNew.callPackage ./nix/dhall.nix { };
+                    pkgsNew.haskell.lib.dontCheck
+                      (haskellPackagesNew.callPackage ./nix/dhall.nix { });
 
                   formatting =
                     haskellPackagesNew.callPackage ./nix/formatting.nix { };
