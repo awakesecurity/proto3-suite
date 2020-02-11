@@ -152,3 +152,11 @@ produce the same generated Haskell module name and path.
 
 This is essentially the same module naming scheme as the `protoc` Python plugin
 uses when compiling `.proto` files.
+
+## Docker
+
+For those unable to run nix locally, a Dockerfile is provided:
+```
+docker build -t compile-proto-file .
+docker run --rm -v $PWD:/opt compile-proto-file --proto proto/test.proto --out src/gen
+```
