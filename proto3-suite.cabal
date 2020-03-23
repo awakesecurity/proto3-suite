@@ -19,7 +19,7 @@ library
 
   if flag(dhall)
     exposed-modules:   Proto3.Suite.DhallPB
-    build-depends:     dhall >=1.13.0 && < 1.22
+    build-depends:     dhall >=1.13.0 && < 1.23
     cpp-options:       -DDHALL
 
   exposed-modules:     Proto3.Suite
