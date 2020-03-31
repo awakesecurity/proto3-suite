@@ -18,6 +18,9 @@ module Proto3.Suite.DotProto.Parsing
 import Prelude hiding (fail)
 import Control.Applicative hiding (empty)
 import Control.Monad hiding (fail)
+#if MIN_VERSION_base(4,13,0)
+import Control.Monad (fail)
+#endif
 #if !MIN_VERSION_base(4,13,0)
 import Control.Monad.Fail
 #endif
