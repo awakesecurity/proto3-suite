@@ -16,7 +16,7 @@ import           Proto3.Suite.DotProto.Generate
 parseArgs :: ParserInfo CompileArgs
 parseArgs = info parser (fullDesc <> progDesc "Compiles a .proto file to a Haskell module")
   where
-    parser = CompileArgs <$> includes <*> extraInstances <*> proto <*> out
+    parser = CompileArgs <$> includes <*> extraInstances <*> proto <*> out <*> disableUnwrapping
 
     includes = many $ strOption $
       long "includeDir"
@@ -37,6 +37,10 @@ parseArgs = info parser (fullDesc <> progDesc "Compiles a .proto file to a Haske
       long "out"
         <> metavar "FILE"
         <> help "Output directory path where generated Haskell modules will be written (directory is created if it does not exist; note that files in the output directory may be overwritten!)"
+
+    disableUnwrapping = switch $
+      long "disableUnwrapping"
+        <> help "Disables the unwrapping of `*Value` Wrapper types in the Haskell type and JSON representation"
 
 
 main :: IO ()
