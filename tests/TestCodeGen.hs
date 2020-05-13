@@ -257,7 +257,7 @@ compileTestDotProtos = do
 -- >>> schemaOf @(Enumerated DummyEnum)
 -- {"type":"string","enum":["DUMMY0","DUMMY1"]}
 -- >>> schemaOf @UnsignedInts
--- {"properties":{"unsigned32":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"},"unsigned64":{"maximum":9223372036854775807,"format":"int64","minimum":-9223372036854775808,"type":"integer"}},"type":"object"}
+-- {"properties":{"unsigned32":{"maximum":2147483647,"format":"int32","minimum":0,"type":"integer"},"unsigned64":{"maximum":9223372036854775807,"format":"int64","minimum":0,"type":"integer"}},"type":"object"}
 --
 -- Generic HasDefault
 --
