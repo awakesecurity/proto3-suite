@@ -20,6 +20,11 @@ message SignedInts {
   sint64 signed64 = 2;
 }
 
+message UnsignedInts {
+  uint32 unsigned32 = 1;
+  uint64 unsigned64 = 2;
+}
+
 message WithEnum {
   enum TestEnum {
     ENUM1 = 0;
