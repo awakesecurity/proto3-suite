@@ -108,6 +108,7 @@ import           Data.String            (IsString (..))
 import qualified Data.Text              as T
 import qualified Data.Text.Lazy         as TL
 import qualified Data.Traversable       as TR
+import qualified Data.Vector            as Vector
 import           Data.Vector            (Vector)
 import           Data.Word              (Word32, Word64)
 import           GHC.Exts               (fromList, Proxy#, proxy#)
@@ -518,14 +519,13 @@ instance (Named a, Message a) => MessageField (Nested a) where
   protoType _ = messageField (Prim . Named . Single $ nameOf (proxy# :: Proxy# a)) Nothing
 
 instance Primitive a => MessageField (UnpackedVec a) where
-  encodeMessageField = foldMap . encodePrimitive
+  encodeMessageField fn = Encode.vectorMessageBuilder (encodePrimitive fn) . unpackedvec
   decodeMessageField =
     UnpackedVec . fromList . Foldable.toList <$> repeated decodePrimitive
   protoType _ = messageField (Repeated $ primType (proxy# :: Proxy# a)) (Just DotProto.UnpackedField)
 
 instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
-  encodeMessageField fn = foldMap (Encode.embedded fn . encodeMessage (fieldNumber 1))
-                          . coerce @(NestedVec a) @(Vector a)
+  encodeMessageField fn = Encode.vectorMessageBuilder (Encode.embedded fn . encodeMessage (fieldNumber 1)) . nestedvec
   decodeMessageField =
       fmap (coerce @(Vector a) @(NestedVec a) . fromList . Foldable.toList)
            (repeated (Decode.embedded' oneMsg))
@@ -535,12 +535,12 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
   protoType _ = messageField (NestedRepeated . Named . Single $ nameOf (proxy# :: Proxy# a)) Nothing
 
 instance (Named e, ProtoEnum e) => MessageField (PackedVec (Enumerated e)) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . foldMap omit
+  encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . Vector.mapMaybe omit . packedvec
     where
       -- omit values which are outside the enum range
-      omit :: Enumerated e -> PackedVec Word64
-      omit (Enumerated (Right e)) = pure . fromIntegral . fromProtoEnum $ e
-      omit _                      = mempty
+      omit :: Enumerated e -> Maybe Int32
+      omit (Enumerated (Right e)) = Just (fromProtoEnum e)
+      omit _                      = Nothing
   decodeMessageField = decodePacked (foldMap retain <$> Decode.packedVarints @Word64)
     where
       -- retain only those values which are inside the enum range
@@ -548,10 +548,7 @@ instance (Named e, ProtoEnum e) => MessageField (PackedVec (Enumerated e)) where
   protoType _ = messageField (Repeated . Named . Single $ nameOf (proxy# :: Proxy# e)) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Bool) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromBool
-    where
-      fromBool False = 0
-      fromBool True  = 1
+  encodeMessageField fn = omittingDefault (Encode.packedBoolsV id fn) . packedvec
   decodeMessageField = fmap (fmap toBool) (decodePacked Decode.packedVarints)
     where
       toBool :: Word64 -> Bool
@@ -560,60 +557,60 @@ instance MessageField (PackedVec Bool) where
   protoType _ = messageField (Repeated Bool) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Word32) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromIntegral
+  encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated UInt32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Word64) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromIntegral
+  encodeMessageField fn = omittingDefault (Encode.packedVarintsV id fn) . packedvec
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated UInt64) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Int32) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromIntegral
+  encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated Int32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Int64) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarints fn) . fmap fromIntegral
+  encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated Int64) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Fixed Word32)) where
-  encodeMessageField fn = omittingDefault (Encode.packedFixed32 fn) . coerce @_ @(PackedVec Word32)
+  encodeMessageField fn = omittingDefault (Encode.packedFixed32V id fn) . coerce @_ @(Vector Word32)
   decodeMessageField = coerce @(Parser RawField (PackedVec Word32))
                               @(Parser RawField (PackedVec (Fixed Word32)))
                               (decodePacked Decode.packedFixed32)
   protoType _ = messageField (Repeated DotProto.Fixed32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Fixed Word64)) where
-  encodeMessageField fn = omittingDefault (Encode.packedFixed64 fn) . coerce @_ @(PackedVec Word64)
+  encodeMessageField fn = omittingDefault (Encode.packedFixed64V id fn) . coerce @_ @(Vector Word64)
   decodeMessageField = coerce @(Parser RawField (PackedVec Word64))
                               @(Parser RawField (PackedVec (Fixed Word64)))
                               (decodePacked Decode.packedFixed64)
   protoType _ = messageField (Repeated DotProto.Fixed64) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Signed (Fixed Int32))) where
-  encodeMessageField fn = omittingDefault (Encode.packedFixed32 fn) . fmap (fromIntegral . coerce @_ @Int32)
+  encodeMessageField fn = omittingDefault (Encode.packedFixed32V fromIntegral fn) . coerce @_ @(Vector Int32)
   decodeMessageField = coerce @(Parser RawField (PackedVec Int32))
                               @(Parser RawField (PackedVec (Signed (Fixed Int32))))
                              (decodePacked Decode.packedFixed32)
   protoType _ = messageField (Repeated SFixed32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Signed (Fixed Int64))) where
-  encodeMessageField fn = omittingDefault (Encode.packedFixed64 fn) . fmap (fromIntegral . coerce @_ @Int64)
+  encodeMessageField fn = omittingDefault (Encode.packedFixed64V fromIntegral fn) . coerce @_ @(Vector Int64)
   decodeMessageField = coerce @(Parser RawField (PackedVec Int64))
                               @(Parser RawField (PackedVec (Signed (Fixed Int64))))
                               (decodePacked Decode.packedFixed64)
   protoType _ = messageField (Repeated SFixed64) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Float) where
-  encodeMessageField fn = omittingDefault (Encode.packedFloats fn)
+  encodeMessageField fn = omittingDefault (Encode.packedFloatsV id fn) . packedvec
   decodeMessageField = decodePacked Decode.packedFloats
   protoType _ = messageField (Repeated Float) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Double) where
-  encodeMessageField fn = omittingDefault (Encode.packedDoubles fn)
+  encodeMessageField fn = omittingDefault (Encode.packedDoublesV id fn) . packedvec
   decodeMessageField = decodePacked Decode.packedDoubles
   protoType _ = messageField (Repeated Double) (Just DotProto.PackedField)
 
