@@ -7,14 +7,15 @@
 #     [nix-shell]$ cabal configure --enable-tests
 #     [nix-shell]$ cabal test
 
-{ compiler ? "ghc865", enableDhall ? false }:
+{ compiler ? "ghc844", enableDhall ? false }:
 
 let
   fetchNixpkgs = import ./nix/fetchNixpkgs.nix;
 
   nixpkgs = fetchNixpkgs {
-    rev          = "d2a2ec2ebe49c42127cbf316d215a64c60d68fde";
-    outputSha256 = "09p9cr07frsqh7vip2i7cp86xnafg1pxhbnphx0q4sd5bvilqpfm";
+    rev          = "bedbba61380a4da0318de41fcb790c176e1f26d1";
+    sha256       = "0z4fgh15nz86kxib9ildmh49v6jim6vgbjyla7jbmgdcl0vd9qsg";
+    outputSha256 = "0dxxw2ipa9403nk8lggjsypbr1a9jpb3q4hkjsg89gr5wz26p217";
   };
 
   config = { };
@@ -35,8 +36,7 @@ let
                     haskellPackagesNew.callPackage ./nix/formatting.nix { };
 
                   megaparsec =
-                    pkgsNew.haskell.lib.dontCheck
-                      (haskellPackagesNew.callPackage ./nix/megaparsec.nix { });
+                    haskellPackagesNew.callPackage ./nix/megaparsec.nix { };
 
                   neat-interpolation =
                     haskellPackagesNew.callPackage ./nix/neat-interpolation.nix { };
