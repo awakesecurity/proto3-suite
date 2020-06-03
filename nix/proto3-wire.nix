@@ -8,8 +8,8 @@ mkDerivation {
   version = "1.2.0";
   src = fetchgit {
     url = "https://github.com/awakesecurity/proto3-wire";
-    sha256 = "0af7k2fdhhyc3qf05caphqzl8786fsypf11j797bj6disxbbbhwk";
-    rev = "a161f3ae2e13328a5469dd8674b7de96a7119db2";
+    sha256 = "0rhf20yhqg141riyix5s3vpypfn9xz010snhn62lhswyhpb6g5zp";
+    rev = "811dfbf2510d67f196e51e18538690a614993740";
     fetchSubmodules = true;
   };
   libraryHaskellDepends = [
