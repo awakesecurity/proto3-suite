@@ -25,7 +25,7 @@ parseArgs = info parser (fullDesc <> progDesc "Compiles a .proto file to a Haske
 
     extraInstances = many $ strOption $
       long "extraInstanceFile"
-        <> metavar "DIR"
+        <> metavar "FILE"
         <> help "Additional file to provide instances that would otherwise be generated. Can be used multiple times. Types for which instance overrides are given must be fully qualified."
 
     proto = strOption $
@@ -35,7 +35,7 @@ parseArgs = info parser (fullDesc <> progDesc "Compiles a .proto file to a Haske
 
     out = strOption $
       long "out"
-        <> metavar "FILE"
+        <> metavar "DIR"
         <> help "Output directory path where generated Haskell modules will be written (directory is created if it does not exist; note that files in the output directory may be overwritten!)"
 
 
