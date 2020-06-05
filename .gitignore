@@ -2,7 +2,9 @@
 .cabal-sandbox/
 Setup.hs
 cabal.sandbox.config
+cabal.project.local
 dist/
+dist-newstyle/
 .stack-work/
 result
 *.pyc
