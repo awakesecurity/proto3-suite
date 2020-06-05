@@ -14,7 +14,7 @@ import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate
 
 parseArgs :: ParserInfo CompileArgs
-parseArgs = info parser (fullDesc <> progDesc "Compiles a .proto file to a Haskell module")
+parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto file to a Haskell module")
   where
     parser = CompileArgs <$> includes <*> extraInstances <*> proto <*> out
 
