@@ -12,42 +12,132 @@
 let
   fetchNixpkgs = import ./nix/fetchNixpkgs.nix;
 
-  nixpkgs = fetchNixpkgs {
-    rev    = "d2a2ec2ebe49c42127cbf316d215a64c60d68fde";
-    sha256 = "09p9cr07frsqh7vip2i7cp86xnafg1pxhbnphx0q4sd5bvilqpfm";
+  nixpkgsRelease = "20.03";
+  unpatchedNixpkgs = fetchNixpkgs {
+    rev    = "fdfd5ab05444c38a006cb107d7d1ee8cb0b15719";
+    sha256 = "17hsjpjahl0hff3z2khrcwxygjyyrav2pia3qqlli0sgywfrgf95";
   };
 
   config = { };
 
+  upgrade = packageList: haskellPackagesNew: haskellPackagesOld:
+    let op = name: {
+          inherit name;
+          value = haskellPackagesNew.callPackage (./nix + "/${name}.nix") { };
+        };
+    in
+      builtins.listToAttrs (builtins.map op packageList);
+
+  dontCheck = haskell: packageList: haskellPackagesNew: haskellPackagesOld:
+    let op = name: {
+          inherit name;
+          value = haskell.lib.dontCheck haskellPackagesOld.${name};
+        };
+    in
+      builtins.listToAttrs (builtins.map op packageList);
+
+  jailbreak = haskell: packageList: haskellPackagesNew: haskellPackagesOld:
+    let op = name: {
+          inherit name;
+          value = haskell.lib.doJailbreak haskellPackagesOld.${name};
+        };
+    in
+      builtins.listToAttrs (builtins.map op packageList);
+
+  patch = haskell: packageList: haskellPackagesNew: haskellPackagesOld:
+    let op = name: {
+          inherit name;
+          value = haskell.lib.appendPatch haskellPackagesOld.${name}
+                                          (./nix + "/${name}.patch");
+        };
+    in
+      builtins.listToAttrs (builtins.map op packageList);
+
+  composeExtensionList = lib: lib.foldr lib.composeExtensions (_: _: {});
+
   overlays = [
-    (pkgsNew: pkgsOld: {
+    (pkgsNew: pkgsOld: rec {
       haskell = pkgsOld.haskell // {
         packages = pkgsOld.haskell.packages // {
           "${compiler}" = pkgsOld.haskell.packages."${compiler}".override {
             overrides =
-              haskellPackagesNew: haskellPackagesOld:
-                rec {
-                  dhall =
-                    pkgsNew.haskell.lib.dontCheck
-                      (haskellPackagesNew.callPackage ./nix/dhall.nix { });
+              let
+                upgradeOverrides = upgrade
+                  ( [ "assoc"
+                      "ChasingBottoms"
+                      "ChasingBottoms"
+                      "comonad"
+                      "contravariant-extras"
+                      "cryptohash-sha256"
+                      "dec"
+                      "distributive"
+                      "doctest"
+                      "ed25519"
+                      "generics-sop"
+                      "haskell-src"
+                      "HTTP"
+                      "http-media"
+                      "insert-ordered-containers"
+                      "language-haskell-extract"
+                      "lens"
+                      "lukko"
+                      "optics-core"
+                      "optics-extra"
+                      "optics-th"
+                      "parameterized"
+                      "polyparse"
+                      "proto3-wire"
+                      "quickcheck-instances"
+                      "range-set-list"
+                      "refact"
+                      "resolv"
+                      "semigroupoids"
+                      "singleton-bool"
+                      "sop-core"
+                      "swagger2"
+                      "these"
+                      "turtle"
+                      "vector-th-unbox"
+                    ] ++ (
+                      let v = pkgsOld.haskell.packages.${compiler}.ghc.version;
+                      in if builtins.compareVersions v "8.8.3" == 0
+                           then [ "network-bsd" ]
+                           else [ ]
+                    ) ++ (
+                      let v = pkgsOld.haskell.packages.${compiler}.ghc.version;
+                      in if builtins.compareVersions v "8.10.1" < 0
+                           then [ ]
+                           else [ "cabal-install" "hackage-security" ]
+                    )
+                  );
 
-                  formatting =
-                    haskellPackagesNew.callPackage ./nix/formatting.nix { };
+                patchOverrides = patch haskell
+                  ( [ "parameterized"
+                    ] ++ (
+                      let v = pkgsOld.haskell.packages.${compiler}.ghc.version;
+                      in if builtins.compareVersions v "8.10.1" < 0
+                           then []
+                           else [ "cabal-install" ]
+                    )
+                  );
 
-                  megaparsec =
-                    pkgsNew.haskell.lib.dontCheck
-                      (haskellPackagesNew.callPackage ./nix/megaparsec.nix { });
+                dontCheckOverrides = dontCheck haskell
+                  [ "cryptohash-sha256"
+                    "doctest"
+                    "ed25519"
+                    "http-media"
+                    "network-uri"
+                  ];
 
-                  neat-interpolation =
-                    haskellPackagesNew.callPackage ./nix/neat-interpolation.nix { };
+                jailbreakOverrides = jailbreak haskell
+                  [ "cabal-install"
+                    "haskell-src"
+                    "language-haskell-extract"
+                    "refact"
+                    "system-fileio"
+                  ];
 
-                  prettyprinter =
-                    pkgsNew.haskell.lib.dontCheck
-                      (haskellPackagesNew.callPackage ./nix/prettyprinter.nix { });
-
-                  repline =
-                    haskellPackagesNew.callPackage ./nix/repline.nix { };
-
+                manualOverrides = haskellPackagesNew: haskellPackagesOld: rec {
                   proto3-suite-base =
                     let
 
@@ -97,17 +187,16 @@ let
                            ++ (if enableDhall then [ "-fdhall" ] else []);
                          doCheck        = false;
                          doHaddock      = false;
-                        }
+                       }
                       );
-
-                  proto3-wire =
-                    haskellPackagesNew.callPackage ./nix/proto3-wire.nix { };
 
                   proto3-suite =
                     pkgsNew.haskell.lib.overrideCabal
                       proto3-suite-base
                       (oldArgs:
                         let
+                          protobuf = pkgsNew.protobuf;
+
                           python = pkgsNew.python.withPackages (pkgs: [ pkgs.protobuf]);
 
                           ghc =
@@ -159,21 +248,52 @@ let
                              pkgsNew.protobuf3_1
                              proto3-suite-boot
                              python
+                             protobuf
                            ];
 
                            shellHook = (oldArgs.shellHook or "") + ''
                              ${copyGeneratedCode}
 
-                             export PATH=${haskellPackagesNew.cabal-install}/bin:${ghc}/bin:${python}/bin''${PATH:+:}$PATH
+                             export PATH=${haskellPackagesNew.cabal-install}/bin:${ghc}/bin:${python}/bin:${protobuf}/bin''${PATH:+:}$PATH
                            '';
                          }
                       );
                 };
+
+              in
+                composeExtensionList pkgsNew.lib
+                  [ upgradeOverrides
+                    patchOverrides
+                    dontCheckOverrides
+                    jailbreakOverrides
+                    manualOverrides
+                  ];
           };
         };
       };
     })
   ];
+
+  unpatchedPkgs = import unpatchedNixpkgs { inherit config overlays; };
+
+  # https://github.com/NixOS/nixpkgs/pull/85446
+  nixpkgs = unpatchedPkgs.stdenvNoCC.mkDerivation {
+    name = "nixpkgs-${nixpkgsRelease}-patched";
+
+    src = unpatchedNixpkgs;
+
+    # Backport fix <https://github.com/NixOS/nixpkgs/pull/85446> to 20.03:
+    patches = [ ./nix/with-packages-wrapper.patch ];
+
+    phases = [ "unpackPhase" "patchPhase" "installPhase" ];
+
+    installPhase = ''
+      mkdir -p $out
+      cp -R ./ $out/
+    '';
+
+    preferLocalBuild = true;
+  };
 
    linuxPkgs = import nixpkgs { inherit config overlays; system = "x86_64-linux" ; };
   darwinPkgs = import nixpkgs { inherit config overlays; system = "x86_64-darwin"; };

@@ -1,0 +1,10 @@
+diff -r --unified a/Distribution/Client/Sandbox.hs b/Distribution/Client/Sandbox.hs
+--- a/Distribution/Client/Sandbox.hs	2001-09-08 18:46:40.000000000 -0700
++++ b/Distribution/Client/Sandbox.hs	2020-06-07 11:52:02.402401840 -0700
+@@ -1,5 +1,6 @@
+ {-# LANGUAGE CPP #-}
+ {-# LANGUAGE FlexibleContexts #-}
++{-# LANGUAGE RankNTypes #-}
+ -----------------------------------------------------------------------------
+ -- |
+ -- Module      :  Distribution.Client.Sandbox
