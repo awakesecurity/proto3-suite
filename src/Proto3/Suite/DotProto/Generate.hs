@@ -475,17 +475,16 @@ dpptToHsType ctxt = \case
   Double   -> pure $ primType_ "Double"
   -- For properly handling wrapper values found at:
   -- https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/wrappers.proto
-  Named (Dots (Path ("google" :| ["protobuf", x]))) -> case x of
-    "Int32Value"  -> pure $ primType_ "Int32"
-    "Int64Value"  -> pure $ primType_ "Int64"
-    "UInt32Value" -> pure $ primType_ "Word32"
-    "UInt64Value" -> pure $ primType_ "Word64"
-    "StringValue" -> pure $ primType_ "Text"
-    "BytesValue"  -> pure $ primType_ "Bytestring"
-    "BoolValue"   -> pure $ primType_ "Bool"
-    "FloatValue"  -> pure $ primType_ "Float"
-    "DoubleValue" -> pure $ primType_ "Double"
-    _             -> fail "Unknown Value"
+  Named (Dots (Path ("google" :| ["protobuf", x])))
+    | x == "Int32Value"  -> pure $ primType_ "Int32"
+    | x == "Int64Value"  -> pure $ primType_ "Int64"
+    | x == "UInt32Value" -> pure $ primType_ "Word32"
+    | x == "UInt64Value" -> pure $ primType_ "Word64"
+    | x == "StringValue" -> pure $ primType_ "Text"
+    | x == "BytesValue"  -> pure $ primType_ "Bytestring"
+    | x == "BoolValue"   -> pure $ primType_ "Bool"
+    | x == "FloatValue"  -> pure $ primType_ "Float"
+    | x == "DoubleValue" -> pure $ primType_ "Double"
   Named msgName ->
     case M.lookup msgName ctxt of
       Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
