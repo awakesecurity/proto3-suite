@@ -39,6 +39,7 @@ import           Data.Coerce
 import           Data.Either                    (partitionEithers)
 import           Data.List                      (find, intercalate, nub, sortBy, stripPrefix)
 import qualified Data.List.NonEmpty             as NE
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map                       as M
 import           Data.Maybe                     (fromMaybe)
 import           Data.Monoid
@@ -472,6 +473,19 @@ dpptToHsType ctxt = \case
   Bool     -> pure $ primType_ "Bool"
   Float    -> pure $ primType_ "Float"
   Double   -> pure $ primType_ "Double"
+  -- For properly handling wrapper values found at:
+  -- https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/wrappers.proto
+  Named (Dots (Path ("google" :| ["protobuf", x]))) -> case x of
+    "Int32Value"  -> pure $ primType_ "Int32"
+    "Int64Value"  -> pure $ primType_ "Int64"
+    "UInt32Value" -> pure $ primType_ "Word32"
+    "UInt64Value" -> pure $ primType_ "Word64"
+    "StringValue" -> pure $ primType_ "Text"
+    "BytesValue"  -> pure $ primType_ "Bytestring"
+    "BoolValue"   -> pure $ primType_ "Bool"
+    "FloatValue"  -> pure $ primType_ "Float"
+    "DoubleValue" -> pure $ primType_ "Double"
+    _             -> fail "Unknown Value"
   Named msgName ->
     case M.lookup msgName ctxt of
       Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
