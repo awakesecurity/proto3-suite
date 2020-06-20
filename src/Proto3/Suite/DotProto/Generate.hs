@@ -158,7 +158,7 @@ hsModuleForDotProto
 
        let hasService = has (traverse._DotProtoService) protoDefinitions
 
-       let importDeclarations =
+       let importDeclarations = filter notGoogleProtobufWrappersModule $
              concat [ defaultImports hasService, extraImports, typeContextImports ]
 
        typeContext <- dotProtoTypeContext dotProto
@@ -172,6 +172,11 @@ hsModuleForDotProto
                 foldMapM toDotProtoDeclaration protoDefinitions
 
        return (module_ moduleName Nothing importDeclarations decls)
+  where
+    notGoogleProtobufWrappersModule :: HsImportDecl -> Bool
+    notGoogleProtobufWrappersModule HsImportDecl{..} = case importModule of
+      Module "Google.Protobuf.Wrappers" -> False
+      _                                 -> True
 
 getExtraInstances
     :: (MonadIO m, MonadError CompileError m)
