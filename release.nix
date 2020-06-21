@@ -151,11 +151,11 @@ let
                   proto3-suite-base =
                     let
 
-                      # Adds a nix file as an input to the haskell derivation it
-                      # produces. This is useful for callHackage / callCabal2nix to
-                      # prevent the generated default.nix from being garbage collected
-                      # (requiring it to be frequently rebuilt), which can be an
-                      # annoyance.
+                      # Adds a nix file as an input to the haskell derivation
+                      # it produces. This is useful for callHackage /
+                      # callCabal2nix to prevent the generated default.nix
+                      # from being garbage collected (requiring it to be
+                      # frequently rebuilt), which can be an annoyance.
                       #
                       # Cribbed from nixpkgs master because it was not
                       # backported to 18.09
