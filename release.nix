@@ -305,13 +305,22 @@ let
     preferLocalBuild = true;
   };
 
-   linuxPkgs = import nixpkgs { inherit config overlays; system = "x86_64-linux" ; };
-  darwinPkgs = import nixpkgs { inherit config overlays; system = "x86_64-darwin"; };
-        pkgs = import nixpkgs { inherit config overlays; };
+  linuxPkgs =
+    import nixpkgs { inherit config overlays; system = "x86_64-linux" ; };
+
+  darwinPkgs =
+    import nixpkgs { inherit config overlays; system = "x86_64-darwin"; };
+
+  pkgs =
+    import nixpkgs { inherit config overlays; };
 
 in
-  { proto3-suite-linux  =  linuxPkgs.haskell.packages."${compiler}".proto3-suite;
-    proto3-suite-darwin = darwinPkgs.haskell.packages."${compiler}".proto3-suite;
+  { proto3-suite-linux =
+      linuxPkgs.haskell.packages."${compiler}".proto3-suite;
 
-    inherit (pkgs.haskell.packages."${compiler}") proto3-suite-boot proto3-suite;
+    proto3-suite-darwin =
+      darwinPkgs.haskell.packages."${compiler}".proto3-suite;
+
+    inherit (pkgs.haskell.packages."${compiler}")
+      proto3-suite-boot proto3-suite;
   }
