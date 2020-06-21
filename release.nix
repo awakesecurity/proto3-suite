@@ -64,38 +64,48 @@ let
               let
                 upgradeOverrides = upgrade
                   ( [ "assoc"
+                      "cborg"
+                      "cborg-json"
                       "ChasingBottoms"
                       "ChasingBottoms"
                       "comonad"
                       "contravariant-extras"
                       "cryptohash-sha256"
                       "dec"
+                      "dhall"
+                      "Diff"
                       "distributive"
                       "doctest"
                       "ed25519"
+                      "generic-random"
                       "generics-sop"
                       "haskell-src"
                       "HTTP"
                       "http-media"
                       "insert-ordered-containers"
+                      "inspection-testing"
                       "language-haskell-extract"
                       "lens"
                       "lukko"
+                      "memory"
                       "optics-core"
                       "optics-extra"
                       "optics-th"
                       "parameterized"
                       "polyparse"
+                      "prettyprinter"
                       "proto3-wire"
                       "quickcheck-instances"
                       "range-set-list"
                       "refact"
                       "resolv"
                       "semigroupoids"
+                      "serialise"
                       "singleton-bool"
                       "sop-core"
                       "swagger2"
                       "these"
+                      "tls"
                       "turtle"
                       "vector-th-unbox"
                     ] ++ (
@@ -107,7 +117,7 @@ let
                       let v = pkgsOld.haskell.packages.${compiler}.ghc.version;
                       in if builtins.compareVersions v "8.10.1" < 0
                            then [ ]
-                           else [ "cabal-install" "hackage-security" ]
+                           else [ "cabal-install" "hackage-security" "repline" ]
                     )
                   );
 

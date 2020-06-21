@@ -1,24 +1,24 @@
-{ mkDerivation, ansi-wl-pprint, base, bytestring, containers
-, criterion, deepseq, doctest, mtl, pgp-wordlist, QuickCheck
-, random, stdenv, tasty, tasty-hunit, tasty-quickcheck, text
-, transformers
+{ mkDerivation, ansi-wl-pprint, base, base-compat, bytestring
+, containers, deepseq, doctest, gauge, mtl, pgp-wordlist
+, QuickCheck, quickcheck-instances, random, stdenv, tasty
+, tasty-hunit, tasty-quickcheck, text, transformers
 }:
 mkDerivation {
   pname = "prettyprinter";
-  version = "1.2.0.1";
-  sha256 = "0rh5bb6inq4yvv6r53sc1q3msmpvjcq8fw4sn3vwivrq44c7nf8i";
+  version = "1.6.1";
+  sha256 = "3f9765764db7b55db8fb29b92ad26a02f08364e5947a89e2e1aa6d8a6087d781";
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [ base text ];
   testHaskellDepends = [
-    base bytestring doctest pgp-wordlist tasty tasty-hunit
-    tasty-quickcheck text
+    base bytestring doctest pgp-wordlist QuickCheck
+    quickcheck-instances tasty tasty-hunit tasty-quickcheck text
   ];
   benchmarkHaskellDepends = [
-    ansi-wl-pprint base containers criterion deepseq mtl QuickCheck
-    random text transformers
+    ansi-wl-pprint base base-compat containers deepseq gauge mtl
+    QuickCheck random text transformers
   ];
   homepage = "http://github.com/quchen/prettyprinter";
-  description = "A modern, easy to use, well-documented, extensible prettyprinter";
+  description = "A modern, easy to use, well-documented, extensible pretty-printer";
   license = stdenv.lib.licenses.bsd2;
 }
