@@ -6,6 +6,11 @@
 #
 #     [nix-shell]$ cabal configure --enable-tests
 #     [nix-shell]$ cabal test
+#
+# Note that nix-shell will actually build most of the code in order to
+# allow testing of code generation.  You might wish to temporarily edit
+# shell.nix to specify "proto3-suite-boot" instead of "proto3-suite" in
+# order to get things to compile, then switch back to enable testing.
 
 { compiler ? "ghc865", enableDhall ? false }:
 
