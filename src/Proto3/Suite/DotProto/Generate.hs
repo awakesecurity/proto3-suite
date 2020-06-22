@@ -486,7 +486,7 @@ dpptToHsType ctxt = \case
     | x == "UInt32Value" -> pure $ primType_ "Word32"
     | x == "UInt64Value" -> pure $ primType_ "Word64"
     | x == "StringValue" -> pure $ primType_ "Text"
-    | x == "BytesValue"  -> pure $ primType_ "Bytestring"
+    | x == "BytesValue"  -> pure $ primType_ "ByteString"
     | x == "BoolValue"   -> pure $ primType_ "Bool"
     | x == "FloatValue"  -> pure $ primType_ "Float"
     | x == "DoubleValue" -> pure $ primType_ "Double"
