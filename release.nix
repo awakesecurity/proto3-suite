@@ -177,11 +177,13 @@ let
                         let
                           protobuf = pkgsNew.protobuf;
 
-                          python = pkgsNew.python.withPackages (pkgs: [ pkgs.protobuf]);
+                          python = pkgsNew.python.withPackages
+                            (pkgs: [ pkgs.protobuf]);
 
                           ghc =
                             haskellPackagesNew.ghcWithPackages
-                              (pkgs: oldArgs.testHaskellDepends ++ [ proto3-suite-boot ]);
+                              ( pkgs: oldArgs.testHaskellDepends ++
+                                      [ proto3-suite-boot ] );
 
                           test-files = ./test-files;
 
