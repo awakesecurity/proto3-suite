@@ -155,8 +155,8 @@ let
                 manualOverrides = haskellPackagesNew: haskellPackagesOld: rec {
                   proto3-suite-base =
                     let cabal2nixFlags = if enableDhall then "-fdhall" else "";
-                    in
-                      haskellPackagesNew.callCabal2nixWithOptions "proto3-suite" ./. cabal2nixFlags { };
+                    in haskellPackagesNew.callCabal2nixWithOptions
+                         "proto3-suite" ./. cabal2nixFlags { };
 
                   proto3-suite-boot =
                     pkgsNew.haskell.lib.overrideCabal
