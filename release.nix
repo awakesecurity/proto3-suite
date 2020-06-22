@@ -225,13 +225,14 @@ let
 
                            postPatch = (oldArgs.postPatch or "") + copyGeneratedCode;
 
-                           testHaskellDepends = (oldArgs.testHaskellDepends or []) ++ [
-                             pkgsNew.ghc
-                             pkgsNew.protobuf3_1
-                             proto3-suite-boot
-                             python
-                             protobuf
-                           ];
+                           testHaskellDepends =
+                             (oldArgs.testHaskellDepends or []) ++ [
+                               pkgsNew.ghc
+                               pkgsNew.protobuf3_1
+                               proto3-suite-boot
+                               python
+                               protobuf
+                             ];
 
                            shellHook = (oldArgs.shellHook or "") + ''
                              ${copyGeneratedCode}
