@@ -16,7 +16,7 @@ import           Proto3.Suite.DotProto.Generate
 parseArgs :: ParserInfo CompileArgs
 parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto file to a Haskell module")
   where
-    parser = CompileArgs <$> includes <*> extraInstances <*> proto <*> out
+    parser = CompileArgs <$> includes <*> extraInstances <*> proto <*> out <*> unwrap
 
     includes = many $ strOption $
       long "includeDir"
@@ -38,6 +38,9 @@ parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto fi
         <> metavar "DIR"
         <> help "Output directory path where generated Haskell modules will be written (directory is created if it does not exist; note that files in the output directory may be overwritten!)"
 
+    unwrap = switch $
+      long "unwrap"
+        <> help "If this flag is set, Protobuffer types are properly translated into Haskell Maybe types."
 
 main :: IO ()
 main = execParser parseArgs >>= compileDotProtoFileOrDie
