@@ -67,8 +67,30 @@ let
           "${compiler}" = pkgsOld.haskell.packages."${compiler}".override {
             overrides =
               let
+                ghcVer = pkgsOld.haskell.packages.${compiler}.ghc.version;
+                geVer = v: xs:
+                  if builtins.compareVersions ghcVer v >= 0 then xs else [];
+                rangeVer = lowInclusive: highExclusive: xs:
+                  if builtins.compareVersions ghcVer lowInclusive >= 0 &&
+                     builtins.compareVersions ghcVer highExclusive < 0
+                    then xs
+                    else [];
+
                 upgradeOverrides = upgrade
-                  ( [ "assoc"
+                  ( [ "generic-random"
+                      "dhall"
+                      "parameterized"
+                      "prettyprinter"
+                      "proto3-wire"
+                    ] ++ rangeVer "8.8" "8.10" [
+                      "network-bsd"
+                    ] ++ geVer "8.8" [
+                      "haskell-src"
+                      "insert-ordered-containers"
+                      "swagger2"
+                    ] ++ geVer "8.10" [
+                      "assoc"
+                      "cabal-install"
                       "cborg"
                       "cborg-json"
                       "ChasingBottoms"
@@ -77,17 +99,14 @@ let
                       "contravariant-extras"
                       "cryptohash-sha256"
                       "dec"
-                      "dhall"
                       "Diff"
                       "distributive"
                       "doctest"
                       "ed25519"
-                      "generic-random"
                       "generics-sop"
-                      "haskell-src"
+                      "hackage-security"
                       "HTTP"
                       "http-media"
-                      "insert-ordered-containers"
                       "inspection-testing"
                       "language-haskell-extract"
                       "lens"
@@ -96,45 +115,25 @@ let
                       "optics-core"
                       "optics-extra"
                       "optics-th"
-                      "parameterized"
                       "polyparse"
-                      "prettyprinter"
-                      "proto3-wire"
                       "quickcheck-instances"
                       "range-set-list"
                       "refact"
+                      "repline"
                       "resolv"
                       "semigroupoids"
                       "serialise"
                       "singleton-bool"
                       "sop-core"
-                      "swagger2"
                       "these"
                       "tls"
                       "turtle"
                       "vector-th-unbox"
-                    ] ++ (
-                      let v = pkgsOld.haskell.packages.${compiler}.ghc.version;
-                      in if builtins.compareVersions v "8.8.3" == 0
-                           then [ "network-bsd" ]
-                           else [ ]
-                    ) ++ (
-                      let v = pkgsOld.haskell.packages.${compiler}.ghc.version;
-                      in if builtins.compareVersions v "8.10.1" < 0
-                           then [ ]
-                           else [ "cabal-install" "hackage-security" "repline" ]
-                    )
+                    ]
                   );
 
                 patchOverrides = patch haskell
-                  ( [ "parameterized"
-                    ] ++ (
-                      let v = pkgsOld.haskell.packages.${compiler}.ghc.version;
-                      in if builtins.compareVersions v "8.10.1" < 0
-                           then []
-                           else [ "cabal-install" ]
-                    )
-                  );
+                  ([ "parameterized" ] ++ geVer "8.10.1" [ "cabal-install" ]);
 
                 dontCheckOverrides = dontCheck haskell
                   [ "cryptohash-sha256"
