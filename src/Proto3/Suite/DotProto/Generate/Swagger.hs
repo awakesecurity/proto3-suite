@@ -48,12 +48,17 @@ insOrdFromList = Data.HashMap.Strict.InsOrd.fromList
 {-| This is a hack to work around the `swagger2` library forbidding `ToSchema`
     instances for `ByteString`s
 -}
-newtype OverrideToSchema a = OverrideToSchema a
+newtype OverrideToSchema a = OverrideToSchema { unOverride :: a }
 
 instance {-# OVERLAPPABLE #-} ToSchema a => ToSchema (OverrideToSchema a) where
   declareNamedSchema _ = declareNamedSchema (Proxy :: Proxy a)
 
 instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema ByteString) where
+  declareNamedSchema _ = return (NamedSchema Nothing byteSchema)
+
+-- | This instance is the same as the instance for @OverrideToSchema ByteString@.
+-- See: https://hackage.haskell.org/package/swagger2-2.6/docs/src/Data.Swagger.Internal.Schema.html#line-451
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe ByteString)) where
   declareNamedSchema _ = return (NamedSchema Nothing byteSchema)
 
 instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (V.Vector ByteString)) where

@@ -179,9 +179,15 @@ hsModuleForDotProto
 
        return (module_ moduleName Nothing importDeclarations decls)
   where
+    {-| TODO: Remove! At first we thought we didn't want to import
+        the Google.Protobuf.Wrappers module in the generated modules,
+        but it turns out we actually need Google.Protobuf.Wrappers
+        for the wrappers newtypes defined in it. For now, to deactivate
+        the filter, I'm making this function return @True@ in both cases.
+    -}
     notGoogleProtobufWrappersModule :: HsImportDecl -> Bool
     notGoogleProtobufWrappersModule HsImportDecl{..} = case importModule of
-      Module "Google.Protobuf.Wrappers" -> False
+      Module "Google.Protobuf.Wrappers" -> True
       _                                 -> True
 
 getExtraInstances
@@ -487,8 +493,10 @@ dpptToHsType ctxt = \case
   Bool     -> pure $ primType_ "Bool"
   Float    -> pure $ primType_ "Float"
   Double   -> pure $ primType_ "Double"
-  -- For properly handling wrapper values found at:
-  -- https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/wrappers.proto
+  {-| For properly handling wrapper values found at:
+      https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/wrappers.proto
+      This functionality is new for now and hides behind the --unwrap flag.
+  -}
   Named (Dots (Path ("google" :| ["protobuf", x])))
     | x == "Int32Value"  -> pure $ primType_ "Int32"
     | x == "Int64Value"  -> pure $ primType_ "Int64"
@@ -550,7 +558,7 @@ dotProtoDefinitionD unwrapProtoTypes pkgIdent ctxt = \case
     dotProtoMessageD unwrapProtoTypes ctxt Anonymous messageName messageParts
 
   DotProtoEnum _ enumName enumParts ->
-    dotProtoEnumD Anonymous enumName enumParts
+    dotProtoEnumD unwrapProtoTypes Anonymous enumName enumParts
 
   DotProtoService _ serviceName serviceParts ->
     dotProtoServiceD unwrapProtoTypes pkgIdent ctxt serviceName serviceParts
@@ -590,7 +598,7 @@ dotProtoMessageD unwrapProtoTypes ctxt parentIdent messageIdent messageParts = d
     messageName <- qualifiedMessageName parentIdent messageIdent
 
     let mkDataDecl flds =
-           dataDecl_ messageName
+           (if unwrapProtoTypes then dataDecl_ else dataDeclOld_) messageName
                      [ recDecl_ (HsIdent messageName) flds ]
                      defaultMessageDeriving
 
@@ -660,7 +668,7 @@ dotProtoMessageD unwrapProtoTypes ctxt parentIdent messageIdent messageParts = d
 
     nestedDecls _ (DotProtoEnum _ subEnumName subEnumDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoEnumD parentIdent' subEnumName subEnumDef
+      dotProtoEnumD unwrapProtoTypes parentIdent' subEnumName subEnumDef
 
     nestedDecls _ _ = pure []
 
@@ -673,7 +681,7 @@ dotProtoMessageD unwrapProtoTypes ctxt parentIdent messageIdent messageParts = d
       toSchemaInstance <- toSchemaInstanceDeclaration fullName (Just idents)
                             =<< mapM (dpIdentUnqualName . dotProtoFieldName) fields
 
-      pure [ dataDecl_ fullName cons defaultMessageDeriving
+      pure [ (if unwrapProtoTypes then dataDecl_ else dataDeclOld_) fullName cons defaultMessageDeriving
            , namedInstD fullName
            , toSchemaInstance
 
@@ -688,9 +696,7 @@ dotProtoMessageD unwrapProtoTypes ctxt parentIdent messageIdent messageParts = d
        consTy <- case dotProtoFieldType of
             Prim msg@(Named msgName)
               | isMessage ctxt' msgName
-                -> -- Do not wrap message summands with Maybe.
-                   if unwrapProtoTypes then dpptToHsType ctxt' msg else dpptToHsTypeOld ctxt' msg
-
+                -> (if unwrapProtoTypes then dpptToHsType else dpptToHsTypeOld) ctxt' msg
             _   -> dptToHsType unwrapProtoTypes ctxt' dotProtoFieldType
 
        consName <- prefixedConName fullName =<< dpIdentUnqualName dotProtoFieldName
@@ -887,7 +893,7 @@ toJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
     oneofCaseE retJsonCtor (OneofField typeName subfields) =
         HsParen
           $ HsLet [ HsFunBind [ match_ (HsIdent caseName) [] (HsUnGuardedRhs caseExpr) [] ] ]
-          $ HsLambda l [patVar optsStr] (HsIf dontInline noInline yesInline)
+          $ HsLambda defaultSrcLoc [patVar optsStr] (HsIf dontInline noInline yesInline)
       where
         optsStr = "options"
         opts    = uvar_ optsStr
@@ -947,7 +953,7 @@ fromJSONPBMessageInstD _ctxt parentIdent msgIdent messageParts = do
     let parseJSONPBE =
           apply (HsVar (jsonpbName "withObject"))
                 [ str_ msgName
-                , HsParen (HsLambda l [lambdaPVar] fieldAps)
+                , HsParen (HsLambda defaultSrcLoc [lambdaPVar] fieldAps)
                 ]
           where
             fieldAps = foldl (\f -> HsInfixApp f apOp)
@@ -1160,12 +1166,12 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
             let declareIdentifier = HsIdent (toDeclareName fieldName)
 
             let stmt0 = HsLetStmt [ HsFunBind
-                                    [ HsMatch l declareIdentifier []
+                                    [ HsMatch defaultSrcLoc declareIdentifier []
                                                (HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))) []
                                     ]
                                   ]
 
-            let stmt1 = HsGenerator l (HsPVar (HsIdent qualifiedFieldName))
+            let stmt1 = HsGenerator defaultSrcLoc (HsPVar (HsIdent qualifiedFieldName))
                                       (HsApp (HsVar (UnQual declareIdentifier))
                                              (HsCon (proxyName "Proxy")))
             [ stmt0, stmt1]
@@ -1176,7 +1182,7 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
             where
               arguments = map toArgument fieldNames
 
-              patternBind = HsPatBind l HsPWildCard
+              patternBind = HsPatBind defaultSrcLoc HsPWildCard
                                         (HsUnGuardedRhs (applicativeApply messageConstructor arguments)) []
 
           returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
@@ -1199,11 +1205,11 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
             let declareIdentifier = HsIdent (toDeclareName fieldName)
 
             let stmt0 = HsLetStmt [ HsFunBind
-                                      [ HsMatch l declareIdentifier []
+                                      [ HsMatch defaultSrcLoc declareIdentifier []
                                                  (HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))) []
                                       ]
                                   ]
-            let stmt1 = HsGenerator l (HsPVar (HsIdent qualifiedFieldName))
+            let stmt1 = HsGenerator defaultSrcLoc (HsPVar (HsIdent qualifiedFieldName))
                                       (HsApp (HsVar (UnQual declareIdentifier))
                                              (HsCon (proxyName "Proxy")))
             let inferenceStatement =
@@ -1211,7 +1217,7 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
                   where
                     arguments = [ toArgument fieldName ]
 
-                    patternBind = HsPatBind l HsPWildCard
+                    patternBind = HsPatBind defaultSrcLoc HsPWildCard
                                               (HsUnGuardedRhs (applicativeApply (HsCon (UnQual constructor)) arguments)) []
 
             [stmt0, stmt1] ++ inferenceStatement
@@ -1245,11 +1251,12 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
 
 dotProtoEnumD
     :: MonadError CompileError m
-    => DotProtoIdentifier
+    => Bool
+    -> DotProtoIdentifier
     -> DotProtoIdentifier
     -> [DotProtoEnumPart]
     -> m [HsDecl]
-dotProtoEnumD parentIdent enumIdent enumParts = do
+dotProtoEnumD unwrapProtoTypes parentIdent enumIdent enumParts = do
   enumName <- qualifiedMessageName parentIdent enumIdent
 
   let enumeratorDecls =
@@ -1357,7 +1364,7 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
                     (uvar_ "x")))
           []
 
-  pure [ dataDecl_ enumName
+  pure [ (if unwrapProtoTypes then dataDecl_ else dataDeclOld_) enumName
                    [ conDecl_ (HsIdent con) [] | con <- enumConNames ]
                    defaultEnumDeriving
        , namedInstD enumName
@@ -1416,9 +1423,9 @@ dotProtoServiceD unwrapProtoTypes pkgIdent ctxt serviceIdent service = do
                            Single nm -> pure nm
                            _ -> invalidMethodNameError rpcMethodName
 
-           requestTy  <- if unwrapProtoTypes then dpptToHsType ctxt (Named rpcMethodRequestType) else dpptToHsTypeOld ctxt (Named rpcMethodRequestType)
+           requestTy  <- (if unwrapProtoTypes then dpptToHsType else dpptToHsTypeOld) ctxt (Named rpcMethodRequestType)
 
-           responseTy <- if unwrapProtoTypes then dpptToHsType ctxt (Named rpcMethodResponseType) else dpptToHsTypeOld ctxt (Named rpcMethodResponseType)
+           responseTy <- (if unwrapProtoTypes then dpptToHsType else dpptToHsTypeOld) ctxt (Named rpcMethodResponseType)
 
            let streamingType =
                  case (rpcMethodRequestStreaming, rpcMethodResponseStreaming) of
@@ -1454,7 +1461,7 @@ dotProtoServiceD unwrapProtoTypes pkgIdent ctxt serviceIdent service = do
                          [ serverRequestT, serverResponseT ]
 
      let serviceServerTypeD =
-            HsTypeSig l [ HsIdent serverFuncName ]
+            HsTypeSig defaultSrcLoc [ HsIdent serverFuncName ]
                         (HsQualType [] (HsTyFun serverT (HsTyFun serviceOptionsC ioActionT)))
 
      let serviceServerD = HsFunBind [serverFuncD]
@@ -1523,7 +1530,7 @@ dotProtoServiceD unwrapProtoTypes pkgIdent ctxt serviceIdent service = do
      let clientT = tyApp (HsTyCon (unqual_ serviceName)) [ clientRequestT, clientResultT ]
 
      let serviceClientTypeD =
-             HsTypeSig l [ HsIdent clientFuncName ]
+             HsTypeSig defaultSrcLoc [ HsIdent clientFuncName ]
                        (HsQualType [] (HsTyFun grpcClientT (HsTyApp ioT clientT)))
 
      let serviceClientD = HsFunBind [ clientFuncD ]
@@ -1545,7 +1552,7 @@ dotProtoServiceD unwrapProtoTypes pkgIdent ctxt serviceIdent service = do
                                             , apply methodNameC [ str_ endpoint ]
                                             ]
 
-     pure [ HsDataDecl l  [] (HsIdent serviceName)
+     pure [ HsDataDecl defaultSrcLoc  [] (HsIdent serviceName)
                 [ HsIdent "request", HsIdent "response" ]
                 [ conDecl ] defaultServiceDeriving
 
@@ -1711,7 +1718,6 @@ dpPrimTypeE ty =
     let wrap = HsVar . protobufName in
     case ty of
         Named n  -> apply namedC [ dpIdentE n ]
-
         Int32    -> wrap "Int32"
         Int64    -> wrap "Int64"
         SInt32   -> wrap "SInt32"
@@ -1826,25 +1832,36 @@ tyApp :: HsType -> [HsType] -> HsType
 tyApp = foldl HsTyApp
 
 module_ :: Module -> Maybe [HsExportSpec] -> [HsImportDecl] -> [HsDecl] -> HsModule
-module_ = HsModule l
+module_ = HsModule defaultSrcLoc
 
 importDecl_ :: Module -> Bool -> Maybe Module -> Maybe (Bool, [HsImportSpec]) -> HsImportDecl
-importDecl_ = HsImportDecl l
+importDecl_ = HsImportDecl defaultSrcLoc
 
+{-| This function generates Haskell data declarations for protobuf messages.
+    @HsNewTypeDecl@ is used instead of @HsDataDecl@ when only a single constructor
+    declaration is provided. This functionality is new for now and hides behind the
+    --unwrap flag.
+
+    TODO: This is wrong. I really want to play with the @HsRecDecl@.
+-}
 dataDecl_ :: String -> [HsConDecl] -> [HsQName] -> HsDecl
-dataDecl_ messageName = HsDataDecl l [] (HsIdent messageName) []
+dataDecl_ messageName [constructor] = HsNewTypeDecl defaultSrcLoc [] (HsIdent messageName) [] constructor
+dataDecl_ messageName constructors = HsDataDecl defaultSrcLoc [] (HsIdent messageName) [] constructors
+
+dataDeclOld_ :: String -> [HsConDecl] -> [HsQName] -> HsDecl
+dataDeclOld_ messageName = HsDataDecl defaultSrcLoc [] (HsIdent messageName) []
 
 recDecl_ :: HsName -> [([HsName], HsBangType)] -> HsConDecl
-recDecl_ = HsRecDecl l
+recDecl_ = HsRecDecl defaultSrcLoc
 
 conDecl_ :: HsName -> [HsBangType] -> HsConDecl
-conDecl_ = HsConDecl l
+conDecl_ = HsConDecl defaultSrcLoc
 
 instDecl_ :: HsQName -> [HsType] -> [HsDecl] -> HsDecl
-instDecl_ = HsInstDecl l []
+instDecl_ = HsInstDecl defaultSrcLoc []
 
 match_ :: HsName -> [HsPat] -> HsRhs -> [HsDecl] -> HsMatch
-match_ = HsMatch l
+match_ = HsMatch defaultSrcLoc
 
 unqual_ :: String -> HsQName
 unqual_ = UnQual . HsIdent
@@ -1863,7 +1880,7 @@ patVar :: String -> HsPat
 patVar =  HsPVar . HsIdent
 
 alt_ :: HsPat -> HsGuardedAlts -> [HsDecl] -> HsAlt
-alt_ = HsAlt l
+alt_ = HsAlt defaultSrcLoc
 
 str_ :: String -> HsExp
 str_ = HsLit . HsString
@@ -1871,8 +1888,8 @@ str_ = HsLit . HsString
 -- | For some reason, haskell-src-exts needs this 'SrcLoc' parameter
 --   for some data constructors. Its value does not affect
 --   pretty-printed output
-l :: SrcLoc
-l = SrcLoc "<generated>" 0 0
+defaultSrcLoc :: SrcLoc
+defaultSrcLoc = SrcLoc "<generated>" 0 0
 
 __nowarn_unused :: a
 __nowarn_unused = subfieldType `undefined` subfieldOptions `undefined` oneofType

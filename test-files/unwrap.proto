@@ -1,0 +1,16 @@
+syntax = "proto3";
+package unwrap;
+import "google/protobuf/wrappers.proto";
+
+message Test {
+  google.protobuf.Int32Value aaa  = 1;
+  google.protobuf.Int64Value bbb  = 2;
+  google.protobuf.UInt32Value ccc = 3;
+  google.protobuf.UInt64Value ddd = 4;
+  google.protobuf.StringValue eee = 5;
+  google.protobuf.BytesValue fff  = 6;
+  google.protobuf.BoolValue ggg   = 7;
+  google.protobuf.FloatValue hhh  = 8;
+  google.protobuf.DoubleValue iii = 9;
+}
+
