@@ -622,10 +622,10 @@ instance (MessageField e, KnownSymbol comments) => MessageField (e // comments) 
   protoType p = (protoType (lowerProxy1 p))
                   { dotProtoFieldComment = symbolVal (lowerProxy2 p) }
     where
-      lowerProxy1 :: forall f (a :: k). Proxy# (f a) -> Proxy# a
+      lowerProxy1 :: forall k f (a :: k). Proxy# (f a) -> Proxy# a
       lowerProxy1 _ = proxy#
 
-      lowerProxy2 :: forall f (a :: k) b. Proxy# (f a b) -> Proxy a
+      lowerProxy2 :: forall k f (a :: k) b. Proxy# (f a b) -> Proxy a
       lowerProxy2 _ = Proxy
 
 decodePacked
