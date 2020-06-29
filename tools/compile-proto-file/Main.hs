@@ -38,7 +38,11 @@ parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto fi
         <> metavar "DIR"
         <> help "Output directory path where generated Haskell modules will be written (directory is created if it does not exist; note that files in the output directory may be overwritten!)"
 
-    useLegacyTypes = UseLegacyTypes <$> (switch $
+    boolToUseLegacyTypes = \bool -> case bool of
+      True -> YesLegacy
+      False -> NoLegacy
+
+    useLegacyTypes = boolToUseLegacyTypes <$> (switch $
       long "use-legacy-types"
         <> help "If this flag is set, the program will use legacy behavior to wrap protobuf Wrapper types (e.g. Int32Value) with Maybe in the generated Haskell code (provided for backwards compatibility).")
 
