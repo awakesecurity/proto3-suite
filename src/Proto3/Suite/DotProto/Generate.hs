@@ -1881,16 +1881,11 @@ module_ = HsModule defaultSrcLoc
 importDecl_ :: Module -> Bool -> Maybe Module -> Maybe (Bool, [HsImportSpec]) -> HsImportDecl
 importDecl_ = HsImportDecl defaultSrcLoc
 
-{-| This function generates Haskell data declarations for protobuf messages.
-    @HsNewTypeDecl@ is used instead of @HsDataDecl@ when only a single constructor
-    declaration is provided. This functionality is new for now and hides behind the
-    --unwrap flag.
-
-    TODO: This is wrong. I really want to play with the @HsRecDecl@.
--}
 dataDecl_ :: String -> [HsConDecl] -> [HsQName] -> HsDecl
-dataDecl_ messageName [constructor] = HsNewTypeDecl defaultSrcLoc [] (HsIdent messageName) [] constructor
-dataDecl_ messageName constructors = HsDataDecl defaultSrcLoc [] (HsIdent messageName) [] constructors
+dataDecl_ messageName [constructor@(HsRecDecl _ _ [_])] =
+  HsNewTypeDecl defaultSrcLoc [] (HsIdent messageName) [] constructor
+dataDecl_ messageName constructors =
+  HsDataDecl defaultSrcLoc [] (HsIdent messageName) [] constructors
 
 dataDeclOld_ :: String -> [HsConDecl] -> [HsQName] -> HsDecl
 dataDeclOld_ messageName = HsDataDecl defaultSrcLoc [] (HsIdent messageName) []
