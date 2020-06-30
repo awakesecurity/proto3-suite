@@ -408,13 +408,13 @@ dhallPBName name = Qual (Module hsDhallPB) (HsIdent name)
 
 dhallInterpretInstDecl :: String -> HsDecl
 dhallInterpretInstDecl typeName =
-  instDecl_ (dhallPBName "Interpret")
+  instDecl_ (dhallPBName "FromDhall")
             [ type_ typeName ]
             [ ]
 
 dhallInjectInstDecl :: String -> HsDecl
 dhallInjectInstDecl typeName =
-  instDecl_ (dhallPBName "Inject")
+  instDecl_ (dhallPBName "ToDhall")
             [ type_ typeName ]
             [ ]
 #endif

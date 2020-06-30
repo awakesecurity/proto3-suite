@@ -6,87 +6,156 @@
 #
 #     [nix-shell]$ cabal configure --enable-tests
 #     [nix-shell]$ cabal test
+#
+# Note that nix-shell will actually build most of the code in order to
+# allow testing of code generation.  You might wish to temporarily edit
+# shell.nix to specify "proto3-suite-boot" instead of "proto3-suite" in
+# order to get things to compile, then switch back to enable testing.
 
 { compiler ? "ghc865", enableDhall ? false }:
 
 let
   fetchNixpkgs = import ./nix/fetchNixpkgs.nix;
 
-  nixpkgs = fetchNixpkgs {
-    rev    = "d2a2ec2ebe49c42127cbf316d215a64c60d68fde";
-    sha256 = "09p9cr07frsqh7vip2i7cp86xnafg1pxhbnphx0q4sd5bvilqpfm";
+  nixpkgsRelease = "20.03";
+  unpatchedNixpkgs = fetchNixpkgs {
+    rev    = "fdfd5ab05444c38a006cb107d7d1ee8cb0b15719";
+    sha256 = "17hsjpjahl0hff3z2khrcwxygjyyrav2pia3qqlli0sgywfrgf95";
   };
 
   config = { };
 
+  upgrade = packageList: haskellPackagesNew: haskellPackagesOld:
+    let op = name: {
+          inherit name;
+          value = haskellPackagesNew.callPackage (./nix + "/${name}.nix") { };
+        };
+    in
+      builtins.listToAttrs (builtins.map op packageList);
+
+  dontCheck = haskell: packageList: haskellPackagesNew: haskellPackagesOld:
+    let op = name: {
+          inherit name;
+          value = haskell.lib.dontCheck haskellPackagesOld.${name};
+        };
+    in
+      builtins.listToAttrs (builtins.map op packageList);
+
+  jailbreak = haskell: packageList: haskellPackagesNew: haskellPackagesOld:
+    let op = name: {
+          inherit name;
+          value = haskell.lib.doJailbreak haskellPackagesOld.${name};
+        };
+    in
+      builtins.listToAttrs (builtins.map op packageList);
+
+  patch = haskell: packageList: haskellPackagesNew: haskellPackagesOld:
+    let op = name: {
+          inherit name;
+          value = haskell.lib.appendPatch haskellPackagesOld.${name}
+                                          (./nix + "/${name}.patch");
+        };
+    in
+      builtins.listToAttrs (builtins.map op packageList);
+
+  composeExtensionList = lib: lib.foldr lib.composeExtensions (_: _: {});
+
   overlays = [
-    (pkgsNew: pkgsOld: {
+    (pkgsNew: pkgsOld: rec {
       haskell = pkgsOld.haskell // {
         packages = pkgsOld.haskell.packages // {
           "${compiler}" = pkgsOld.haskell.packages."${compiler}".override {
             overrides =
-              haskellPackagesNew: haskellPackagesOld:
-                rec {
-                  dhall =
-                    pkgsNew.haskell.lib.dontCheck
-                      (haskellPackagesNew.callPackage ./nix/dhall.nix { });
+              let
+                ghcVer = pkgsOld.haskell.packages.${compiler}.ghc.version;
+                geVer = v: xs:
+                  if builtins.compareVersions ghcVer v >= 0 then xs else [];
+                rangeVer = lowInclusive: highExclusive: xs:
+                  if builtins.compareVersions ghcVer lowInclusive >= 0 &&
+                     builtins.compareVersions ghcVer highExclusive < 0
+                    then xs
+                    else [];
 
-                  formatting =
-                    haskellPackagesNew.callPackage ./nix/formatting.nix { };
+                upgradeOverrides = upgrade
+                  ( [ "generic-random"
+                      "dhall"
+                      "parameterized"
+                      "prettyprinter"
+                      "proto3-wire"
+                    ] ++ rangeVer "8.8" "8.10" [
+                      "network-bsd"
+                    ] ++ geVer "8.8" [
+                      "haskell-src"
+                      "insert-ordered-containers"
+                      "swagger2"
+                    ] ++ geVer "8.10" [
+                      "assoc"
+                      "cabal-install"
+                      "cborg"
+                      "cborg-json"
+                      "ChasingBottoms"
+                      "ChasingBottoms"
+                      "comonad"
+                      "contravariant-extras"
+                      "cryptohash-sha256"
+                      "dec"
+                      "Diff"
+                      "distributive"
+                      "doctest"
+                      "ed25519"
+                      "generics-sop"
+                      "hackage-security"
+                      "HTTP"
+                      "http-media"
+                      "inspection-testing"
+                      "language-haskell-extract"
+                      "lens"
+                      "lukko"
+                      "memory"
+                      "optics-core"
+                      "optics-extra"
+                      "optics-th"
+                      "polyparse"
+                      "quickcheck-instances"
+                      "range-set-list"
+                      "refact"
+                      "repline"
+                      "resolv"
+                      "semigroupoids"
+                      "serialise"
+                      "singleton-bool"
+                      "sop-core"
+                      "these"
+                      "tls"
+                      "turtle"
+                      "vector-th-unbox"
+                    ]
+                  );
 
-                  megaparsec =
-                    pkgsNew.haskell.lib.dontCheck
-                      (haskellPackagesNew.callPackage ./nix/megaparsec.nix { });
+                patchOverrides = patch haskell
+                  ([ "parameterized" ] ++ geVer "8.10.1" [ "cabal-install" ]);
 
-                  neat-interpolation =
-                    haskellPackagesNew.callPackage ./nix/neat-interpolation.nix { };
+                dontCheckOverrides = dontCheck haskell
+                  [ "cryptohash-sha256"
+                    "doctest"
+                    "ed25519"
+                    "http-media"
+                    "network-uri"
+                  ];
 
-                  prettyprinter =
-                    pkgsNew.haskell.lib.dontCheck
-                      (haskellPackagesNew.callPackage ./nix/prettyprinter.nix { });
+                jailbreakOverrides = jailbreak haskell
+                  [ "cabal-install"
+                    "haskell-src"
+                    "language-haskell-extract"
+                    "refact"
+                    "system-fileio"
+                  ];
 
-                  repline =
-                    haskellPackagesNew.callPackage ./nix/repline.nix { };
-
+                manualOverrides = haskellPackagesNew: haskellPackagesOld: rec {
                   proto3-suite-base =
-                    let
-
-                      # Adds a nix file as an input to the haskell derivation it
-                      # produces. This is useful for callHackage / callCabal2nix to
-                      # prevent the generated default.nix from being garbage collected
-                      # (requiring it to be frequently rebuilt), which can be an
-                      # annoyance.
-                      #
-                      # Cribbed from nixpkgs master because it was not
-                      # backported to 18.09
-                      callPackageKeepDeriver = src: args:
-                        pkgsNew.haskell.lib.overrideCabal (haskellPackagesNew.callPackage src args) (orig: {
-                          preConfigure = ''
-                            # Generated from ${src}
-                            ${orig.preConfigure or ""}
-                          '';
-                        });
-
-                      # Cribbed from nixpkgs master because it was not
-                      # backported to 18.09
-                      callCabal2nixWithOptions = name: src: extraCabal2nixOptions: args:
-                        let
-                          filter = path: type:
-                                     pkgsNew.lib.hasSuffix "${name}.cabal" path ||
-                                     baseNameOf path == "package.yaml";
-                          expr = haskellPackagesNew.haskellSrc2nix {
-                            inherit name extraCabal2nixOptions;
-                            src = if pkgsNew.lib.canCleanSource src
-                                  then pkgsNew.lib.cleanSourceWith { inherit src filter; }
-                                  else src;
-                          };
-                        in pkgsNew.haskell.lib.overrideCabal (callPackageKeepDeriver expr args) (orig: {
-                             inherit src;
-                           });
-
-                      cabal2nixFlags = if enableDhall then "-fdhall" else "";
-                    in
-                      callCabal2nixWithOptions "proto3-suite" ./. cabal2nixFlags { };
+                    let cabal2nixFlags = if enableDhall then "-fdhall" else "";
+                    in haskellPackagesNew.callCabal2nixWithOptions
+                         "proto3-suite" ./. cabal2nixFlags { };
 
                   proto3-suite-boot =
                     pkgsNew.haskell.lib.overrideCabal
@@ -97,22 +166,23 @@ let
                            ++ (if enableDhall then [ "-fdhall" ] else []);
                          doCheck        = false;
                          doHaddock      = false;
-                        }
+                       }
                       );
-
-                  proto3-wire =
-                    haskellPackagesNew.callPackage ./nix/proto3-wire.nix { };
 
                   proto3-suite =
                     pkgsNew.haskell.lib.overrideCabal
                       proto3-suite-base
                       (oldArgs:
                         let
-                          python = pkgsNew.python.withPackages (pkgs: [ pkgs.protobuf]);
+                          protobuf = pkgsNew.protobuf;
+
+                          python = pkgsNew.python.withPackages
+                            (pkgs: [ pkgs.protobuf]);
 
                           ghc =
                             haskellPackagesNew.ghcWithPackages
-                              (pkgs: oldArgs.testHaskellDepends ++ [ proto3-suite-boot ]);
+                              ( pkgs: oldArgs.testHaskellDepends ++
+                                      [ proto3-suite-boot ] );
 
                           test-files = ./test-files;
 
@@ -154,34 +224,75 @@ let
 
                            postPatch = (oldArgs.postPatch or "") + copyGeneratedCode;
 
-                           testHaskellDepends = (oldArgs.testHaskellDepends or []) ++ [
-                             pkgsNew.ghc
-                             pkgsNew.protobuf3_1
-                             proto3-suite-boot
-                             python
-                           ];
+                           testHaskellDepends =
+                             (oldArgs.testHaskellDepends or []) ++ [
+                               pkgsNew.ghc
+                               pkgsNew.protobuf3_1
+                               proto3-suite-boot
+                               python
+                               protobuf
+                             ];
 
                            shellHook = (oldArgs.shellHook or "") + ''
                              ${copyGeneratedCode}
 
-                             export PATH=${haskellPackagesNew.cabal-install}/bin:${ghc}/bin:${python}/bin''${PATH:+:}$PATH
+                             export PATH=${haskellPackagesNew.cabal-install}/bin:${ghc}/bin:${python}/bin:${protobuf}/bin''${PATH:+:}$PATH
                            '';
                          }
                       );
                 };
+
+              in
+                composeExtensionList pkgsNew.lib
+                  [ upgradeOverrides
+                    patchOverrides
+                    dontCheckOverrides
+                    jailbreakOverrides
+                    manualOverrides
+                  ];
           };
         };
       };
     })
   ];
 
-   linuxPkgs = import nixpkgs { inherit config overlays; system = "x86_64-linux" ; };
-  darwinPkgs = import nixpkgs { inherit config overlays; system = "x86_64-darwin"; };
-        pkgs = import nixpkgs { inherit config overlays; };
+  unpatchedPkgs = import unpatchedNixpkgs { inherit config overlays; };
+
+  # https://github.com/NixOS/nixpkgs/pull/85446
+  nixpkgs = unpatchedPkgs.stdenvNoCC.mkDerivation {
+    name = "nixpkgs-${nixpkgsRelease}-patched";
+
+    src = unpatchedNixpkgs;
+
+    # Backport fix <https://github.com/NixOS/nixpkgs/pull/85446> to 20.03:
+    patches = [ ./nix/with-packages-wrapper.patch ];
+
+    phases = [ "unpackPhase" "patchPhase" "installPhase" ];
+
+    installPhase = ''
+      mkdir -p $out
+      cp -R ./ $out/
+    '';
+
+    preferLocalBuild = true;
+  };
+
+  linuxPkgs =
+    import nixpkgs { inherit config overlays; system = "x86_64-linux" ; };
+
+  darwinPkgs =
+    import nixpkgs { inherit config overlays; system = "x86_64-darwin"; };
+
+  pkgs =
+    import nixpkgs { inherit config overlays; };
 
 in
-  { proto3-suite-linux  =  linuxPkgs.haskell.packages."${compiler}".proto3-suite;
-    proto3-suite-darwin = darwinPkgs.haskell.packages."${compiler}".proto3-suite;
+  { proto3-suite-linux =
+      linuxPkgs.haskell.packages."${compiler}".proto3-suite;
 
-    inherit (pkgs.haskell.packages."${compiler}") proto3-suite-boot proto3-suite;
+    proto3-suite-darwin =
+      darwinPkgs.haskell.packages."${compiler}".proto3-suite;
+
+    inherit (pkgs.haskell.packages."${compiler}")
+      proto3-suite-boot proto3-suite;
   }
