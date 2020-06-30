@@ -408,13 +408,13 @@ dhallPBName name = Qual (Module hsDhallPB) (HsIdent name)
 
 dhallInterpretInstDecl :: String -> HsDecl
 dhallInterpretInstDecl typeName =
-  instDecl_ (dhallPBName "FromDhall")
+  instDecl_ (dhallPBName "Interpret")
             [ type_ typeName ]
             [ ]
 
 dhallInjectInstDecl :: String -> HsDecl
 dhallInjectInstDecl typeName =
-  instDecl_ (dhallPBName "ToDhall")
+  instDecl_ (dhallPBName "Inject")
             [ type_ typeName ]
             [ ]
 #endif
@@ -461,7 +461,7 @@ dptToHsTypeWrapped useLegacyTypes opts =
      -- Always wrap the primitive type.
      (\ctxt ty -> case useLegacyTypes of
         YesLegacy -> dpptToHsTypeWrapper ty <$> (dpptToHsType useLegacyTypes) ctxt ty
-        NoLegacy -> dpptToHsType' ctxt ty
+        NoLegacy -> dpptToHsTypeWrapper ty <$> dpptToHsType' ctxt ty
      )
   where
     dpptToHsType' :: MonadError CompileError m
