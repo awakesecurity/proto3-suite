@@ -378,12 +378,13 @@ msgTypeFromDpTypeInfo DotProtoTypeInfo{..} ident = do
     identName <- qualifiedMessageName dotProtoTypeInfoParent ident
     pure $ HsTyCon (Qual modName (HsIdent identName))
 
-haskellName, jsonpbName, grpcName, protobufName, proxyName :: String -> HsQName
+haskellName, jsonpbName, grpcName, protobufName, protobufWrapperName, proxyName :: String -> HsQName
 haskellName  name = Qual (Module "Hs")         (HsIdent name)
 jsonpbName   name = Qual (Module "HsJSONPB")   (HsIdent name)
 grpcName     name = Qual (Module "HsGRPC")     (HsIdent name)
 protobufName name = Qual (Module "HsProtobuf") (HsIdent name)
 proxyName    name = Qual (Module "Proxy")      (HsIdent name)
+protobufWrapperName name = Qual (Module "Google.Protobuf.Wrappers") (HsIdent name)
 
 modulePathModName :: MonadError CompileError m => Path -> m Module
 modulePathModName (Path comps) = Module . intercalate "." <$> traverse typeLikeName (NE.toList comps)
@@ -458,8 +459,47 @@ dptToHsTypeWrapped useLegacyTypes opts =
      -- collection type, so try that first.
      (\ctxt ty -> maybe (dptToHsContType ctxt ty) id (dptToHsWrappedContType ctxt opts ty))
      -- Always wrap the primitive type.
-     (\ctxt ty -> dpptToHsTypeWrapper ty <$> (dpptToHsType useLegacyTypes) ctxt ty
+     (\ctxt ty -> case useLegacyTypes of
+        YesLegacy -> dpptToHsTypeWrapper ty <$> (dpptToHsType useLegacyTypes) ctxt ty
+        NoLegacy -> dpptToHsType' ctxt ty
      )
+  where
+    dpptToHsType' :: MonadError CompileError m
+                  => TypeContext
+                  -> DotProtoPrimType
+                  -> m HsType
+    dpptToHsType' ctxt =  \case
+      Int32    -> pure $ primType_ "Int32"
+      Int64    -> pure $ primType_ "Int64"
+      SInt32   -> pure $ primType_ "Int32"
+      SInt64   -> pure $ primType_ "Int64"
+      UInt32   -> pure $ primType_ "Word32"
+      UInt64   -> pure $ primType_ "Word64"
+      Fixed32  -> pure $ primType_ "Word32"
+      Fixed64  -> pure $ primType_ "Word64"
+      SFixed32 -> pure $ primType_ "Int32"
+      SFixed64 -> pure $ primType_ "Int64"
+      String   -> pure $ primType_ "Text"
+      Bytes    -> pure $ primType_ "ByteString"
+      Bool     -> pure $ primType_ "Bool"
+      Float    -> pure $ primType_ "Float"
+      Double   -> pure $ primType_ "Double"
+      Named (Dots (Path ("google" :| ["protobuf", x])))
+        | x == "Int32Value" -> pure $ protobufWrapperType_ x
+        | x == "Int64Value" -> pure $ protobufWrapperType_ x
+        | x == "UInt32Value" -> pure $ protobufWrapperType_ x
+        | x == "UInt64Value" -> pure $ protobufWrapperType_ x
+        | x == "StringValue" -> pure $ protobufWrapperType_ x
+        | x == "BytesValue" -> pure $ protobufWrapperType_ x
+        | x == "BoolValue" -> pure $ protobufWrapperType_ x
+        | x == "FloatValue" -> pure $ protobufWrapperType_ x
+        | x == "DoubleValue" -> pure $ protobufWrapperType_ x
+      Named msgName ->
+        case M.lookup msgName ctxt of
+          Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
+              HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ty msgName
+          Just ty -> msgTypeFromDpTypeInfo ty msgName
+          Nothing -> noSuchTypeError msgName
 
 foldDPT :: MonadError CompileError m
         => (TypeContext -> DotProtoType -> HsType -> HsType)
@@ -1910,9 +1950,10 @@ unqual_ = UnQual . HsIdent
 uvar_ :: String -> HsExp
 uvar_ = HsVar . unqual_
 
-protobufType_, primType_ :: String -> HsType
+protobufType_, primType_, protobufWrapperType_ :: String -> HsType
 protobufType_ = HsTyCon . protobufName
 primType_ = HsTyCon . haskellName
+protobufWrapperType_ = HsTyCon . protobufWrapperName
 
 type_ :: String -> HsType
 type_ = HsTyCon . unqual_
