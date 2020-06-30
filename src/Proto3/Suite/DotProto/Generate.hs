@@ -437,7 +437,9 @@ wrapE useLegacyTypes ctxt opts dpt e = maybe e (\f -> apply f [e]) <$>
 
 unwrapE :: MonadError CompileError m => UseLegacyTypes -> TypeContext -> [DotProtoOption] -> DotProtoType -> HsExp -> m HsExp
 unwrapE useLegacyTypes ctxt opts dpt e = maybe e (\f -> apply f [e]) <$>
-   (coerceE (isMap dpt) <$> overParser (dptToHsTypeWrapped useLegacyTypes opts ctxt dpt) <*> overParser (dptToHsType useLegacyTypes ctxt dpt))
+   (coerceE (isMap dpt) <$>
+     overParser (dptToHsTypeWrapped useLegacyTypes opts ctxt dpt) <*>
+       overParser (dptToHsType useLegacyTypes ctxt dpt))
   where
     overParser = fmap $ HsTyApp (HsTyVar (HsIdent "_"))
 
@@ -576,9 +578,10 @@ dpptToHsType useLegacyTypes ctxt = \case
   Bool     -> pure $ primType_ "Bool"
   Float    -> pure $ primType_ "Float"
   Double   -> pure $ primType_ "Double"
-  {-| For properly handling wrapper values found at:
-      <https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/wrappers.proto>
-  -}
+{-|
+For properly handling wrapper values found at:
+<https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/wrappers.proto>
+-}
   Named (Dots (Path ("google" :| ["protobuf", x])))
     | x == "Int32Value" && useLegacyTypes == NoLegacy -> pure $ primType_ "Int32"
     | x == "Int64Value" && useLegacyTypes == NoLegacy -> pure $ primType_ "Int64"
@@ -595,32 +598,6 @@ dpptToHsType useLegacyTypes ctxt = \case
           HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ty msgName
       Just ty -> msgTypeFromDpTypeInfo ty msgName
       Nothing -> noSuchTypeError msgName
-
-{-
-dpptToHsTypeOld :: MonadError CompileError m => TypeContext -> DotProtoPrimType -> m HsType
-dpptToHsTypeOld ctxt = \case
-  Int32    -> pure $ primType_ "Int32"
-  Int64    -> pure $ primType_ "Int64"
-  SInt32   -> pure $ primType_ "Int32"
-  SInt64   -> pure $ primType_ "Int64"
-  UInt32   -> pure $ primType_ "Word32"
-  UInt64   -> pure $ primType_ "Word64"
-  Fixed32  -> pure $ primType_ "Word32"
-  Fixed64  -> pure $ primType_ "Word64"
-  SFixed32 -> pure $ primType_ "Int32"
-  SFixed64 -> pure $ primType_ "Int64"
-  String   -> pure $ primType_ "Text"
-  Bytes    -> pure $ primType_ "ByteString"
-  Bool     -> pure $ primType_ "Bool"
-  Float    -> pure $ primType_ "Float"
-  Double   -> pure $ primType_ "Double"
-  Named msgName ->
-    case M.lookup msgName ctxt of
-      Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
-          HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ty msgName
-      Just ty -> msgTypeFromDpTypeInfo ty msgName
-      Nothing -> noSuchTypeError msgName
--}
 
 validMapKey :: DotProtoPrimType -> Bool
 validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
@@ -732,9 +709,9 @@ dotProtoMessageD useLegacyTypes ctxt parentIdent messageIdent messageParts = do
                 <> ctxt
 
     messagePartFieldD :: UseLegacyTypes -> String -> DotProtoMessagePart -> m [([HsName], HsBangType)]
-    messagePartFieldD useLegacyTypes messageName (DotProtoMessageField DotProtoField{..}) = do
+    messagePartFieldD useLegacyTypes' messageName (DotProtoMessageField DotProtoField{..}) = do
       fullName <- prefixedFieldName messageName =<< dpIdentUnqualName dotProtoFieldName
-      fullTy <- dptToHsType useLegacyTypes ctxt' dotProtoFieldType
+      fullTy <- dptToHsType useLegacyTypes' ctxt' dotProtoFieldType
       pure [ ([HsIdent fullName], HsUnBangedTy fullTy ) ]
 
     messagePartFieldD _ messageName (DotProtoMessageOneOf fieldName _) = do
@@ -746,26 +723,26 @@ dotProtoMessageD useLegacyTypes ctxt parentIdent messageIdent messageParts = do
     messagePartFieldD _ _ _ = pure []
 
     nestedDecls :: UseLegacyTypes -> DotProtoDefinition -> m [HsDecl]
-    nestedDecls useLegacyTypes (DotProtoMessage _ subMsgName subMessageDef) = do
+    nestedDecls useLegacyTypes' (DotProtoMessage _ subMsgName subMessageDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoMessageD useLegacyTypes ctxt' parentIdent' subMsgName subMessageDef
+      dotProtoMessageD useLegacyTypes' ctxt' parentIdent' subMsgName subMessageDef
 
-    nestedDecls _ (DotProtoEnum _ subEnumName subEnumDef) = do
+    nestedDecls useLegacyTypes' (DotProtoEnum _ subEnumName subEnumDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoEnumD useLegacyTypes parentIdent' subEnumName subEnumDef
+      dotProtoEnumD useLegacyTypes' parentIdent' subEnumName subEnumDef
 
     nestedDecls _ _ = pure []
 
     nestedOneOfDecls :: UseLegacyTypes -> String -> DotProtoIdentifier -> [DotProtoField] -> m [HsDecl]
-    nestedOneOfDecls useLegacyTypes messageName identifier fields = do
+    nestedOneOfDecls useLegacyTypes' messageName identifier fields = do
       fullName <- prefixedConName messageName =<< dpIdentUnqualName identifier
 
-      (cons, idents) <- fmap unzip (mapM (oneOfCons useLegacyTypes fullName) fields)
+      (cons, idents) <- fmap unzip (mapM (oneOfCons useLegacyTypes' fullName) fields)
 
       toSchemaInstance <- toSchemaInstanceDeclaration fullName (Just idents)
                             =<< mapM (dpIdentUnqualName . dotProtoFieldName) fields
 
-      pure [ (dataDecl_ useLegacyTypes) fullName cons defaultMessageDeriving
+      pure [ (dataDecl_ useLegacyTypes') fullName cons defaultMessageDeriving
            , namedInstD fullName
            , toSchemaInstance
 
@@ -776,12 +753,12 @@ dotProtoMessageD useLegacyTypes ctxt parentIdent messageIdent messageParts = do
            ]
 
     oneOfCons :: UseLegacyTypes -> String -> DotProtoField -> m (HsConDecl, HsName)
-    oneOfCons useLegacyTypes fullName DotProtoField{..} = do
+    oneOfCons useLegacyTypes' fullName DotProtoField{..} = do
        consTy <- case dotProtoFieldType of
             Prim msg@(Named msgName)
               | isMessage ctxt' msgName
-                -> (dpptToHsType useLegacyTypes) ctxt' msg
-            _   -> dptToHsType useLegacyTypes ctxt' dotProtoFieldType
+                -> (dpptToHsType useLegacyTypes') ctxt' msg
+            _   -> dptToHsType useLegacyTypes' ctxt' dotProtoFieldType
 
        consName <- prefixedConName fullName =<< dpIdentUnqualName dotProtoFieldName
        let ident = HsIdent consName
@@ -846,11 +823,11 @@ messageInstD useLegacyTypes ctxt parentIdent msgIdent messageParts = do
                       ]
   where
     encodeMessageField :: UseLegacyTypes -> QualifiedField -> m HsExp
-    encodeMessageField useLegacyTypes QualifiedField{recordFieldName, fieldInfo} =
+    encodeMessageField useLegacyTypes' QualifiedField{recordFieldName, fieldInfo} =
       let recordFieldName' = uvar_ (coerce recordFieldName) in
       case fieldInfo of
         FieldNormal _fieldName fieldNum dpType options -> do
-            fieldE <- wrapE useLegacyTypes ctxt options dpType recordFieldName'
+            fieldE <- wrapE useLegacyTypes' ctxt options dpType recordFieldName'
             pure $ apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ]
 
         FieldOneOf OneofField{subfields} -> do
@@ -877,7 +854,7 @@ messageInstD useLegacyTypes ctxt parentIdent msgIdent messageParts = do
               let wrapJust = HsParen . HsApp (HsVar (haskellName "Just"))
 
               xE <- (if isMaybe then id else fmap forceEmitE)
-                     . wrapE useLegacyTypes ctxt options dpType
+                     . wrapE useLegacyTypes' ctxt options dpType
                      . (if isMaybe then wrapJust else id)
                      $ uvar_ "y"
 
@@ -887,19 +864,19 @@ messageInstD useLegacyTypes ctxt parentIdent msgIdent messageParts = do
 
 
     decodeMessageField :: UseLegacyTypes -> QualifiedField -> m HsExp
-    decodeMessageField useLegacyTypes QualifiedField{fieldInfo} =
+    decodeMessageField useLegacyTypes' QualifiedField{fieldInfo} =
       case fieldInfo of
         FieldNormal _fieldName fieldNum dpType options ->
-            unwrapE useLegacyTypes ctxt options dpType $ apply atE [ decodeMessageFieldE, fieldNumberE fieldNum ]
+            unwrapE useLegacyTypes' ctxt options dpType $ apply atE [ decodeMessageFieldE, fieldNumberE fieldNum ]
 
         FieldOneOf OneofField{subfields} -> do
-            parsers <- mapM (subfieldParserE useLegacyTypes) subfields
+            parsers <- mapM (subfieldParserE useLegacyTypes') subfields
             pure $  apply oneofE [ HsVar (haskellName "Nothing")
                                  , HsList parsers
                                  ]
           where
             -- create a list of (fieldNumber, Cons <$> parser)
-            subfieldParserE useLegacyTypes (OneofSubfield fieldNumber consName _ dpType options) = do
+            subfieldParserE useLegacyTypes'' (OneofSubfield fieldNumber consName _ dpType options) = do
               let fE | Prim (Named tyName) <- dpType, isMessage ctxt tyName
                      = HsParen (HsApp fmapE (uvar_ consName))
                      | otherwise
@@ -907,7 +884,7 @@ messageInstD useLegacyTypes ctxt parentIdent msgIdent messageParts = do
                                            composeOp
                                            (uvar_ consName))
 
-              alts <- unwrapE useLegacyTypes ctxt options dpType decodeMessageFieldE
+              alts <- unwrapE useLegacyTypes'' ctxt options dpType decodeMessageFieldE
 
               pure $ HsTuple
                    [ fieldNumberE fieldNumber
@@ -1926,11 +1903,6 @@ dataDecl_ NoLegacy messageName [constructor@(HsRecDecl _ _ [_])] =
   HsNewTypeDecl defaultSrcLoc [] (HsIdent messageName) [] constructor
 dataDecl_ _ messageName constructors =
   HsDataDecl defaultSrcLoc [] (HsIdent messageName) [] constructors
-
-{-
-dataDeclOld_ :: String -> [HsConDecl] -> [HsQName] -> HsDecl
-dataDeclOld_ messageName = HsDataDecl defaultSrcLoc [] (HsIdent messageName) []
--}
 
 recDecl_ :: HsName -> [([HsName], HsBangType)] -> HsConDecl
 recDecl_ = HsRecDecl defaultSrcLoc
