@@ -11,5 +11,6 @@ ghc                                         \
     $hsTmpDir/TestProtoImport.hs            \
     $hsTmpDir/TestProtoOneof.hs             \
     $hsTmpDir/TestProtoOneofImport.hs       \
+    $hsTmpDir/Wrap.hs                       \
     tests/SimpleEncodeDotProto.hs           \
     >/dev/null
