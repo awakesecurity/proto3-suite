@@ -561,7 +561,11 @@ dpptToHsTypeWrapper = \case
   _        -> id
 
 -- | Convert a dot proto prim type to an unwrapped Haskell type
-dpptToHsType :: MonadError CompileError m => UseLegacyTypes -> TypeContext -> DotProtoPrimType -> m HsType
+dpptToHsType :: MonadError CompileError m
+             => UseLegacyTypes
+             -> TypeContext
+             -> DotProtoPrimType
+             -> m HsType
 dpptToHsType useLegacyTypes ctxt = \case
   Int32    -> pure $ primType_ "Int32"
   Int64    -> pure $ primType_ "Int64"
@@ -578,10 +582,6 @@ dpptToHsType useLegacyTypes ctxt = \case
   Bool     -> pure $ primType_ "Bool"
   Float    -> pure $ primType_ "Float"
   Double   -> pure $ primType_ "Double"
-{-|
-For properly handling wrapper values found at:
-<https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/wrappers.proto>
--}
   Named (Dots (Path ("google" :| ["protobuf", x])))
     | x == "Int32Value" && useLegacyTypes == NoLegacy -> pure $ primType_ "Int32"
     | x == "Int64Value" && useLegacyTypes == NoLegacy -> pure $ primType_ "Int64"
