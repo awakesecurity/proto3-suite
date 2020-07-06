@@ -137,7 +137,6 @@ let
 
                 dontCheckOverrides = dontCheck haskell
                   [ "cryptohash-sha256"
-                    "dhall"
                     "doctest"
                     "ed25519"
                     "http-media"
