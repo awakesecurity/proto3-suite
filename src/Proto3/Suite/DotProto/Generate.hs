@@ -76,11 +76,11 @@ data CompileArgs = CompileArgs
   , useLegacyTypes     :: UseLegacyTypes
   }
 
-{-| 
+{-|
 Used as a compiler arg that determines whether or not to use the legacy
-behavior for handling protocol buffer Wrapper messages. These Wrapper 
+behavior for handling protocol buffer Wrapper messages. These Wrapper
 messages can be found in @test-files/google/protobuf/wrappers.proto@
-(path is relative to root). 
+(path is relative to root).
 
 Example @.proto@ file:
 @
@@ -107,8 +107,8 @@ module Example where
 
 import qualified Google.Protobuf.Wrappers
 
-data Test = Test 
-  { testX :: Maybe Google.Protobuf.Wrappers.Int32Value 
+data Test = Test
+  { testX :: Maybe Google.Protobuf.Wrappers.Int32Value
   , testY :: Maybe Google.Protobuf.Wrappers.BytesValue
   } deriving (...)
 
@@ -406,15 +406,23 @@ dhallPBName name = Qual (Module hsDhallPB) (HsIdent name)
 
 -- *** Generate Dhall Interpret and Inject generic instances
 
+fromDhall, toDhall :: String
+(fromDhall, toDhall) =
+#if MIN_VERSION_dhall(1,27,0)
+  ("FromDhall", "ToDhall")
+#else
+  ("Interpret", "Inject")
+#endif
+
 dhallInterpretInstDecl :: String -> HsDecl
 dhallInterpretInstDecl typeName =
-  instDecl_ (dhallPBName "FromDhall")
+  instDecl_ (dhallPBName fromDhall)
             [ type_ typeName ]
             [ ]
 
 dhallInjectInstDecl :: String -> HsDecl
 dhallInjectInstDecl typeName =
-  instDecl_ (dhallPBName "ToDhall")
+  instDecl_ (dhallPBName toDhall)
             [ type_ typeName ]
             [ ]
 #endif

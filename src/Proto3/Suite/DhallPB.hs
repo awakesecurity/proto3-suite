@@ -1,6 +1,12 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
+#if !(MIN_VERSION_dhall(1,27,0))
+#define FromDhall Interpret
+#define ToDhall Inject
+#endif
 
 module Proto3.Suite.DhallPB
   ( -- * Modules
@@ -21,6 +27,10 @@ import qualified Data.ByteString.Lazy
 import qualified Data.Text.Encoding
 import qualified Data.Text.Lazy.Encoding
 import qualified Dhall
+
+#if !(MIN_VERSION_dhall(1,27,0))
+import qualified Data.Map
+#endif
 
 --------------------------------------------------------------------------------
 -- Interpret the special 'Enumerated' type
@@ -98,6 +108,18 @@ instance Dhall.FromDhall (Fixed Word64) where
 instance Dhall.FromDhall Float where
   autoWith _ = fmap double2Float Dhall.double
 
+#if !(MIN_VERSION_dhall(1,27,0))
+--------------------------------------------------------------------------------
+-- Interpret maps
+--
+-- Dhall has no map type.  We resort to an association list,
+-- though that is not safe because keys may be repeated.
+
+instance (Dhall.Interpret k, Dhall.Interpret v, Ord k) =>
+         Dhall.Interpret (Data.Map.Map k v) where
+  autoWith = fmap (fmap Data.Map.fromList) Dhall.autoWith
+#endif
+
 --------------------------------------------------------------------------------
 -- Inject the special 'Enumerated' type
 
@@ -154,3 +176,15 @@ instance Dhall.ToDhall Data.ByteString.ByteString where
       -- but we should never encounter that case with this usage
       -- because we Base64 encode the ByteString first
       b64Encode = Data.Text.Encoding.decodeUtf8 . Data.ByteString.Base64.encode
+
+#if !(MIN_VERSION_dhall(1,27,0))
+--------------------------------------------------------------------------------
+-- Inject maps
+--
+-- Dhall has no map type.  We resort to an association list,
+-- though that is not safe because keys may be repeated.
+
+instance (Dhall.Inject k, Dhall.Inject v) =>
+         Dhall.Inject (Data.Map.Map k v) where
+  injectWith = fmap (contramap Data.Map.toAscList) Dhall.injectWith
+#endif

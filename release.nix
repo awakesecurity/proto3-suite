@@ -78,15 +78,15 @@ let
 
                 upgradeOverrides = upgrade
                   ( [ "generic-random"
-                      "dhall"
                       "parameterized"
-                      "prettyprinter"
                       "proto3-wire"
                     ] ++ rangeVer "8.8" "8.10" [
                       "network-bsd"
                     ] ++ geVer "8.8" [
+                      "dhall"
                       "haskell-src"
                       "insert-ordered-containers"
+                      "prettyprinter"
                       "swagger2"
                     ] ++ geVer "8.10" [
                       "assoc"
