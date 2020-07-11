@@ -92,18 +92,12 @@ message Test {
   google.protobuf.Int32Value x = 1;
   google.protobuf.BytesValue y = 2;
 }
-
-...
 @
 
 From the @.proto@ file above, the legacy behavior
 generates the corresponding @Example.hs@ file:
 @
-...
-
 module Example where
-
-...
 
 import qualified Google.Protobuf.Wrappers
 
@@ -111,17 +105,11 @@ data Test = Test
   { testX :: Maybe Google.Protobuf.Wrappers.Int32Value
   , testY :: Maybe Google.Protobuf.Wrappers.BytesValue
   } deriving (...)
-
-...
 @
 
 The new behavior generates:
 @
-...
-
 module Example where
-
-...
 
 import qualified Google.Protobuf.Wrappers
 
@@ -129,8 +117,6 @@ data Test = Test
   { testX :: Maybe Int32
   , testY :: Maybe ByteString
   } deriving (...)
-
-...
 @
 -}
 data UseLegacyTypes = YesLegacy | NoLegacy
