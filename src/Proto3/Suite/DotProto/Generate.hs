@@ -73,54 +73,7 @@ data CompileArgs = CompileArgs
   , extraInstanceFiles :: [FilePath]
   , inputProto         :: FilePath
   , outputDir          :: FilePath
-  , useLegacyTypes     :: UseLegacyTypes
   }
-
-{-|
-Used as a compiler arg that determines whether or not to use the legacy
-behavior for handling protocol buffer Wrapper messages. These Wrapper
-messages can be found in @test-files/google/protobuf/wrappers.proto@
-(path is relative to root).
-
-Example @.proto@ file:
-@
-syntax = "proto3";
-package example;
-import "google/protobuf/wrappers.proto";
-
-message Test {
-  google.protobuf.Int32Value x = 1;
-  google.protobuf.BytesValue y = 2;
-}
-@
-
-From the @.proto@ file above, the legacy behavior
-generates the corresponding @Example.hs@ file:
-@
-module Example where
-
-import qualified Google.Protobuf.Wrappers
-
-data Test = Test
-  { testX :: Maybe Google.Protobuf.Wrappers.Int32Value
-  , testY :: Maybe Google.Protobuf.Wrappers.BytesValue
-  } deriving (...)
-@
-
-The new behavior generates:
-@
-module Example where
-
-import qualified Google.Protobuf.Wrappers
-
-data Test = Test
-  { testX :: Maybe Int32
-  , testY :: Maybe ByteString
-  } deriving (...)
-@
--}
-data UseLegacyTypes = YesLegacy | NoLegacy
-  deriving (Eq, Show)
 
 -- | Generate a Haskell module corresponding to a @.proto@ file
 compileDotProtoFile :: CompileArgs -> IO (Either CompileError ())
