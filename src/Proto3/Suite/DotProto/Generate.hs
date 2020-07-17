@@ -221,6 +221,11 @@ replaceHsInstDecls overrides base = concatMap mbReplace base
         let (uncustomized, customized) = partitionEithers (map (deriv tyn) insts)
         in HsDataDecl loc ctx tyn names def uncustomized : customized
 
+    -- instances listed in "deriving" clause of newtype definition:
+    mbReplace (HsNewTypeDecl loc ctx tyn names def insts) =
+        let (uncustomized, customized) = partitionEithers (map (deriv tyn) insts)
+        in HsNewTypeDecl loc ctx tyn names def uncustomized : customized
+
     -- irrelevant declarations remain unchanged:
     mbReplace hid = [hid]
 
