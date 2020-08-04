@@ -1109,9 +1109,9 @@ toSchemaInstanceDeclarationNew messageName maybeConstructors fieldNamesAndMessag
 
   let isRequired :: DotProtoMessagePart -> Bool = \case
         DotProtoMessageField _ -> True
-        DotProtoMessageOneOf _ _ -> False
-        DotProtoMessageDefinition _ -> False
-        DotProtoMessageReserved _ -> False
+        DotProtoMessageOneOf _ _ -> True
+        DotProtoMessageDefinition _ -> True
+        DotProtoMessageReserved _ -> True
 
   let requiredList = HsList $ do
         requiredFieldNameAndMessagePart <- filter (isRequired . snd) fieldNamesAndMessageParts
