@@ -1130,7 +1130,7 @@ toSchemaInstanceDeclarationNew messageName maybeConstructors fieldNamesAndMessag
           normalUpdates =
             [ HsFieldUpdate _schemaParamSchema _schemaParamSchemaExpression
             , HsFieldUpdate _schemaProperties  _schemaPropertiesExpression
-            , HsFieldUpdate _schemaRequired  _schemaPropertiesExpression
+            , HsFieldUpdate _schemaRequired  _schemaRequiredExpression
             ]
 
           extraUpdates =
