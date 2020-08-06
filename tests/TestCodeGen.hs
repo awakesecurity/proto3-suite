@@ -254,7 +254,7 @@ compileTestDotProtos = do
 -- >>> schemaOf @Something
 -- {"required":["value","another"],"properties":{"value":{"maximum":9223372036854775807,"format":"int64","minimum":-9223372036854775808,"type":"integer"},"another":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"},"pickOne":{"$ref":"#/definitions/SomethingPickOne"}},"type":"object"}
 -- >>> schemaOf @SomethingPickOne
--- {"required":["name","someid"],"properties":{"name":{"type":"string"},"someid":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"},"dummyMsg1":{"$ref":"#/definitions/DummyMsg"},"dummyMsg2":{"$ref":"#/definitions/DummyMsg"},"dummyEnum":{"$ref":"#/definitions/DummyEnum"}},"maxProperties":1,"minProperties":1,"type":"object"}
+-- {"properties":{"name":{"type":"string"},"someid":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"},"dummyMsg1":{"$ref":"#/definitions/DummyMsg"},"dummyMsg2":{"$ref":"#/definitions/DummyMsg"},"dummyEnum":{"$ref":"#/definitions/DummyEnum"}},"maxProperties":1,"minProperties":1,"type":"object"}
 -- >>> schemaOf @DummyMsg
 -- {"required":["dummy"],"properties":{"dummy":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"}},"type":"object"}
 -- >>> schemaOf @(Enumerated DummyEnum)

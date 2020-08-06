@@ -607,11 +607,24 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
             [ recDecl_ (HsIdent messageName) flds ]
             defaultMessageDeriving
 
-    let getField = \case
-          DotProtoMessageField fld     -> [fld]
-          -- We just need the name of the oneOf field
-          DotProtoMessageOneOf ident _ -> [(DotProtoField (FieldNumber 0) (Prim (Named ident)) ident [] "")]
-          _                            -> []
+    let isRequired :: DotProtoField -> Bool = \case
+          DotProtoField _ (Prim (Named (Dots (Path ("google" :| ["protobuf", _]))))) _ _ _ -> False
+          DotProtoField _ (Prim (Named _)) _ _ _ -> False
+          DotProtoField _ _ _ _ _ -> True
+          DotProtoEmptyField -> False
+
+    let getEither :: DotProtoMessagePart -> m [(String, Bool)] = \case
+          DotProtoMessageField fld     -> do
+            name <- dpIdentUnqualName (dotProtoFieldName fld)
+            pure [(name, isRequired fld)]
+          DotProtoMessageOneOf ident _ -> do
+            name <- dpIdentUnqualName ident
+            pure [(name, False)]
+          _                            -> do pure []
+
+    fieldss <- traverse getEither messageParts
+
+    let fields = concat fieldss
 
     foldMapM id
       [ sequence
@@ -627,7 +640,7 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
           , pure (toJSONInstDecl messageName)
           , pure (fromJSONInstDecl messageName)
 
-          , toSchemaInstanceDeclaration messageName Nothing $ concatMap getField messageParts
+          , toSchemaInstanceDeclaration messageName Nothing fields
 #ifdef DHALL
           -- Generate Dhall instances
           , pure (dhallInterpretInstDecl messageName)
@@ -676,12 +689,13 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     nestedDecls _ = pure []
 
     nestedOneOfDecls :: String -> DotProtoIdentifier -> [DotProtoField] -> m [HsDecl]
-    nestedOneOfDecls messageName identifier fields = do
+    nestedOneOfDecls messageName identifier dotProtoFields = do
+      fields <- traverse (dpIdentUnqualName . dotProtoFieldName) dotProtoFields
       fullName <- prefixedConName messageName =<< dpIdentUnqualName identifier
 
-      (cons, idents) <- fmap unzip (mapM (oneOfCons fullName) fields)
+      (cons, idents) <- fmap unzip (mapM (oneOfCons fullName) dotProtoFields)
 
-      toSchemaInstance <- toSchemaInstanceDeclaration fullName (Just idents) fields
+      toSchemaInstance <- toSchemaInstanceDeclaration fullName (Just idents) (zip fields $ repeat False)
 
       pure [ dataDecl_ fullName cons defaultMessageDeriving
            , namedInstD fullName
@@ -1064,14 +1078,11 @@ toSchemaInstanceDeclaration
     -- ^ Name of the message type to create an instance for
     -> Maybe [HsName]
     -- ^ Oneof constructors
-    -> [DotProtoField]
-    -- ^ Field names and message parts
+    -> [(String, Bool)]
+    -- ^ Field and if it is nested oneof field
     -> m HsDecl
-toSchemaInstanceDeclaration messageName maybeConstructors fields = do
-
-  let getName dotProtoField = [dotProtoFieldName dotProtoField]
-
-  fieldNames <- foldMapM (traverse dpIdentUnqualName . getName) fields
+toSchemaInstanceDeclaration messageName maybeConstructors fieldsWithIsRequired = do
+  let fieldNames = map fst fieldsWithIsRequired
 
   qualifiedFieldNames <- mapM (prefixedFieldName messageName) fieldNames
 
@@ -1106,13 +1117,7 @@ toSchemaInstanceDeclaration messageName maybeConstructors fields = do
   let _schemaPropertiesExpression =
         HsApp (HsVar (jsonpbName "insOrdFromList")) properties
 
-  let isRequired :: DotProtoField -> Bool = \case
-        DotProtoField _ (Prim (Named (Dots (Path ("google" :| ["protobuf", _]))))) _ _ _ -> False
-        DotProtoField _ (Prim (Named _)) _ _ _ -> False
-        DotProtoField _ _ _ _ _ -> True
-        DotProtoEmptyField -> False
-
-  requiredFieldNames <- foldMapM (traverse dpIdentUnqualName . getName) $ filter isRequired fields
+  let requiredFieldNames = map fst $ filter snd fieldsWithIsRequired
 
   let requiredList = HsList $ map str_ requiredFieldNames
 
@@ -1266,406 +1271,6 @@ toSchemaInstanceDeclaration messageName maybeConstructors fields = do
                   matchName = HsIdent "declareNamedSchema"
 
   return instanceDeclaration
-
-toSchemaInstanceDeclarationNew
-    :: MonadError CompileError m
-    => String
-    -- ^ Name of the message type to create an instance for
-    -> Maybe [HsName]
-    -- ^ Oneof constructors
-    -> [(String, DotProtoMessagePart)]
-    -- ^ Field names and message parts
-    -> m HsDecl
-toSchemaInstanceDeclarationNew messageName maybeConstructors fieldNamesAndMessageParts = do
-  let fieldNames = map fst fieldNamesAndMessageParts
-
-  qualifiedFieldNames <- mapM (prefixedFieldName messageName) fieldNames
-
-  let messageConstructor = HsCon (UnQual (HsIdent messageName))
-
-  let _namedSchemaNameExpression = HsApp justC (str_ messageName)
-
-      -- { _paramSchemaType = HsJSONPB.SwaggerObject
-      -- }
-  let paramSchemaUpdates =
-        [ HsFieldUpdate _paramSchemaType _paramSchemaTypeExpression
-        ]
-        where
-          _paramSchemaType = jsonpbName "_paramSchemaType"
-
-#if MIN_VERSION_swagger2(2,4,0)
-          _paramSchemaTypeExpression = HsApp justC (HsVar (jsonpbName "SwaggerObject"))
-#else
-          _paramSchemaTypeExpression = HsVar (jsonpbName "SwaggerObject")
-#endif
-
-  let _schemaParamSchemaExpression = HsRecUpdate memptyE paramSchemaUpdates
-
-      -- [ ("fieldName0", qualifiedFieldName0)
-      -- , ("fieldName1", qualifiedFieldName1)
-      -- ...
-      -- ]
-  let properties = HsList $ do
-        (fieldName, qualifiedFieldName) <- zip fieldNames qualifiedFieldNames
-        return (HsTuple [ str_  fieldName, uvar_ qualifiedFieldName ])
-
-  let _schemaPropertiesExpression =
-        HsApp (HsVar (jsonpbName "insOrdFromList")) properties
-
-  let isRequired :: DotProtoMessagePart -> Bool = \case
-        DotProtoMessageField (DotProtoField _ (Prim (Named (Dots (Path ("google" :| ["protobuf", _]))))) _ _ _) ->
-          False
-        DotProtoMessageField _ -> True
-        DotProtoMessageOneOf _ _ -> False
-        DotProtoMessageDefinition _ -> False
-        DotProtoMessageReserved _ -> False
-
-  let requiredList = HsList $ do
-        requiredFieldNameAndMessagePart <- filter (isRequired . snd) fieldNamesAndMessageParts
-        let requiredFieldName = fst requiredFieldNameAndMessagePart
-        return $ str_ requiredFieldName
-
-  let _schemaRequiredExpression = requiredList
-
-      -- { _schemaParamSchema = ...
-      -- , _schemaProperties  = ...
-      -- , _schemaRequired    = ...
-      -- , ...
-      -- }
-  let schemaUpdates = normalUpdates ++ extraUpdates
-        where
-          normalUpdates =
-            [ HsFieldUpdate _schemaParamSchema _schemaParamSchemaExpression
-            , HsFieldUpdate _schemaProperties  _schemaPropertiesExpression
-            , HsFieldUpdate _schemaRequired  _schemaRequiredExpression
-            ]
-
-          extraUpdates =
-            case maybeConstructors of
-                Just _ ->
-                  [ HsFieldUpdate _schemaMinProperties justOne
-                  , HsFieldUpdate _schemaMaxProperties justOne
-                  ]
-                Nothing ->
-                  []
-
-          _schemaParamSchema    = jsonpbName "_schemaParamSchema"
-          _schemaProperties     = jsonpbName "_schemaProperties"
-          _schemaRequired       = jsonpbName "_schemaRequired"
-          _schemaMinProperties  = jsonpbName "_schemaMinProperties"
-          _schemaMaxProperties  = jsonpbName "_schemaMaxProperties"
-
-          justOne = HsApp justC (HsLit (HsInt 1))
-
-  let _namedSchemaSchemaExpression = HsRecUpdate memptyE schemaUpdates
-
-      -- { _namedSchemaName   = ...
-      -- , _namedSchemaSchema = ...
-      -- }
-  let namedSchemaUpdates =
-        [ HsFieldUpdate _namedSchemaName   _namedSchemaNameExpression
-        , HsFieldUpdate _namedSchemaSchema _namedSchemaSchemaExpression
-        ]
-        where
-          _namedSchemaName   = jsonpbName "_namedSchemaName"
-          _namedSchemaSchema = jsonpbName "_namedSchemaSchema"
-
-  let namedSchema = HsRecConstr (jsonpbName "NamedSchema") namedSchemaUpdates
-
-  let toDeclareName fieldName = "declare_" ++ fieldName
-
-  let toArgument fieldName = HsApp asProxy declare
-        where
-          declare = uvar_ (toDeclareName fieldName)
-
-          asProxy = HsVar (jsonpbName "asProxy")
-
-      -- do let declare_fieldName0 = HsJSONPB.declareSchemaRef
-      --    qualifiedFieldName0 <- declare_fieldName0 Proxy.Proxy
-      --    let declare_fieldName1 = HsJSONPB.declareSchemaRef
-      --    qualifiedFieldName1 <- declare_fieldName1 Proxy.Proxy
-      --    ...
-      --    let _ = pure MessageName <*> HsJSONPB.asProxy declare_fieldName0 <*> HsJSONPB.asProxy declare_fieldName1 <*> ...
-      --    return (...)
-  let expressionForMessage =
-          HsDo (bindingStatements ++ inferenceStatement ++ [ returnStatement ])
-        where
-          bindingStatements = do
-            (fieldName, qualifiedFieldName) <- zip fieldNames qualifiedFieldNames
-
-            let declareIdentifier = HsIdent (toDeclareName fieldName)
-
-            let stmt0 = HsLetStmt [ HsFunBind
-                                    [ HsMatch defaultSrcLoc declareIdentifier []
-                                               (HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))) []
-                                    ]
-                                  ]
-
-            let stmt1 = HsGenerator defaultSrcLoc (HsPVar (HsIdent qualifiedFieldName))
-                                      (HsApp (HsVar (UnQual declareIdentifier))
-                                             (HsCon (proxyName "Proxy")))
-            [ stmt0, stmt1]
-
-
-          inferenceStatement =
-              if null fieldNames then [] else [ HsLetStmt [ patternBind ] ]
-            where
-              arguments = map toArgument fieldNames
-
-              patternBind = HsPatBind defaultSrcLoc HsPWildCard
-                                        (HsUnGuardedRhs (applicativeApply messageConstructor arguments)) []
-
-          returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
-
-      -- do let declare_fieldName0 = HsJSONPB.declareSchemaRef
-      --    let _ = pure ConstructorName0 <*> HsJSONPB.asProxy declare_fieldName0
-      --    qualifiedFieldName0 <- declare_fieldName0 Proxy.Proxy
-      --    let declare_fieldName1 = HsJSONPB.declareSchemaRef
-      --    let _ = pure ConstructorName1 <*> HsJSONPB.asProxy declare_fieldName1
-      --    qualifiedFieldName1 <- declare_fieldName1 Proxy.Proxy
-      --    ...
-      --    return (...)
-  let expressionForOneOf constructors =
-          HsDo (bindingStatements ++ [ returnStatement ])
-        where
-          bindingStatements = do
-            (fieldName, qualifiedFieldName, constructor)
-                <- zip3 fieldNames qualifiedFieldNames constructors
-
-            let declareIdentifier = HsIdent (toDeclareName fieldName)
-
-            let stmt0 = HsLetStmt [ HsFunBind
-                                      [ HsMatch defaultSrcLoc declareIdentifier []
-                                                 (HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))) []
-                                      ]
-                                  ]
-            let stmt1 = HsGenerator defaultSrcLoc (HsPVar (HsIdent qualifiedFieldName))
-                                      (HsApp (HsVar (UnQual declareIdentifier))
-                                             (HsCon (proxyName "Proxy")))
-            let inferenceStatement =
-                    if null fieldNames then [] else [ HsLetStmt [ patternBind ] ]
-                  where
-                    arguments = [ toArgument fieldName ]
-
-                    patternBind = HsPatBind defaultSrcLoc HsPWildCard
-                                              (HsUnGuardedRhs (applicativeApply (HsCon (UnQual constructor)) arguments)) []
-
-            [stmt0, stmt1] ++ inferenceStatement
-
-
-          returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
-
-  let instanceDeclaration =
-          instDecl_ className [ classArgument ] [ classDeclaration ]
-        where
-          className = jsonpbName "ToSchema"
-
-          classArgument = HsTyCon (UnQual (HsIdent messageName))
-
-          classDeclaration = HsFunBind [ match ]
-            where
-              match = match_ matchName [ HsPWildCard ] rightHandSide []
-                where
-                  expression = case maybeConstructors of
-                      Nothing           -> expressionForMessage
-                      Just constructors -> expressionForOneOf constructors
-
-                  rightHandSide = HsUnGuardedRhs expression
-
-                  matchName = HsIdent "declareNamedSchema"
-
-  return instanceDeclaration
-
-
-toSchemaInstanceDeclarationOld
-    :: MonadError CompileError m
-    => String
-    -- ^ Name of the message type to create an instance for
-    -> Maybe [HsName]
-    -- ^ Oneof constructors
-    -> [String]
-    -- ^ Field names
-    -> m HsDecl
-toSchemaInstanceDeclarationOld messageName maybeConstructors fieldNames = do
-  qualifiedFieldNames <- mapM (prefixedFieldName messageName) fieldNames
-
-  let messageConstructor = HsCon (UnQual (HsIdent messageName))
-
-  let _namedSchemaNameExpression = HsApp justC (str_ messageName)
-
-      -- { _paramSchemaType = HsJSONPB.SwaggerObject
-      -- }
-  let paramSchemaUpdates =
-        [ HsFieldUpdate _paramSchemaType _paramSchemaTypeExpression
-        ]
-        where
-          _paramSchemaType = jsonpbName "_paramSchemaType"
-
-#if MIN_VERSION_swagger2(2,4,0)
-          _paramSchemaTypeExpression = HsApp justC (HsVar (jsonpbName "SwaggerObject"))
-#else
-          _paramSchemaTypeExpression = HsVar (jsonpbName "SwaggerObject")
-#endif
-
-  let _schemaParamSchemaExpression = HsRecUpdate memptyE paramSchemaUpdates
-
-      -- [ ("fieldName0", qualifiedFieldName0)
-      -- , ("fieldName1", qualifiedFieldName1)
-      -- ...
-      -- ]
-  let properties = HsList $ do
-        (fieldName, qualifiedFieldName) <- zip fieldNames qualifiedFieldNames
-        return (HsTuple [ str_  fieldName, uvar_ qualifiedFieldName ])
-
-  let _schemaPropertiesExpression =
-        HsApp (HsVar (jsonpbName "insOrdFromList")) properties
-
-      -- { _schemaParamSchema = ...
-      -- , _schemaProperties  = ...
-      -- , ...
-      -- }
-  let schemaUpdates = normalUpdates ++ extraUpdates
-        where
-          normalUpdates =
-            [ HsFieldUpdate _schemaParamSchema _schemaParamSchemaExpression
-            , HsFieldUpdate _schemaProperties  _schemaPropertiesExpression
-            ]
-
-          extraUpdates =
-            case maybeConstructors of
-                Just _ ->
-                  [ HsFieldUpdate _schemaMinProperties justOne
-                  , HsFieldUpdate _schemaMaxProperties justOne
-                  ]
-                Nothing ->
-                  []
-
-          _schemaParamSchema    = jsonpbName "_schemaParamSchema"
-          _schemaProperties     = jsonpbName "_schemaProperties"
-          _schemaMinProperties  = jsonpbName "_schemaMinProperties"
-          _schemaMaxProperties  = jsonpbName "_schemaMaxProperties"
-
-          justOne = HsApp justC (HsLit (HsInt 1))
-
-  let _namedSchemaSchemaExpression = HsRecUpdate memptyE schemaUpdates
-
-      -- { _namedSchemaName   = ...
-      -- , _namedSchemaSchema = ...
-      -- }
-  let namedSchemaUpdates =
-        [ HsFieldUpdate _namedSchemaName   _namedSchemaNameExpression
-        , HsFieldUpdate _namedSchemaSchema _namedSchemaSchemaExpression
-        ]
-        where
-          _namedSchemaName   = jsonpbName "_namedSchemaName"
-          _namedSchemaSchema = jsonpbName "_namedSchemaSchema"
-
-  let namedSchema = HsRecConstr (jsonpbName "NamedSchema") namedSchemaUpdates
-
-  let toDeclareName fieldName = "declare_" ++ fieldName
-
-  let toArgument fieldName = HsApp asProxy declare
-        where
-          declare = uvar_ (toDeclareName fieldName)
-
-          asProxy = HsVar (jsonpbName "asProxy")
-
-      -- do let declare_fieldName0 = HsJSONPB.declareSchemaRef
-      --    qualifiedFieldName0 <- declare_fieldName0 Proxy.Proxy
-      --    let declare_fieldName1 = HsJSONPB.declareSchemaRef
-      --    qualifiedFieldName1 <- declare_fieldName1 Proxy.Proxy
-      --    ...
-      --    let _ = pure MessageName <*> HsJSONPB.asProxy declare_fieldName0 <*> HsJSONPB.asProxy declare_fieldName1 <*> ...
-      --    return (...)
-  let expressionForMessage =
-          HsDo (bindingStatements ++ inferenceStatement ++ [ returnStatement ])
-        where
-          bindingStatements = do
-            (fieldName, qualifiedFieldName) <- zip fieldNames qualifiedFieldNames
-
-            let declareIdentifier = HsIdent (toDeclareName fieldName)
-
-            let stmt0 = HsLetStmt [ HsFunBind
-                                    [ HsMatch defaultSrcLoc declareIdentifier []
-                                               (HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))) []
-                                    ]
-                                  ]
-
-            let stmt1 = HsGenerator defaultSrcLoc (HsPVar (HsIdent qualifiedFieldName))
-                                      (HsApp (HsVar (UnQual declareIdentifier))
-                                             (HsCon (proxyName "Proxy")))
-            [ stmt0, stmt1]
-
-
-          inferenceStatement =
-              if null fieldNames then [] else [ HsLetStmt [ patternBind ] ]
-            where
-              arguments = map toArgument fieldNames
-
-              patternBind = HsPatBind defaultSrcLoc HsPWildCard
-                                        (HsUnGuardedRhs (applicativeApply messageConstructor arguments)) []
-
-          returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
-
-      -- do let declare_fieldName0 = HsJSONPB.declareSchemaRef
-      --    let _ = pure ConstructorName0 <*> HsJSONPB.asProxy declare_fieldName0
-      --    qualifiedFieldName0 <- declare_fieldName0 Proxy.Proxy
-      --    let declare_fieldName1 = HsJSONPB.declareSchemaRef
-      --    let _ = pure ConstructorName1 <*> HsJSONPB.asProxy declare_fieldName1
-      --    qualifiedFieldName1 <- declare_fieldName1 Proxy.Proxy
-      --    ...
-      --    return (...)
-  let expressionForOneOf constructors =
-          HsDo (bindingStatements ++ [ returnStatement ])
-        where
-          bindingStatements = do
-            (fieldName, qualifiedFieldName, constructor)
-                <- zip3 fieldNames qualifiedFieldNames constructors
-
-            let declareIdentifier = HsIdent (toDeclareName fieldName)
-
-            let stmt0 = HsLetStmt [ HsFunBind
-                                      [ HsMatch defaultSrcLoc declareIdentifier []
-                                                 (HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))) []
-                                      ]
-                                  ]
-            let stmt1 = HsGenerator defaultSrcLoc (HsPVar (HsIdent qualifiedFieldName))
-                                      (HsApp (HsVar (UnQual declareIdentifier))
-                                             (HsCon (proxyName "Proxy")))
-            let inferenceStatement =
-                    if null fieldNames then [] else [ HsLetStmt [ patternBind ] ]
-                  where
-                    arguments = [ toArgument fieldName ]
-
-                    patternBind = HsPatBind defaultSrcLoc HsPWildCard
-                                              (HsUnGuardedRhs (applicativeApply (HsCon (UnQual constructor)) arguments)) []
-
-            [stmt0, stmt1] ++ inferenceStatement
-
-
-          returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
-
-  let instanceDeclaration =
-          instDecl_ className [ classArgument ] [ classDeclaration ]
-        where
-          className = jsonpbName "ToSchema"
-
-          classArgument = HsTyCon (UnQual (HsIdent messageName))
-
-          classDeclaration = HsFunBind [ match ]
-            where
-              match = match_ matchName [ HsPWildCard ] rightHandSide []
-                where
-                  expression = case maybeConstructors of
-                      Nothing           -> expressionForMessage
-                      Just constructors -> expressionForOneOf constructors
-
-                  rightHandSide = HsUnGuardedRhs expression
-
-                  matchName = HsIdent "declareNamedSchema"
-
-  return instanceDeclaration
-
 
 -- ** Generate types and instances for .proto enums
 
