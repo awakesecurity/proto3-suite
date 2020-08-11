@@ -609,6 +609,7 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
 
     let isRequired :: DotProtoField -> Bool = \case
           DotProtoField _ (Prim (Named (Dots (Path ("google" :| ["protobuf", _]))))) _ _ _ -> False
+          DotProtoField _ (Prim (Named (Single _))) _ _ _ -> True -- Enum fields should be required
           DotProtoField _ (Prim (Named _)) _ _ _ -> False
           DotProtoField _ _ _ _ _ -> True
           DotProtoEmptyField -> False
