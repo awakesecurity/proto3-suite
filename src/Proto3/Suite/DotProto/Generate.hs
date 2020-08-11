@@ -620,9 +620,6 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
           DotProtoMessageOneOf ident _ -> do
             name <- dpIdentUnqualName ident
             pure [(name, False)]
-          DotProtoMessageDefinition (DotProtoEnum _ ident _) -> do
-            name <- dpIdentUnqualName ident
-            pure [(name, True)]
           _                            -> do pure []
 
     fieldss <- traverse getEither messageParts
