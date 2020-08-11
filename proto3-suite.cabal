@@ -87,8 +87,13 @@ test-suite tests
     cpp-options:       -DDHALL
 
   other-modules:       ArbitraryGeneratedTestTypes
-                       TestProto
                        TestCodeGen
+                       TestProto
+                       TestProtoImport
+                       TestProtoOneof
+                       TestProtoOneofImport
+  autogen-modules:
+                       TestProto
                        TestProtoImport
                        TestProtoOneof
                        TestProtoOneofImport

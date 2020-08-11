@@ -115,7 +115,7 @@ renderHsModuleForDotProto
     => ([HsImportDecl],[HsDecl]) -> DotProto -> TypeContext -> m String
 renderHsModuleForDotProto extraInstanceFiles dotProto importCtxt = do
     haskellModule <- hsModuleForDotProto extraInstanceFiles dotProto importCtxt
-    return (T.unpack header ++ prettyPrint haskellModule)
+    return (T.unpack header ++ "\n" ++ prettyPrint haskellModule)
   where
     header = [Neat.text|
       {-# LANGUAGE DeriveGeneric     #-}
