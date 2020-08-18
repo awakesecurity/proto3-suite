@@ -259,6 +259,8 @@ compileTestDotProtos = do
 -- {"required":["dummy"],"properties":{"dummy":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"}},"type":"object"}
 -- >>> schemaOf @(Enumerated DummyEnum)
 -- {"type":"string","enum":["DUMMY0","DUMMY1"]}
+-- >>> schemaOf @WithEnum
+-- {"required": ["enumField"],"properties":{"enumField":{"$ref":"#/definitions/WithEnum_TestEnum"}},"type":"object"}
 --
 -- Generic HasDefault
 --

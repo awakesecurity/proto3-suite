@@ -560,8 +560,10 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
 dotProtoDefinitionD :: MonadError CompileError m
                     => DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
 dotProtoDefinitionD pkgIdent ctxt = \case
-  DotProtoMessage _ messageName messageParts ->
-    dotProtoMessageD ctxt Anonymous messageName messageParts
+  DotProtoMessage _ messageName messageParts -> do
+    let ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup pkgIdent ctxt) <> ctxt
+
+    dotProtoMessageD ctxt' Anonymous messageName messageParts
 
   DotProtoEnum _ enumName enumParts ->
     dotProtoEnumD Anonymous enumName enumParts
@@ -608,9 +610,11 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
             defaultMessageDeriving
 
     let isRequired :: DotProtoField -> Bool = \case
-          DotProtoField _ (Prim (Named (Dots (Path ("google" :| ["protobuf", _]))))) _ _ _ -> False
-          DotProtoField _ (Prim (Named (Single _))) _ _ _ -> True -- Enum fields should be required
-          DotProtoField _ (Prim (Named _)) _ _ _ -> False
+          DotProtoField _ (Prim (Named ident)) _ _ _ -> case M.lookup ident ctxt of
+            Nothing -> False
+            Just protoType -> case dotProtoTypeInfoKind protoType of
+              DotProtoKindEnum -> True
+              _ -> False
           DotProtoField _ _ _ _ _ -> True
           DotProtoEmptyField -> False
 
