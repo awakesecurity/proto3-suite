@@ -260,7 +260,7 @@ compileTestDotProtos = do
 -- >>> schemaOf @(Enumerated DummyEnum)
 -- {"type":"string","enum":["DUMMY0","DUMMY1"]}
 -- >>> schemaOf @WithEnum
--- {"required": ["enumField"],"properties":{"enumField":{"$ref":"#/definitions/WithEnum_TestEnum"}},"type":"object"}
+-- {"properties":{"enumField":{"$ref":"#/definitions/WithEnum_TestEnum"}},"type":"object"}
 --
 -- Generic HasDefault
 --

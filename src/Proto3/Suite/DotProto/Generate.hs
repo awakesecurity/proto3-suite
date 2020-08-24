@@ -610,11 +610,7 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
             defaultMessageDeriving
 
     let isRequired :: DotProtoField -> Bool = \case
-          DotProtoField _ (Prim (Named ident)) _ _ _ -> case M.lookup ident ctxt of
-            Nothing -> False
-            Just protoType -> case dotProtoTypeInfoKind protoType of
-              DotProtoKindEnum -> True
-              _ -> False
+          DotProtoField _ (Prim (Named _)) _ _ _ -> False
           DotProtoField _ _ _ _ _ -> True
           DotProtoEmptyField -> False
 

@@ -288,28 +288,6 @@ dotProtoTypeContext :: MonadError CompileError m => DotProto -> m TypeContext
 dotProtoTypeContext DotProto{..} =
   foldMapM (definitionTypeContext (metaModulePath protoMeta)) protoDefinitions
 
-fieldTypeContext :: MonadError CompileError m => Path -> DotProtoField -> m TypeContext
-fieldTypeContext modulePath (DotProtoField _ fieldType fieldName _ _) =
-  case fieldType of
-    Prim (Named _) -> do
-    -- Not a good pattern match here. I want to pattern match specifically on enum fields,
-    -- but that's not possible. All enums are named, but not all named types are enums
-
-      let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
-                                    , dotProtoTypeInfoParent = Anonymous
-                                    , dotProtoTypeChildContext = mempty
-                                    , dotProtoTypeInfoKind = DotProtoKindEnum
-                                    , dotProtoTypeInfoModulePath = modulePath
-                                    }
-
-      pure $ M.singleton fieldName tyInfo
-
-    _ -> do
-      pure mempty
-
-fieldTypeContext modulePath DotProtoEmptyField = do
-  pure $ mempty
-
 definitionTypeContext :: MonadError CompileError m
                       => Path -> DotProtoDefinition -> m TypeContext
 definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
@@ -318,21 +296,12 @@ definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
   let getQualifiedTypeContext definition = do
         typeContext <- definitionTypeContext modulePath definition
         traverse updateParent typeContext
-  -- (definitionTypeContext modulePath >=> traverse updateParent)
-
-  let getQualifiedTypeContext' field = do
-        typeContext <- fieldTypeContext modulePath field
-	traverse updateParent typeContext
 
   childTyContext <- foldMapOfM (traverse . _DotProtoMessageDefinition)
                                getQualifiedTypeContext
                                parts
 
-  childTyContext' <- foldMapOfM (traverse . _DotProtoMessageField)
-                                getQualifiedTypeContext'
-                                parts
-
-  qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier msgIdent) (childTyContext <> childTyContext')
+  qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier msgIdent) childTyContext
 
   let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
                                 , dotProtoTypeInfoParent = Anonymous
