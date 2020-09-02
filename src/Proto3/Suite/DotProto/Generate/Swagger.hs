@@ -23,13 +23,16 @@ import           Control.Lens                    ((&), (?~))
 #else
 import           Control.Lens                    ((&), (.~), (?~))
 #endif
-import           Data.Aeson                      (Value (String))
+import           Data.Aeson                      (Value (String), ToJSONKey,
+                                                  ToJSONKeyFunction(..))
+import qualified Data.Aeson                      as Aeson
 import           Data.Aeson.Encode.Pretty        (encodePretty)
 import           Data.ByteString                 (ByteString)
 import qualified Data.ByteString.Lazy.Char8      as LC8
 import           Data.Hashable                   (Hashable)
 import           Data.HashMap.Strict.InsOrd      (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd
+import           Data.Map                        (Map)
 import           Data.Swagger
 import qualified Data.Text                       as T
 import           Data.Proxy
@@ -71,6 +74,17 @@ instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (V.Vector ByteString)) w
         & type_ .~ SwaggerArray
 #endif
         & items ?~ SwaggerItemsObject (Inline byteSchema)
+
+instance {-# OVERLAPPING #-} (ToJSONKey k, ToSchema k) => ToSchema (OverrideToSchema (Map k ByteString)) where
+  declareNamedSchema _ = case Aeson.toJSONKey :: ToJSONKeyFunction k of
+      ToJSONKeyText _ _ -> do
+          return (NamedSchema Nothing schema_)
+      ToJSONKeyValue _ _ -> do
+          declareNamedSchema (Proxy :: Proxy [(k, (OverrideToSchema ByteString))])
+    where
+      schema_ = mempty
+        & type_ ?~ SwaggerObject
+        & additionalProperties ?~ AdditionalPropertiesSchema (Inline byteSchema)
 
 {-| This is a convenience function that uses type inference to select the
     correct instance of `ToSchema` to use for fields of a message
