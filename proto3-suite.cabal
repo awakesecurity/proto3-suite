@@ -34,9 +34,9 @@ library
                        Proto3.Suite.JSONPB
                        Proto3.Suite.Tutorial
                        Proto3.Suite.Types
+                       Proto3.Suite.DotProto.Internal
 
-  other-modules:       Proto3.Suite.DotProto.Internal
-                       Proto3.Suite.DotProto.Generate.Swagger
+  other-modules:       Proto3.Suite.DotProto.Generate.Swagger
                        Proto3.Suite.JSONPB.Class
   build-depends:       aeson >= 1.1.1.0 && < 1.5,
                        aeson-pretty,
