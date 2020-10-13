@@ -1,5 +1,5 @@
 name:                proto3-suite
-version:             0.4.0.2
+version:             0.4.1.0
 synopsis:            A low level library for writing out data in the Protocol Buffers wire format
 license:             Apache-2.0
 author:              Awake Security
@@ -35,7 +35,7 @@ library
                        Proto3.Suite.Tutorial
                        Proto3.Suite.Types
 
-  other-modules:       Proto3.Suite.DotProto.Internal
+                       Proto3.Suite.DotProto.Internal
                        Proto3.Suite.DotProto.Generate.Swagger
                        Proto3.Suite.JSONPB.Class
   build-depends:       aeson >= 1.1.1.0 && < 1.6,
