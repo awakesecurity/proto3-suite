@@ -1542,6 +1542,7 @@ dotProtoServiceD useLegacyTypes pkgIdent ctxt serviceIdent service = do
                                , patVar "initialMetadata"
                                , patVar "sslConfig"
                                , patVar "logger"
+                               , patVar "serverMaxReceiveMessageLength"
                                ]
                       ]
                       (HsUnGuardedRhs (apply serverLoopE [ serverOptsE ]))
@@ -1585,8 +1586,8 @@ dotProtoServiceD useLegacyTypes pkgIdent ctxt serviceIdent service = do
                  , update "optInitialMetadata" "initialMetadata"
                  , update "optSSLConfig" "sslConfig"
                  , update "optLogger" "logger"
+                 , update "optMaxReceiveMessageLength" "serverMaxReceiveMessageLength"
                  ]
-
 
      let clientT = tyApp (HsTyCon (unqual_ serviceName)) [ clientRequestT, clientResultT ]
 
