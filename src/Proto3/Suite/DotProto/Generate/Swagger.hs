@@ -83,7 +83,11 @@ instance {-# OVERLAPPING #-} (ToJSONKey k, ToSchema k) => ToSchema (OverrideToSc
           declareNamedSchema (Proxy :: Proxy [(k, (OverrideToSchema ByteString))])
     where
       schema_ = mempty
+#if MIN_VERSION_swagger2(2,4,0)
         & type_ ?~ SwaggerObject
+#else
+        & type_ .~ SwaggerObject
+#endif
         & additionalProperties ?~ AdditionalPropertiesSchema (Inline byteSchema)
 
 {-| This is a convenience function that uses type inference to select the
