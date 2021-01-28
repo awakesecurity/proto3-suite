@@ -115,7 +115,7 @@ renderHsModuleForDotProto
     => ([HsImportDecl],[HsDecl]) -> DotProto -> TypeContext -> m String
 renderHsModuleForDotProto extraInstanceFiles dotProto importCtxt = do
     haskellModule <- hsModuleForDotProto extraInstanceFiles dotProto importCtxt
-    return (T.unpack header ++ prettyPrint haskellModule)
+    return (T.unpack header ++ "\n" ++ prettyPrint haskellModule)
   where
     header = [Neat.text|
       {-# LANGUAGE DeriveGeneric     #-}
@@ -1483,6 +1483,7 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
                                , patVar "initialMetadata"
                                , patVar "sslConfig"
                                , patVar "logger"
+                               , patVar "serverMaxReceiveMessageLength"
                                ]
                       ]
                       (HsUnGuardedRhs (apply serverLoopE [ serverOptsE ]))
@@ -1526,8 +1527,8 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
                  , update "optInitialMetadata" "initialMetadata"
                  , update "optSSLConfig" "sslConfig"
                  , update "optLogger" "logger"
+                 , update "optMaxReceiveMessageLength" "serverMaxReceiveMessageLength"
                  ]
-
 
      let clientT = tyApp (HsTyCon (unqual_ serviceName)) [ clientRequestT, clientResultT ]
 
