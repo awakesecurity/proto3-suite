@@ -129,6 +129,8 @@ prettyPrintProtoDefinition opts = defn where
     <+> (PP.hcat . PP.punctuate (PP.text ", ") $ pPrint <$> reservations)
     <>  PP.text ";"
   msgPart msgName (DotProtoMessageOneOf name fields)     = vbraces (PP.text "oneof" <+> pPrint name) (PP.vcat $ field msgName <$> fields)
+  msgPart _       (DotProtoMessageOption opt)
+    = PP.text "option" <+> pPrint opt <> PP.text ";"
 
   field :: DotProtoIdentifier -> DotProtoField -> PP.Doc
   field msgName (DotProtoField number mtype name options comments)

@@ -126,6 +126,8 @@ instance CanonicalRank DotProtoMessagePart
     DotProtoMessageReserved _fs -> Left (Right ())
       -- We use '()' here because 'Canonicalize [DotProtoMessagePart]'
       -- collapses all of the 'DotProtoMessageReserved's into just one.
+    DotProtoMessageOption _ -> Left (Right ())
+      -- I have no idea what I'm doing here :)
 
 instance Canonicalize DotProtoMessagePart where
   canonicalize = \case
@@ -137,6 +139,8 @@ instance Canonicalize DotProtoMessagePart where
       DotProtoMessageDefinition (canonicalize d)
     DotProtoMessageReserved fs ->
       DotProtoMessageReserved (canonicalize fs)
+    DotProtoMessageOption option ->
+      DotProtoMessageOption (canonicalize option)
 
 instance CanonicalRank [DotProtoField] (Maybe FieldNumber) where
   canonicalRank =

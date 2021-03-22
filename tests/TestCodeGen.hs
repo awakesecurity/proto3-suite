@@ -151,6 +151,7 @@ compileTestDotProtos = do
         , "test_proto_oneof.proto"
         , "test_proto_oneof_import.proto"
         , "test_proto_leading_dot.proto"
+        , "test_proto_protoc_plugin.proto"
         ]
 
   forM_ protoFiles $ \protoFile -> do

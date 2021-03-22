@@ -294,6 +294,7 @@ messagePart = try (DotProtoMessageDefinition <$> enum)
           <|> try (DotProtoMessageDefinition <$> message)
           <|> try messageOneOf
           <|> try (DotProtoMessageField      <$> messageField)
+          <|> try (DotProtoMessageOption     <$> topOption)
 
 messageType :: ProtoParser DotProtoType
 messageType = try mapType <|> try repType <|> (Prim <$> primType)

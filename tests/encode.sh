@@ -12,5 +12,6 @@ ghc                                         \
     $hsTmpDir/TestProtoOneof.hs             \
     $hsTmpDir/TestProtoOneofImport.hs       \
     $hsTmpDir/TestProtoLeadingDot.hs        \
+    $hsTmpDir/TestProtoProtocPlugin.hs      \
     tests/SimpleEncodeDotProto.hs           \
     >/dev/null
