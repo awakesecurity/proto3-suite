@@ -1,0 +1,61 @@
+version: 2.1
+
+configure: &configure
+  docker:
+  - image: nixos/nix:2.3
+  resource_class: xlarge
+
+test: &test
+  run:
+    name: Test
+    command: nix-shell --run "cabal configure --enable-tests && cabal test"
+    no_output_timeout: 60m
+
+filters: &filters
+  filters:
+    branches: {}
+
+commands:
+  restore_nix_cache:
+    steps:
+      - restore_cache:
+          keys:
+            - v0-nix-<< pipeline.git.revision >>
+            - v0-nix-<< pipeline.git.base_revision >>
+            - v0-nix-
+  save_nix_cache:
+    steps:
+      - save_cache:
+          key: v0-nix-<< pipeline.git.revision >>
+          paths:
+            - /nix
+      - save_cache:
+          key: v0-nix-
+          paths:
+            - /nix
+
+jobs:
+  test:
+    <<: *configure
+    steps:
+    - checkout
+    - restore_nix_cache
+    - *test
+    - save_nix_cache
+
+workflows:
+  version: 2
+  nightly:
+    triggers:
+      - schedule:
+          <<: *filters
+          cron: "0 5 * * *"  # 05:00 UTC
+    jobs:
+      - test:
+          <<: *filters
+          context: global
+  push:
+    jobs:
+      - test:
+          <<: *filters
+          context: global

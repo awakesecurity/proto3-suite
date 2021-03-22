@@ -103,12 +103,10 @@ singleIdentifier = Single <$> token identifierName
 identifier :: ProtoParser DotProtoIdentifier
 identifier = token _identifier
 
--- [note] message and enum types are defined by the proto3 spec to have an optional leading period (messageType and enumType in the spec)
---        what this indicates is, as far as i can tell, not documented, and i haven't found this syntax used in practice
---        it's ommitted but can be fairly easily added if there is in fact a use for it
-
--- [update] the leading dot denotes that the identifier path starts in global scope
---          i still haven't seen a use case for this but i can add it upon request
+-- Parses a full identifier, consuming trailing space.
+-- The leading dot denotes that the identifier path starts in global scope.
+globalIdentifier :: ProtoParser DotProtoIdentifier
+globalIdentifier = token $ string "." >> _identifier
 
 -- Parses a nested identifier, consuming trailing space.
 nestedIdentifier :: ProtoParser DotProtoIdentifier
@@ -162,7 +160,7 @@ primType = try (symbol "double"   $> Double)
        <|> try (symbol "string"   $> String)
        <|> try (symbol "bytes"    $> Bytes)
        <|> try (symbol "bool"     $> Bool)
-       <|> Named <$> identifier
+       <|> Named <$> (identifier <|> globalIdentifier)
 
 --------------------------------------------------------------------------------
 -- top-level parser and version annotation
@@ -256,7 +254,7 @@ rpcOptions = braces $ many topOption
 
 rpcClause :: ProtoParser (DotProtoIdentifier, Streaming)
 rpcClause = do
-  let sid ctx = (,ctx) <$> identifier
+  let sid ctx = (,ctx) <$> (identifier <|> globalIdentifier)
   -- NB: Distinguish "stream stream.foo" from "stream.foo"
   try (symbol "stream" *> sid Streaming) <|> sid NonStreaming
 
