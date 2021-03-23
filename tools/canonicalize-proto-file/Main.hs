@@ -40,6 +40,12 @@ main = do
     Left err      -> fail (show err)
     Right (dp, _) -> putStr (toProtoFile defRenderingOptions (canonicalize dp))
 
+data PartRank
+    = PartRankOption DotProtoOption
+    | PartRankDefinition (Int, DotProtoIdentifier)
+    | PartRankReserved
+    | PartRankField (Maybe FieldNumber) deriving (Eq, Ord)
+
 class Canonicalize a where
   canonicalize :: a -> a
 
@@ -116,18 +122,15 @@ instance Canonicalize [DotProtoMessagePart] where
         FieldRange _ _ -> False
         ReservedIdentifier _ -> True
 
-instance CanonicalRank DotProtoMessagePart
-         (Either (Either (Int, DotProtoIdentifier) ())
-                 (Maybe FieldNumber)) where
+instance CanonicalRank DotProtoMessagePart PartRank where
   canonicalRank = \case
-    DotProtoMessageField f -> Right (canonicalRank f)
-    DotProtoMessageOneOf _ fs -> Right (canonicalRank fs)
-    DotProtoMessageDefinition d -> Left (Left (canonicalRank d))
-    DotProtoMessageReserved _fs -> Left (Right ())
-      -- We use '()' here because 'Canonicalize [DotProtoMessagePart]'
+    DotProtoMessageOption x -> PartRankOption x
+    DotProtoMessageDefinition d -> PartRankDefinition (canonicalRank d)
+    DotProtoMessageReserved _fs -> PartRankReserved
+      -- We don't use '_fs' here because 'Canonicalize [DotProtoMessagePart]'
       -- collapses all of the 'DotProtoMessageReserved's into just one.
-    DotProtoMessageOption _ -> Left (Right ())
-      -- I have no idea what I'm doing here :)
+    DotProtoMessageField f -> PartRankField (canonicalRank f)
+    DotProtoMessageOneOf _ fs -> PartRankField (canonicalRank fs)
 
 instance Canonicalize DotProtoMessagePart where
   canonicalize = \case
