@@ -80,10 +80,12 @@ let
                     then xs
                     else [];
 
-                swagger2pkg =
+                swagger2overrides =
                   if swagger2isAbove_2_4_0
-                  then "swagger2_2_6"
-                  else "swagger2_2_3_1_1";
+                  then (_: _: {})
+                  else (self: _: {
+                          swagger2 = self.callPackage ./nix/swagger2_2_3_1_1.nix { };
+                        });
 
                 upgradeOverrides = upgrade
                   ( [ "generic-random"
@@ -96,7 +98,7 @@ let
                       "haskell-src"
                       "insert-ordered-containers"
                       "prettyprinter"
-                      swagger2pkg
+                      "swagger2"
                     ] ++ geVer "8.10" [
                       "assoc"
                       "cabal-install"
@@ -258,6 +260,7 @@ let
                     patchOverrides
                     dontCheckOverrides
                     jailbreakOverrides
+                    swagger2overrides
                     manualOverrides
                   ];
           };
