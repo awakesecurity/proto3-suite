@@ -12,7 +12,11 @@
 # shell.nix to specify "proto3-suite-boot" instead of "proto3-suite" in
 # order to get things to compile, then switch back to enable testing.
 
-{ compiler ? "ghc865", enableDhall ? false }:
+{
+  compiler ? "ghc865",
+  enableDhall ? false,
+  swagger2isAbove_2_4_0 ? true
+}:
 
 let
   fetchNixpkgs = import ./nix/fetchNixpkgs.nix;
@@ -76,6 +80,11 @@ let
                     then xs
                     else [];
 
+                swagger2pkg =
+                  if swagger2isAbove_2_4_0
+                  then "swagger2_2_6"
+                  else "swagger2_2_3_1_1";
+
                 upgradeOverrides = upgrade
                   ( [ "generic-random"
                       "parameterized"
@@ -87,7 +96,7 @@ let
                       "haskell-src"
                       "insert-ordered-containers"
                       "prettyprinter"
-                      "swagger2"
+                      swagger2pkg
                     ] ++ geVer "8.10" [
                       "assoc"
                       "cabal-install"
