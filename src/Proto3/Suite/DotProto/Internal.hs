@@ -14,6 +14,7 @@
 
 module Proto3.Suite.DotProto.Internal where
 
+import Debug.Trace
 import           Control.Applicative
 import qualified Control.Foldl             as FL
 import           Control.Lens              (Lens', lens, over)
@@ -435,7 +436,9 @@ nestedTypeName (Dots (Path parents)) nm = intercalate "_" . (<> [nm]) <$> traver
 nestedTypeName (Qualified {})        _  = internalError "nestedTypeName: Qualified"
 
 qualifiedMessageName :: MonadError CompileError m => DotProtoIdentifier -> DotProtoIdentifier -> m String
-qualifiedMessageName parentIdent msgIdent = nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+qualifiedMessageName parentIdent msgIdent = do
+  x <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+  pure $ traceShow (x, parentIdent, msgIdent) x
 
 --------------------------------------------------------------------------------
 --
