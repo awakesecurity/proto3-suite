@@ -14,7 +14,6 @@
 
 module Proto3.Suite.DotProto.Internal where
 
-import Debug.Trace
 import           Control.Applicative
 import qualified Control.Foldl             as FL
 import           Control.Lens              (Lens', lens, over)
@@ -436,9 +435,29 @@ nestedTypeName (Dots (Path parents)) nm = intercalate "_" . (<> [nm]) <$> traver
 nestedTypeName (Qualified {})        _  = internalError "nestedTypeName: Qualified"
 
 qualifiedMessageName :: MonadError CompileError m => DotProtoIdentifier -> DotProtoIdentifier -> m String
-qualifiedMessageName parentIdent msgIdent = do
-  x <- nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
-  pure $ traceShow (x, parentIdent, msgIdent) x
+qualifiedMessageName parentIdent msgIdent = nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+
+qualifiedMessageTypeName :: MonadError CompileError m =>
+                            TypeContext ->
+                            DotProtoIdentifier ->
+                            DotProtoIdentifier ->
+                            m String
+qualifiedMessageTypeName ctxt parentIdent msgIdent = do
+  xs <- parents parentIdent []
+  case xs of
+    [] -> nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+    x : xs' -> nestedTypeName (Dots . Path $ x NE.:| xs') =<< dpIdentUnqualName msgIdent
+  where
+    parents par@(Single x) xs =
+      case M.lookup par ctxt of
+        Just (DotProtoTypeInfo { dotProtoTypeInfoParent = parentIdent' }) ->
+          parents parentIdent' $ x : xs
+        Nothing ->
+          pure $ x : xs
+    parents Anonymous xs =
+      pure xs
+    parents par _ =
+      internalError $ "qualifiedMessageTypeName: wrong parent " <> show par
 
 --------------------------------------------------------------------------------
 --

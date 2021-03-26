@@ -7,7 +7,10 @@ message Request {
   message Foo {
     Bar bar = 1;
     message Bar {
-      uint32 buz = 1;
+      Buz buz = 1;
+      message Buz {
+        uint32 x = 1;
+      }
     }
   }
 }
