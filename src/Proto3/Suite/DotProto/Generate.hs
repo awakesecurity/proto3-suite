@@ -1077,6 +1077,7 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
 
   let _namedSchemaNameExpression = HsApp justC (str_ messageName)
 
+#ifdef SWAGGER
       -- { _paramSchemaType = HsJSONPB.SwaggerObject
       -- }
   let paramSchemaUpdates =
@@ -1089,6 +1090,9 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
           _paramSchemaTypeExpression = HsApp justC (HsVar (jsonpbName "SwaggerObject"))
 #else
           _paramSchemaTypeExpression = HsVar (jsonpbName "SwaggerObject")
+#endif
+#else
+  let paramSchemaUpdates = []
 #endif
 
   let _schemaParamSchemaExpression = HsRecUpdate memptyE paramSchemaUpdates
