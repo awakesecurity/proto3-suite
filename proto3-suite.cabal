@@ -96,6 +96,7 @@ test-suite tests
 
   if flag(swagger)
     build-depends:     swagger2
+    cpp-options:       -DSWAGGER
 
   other-modules:       ArbitraryGeneratedTestTypes
                        TestCodeGen
