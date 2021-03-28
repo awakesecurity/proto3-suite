@@ -17,7 +17,7 @@ Flag dhall
 
 Flag swagger
   Description:   Turn on Swagger doc generation.
-  Default:       False
+  Default:       True
   Manual:        True
 
 library
