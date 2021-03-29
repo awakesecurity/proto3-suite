@@ -293,14 +293,18 @@ definitionTypeContext :: MonadError CompileError m
 definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
   let updateParent = tiParent (concatDotProtoIdentifier msgIdent)
 
+  let getQualifiedTypeContext definition = do
+        typeContext <- definitionTypeContext modulePath definition
+        traverse updateParent typeContext
+
   childTyContext <- foldMapOfM (traverse . _DotProtoMessageDefinition)
-                               (definitionTypeContext modulePath >=> traverse updateParent)
+                               getQualifiedTypeContext
                                parts
 
   qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier msgIdent) childTyContext
 
   let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
-                                , dotProtoTypeInfoParent =  Anonymous
+                                , dotProtoTypeInfoParent = Anonymous
                                 , dotProtoTypeChildContext = childTyContext
                                 , dotProtoTypeInfoKind = DotProtoKindMessage
                                 , dotProtoTypeInfoModulePath = modulePath
@@ -310,7 +314,7 @@ definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
 
 definitionTypeContext modulePath (DotProtoEnum _ enumIdent _) = do
   let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
-                                , dotProtoTypeInfoParent =  Anonymous
+                                , dotProtoTypeInfoParent = Anonymous
                                 , dotProtoTypeChildContext = mempty
                                 , dotProtoTypeInfoKind = DotProtoKindEnum
                                 , dotProtoTypeInfoModulePath = modulePath
@@ -319,9 +323,11 @@ definitionTypeContext modulePath (DotProtoEnum _ enumIdent _) = do
 
 definitionTypeContext _ _ = pure mempty
 
+isEnum :: TypeContext -> DotProtoIdentifier -> Bool
+isEnum typeContext identifier = Just DotProtoKindEnum == (dotProtoTypeInfoKind <$> M.lookup identifier typeContext)
 
 isMessage :: TypeContext -> DotProtoIdentifier -> Bool
-isMessage ctxt n = Just DotProtoKindMessage == (dotProtoTypeInfoKind <$> M.lookup n ctxt)
+isMessage typeContext identifier = Just DotProtoKindMessage == (dotProtoTypeInfoKind <$> M.lookup identifier typeContext)
 
 isPacked :: [DotProtoOption] -> Bool
 isPacked opts =

@@ -560,8 +560,10 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
 dotProtoDefinitionD :: MonadError CompileError m
                     => DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
 dotProtoDefinitionD pkgIdent ctxt = \case
-  DotProtoMessage _ messageName messageParts ->
-    dotProtoMessageD ctxt Anonymous messageName messageParts
+  DotProtoMessage _ messageName messageParts -> do
+    let ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup pkgIdent ctxt) <> ctxt
+
+    dotProtoMessageD ctxt' Anonymous messageName messageParts
 
   DotProtoEnum _ enumName enumParts ->
     dotProtoEnumD Anonymous enumName enumParts
@@ -607,10 +609,23 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
             [ recDecl_ (HsIdent messageName) flds ]
             defaultMessageDeriving
 
-    let getName = \case
-          DotProtoMessageField fld     -> [dotProtoFieldName fld]
-          DotProtoMessageOneOf ident _ -> [ident]
-          _                            -> []
+    let isRequired :: DotProtoField -> Bool = \case
+          DotProtoField _ (Prim (Named _)) _ _ _ -> False
+          DotProtoField _ _ _ _ _ -> True
+          DotProtoEmptyField -> False
+
+    let getEither :: DotProtoMessagePart -> m [(String, Bool)] = \case
+          DotProtoMessageField fld     -> do
+            name <- dpIdentUnqualName (dotProtoFieldName fld)
+            pure [(name, isRequired fld)]
+          DotProtoMessageOneOf ident _ -> do
+            name <- dpIdentUnqualName ident
+            pure [(name, False)]
+          _                            -> do pure []
+
+    fieldss <- traverse getEither messageParts
+
+    let fields = concat fieldss
 
     foldMapM id
       [ sequence
@@ -626,10 +641,7 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
           , pure (toJSONInstDecl messageName)
           , pure (fromJSONInstDecl messageName)
 
-          -- And the Swagger ToSchema instance corresponding to JSONPB encodings
-          , toSchemaInstanceDeclaration messageName Nothing
-              =<< foldMapM (traverse dpIdentUnqualName . getName) messageParts
-
+          , toSchemaInstanceDeclaration messageName Nothing fields
 #ifdef DHALL
           -- Generate Dhall instances
           , pure (dhallInterpretInstDecl messageName)
@@ -678,13 +690,13 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     nestedDecls _ = pure []
 
     nestedOneOfDecls :: String -> DotProtoIdentifier -> [DotProtoField] -> m [HsDecl]
-    nestedOneOfDecls messageName identifier fields = do
+    nestedOneOfDecls messageName identifier dotProtoFields = do
+      fields <- traverse (dpIdentUnqualName . dotProtoFieldName) dotProtoFields
       fullName <- prefixedConName messageName =<< dpIdentUnqualName identifier
 
-      (cons, idents) <- fmap unzip (mapM (oneOfCons fullName) fields)
+      (cons, idents) <- fmap unzip (mapM (oneOfCons fullName) dotProtoFields)
 
-      toSchemaInstance <- toSchemaInstanceDeclaration fullName (Just idents)
-                            =<< mapM (dpIdentUnqualName . dotProtoFieldName) fields
+      toSchemaInstance <- toSchemaInstanceDeclaration fullName (Just idents) (zip fields $ repeat False)
 
       pure [ dataDecl_ fullName cons defaultMessageDeriving
            , namedInstD fullName
@@ -1067,10 +1079,12 @@ toSchemaInstanceDeclaration
     -- ^ Name of the message type to create an instance for
     -> Maybe [HsName]
     -- ^ Oneof constructors
-    -> [String]
-    -- ^ Field names
+    -> [(String, Bool)]
+    -- ^ Field and if it is nested oneof field
     -> m HsDecl
-toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
+toSchemaInstanceDeclaration messageName maybeConstructors fieldsWithIsRequired = do
+  let fieldNames = map fst fieldsWithIsRequired
+
   qualifiedFieldNames <- mapM (prefixedFieldName messageName) fieldNames
 
   let messageConstructor = HsCon (UnQual (HsIdent messageName))
@@ -1104,8 +1118,15 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
   let _schemaPropertiesExpression =
         HsApp (HsVar (jsonpbName "insOrdFromList")) properties
 
+  let requiredFieldNames = map fst $ filter snd fieldsWithIsRequired
+
+  let requiredList = HsList $ map str_ requiredFieldNames
+
+  let _schemaRequiredExpression = requiredList
+
       -- { _schemaParamSchema = ...
       -- , _schemaProperties  = ...
+      -- , _schemaRequired    = ...
       -- , ...
       -- }
   let schemaUpdates = normalUpdates ++ extraUpdates
@@ -1113,6 +1134,7 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
           normalUpdates =
             [ HsFieldUpdate _schemaParamSchema _schemaParamSchemaExpression
             , HsFieldUpdate _schemaProperties  _schemaPropertiesExpression
+            , HsFieldUpdate _schemaRequired  _schemaRequiredExpression
             ]
 
           extraUpdates =
@@ -1126,6 +1148,7 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
 
           _schemaParamSchema    = jsonpbName "_schemaParamSchema"
           _schemaProperties     = jsonpbName "_schemaProperties"
+          _schemaRequired       = jsonpbName "_schemaRequired"
           _schemaMinProperties  = jsonpbName "_schemaMinProperties"
           _schemaMaxProperties  = jsonpbName "_schemaMaxProperties"
 
@@ -1249,7 +1272,6 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
                   matchName = HsIdent "declareNamedSchema"
 
   return instanceDeclaration
-
 
 -- ** Generate types and instances for .proto enums
 
