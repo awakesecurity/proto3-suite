@@ -63,6 +63,12 @@ docTests = testCase "doctests" $ do
     [ "-isrc"
     , "-itests"
     , "-igen"
+#ifdef SWAGGER
+    , "-DSWAGGER"
+#endif
+#ifdef DHALL
+    , "-DDHALL"
+#endif
     , "src/Proto3/Suite/DotProto/Internal.hs"
     , "src/Proto3/Suite/JSONPB/Class.hs"
     , "tests/TestCodeGen.hs"
