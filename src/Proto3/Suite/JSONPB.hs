@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP                       #-}
+
 module Proto3.Suite.JSONPB
   ( -- * Typeclasses
     FromJSONPB(..)
@@ -30,6 +32,7 @@ module Proto3.Suite.JSONPB
   , A.FromJSON(..)
   , A.typeMismatch
   , A.withObject
+#ifdef SWAGGER
     -- * Swagger schema helpers
   , Swagger.ToSchema(..)
   , Swagger.NamedSchema(..)
@@ -40,11 +43,14 @@ module Proto3.Suite.JSONPB
   , Proto3.Suite.DotProto.Generate.Swagger.OverrideToSchema(..)
   , Proto3.Suite.DotProto.Generate.Swagger.asProxy
   , Proto3.Suite.DotProto.Generate.Swagger.insOrdFromList
+#endif
   )
 where
 
 import qualified Data.Aeson                             as A
 import qualified Data.Aeson.Types                       as A
+#ifdef SWAGGER
 import qualified Data.Swagger                           as Swagger
 import           Proto3.Suite.DotProto.Generate.Swagger
+#endif
 import           Proto3.Suite.JSONPB.Class

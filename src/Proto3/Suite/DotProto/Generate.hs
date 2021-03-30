@@ -626,9 +626,11 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
           , pure (toJSONInstDecl messageName)
           , pure (fromJSONInstDecl messageName)
 
+#ifdef SWAGGER
           -- And the Swagger ToSchema instance corresponding to JSONPB encodings
           , toSchemaInstanceDeclaration messageName Nothing
               =<< foldMapM (traverse dpIdentUnqualName . getName) messageParts
+#endif
 
 #ifdef DHALL
           -- Generate Dhall instances
@@ -683,12 +685,16 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
 
       (cons, idents) <- fmap unzip (mapM (oneOfCons fullName) fields)
 
+#ifdef SWAGGER
       toSchemaInstance <- toSchemaInstanceDeclaration fullName (Just idents)
                             =<< mapM (dpIdentUnqualName . dotProtoFieldName) fields
+#endif
 
       pure [ dataDecl_ fullName cons defaultMessageDeriving
            , namedInstD fullName
+#ifdef SWAGGER
            , toSchemaInstance
+#endif
 
 #ifdef DHALL
            , dhallInterpretInstDecl fullName
@@ -1077,6 +1083,7 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
 
   let _namedSchemaNameExpression = HsApp justC (str_ messageName)
 
+#ifdef SWAGGER
       -- { _paramSchemaType = HsJSONPB.SwaggerObject
       -- }
   let paramSchemaUpdates =
@@ -1089,6 +1096,9 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
           _paramSchemaTypeExpression = HsApp justC (HsVar (jsonpbName "SwaggerObject"))
 #else
           _paramSchemaTypeExpression = HsVar (jsonpbName "SwaggerObject")
+#endif
+#else
+  let paramSchemaUpdates = []
 #endif
 
   let _schemaParamSchemaExpression = HsRecUpdate memptyE paramSchemaUpdates

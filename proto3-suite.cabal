@@ -7,7 +7,7 @@ maintainer:          opensource@awakesecurity.com
 copyright:           2017-2018 Awake Security
 category:            Codec
 build-type:          Simple
-cabal-version:       >=1.10
+cabal-version:       2.0
 data-files:          test-files/*.bin tests/encode.sh tests/decode.sh
 
 Flag dhall
@@ -15,13 +15,22 @@ Flag dhall
   Default:       False
   Manual:        True
 
+Flag swagger
+  Description:   Turn on Swagger doc generation.
+  Default:       True
+  Manual:        True
+
 library
 
   if flag(dhall)
     exposed-modules:   Proto3.Suite.DhallPB
     build-depends:     dhall >=1.13 && < 1.34
-
     cpp-options:       -DDHALL
+
+  if flag(swagger)
+    exposed-modules:   Proto3.Suite.DotProto.Generate.Swagger
+    build-depends:     swagger2 >=2.1.6 && <2.7
+    cpp-options:       -DSWAGGER
 
   exposed-modules:     Proto3.Suite
                        Proto3.Suite.Class
@@ -36,8 +45,8 @@ library
                        Proto3.Suite.Types
 
                        Proto3.Suite.DotProto.Internal
-                       Proto3.Suite.DotProto.Generate.Swagger
                        Proto3.Suite.JSONPB.Class
+
   build-depends:       aeson >= 1.1.1.0 && < 1.6,
                        aeson-pretty,
                        attoparsec >= 0.13.0.1,
@@ -65,7 +74,6 @@ library
                        QuickCheck >=2.10 && <2.15,
                        quickcheck-instances < 0.4,
                        safe ==0.3.*,
-                       swagger2 >=2.1.6 && <2.7,
                        system-filepath,
                        text >= 0.2 && <1.3,
                        transformers >=0.4 && <0.6,
@@ -85,6 +93,10 @@ test-suite tests
     other-modules:     TestDhall
     build-depends:     dhall >=1.13 && < 1.34
     cpp-options:       -DDHALL
+
+  if flag(swagger)
+    build-depends:     swagger2
+    cpp-options:       -DSWAGGER
 
   other-modules:       ArbitraryGeneratedTestTypes
                        TestCodeGen
@@ -116,7 +128,6 @@ test-suite tests
                        pretty-show >= 1.6.12 && < 2.0,
                        proto3-suite,
                        proto3-wire == 1.2.*,
-                       swagger2,
                        tasty >= 0.11 && <1.3,
                        tasty-hunit >= 0.9 && <0.11,
                        tasty-quickcheck >= 0.8.4 && <0.11,
