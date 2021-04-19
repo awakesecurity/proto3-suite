@@ -1,17 +1,12 @@
 { mkDerivation, base, bytestring, cereal, containers, deepseq
-, doctest, fetchgit, ghc-prim, hashable, parameterized, primitive
-, QuickCheck, safe, stdenv, tasty, tasty-hunit, tasty-quickcheck
-, text, transformers, unordered-containers, vector
+, doctest, ghc-prim, hashable, parameterized, primitive, QuickCheck
+, safe, stdenv, tasty, tasty-hunit, tasty-quickcheck, text
+, transformers, unordered-containers, vector
 }:
 mkDerivation {
   pname = "proto3-wire";
-  version = "1.2.0";
-  src = fetchgit {
-    url = "https://github.com/awakesecurity/proto3-wire.git";
-    sha256 = "1d2ir9ds4vawrn6lkxqgyw9zg8h2l4d6m8ihhy6znjllh12fmjyp";
-    rev = "5df56fe1ad26a18b1dfbb2a5b8d35b4c1ad63f53";
-    fetchSubmodules = true;
-  };
+  version = "1.2.1";
+  sha256 = "9924b8a17af75594ab1c785307ba80648d6bfff2716e83a2ff05c7229337e044";
   libraryHaskellDepends = [
     base bytestring cereal containers deepseq ghc-prim hashable
     parameterized primitive QuickCheck safe text transformers
