@@ -142,12 +142,6 @@ let
     import nixpkgs { inherit config overlays; system = "x86_64-darwin"; };
 
 in
-  { proto3-suite-linux =
-      linuxPkgs.haskell.packages."${compiler}".proto3-suite;
-
-    proto3-suite-darwin =
-      darwinPkgs.haskell.packages."${compiler}".proto3-suite;
-
-    inherit (pkgs.haskell.packages."${compiler}")
+  { inherit (pkgs.haskell.packages."${compiler}")
       proto3-suite-boot proto3-suite;
   }
