@@ -104,11 +104,6 @@ test-suite tests
                        TestProtoImport
                        TestProtoOneof
                        TestProtoOneofImport
-  autogen-modules:
-                       TestProto
-                       TestProtoImport
-                       TestProtoOneof
-                       TestProtoOneofImport
 
   hs-source-dirs:      tests gen
   default-language:    Haskell2010
