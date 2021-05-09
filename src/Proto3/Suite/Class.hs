@@ -91,7 +91,7 @@ module Proto3.Suite.Class
   , GenericMessage(..)
   ) where
 
-import           Data.Bits                     ( (.|.), (.&.), shiftL, shiftR, xor, Bits, FiniteBits, finiteBitSize )
+import           Data.Bits              ((.&.), shiftL, shiftR, xor, Bits, FiniteBits, finiteBitSize)
 import           Control.Applicative
 import           Control.Monad
 import qualified Data.ByteString        as B
