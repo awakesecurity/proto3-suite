@@ -46,6 +46,9 @@ instance Arbitrary WithNesting where
 instance Arbitrary WithRepetition where
   arbitrary = WithRepetition <$> arbitrary
 
+instance Arbitrary WithRepeatedSigned where
+  arbitrary = WithRepeatedSigned <$> arbitrary <*> arbitrary
+
 instance Arbitrary WithFixed where
   arbitrary = WithFixed <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 

@@ -91,7 +91,7 @@ module Proto3.Suite.Class
   , GenericMessage(..)
   ) where
 
-import           Data.Bits              ((.&.), shiftL, shiftR, xor, Bits, FiniteBits, finiteBitSize)
+import           Data.Bits              ((.&.), shiftL, shiftR, xor, Bits, FiniteBits, finiteBitSize, clearBit)
 import           Control.Applicative
 import           Control.Monad
 import qualified Data.ByteString        as B
@@ -583,8 +583,15 @@ zigZagEncode i = (i `shiftL` 1) `xor` (i `shiftR` idx)
 
 -- | Decode a zigzag-encoded numeric type.
 -- See: http://stackoverflow.com/questions/2210923/zig-zag-decoding
-zigZagDecode :: (Num a, Bits a) => a -> a
-zigZagDecode i = shiftR i 1 `xor` (-(i .&. 1))
+-- See also: https://gist.github.com/mfuerstenau/ba870a29e16536fdbaba
+-- This last one says the right shift needs to be non-arithmetic
+-- (don't replicate the highest order bits when shifting right).
+-- The encode . decode property test will fail when using `shiftR`
+zigZagDecode :: (Num a, Bits a, FiniteBits a) => a -> a
+zigZagDecode i = nonArithmeticShiftR i `xor` (-(i .&. 1))
+  where
+    nonArithmeticShiftR x = clearBit (shiftR x 1) idx
+    idx = finiteBitSize i - 1
 
 instance MessageField (PackedVec (Signed Int32)) where
   encodeMessageField fn = omittingDefault (Encode.packedVarintsV (fromIntegral . zigZagEncode) fn) . coerce @_ @(Vector Int32)
