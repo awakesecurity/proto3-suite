@@ -91,6 +91,7 @@ module Proto3.Suite.Class
   , GenericMessage(..)
   ) where
 
+import           Data.Bits                     ( (.|.), (.&.), shiftL, shiftR, xor, Bits, FiniteBits, finiteBitSize )
 import           Control.Applicative
 import           Control.Monad
 import qualified Data.ByteString        as B
@@ -575,6 +576,30 @@ instance MessageField (PackedVec Int64) where
   encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated Int64) (Just DotProto.PackedField)
+
+zigZagEncode :: (Num a, Bits a, FiniteBits a) => a -> a
+zigZagEncode i = (i `shiftL` 1) `xor` (i `shiftR` idx)
+  where idx = finiteBitSize i - 1
+
+-- | Decode a zigzag-encoded numeric type.
+-- See: http://stackoverflow.com/questions/2210923/zig-zag-decoding
+zigZagDecode :: (Num a, Bits a) => a -> a
+zigZagDecode i = shiftR i 1 `xor` (-(i .&. 1))
+
+instance MessageField (PackedVec (Signed Int32)) where
+  encodeMessageField fn = omittingDefault (Encode.packedVarintsV (fromIntegral . zigZagEncode) fn) . coerce @_ @(Vector Int32)
+  decodeMessageField = decodePacked packedSignedInt32
+    where packedSignedInt32 :: Parser RawPrimitive [Signed Int32]
+          packedSignedInt32 = fmap (fmap (Signed . (fromIntegral @Int32) . zigZagDecode)) Decode.packedVarints
+  protoType _ = messageField (Repeated SInt32) (Just DotProto.PackedField)
+
+instance MessageField (PackedVec (Signed Int64)) where
+  encodeMessageField fn = omittingDefault (Encode.packedVarintsV (fromIntegral . zigZagEncode) fn) . coerce @_ @(Vector Int64)
+  decodeMessageField = decodePacked packedSignedInt64
+    where packedSignedInt64 :: Parser RawPrimitive [Signed Int64]
+          packedSignedInt64 = fmap (fmap (Signed . (fromIntegral @Int64) . zigZagDecode)) Decode.packedVarints
+  protoType _ = messageField (Repeated SInt64) (Just DotProto.PackedField)
+
 
 instance MessageField (PackedVec (Fixed Word32)) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed32V id fn) . coerce @_ @(Vector Word32)
