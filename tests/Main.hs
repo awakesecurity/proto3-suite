@@ -132,6 +132,7 @@ encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
   , check "with_enum0.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM1
   , check "with_enum1.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM2
   , check "with_repetition.bin"       $ TP.WithRepetition [1..5]
+  , check "with_repeated_signed.bin"  $ TP.WithRepeatedSigned [0,1,-1,2,-2] [0,1,-1,2,-2]
   , check "with_bytes.bin"            $ TP.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
   , check "with_nesting_repeated.bin" $ TP.WithNestingRepeated
                                           [ TP.WithNestingRepeated_Nested "123abc" 123456 [1,2,3,4] [5,6,7,8]

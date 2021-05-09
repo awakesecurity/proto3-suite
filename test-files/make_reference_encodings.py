@@ -63,6 +63,11 @@ def main():
     withRepetition.repeatedField1.extend([1,2,3,4,5])
     serialize_to_file(withRepetition, 'with_repetition.bin')
 
+    withRepetition = test_proto_pb2.WithRepeatedSigned()
+    withRepetition.r32.extend([0,1,-1,2,-2])
+    withRepetition.r64.extend([0,1,-1,2,-2])
+    serialize_to_file(withRepetition, 'with_repeated_signed.bin')
+
     trivNeg = test_proto_pb2.Trivial()
     trivNeg.trivialField = -1
     serialize_to_file(trivNeg, 'trivial_negative.bin')
