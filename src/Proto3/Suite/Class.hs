@@ -91,7 +91,6 @@ module Proto3.Suite.Class
   , GenericMessage(..)
   ) where
 
-import           Data.Bits              ((.&.), shiftL, shiftR, xor, Bits, FiniteBits, finiteBitSize, clearBit)
 import           Control.Applicative
 import           Control.Monad
 import qualified Data.ByteString        as B
@@ -577,34 +576,34 @@ instance MessageField (PackedVec Int64) where
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated Int64) (Just DotProto.PackedField)
 
-zigZagEncode :: (Num a, Bits a, FiniteBits a) => a -> a
-zigZagEncode i = (i `shiftL` 1) `xor` (i `shiftR` idx)
-  where idx = finiteBitSize i - 1
-
--- | Decode a zigzag-encoded numeric type.
--- See: http://stackoverflow.com/questions/2210923/zig-zag-decoding
--- See also: https://gist.github.com/mfuerstenau/ba870a29e16536fdbaba
--- This last one says the right shift needs to be non-arithmetic
--- (don't replicate the highest order bits when shifting right).
--- The encode . decode property test will fail when using `shiftR`
-zigZagDecode :: (Num a, Bits a, FiniteBits a) => a -> a
-zigZagDecode i = nonArithmeticShiftR i `xor` (-(i .&. 1))
-  where
-    nonArithmeticShiftR x = clearBit (shiftR x 1) idx
-    idx = finiteBitSize i - 1
-
 instance MessageField (PackedVec (Signed Int32)) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarintsV (fromIntegral . zigZagEncode) fn) . coerce @_ @(Vector Int32)
-  decodeMessageField = decodePacked packedSignedInt32
-    where packedSignedInt32 :: Parser RawPrimitive [Signed Int32]
-          packedSignedInt32 = fmap (fmap (Signed . (fromIntegral @Int32) . zigZagDecode)) Decode.packedVarints
+  encodeMessageField fn = omittingDefault (Encode.packedVarintsV zigZag fn) . coerce @_ @(Vector Int32)
+    where
+      zigZag = fromIntegral . Encode.zigZagEncode
+
+  decodeMessageField = decodePacked (fmap (fmap zagZig) Decode.packedVarints)
+    where
+      -- This type signature is important: `Decode.zigZagDecode` will not undo
+      -- `Encode.zigZagEncode` if given a signed value with the high order bit
+      -- set. So we don't allow GHC to infer a signed input type.
+      zagZig :: Word32 -> Signed Int32
+      zagZig = Signed . fromIntegral . Decode.zigZagDecode
+
   protoType _ = messageField (Repeated SInt32) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec (Signed Int64)) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarintsV (fromIntegral . zigZagEncode) fn) . coerce @_ @(Vector Int64)
-  decodeMessageField = decodePacked packedSignedInt64
-    where packedSignedInt64 :: Parser RawPrimitive [Signed Int64]
-          packedSignedInt64 = fmap (fmap (Signed . (fromIntegral @Int64) . zigZagDecode)) Decode.packedVarints
+  encodeMessageField fn = omittingDefault (Encode.packedVarintsV zigZag fn) . coerce @_ @(Vector Int64)
+    where
+      zigZag = fromIntegral . Encode.zigZagEncode
+
+  decodeMessageField = decodePacked (fmap (fmap zagZig) Decode.packedVarints)
+    where
+      -- This type signature is important: `Decode.zigZagDecode` will not undo
+      -- `Encode.zigZagEncode` if given a signed value with the high order bit
+      -- set. So we don't allow GHC to infer a signed input type.
+      zagZig :: Word64 -> Signed Int64
+      zagZig = Signed . fromIntegral . Decode.zigZagDecode
+
   protoType _ = messageField (Repeated SInt64) (Just DotProto.PackedField)
 
 
