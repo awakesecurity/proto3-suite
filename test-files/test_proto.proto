@@ -66,6 +66,11 @@ message WithRepetition {
   repeated int32 repeatedField1 = 1;
 }
 
+message WithRepeatedSigned {
+  repeated sint32 r32 = 1;
+  repeated sint64 r64 = 2;
+}
+
 message WithFixed {
   fixed32 fixed1 = 1;
   sfixed32 fixed2 = 2;
