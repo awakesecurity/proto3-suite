@@ -24,6 +24,7 @@ module Proto3.Suite.DotProto.Generate
   ( CompileError(..)
   , TypeContext
   , CompileArgs(..)
+  , UseLegacyTypes(..)
   , compileDotProtoFile
   , compileDotProtoFileOrDie
   , hsModuleForDotProto
@@ -72,7 +73,68 @@ data CompileArgs = CompileArgs
   , extraInstanceFiles :: [FilePath]
   , inputProto         :: FilePath
   , outputDir          :: FilePath
+  , useLegacyTypes     :: UseLegacyTypes
   }
+
+{-|
+Used as a compiler arg that determines whether or not to use the legacy
+behavior for handling protocol buffer Wrapper messages. These Wrapper
+messages can be found in @test-files/google/protobuf/wrappers.proto@
+(path is relative to root).
+
+Example @.proto@ file:
+@
+syntax = "proto3";
+package example;
+import "google/protobuf/wrappers.proto";
+
+message Test {
+  google.protobuf.Int32Value x = 1;
+  google.protobuf.BytesValue y = 2;
+}
+
+...
+@
+
+From the @.proto@ file above, the legacy behavior
+generates the corresponding @Example.hs@ file:
+@
+...
+
+module Example where
+
+...
+
+import qualified Google.Protobuf.Wrappers
+
+data Test = Test
+  { testX :: Maybe Google.Protobuf.Wrappers.Int32Value
+  , testY :: Maybe Google.Protobuf.Wrappers.BytesValue
+  } deriving (...)
+
+...
+@
+
+The new behavior generates:
+@
+...
+
+module Example where
+
+...
+
+import qualified Google.Protobuf.Wrappers
+
+data Test = Test
+  { testX :: Maybe Int32
+  , testY :: Maybe ByteString
+  } deriving (...)
+
+...
+@
+-}
+data UseLegacyTypes = YesLegacy | NoLegacy
+  deriving (Eq, Show)
 
 -- | Generate a Haskell module corresponding to a @.proto@ file
 compileDotProtoFile :: CompileArgs -> IO (Either CompileError ())
@@ -88,7 +150,7 @@ compileDotProtoFile CompileArgs{..} = runExceptT $ do
 
     extraInstances <- foldMapM getExtraInstances extraInstanceFiles
 
-    haskellModule <- renderHsModuleForDotProto extraInstances dotProto importTypeContext
+    haskellModule <- renderHsModuleForDotProto useLegacyTypes extraInstances dotProto importTypeContext
 
     liftIO (writeFile (FP.encodeString modulePath) haskellModule)
 
@@ -112,9 +174,9 @@ compileDotProtoFileOrDie args = compileDotProtoFile args >>= \case
 --   messages and enums.
 renderHsModuleForDotProto
     :: MonadError CompileError m
-    => ([HsImportDecl],[HsDecl]) -> DotProto -> TypeContext -> m String
-renderHsModuleForDotProto extraInstanceFiles dotProto importCtxt = do
-    haskellModule <- hsModuleForDotProto extraInstanceFiles dotProto importCtxt
+    => UseLegacyTypes -> ([HsImportDecl],[HsDecl]) -> DotProto -> TypeContext -> m String
+renderHsModuleForDotProto useLegacyTypes extraInstanceFiles dotProto importCtxt = do
+    haskellModule <- hsModuleForDotProto useLegacyTypes extraInstanceFiles dotProto importCtxt
     return (T.unpack header ++ "\n" ++ prettyPrint haskellModule)
   where
     header = [Neat.text|
@@ -136,7 +198,8 @@ renderHsModuleForDotProto extraInstanceFiles dotProto importCtxt = do
 -- Instances given in @eis@ override those otherwise generated.
 hsModuleForDotProto
     :: MonadError CompileError m
-    => ([HsImportDecl], [HsDecl])
+    => UseLegacyTypes
+    -> ([HsImportDecl], [HsDecl])
     -- ^ Extra user-define instances that override default generated instances
     -> DotProto
     -- ^
@@ -144,6 +207,7 @@ hsModuleForDotProto
     -- ^
     -> m HsModule
 hsModuleForDotProto
+    useLegacyTypes
     (extraImports, extraInstances)
     dotProto@DotProto{ protoMeta = DotProtoMeta { metaModulePath = modulePath }
                      , protoPackage
@@ -163,7 +227,7 @@ hsModuleForDotProto
        typeContext <- dotProtoTypeContext dotProto
 
        let toDotProtoDeclaration =
-             dotProtoDefinitionD packageIdentifier (typeContext <> importTypeContext)
+             dotProtoDefinitionD useLegacyTypes packageIdentifier (typeContext <> importTypeContext)
 
        let extraInstances' = instancesForModule moduleName extraInstances
 
@@ -381,15 +445,15 @@ coerceE unsafe from to = Just $ HsApp (HsApp coerceF (typeApp from)) (typeApp to
     coerceF | unsafe = HsVar (haskellName "unsafeCoerce")
             | otherwise  = HsVar (haskellName "coerce")
 
-wrapE :: MonadError CompileError m => TypeContext -> [DotProtoOption] -> DotProtoType -> HsExp -> m HsExp
-wrapE ctxt opts dpt e = maybe e (\f -> apply f [e]) <$>
-  (coerceE (isMap dpt) <$> dptToHsType ctxt dpt <*> dptToHsTypeWrapped opts ctxt dpt)
+wrapE :: MonadError CompileError m => UseLegacyTypes -> TypeContext -> [DotProtoOption] -> DotProtoType -> HsExp -> m HsExp
+wrapE useLegacyTypes ctxt opts dpt e = maybe e (\f -> apply f [e]) <$>
+  (coerceE (isMap dpt) <$> dptToHsType useLegacyTypes ctxt dpt <*> dptToHsTypeWrapped useLegacyTypes opts ctxt dpt)
 
-unwrapE :: MonadError CompileError m => TypeContext -> [DotProtoOption] -> DotProtoType -> HsExp -> m HsExp
-unwrapE ctxt opts dpt e = maybe e (\f -> apply f [e]) <$>
+unwrapE :: MonadError CompileError m => UseLegacyTypes -> TypeContext -> [DotProtoOption] -> DotProtoType -> HsExp -> m HsExp
+unwrapE useLegacyTypes ctxt opts dpt e = maybe e (\f -> apply f [e]) <$>
    (coerceE (isMap dpt) <$>
-     overParser (dptToHsTypeWrapped opts ctxt dpt) <*>
-       overParser (dptToHsType ctxt dpt))
+     overParser (dptToHsTypeWrapped useLegacyTypes opts ctxt dpt) <*>
+       overParser (dptToHsType useLegacyTypes ctxt dpt))
   where
     overParser = fmap $ HsTyApp (HsTyVar (HsIdent "_"))
 
@@ -400,18 +464,21 @@ unwrapE ctxt opts dpt e = maybe e (\f -> apply f [e]) <$>
 --
 
 -- | Convert a dot proto type to a Haskell type
-dptToHsType :: MonadError CompileError m => TypeContext -> DotProtoType -> m HsType
-dptToHsType = foldDPT dptToHsContType dpptToHsType
+dptToHsType :: MonadError CompileError m => UseLegacyTypes -> TypeContext -> DotProtoType -> m HsType
+dptToHsType useLegacyTypes = foldDPT dptToHsContType $ dpptToHsType useLegacyTypes
 
 -- | Convert a dot proto type to a wrapped Haskell type
-dptToHsTypeWrapped :: MonadError CompileError m => [DotProtoOption] -> TypeContext -> DotProtoType -> m HsType
-dptToHsTypeWrapped opts =
+dptToHsTypeWrapped :: MonadError CompileError m => UseLegacyTypes -> [DotProtoOption] -> TypeContext -> DotProtoType -> m HsType
+dptToHsTypeWrapped useLegacyTypes opts =
    foldDPT
      -- The wrapper for the collection type replaces the native haskell
      -- collection type, so try that first.
      (\ctxt ty -> maybe (dptToHsContType ctxt ty) id (dptToHsWrappedContType ctxt opts ty))
      -- Always wrap the primitive type.
-     (\ctxt ty -> dpptToHsTypeWrapper ty <$> dpptToHsType' ctxt ty)
+     (\ctxt ty -> case useLegacyTypes of
+        YesLegacy -> dpptToHsTypeWrapper ty <$> (dpptToHsType useLegacyTypes) ctxt ty
+        NoLegacy -> dpptToHsTypeWrapper ty <$> dpptToHsType' ctxt ty
+     )
   where
     dpptToHsType' :: MonadError CompileError m
                   => TypeContext
@@ -509,10 +576,11 @@ dpptToHsTypeWrapper = \case
 
 -- | Convert a dot proto prim type to an unwrapped Haskell type
 dpptToHsType :: MonadError CompileError m
-             => TypeContext
+             => UseLegacyTypes
+             -> TypeContext
              -> DotProtoPrimType
              -> m HsType
-dpptToHsType ctxt = \case
+dpptToHsType useLegacyTypes ctxt = \case
   Int32    -> pure $ primType_ "Int32"
   Int64    -> pure $ primType_ "Int64"
   SInt32   -> pure $ primType_ "Int32"
@@ -529,15 +597,15 @@ dpptToHsType ctxt = \case
   Float    -> pure $ primType_ "Float"
   Double   -> pure $ primType_ "Double"
   Named (Dots (Path ("google" :| ["protobuf", x])))
-    | x == "Int32Value" -> pure $ primType_ "Int32"
-    | x == "Int64Value" -> pure $ primType_ "Int64"
-    | x == "UInt32Value" -> pure $ primType_ "Word32"
-    | x == "UInt64Value" -> pure $ primType_ "Word64"
-    | x == "StringValue" -> pure $ primType_ "Text"
-    | x == "BytesValue" -> pure $ primType_ "ByteString"
-    | x == "BoolValue" -> pure $ primType_ "Bool"
-    | x == "FloatValue" -> pure $ primType_ "Float"
-    | x == "DoubleValue" -> pure $ primType_ "Double"
+    | x == "Int32Value" && useLegacyTypes == NoLegacy -> pure $ primType_ "Int32"
+    | x == "Int64Value" && useLegacyTypes == NoLegacy -> pure $ primType_ "Int64"
+    | x == "UInt32Value" && useLegacyTypes == NoLegacy -> pure $ primType_ "Word32"
+    | x == "UInt64Value" && useLegacyTypes == NoLegacy -> pure $ primType_ "Word64"
+    | x == "StringValue" && useLegacyTypes == NoLegacy -> pure $ primType_ "Text"
+    | x == "BytesValue" && useLegacyTypes == NoLegacy -> pure $ primType_ "ByteString"
+    | x == "BoolValue" && useLegacyTypes == NoLegacy -> pure $ primType_ "Bool"
+    | x == "FloatValue" && useLegacyTypes == NoLegacy -> pure $ primType_ "Float"
+    | x == "DoubleValue" && useLegacyTypes == NoLegacy -> pure $ primType_ "Double"
   Named msgName ->
     case M.lookup msgName ctxt of
       Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
@@ -559,16 +627,16 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
 -- ** Generate instances for a 'DotProto' package
 
 dotProtoDefinitionD :: MonadError CompileError m
-                    => DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
-dotProtoDefinitionD pkgIdent ctxt = \case
+                    => UseLegacyTypes -> DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
+dotProtoDefinitionD useLegacyTypes pkgIdent ctxt = \case
   DotProtoMessage _ messageName messageParts ->
-    dotProtoMessageD ctxt Anonymous messageName messageParts
+    dotProtoMessageD useLegacyTypes ctxt Anonymous messageName messageParts
 
   DotProtoEnum _ enumName enumParts ->
-    dotProtoEnumD Anonymous enumName enumParts
+    dotProtoEnumD useLegacyTypes Anonymous enumName enumParts
 
   DotProtoService _ serviceName serviceParts ->
-    dotProtoServiceD pkgIdent ctxt serviceName serviceParts
+    dotProtoServiceD useLegacyTypes pkgIdent ctxt serviceName serviceParts
 
 -- | Generate 'Named' instance for a type in this package
 namedInstD :: String -> HsDecl
@@ -595,16 +663,17 @@ hasDefaultInstD messageName =
 dotProtoMessageD
     :: forall m
      . MonadError CompileError m
-    => TypeContext
+    => UseLegacyTypes
+    -> TypeContext
     -> DotProtoIdentifier
     -> DotProtoIdentifier
     -> [DotProtoMessagePart]
     -> m [HsDecl]
-dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
+dotProtoMessageD useLegacyTypes ctxt parentIdent messageIdent messageParts = do
     messageName <- qualifiedMessageName parentIdent messageIdent
 
     let mkDataDecl flds =
-          dataDecl_ messageName
+          (dataDecl_ useLegacyTypes) messageName
             [ recDecl_ (HsIdent messageName) flds ]
             defaultMessageDeriving
 
@@ -615,10 +684,10 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
 
     foldMapM id
       [ sequence
-          [ mkDataDecl <$> foldMapM (messagePartFieldD messageName) messageParts
+          [ mkDataDecl <$> foldMapM (messagePartFieldD useLegacyTypes messageName) messageParts
           , pure (namedInstD messageName)
           , pure (hasDefaultInstD messageName)
-          , messageInstD ctxt' parentIdent messageIdent messageParts
+          , messageInstD useLegacyTypes ctxt' parentIdent messageIdent messageParts
 
           , toJSONPBMessageInstD   ctxt' parentIdent messageIdent messageParts
           , fromJSONPBMessageInstD ctxt' parentIdent messageIdent messageParts
@@ -642,11 +711,11 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
 
       -- Nested regular and oneof message decls
       , foldMapOfM (traverse . _DotProtoMessageDefinition)
-                   nestedDecls
+                   (nestedDecls useLegacyTypes)
                    messageParts
 
       , foldMapOfM (traverse . _DotProtoMessageOneOf)
-                   (uncurry $ nestedOneOfDecls messageName)
+                   (uncurry $ nestedOneOfDecls useLegacyTypes messageName)
                    messageParts
       ]
 
@@ -655,43 +724,43 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup messageIdent ctxt)
                 <> ctxt
 
-    messagePartFieldD :: String -> DotProtoMessagePart -> m [([HsName], HsBangType)]
-    messagePartFieldD messageName (DotProtoMessageField DotProtoField{..}) = do
+    messagePartFieldD :: UseLegacyTypes -> String -> DotProtoMessagePart -> m [([HsName], HsBangType)]
+    messagePartFieldD useLegacyTypes' messageName (DotProtoMessageField DotProtoField{..}) = do
       fullName <- prefixedFieldName messageName =<< dpIdentUnqualName dotProtoFieldName
-      fullTy <- dptToHsType ctxt' dotProtoFieldType
+      fullTy <- dptToHsType useLegacyTypes' ctxt' dotProtoFieldType
       pure [ ([HsIdent fullName], HsUnBangedTy fullTy ) ]
 
-    messagePartFieldD messageName (DotProtoMessageOneOf fieldName _) = do
+    messagePartFieldD _ messageName (DotProtoMessageOneOf fieldName _) = do
       fullName <- prefixedFieldName messageName =<< dpIdentUnqualName fieldName
       qualTyName <- prefixedConName messageName =<< dpIdentUnqualName fieldName
       let fullTy = HsTyApp (HsTyCon (haskellName "Maybe")) . type_ $ qualTyName
       pure [ ([HsIdent fullName], HsUnBangedTy fullTy) ]
 
-    messagePartFieldD _ _ = pure []
+    messagePartFieldD _ _ _ = pure []
 
-    nestedDecls :: DotProtoDefinition -> m [HsDecl]
-    nestedDecls (DotProtoMessage _ subMsgName subMessageDef) = do
+    nestedDecls :: UseLegacyTypes -> DotProtoDefinition -> m [HsDecl]
+    nestedDecls useLegacyTypes' (DotProtoMessage _ subMsgName subMessageDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoMessageD ctxt' parentIdent' subMsgName subMessageDef
+      dotProtoMessageD useLegacyTypes' ctxt' parentIdent' subMsgName subMessageDef
 
-    nestedDecls (DotProtoEnum _ subEnumName subEnumDef) = do
+    nestedDecls useLegacyTypes' (DotProtoEnum _ subEnumName subEnumDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoEnumD parentIdent' subEnumName subEnumDef
+      dotProtoEnumD useLegacyTypes' parentIdent' subEnumName subEnumDef
 
-    nestedDecls _ = pure []
+    nestedDecls _ _ = pure []
 
-    nestedOneOfDecls :: String -> DotProtoIdentifier -> [DotProtoField] -> m [HsDecl]
-    nestedOneOfDecls messageName identifier fields = do
+    nestedOneOfDecls :: UseLegacyTypes -> String -> DotProtoIdentifier -> [DotProtoField] -> m [HsDecl]
+    nestedOneOfDecls useLegacyTypes' messageName identifier fields = do
       fullName <- prefixedConName messageName =<< dpIdentUnqualName identifier
 
-      (cons, idents) <- fmap unzip (mapM (oneOfCons fullName) fields)
+      (cons, idents) <- fmap unzip (mapM (oneOfCons useLegacyTypes' fullName) fields)
 
 #ifdef SWAGGER
       toSchemaInstance <- toSchemaInstanceDeclaration fullName (Just idents)
                             =<< mapM (dpIdentUnqualName . dotProtoFieldName) fields
 #endif
 
-      pure [ dataDecl_ fullName cons defaultMessageDeriving
+      pure [ (dataDecl_ useLegacyTypes') fullName cons defaultMessageDeriving
            , namedInstD fullName
 #ifdef SWAGGER
            , toSchemaInstance
@@ -703,36 +772,37 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
 #endif
            ]
 
-    oneOfCons :: String -> DotProtoField -> m (HsConDecl, HsName)
-    oneOfCons fullName DotProtoField{..} = do
+    oneOfCons :: UseLegacyTypes -> String -> DotProtoField -> m (HsConDecl, HsName)
+    oneOfCons useLegacyTypes' fullName DotProtoField{..} = do
        consTy <- case dotProtoFieldType of
             Prim msg@(Named msgName)
               | isMessage ctxt' msgName
-                -> dpptToHsType ctxt' msg
-            _   -> dptToHsType ctxt' dotProtoFieldType
+                -> (dpptToHsType useLegacyTypes') ctxt' msg
+            _   -> dptToHsType useLegacyTypes' ctxt' dotProtoFieldType
 
        consName <- prefixedConName fullName =<< dpIdentUnqualName dotProtoFieldName
        let ident = HsIdent consName
        pure (conDecl_ ident [HsUnBangedTy consTy], ident)
 
-    oneOfCons _ DotProtoEmptyField = internalError "field type : empty field"
+    oneOfCons _ _ DotProtoEmptyField = internalError "field type : empty field"
 
 -- *** Generate Protobuf 'Message' instances
 
 messageInstD
     :: forall m
      . MonadError CompileError m
-    => TypeContext
+    => UseLegacyTypes
+    -> TypeContext
     -> DotProtoIdentifier
     -> DotProtoIdentifier
     -> [DotProtoMessagePart]
     -> m HsDecl
-messageInstD ctxt parentIdent msgIdent messageParts = do
+messageInstD useLegacyTypes ctxt parentIdent msgIdent messageParts = do
      msgName         <- qualifiedMessageName parentIdent msgIdent
      qualifiedFields <- getQualifiedFields msgName messageParts
 
-     encodedFields   <- mapM encodeMessageField qualifiedFields
-     decodedFields   <- mapM decodeMessageField qualifiedFields
+     encodedFields   <- mapM (encodeMessageField useLegacyTypes) qualifiedFields
+     decodedFields   <- mapM (decodeMessageField useLegacyTypes) qualifiedFields
 
      let encodeMessageDecl = match_ (HsIdent "encodeMessage")
                                     [HsPWildCard, HsPRec (unqual_ msgName) punnedFieldsP]
@@ -772,12 +842,12 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                       , HsFunBind [ dotProtoDecl ]
                       ]
   where
-    encodeMessageField :: QualifiedField -> m HsExp
-    encodeMessageField QualifiedField{recordFieldName, fieldInfo} =
+    encodeMessageField :: UseLegacyTypes -> QualifiedField -> m HsExp
+    encodeMessageField useLegacyTypes' QualifiedField{recordFieldName, fieldInfo} =
       let recordFieldName' = uvar_ (coerce recordFieldName) in
       case fieldInfo of
         FieldNormal _fieldName fieldNum dpType options -> do
-            fieldE <- wrapE ctxt options dpType recordFieldName'
+            fieldE <- wrapE useLegacyTypes' ctxt options dpType recordFieldName'
             pure $ apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ]
 
         FieldOneOf OneofField{subfields} -> do
@@ -804,7 +874,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
               let wrapJust = HsParen . HsApp (HsVar (haskellName "Just"))
 
               xE <- (if isMaybe then id else fmap forceEmitE)
-                     . wrapE ctxt options dpType
+                     . wrapE useLegacyTypes' ctxt options dpType
                      . (if isMaybe then wrapJust else id)
                      $ uvar_ "y"
 
@@ -813,20 +883,20 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                           []
 
 
-    decodeMessageField :: QualifiedField -> m HsExp
-    decodeMessageField QualifiedField{fieldInfo} =
+    decodeMessageField :: UseLegacyTypes -> QualifiedField -> m HsExp
+    decodeMessageField useLegacyTypes' QualifiedField{fieldInfo} =
       case fieldInfo of
         FieldNormal _fieldName fieldNum dpType options ->
-            unwrapE ctxt options dpType $ apply atE [ decodeMessageFieldE, fieldNumberE fieldNum ]
+            unwrapE useLegacyTypes' ctxt options dpType $ apply atE [ decodeMessageFieldE, fieldNumberE fieldNum ]
 
         FieldOneOf OneofField{subfields} -> do
-            parsers <- mapM subfieldParserE subfields
+            parsers <- mapM (subfieldParserE useLegacyTypes') subfields
             pure $  apply oneofE [ HsVar (haskellName "Nothing")
                                  , HsList parsers
                                  ]
           where
             -- create a list of (fieldNumber, Cons <$> parser)
-            subfieldParserE (OneofSubfield fieldNumber consName _ dpType options) = do
+            subfieldParserE useLegacyTypes'' (OneofSubfield fieldNumber consName _ dpType options) = do
               let fE | Prim (Named tyName) <- dpType, isMessage ctxt tyName
                      = HsParen (HsApp fmapE (uvar_ consName))
                      | otherwise
@@ -834,7 +904,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
                                            composeOp
                                            (uvar_ consName))
 
-              alts <- unwrapE ctxt options dpType decodeMessageFieldE
+              alts <- unwrapE useLegacyTypes'' ctxt options dpType decodeMessageFieldE
 
               pure $ HsTuple
                    [ fieldNumberE fieldNumber
@@ -1266,11 +1336,12 @@ toSchemaInstanceDeclaration messageName maybeConstructors fieldNames = do
 
 dotProtoEnumD
     :: MonadError CompileError m
-    => DotProtoIdentifier
+    => UseLegacyTypes
+    -> DotProtoIdentifier
     -> DotProtoIdentifier
     -> [DotProtoEnumPart]
     -> m [HsDecl]
-dotProtoEnumD parentIdent enumIdent enumParts = do
+dotProtoEnumD useLegacyTypes parentIdent enumIdent enumParts = do
   enumName <- qualifiedMessageName parentIdent enumIdent
 
   let enumeratorDecls =
@@ -1378,7 +1449,7 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
                     (uvar_ "x")))
           []
 
-  pure [ dataDecl_ enumName
+  pure [ (dataDecl_ useLegacyTypes) enumName
                    [ conDecl_ (HsIdent con) [] | con <- enumConNames ]
                    defaultEnumDeriving
        , namedInstD enumName
@@ -1418,12 +1489,13 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
 
 dotProtoServiceD
     :: MonadError CompileError m
-    => DotProtoIdentifier
+    => UseLegacyTypes
+    -> DotProtoIdentifier
     -> TypeContext
     -> DotProtoIdentifier
     -> [DotProtoServicePart]
     -> m [HsDecl]
-dotProtoServiceD pkgIdent ctxt serviceIdent service = do
+dotProtoServiceD useLegacyTypes pkgIdent ctxt serviceIdent service = do
      serviceName <- typeLikeName =<< dpIdentUnqualName serviceIdent
      packageName <- dpIdentQualName pkgIdent
 
@@ -1436,9 +1508,9 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
                            Single nm -> pure nm
                            _ -> invalidMethodNameError rpcMethodName
 
-           requestTy  <- dpptToHsType ctxt (Named rpcMethodRequestType)
+           requestTy  <- (dpptToHsType useLegacyTypes) ctxt (Named rpcMethodRequestType)
 
-           responseTy <- dpptToHsType ctxt (Named rpcMethodResponseType)
+           responseTy <- (dpptToHsType useLegacyTypes) ctxt (Named rpcMethodResponseType)
 
            let streamingType =
                  case (rpcMethodRequestStreaming, rpcMethodResponseStreaming) of
@@ -1851,10 +1923,10 @@ module_ = HsModule defaultSrcLoc
 importDecl_ :: Module -> Bool -> Maybe Module -> Maybe (Bool, [HsImportSpec]) -> HsImportDecl
 importDecl_ = HsImportDecl defaultSrcLoc
 
-dataDecl_ :: String -> [HsConDecl] -> [HsQName] -> HsDecl
-dataDecl_ messageName [constructor@(HsRecDecl _ _ [_])] =
+dataDecl_ :: UseLegacyTypes -> String -> [HsConDecl] -> [HsQName] -> HsDecl
+dataDecl_ NoLegacy messageName [constructor@(HsRecDecl _ _ [_])] =
   HsNewTypeDecl defaultSrcLoc [] (HsIdent messageName) [] constructor
-dataDecl_ messageName constructors =
+dataDecl_ _ messageName constructors =
   HsDataDecl defaultSrcLoc [] (HsIdent messageName) [] constructors
 
 recDecl_ :: HsName -> [([HsName], HsBangType)] -> HsConDecl
