@@ -16,7 +16,7 @@ import           Proto3.Suite.DotProto.Generate
 parseArgs :: ParserInfo CompileArgs
 parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto file to a Haskell module")
   where
-    parser = CompileArgs <$> includes <*> extraInstances <*> proto <*> out
+    parser = CompileArgs <$> includes <*> extraInstances <*> proto <*> out <*> useLegacyTypes
 
     includes = many $ strOption $
       long "includeDir"
@@ -37,6 +37,14 @@ parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto fi
       long "out"
         <> metavar "DIR"
         <> help "Output directory path where generated Haskell modules will be written (directory is created if it does not exist; note that files in the output directory may be overwritten!)"
+
+    boolToUseLegacyTypes = \bool -> case bool of
+      True -> YesLegacy
+      False -> NoLegacy
+
+    useLegacyTypes = boolToUseLegacyTypes <$> (switch $
+      long "use-legacy-types"
+        <> help "If this flag is set, the program will use legacy behavior to wrap protobuf Wrapper types (e.g. Int32Value) with Maybe in the generated Haskell code (provided for backwards compatibility).")
 
 main :: IO ()
 main = execParser parseArgs >>= compileDotProtoFileOrDie
