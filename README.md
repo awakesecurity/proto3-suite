@@ -1,6 +1,6 @@
 # `proto3-suite`
 
-[![Build Status](https://travis-ci.org/awakesecurity/proto3-suite.svg?branch=master)](https://travis-ci.org/awakesecurity/proto3-suite)
+[![Build Status](https://github.com/awakesecurity/nix-graph/actions/workflows/ci.yml/badge.svg)](https://github.com/awakesecurity/nix-graph/actions/workflows/ci.yml)
 
 This package defines tools for working with protocol buffers version 3 in Haskell.
 
