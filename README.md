@@ -2,24 +2,27 @@
 
 [![Build Status](https://github.com/awakesecurity/proto3-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/awakesecurity/proto3-suite/actions/workflows/ci.yml)
 
-This package defines tools for working with protocol buffers version 3 in Haskell.
+This package defines tools for working with protocol buffers version 3 in
+Haskell.
 
-This library provides a higher-level API to
-[the `proto3-wire` library](https://github.com/awakenetworks/proto3-wire) that supports:
+This library provides a higher-level API to [the `proto3-wire` library](https://github.com/awakesecurity/proto3-wire)
+that supports:
 
-- Type classes for encoding and decoding messages, and instances for all
-  wire formats identified in the specification
+- Type classes for encoding and decoding messages, and instances for all wire
+  formats identified in the specification
 - A higher-level approach to encoding and decoding, based on `GHC.Generics`
 - A way of creating `.proto` files from Haskell types.
 
-See the `Proto3.Suite.Tutorial` module for more details.
+See [the `Proto3.Suite.Tutorial` module](https://hackage.haskell.org/package/proto3-suite/docs/Proto3-Suite-Tutorial.html)
+for more details.
 
 ## Running the language interop tests
 
-We test inter-language interop using protoc's built-in Python code generation. In
-order to successfully run these tests, you'll need to install the google protobuf
-Python library. It's best to create a virtualenv and then use pip to install the
-right version (virtualenv is a python utility which can be installed with pip).
+We test inter-language interop using protoc's built-in Python code generation.
+In order to successfully run these tests, you'll need to install the google
+protobuf Python library. It's best to create a virtualenv and then use pip to
+install the right version (virtualenv is a python utility which can be installed
+with pip).
 
 ```bash
 $ virtualenv pyenv
@@ -47,13 +50,13 @@ $ nix-shell
 [nix-shell]$ cabal test
 ```
 
-The above steps will work only if your Haskell source compiles, because
-some of the tests require the current `compile-proto-file` executable.
+The above steps will work only if your Haskell source compiles, because some of
+the tests require the current `compile-proto-file` executable.
 
 ## `compile-proto-file` and `canonicalize-proto-file` installation
 
-Run the following commmand from the root of this repository to install
-the `compile-proto-file` and `canonicalize-proto-file` executables:
+Run the following commmand from the root of this repository to install the
+`compile-proto-file` and `canonicalize-proto-file` executables:
 
 ```bash
 $ nix-env --install --attr proto3-suite -f release.nix
