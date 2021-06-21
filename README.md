@@ -19,6 +19,8 @@ for more details.
 
 ## Building
 
+### Nix shell + Cabal (recommended)
+
 The Nix shell provides an incremental build environment (but see below for
 testing). From the root of this repository, run:
 
@@ -35,6 +37,17 @@ $ nix-shell
 [nix-shell]$ cabal build
 [nix-shell]$ cabal test
 ```
+
+### Nix
+
+Building with Nix is simple, but not incremental. From the root of this
+repository, run:
+
+```bash
+$ nix-build --attr proto3-suite
+```
+
+The build products will be available via the `./result` symlink.
 
 ## Running the language interop tests
 
