@@ -1,5 +1,6 @@
 # `proto3-suite`
 
+[![Hackage](https://img.shields.io/hackage/v/proto3-suite.svg?logo=haskell&label=proto3-suite)](https://hackage.haskell.org/package/proto3-suite)
 [![Build Status](https://github.com/awakesecurity/proto3-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/awakesecurity/proto3-suite/actions/workflows/ci.yml)
 
 This package defines tools for working with protocol buffers version 3 in
