@@ -1,13 +1,25 @@
+cabal-version:       2.0
 name:                proto3-suite
 version:             0.4.2
-synopsis:            A low level library for writing out data in the Protocol Buffers wire format
+synopsis:            A higher-level API to the proto3-wire library
+description:
+  This library provides a higher-level API to <https://github.com/awakesecurity/proto3-wire the `proto3-wire` library>
+  that supports:
+  .
+  - Type classes for encoding and decoding messages, and instances for all wire
+    formats identified in the specification
+  - A higher-level approach to encoding and decoding, based on `GHC.Generics`
+  - A way of creating `.proto` files from Haskell types.
+  .
+  See <https://hackage.haskell.org/package/proto3-suite/docs/Proto3-Suite-Tutorial.html the `Proto3.Suite.Tutorial` module>
+  for more details.
+  .
 license:             Apache-2.0
 author:              Awake Security
 maintainer:          opensource@awakesecurity.com
 copyright:           2017-2021 Awake Security
 category:            Codec
 build-type:          Simple
-cabal-version:       2.0
 data-files:          test-files/*.bin tests/encode.sh tests/decode.sh
 
 Flag dhall
