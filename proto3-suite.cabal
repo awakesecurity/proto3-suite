@@ -4,7 +4,7 @@ synopsis:            A low level library for writing out data in the Protocol Bu
 license:             Apache-2.0
 author:              Awake Security
 maintainer:          opensource@awakesecurity.com
-copyright:           2017-2018 Awake Security
+copyright:           2017-2021 Awake Security
 category:            Codec
 build-type:          Simple
 cabal-version:       2.0
