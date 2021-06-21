@@ -73,22 +73,25 @@ $ nix-env --uninstall proto3-suite
 
 ```bash
 $ compile-proto-file --help
-Compiles a .proto file to a Haskell module
-
-Usage: compile-proto-file --out FILEPATH [--includeDir FILEPATH]...
-                          --proto FILEPATH
+Usage: compile-proto-file [--includeDir DIR] [--extraInstanceFile FILE]
+                          --proto FILE --out DIR
+  Compiles a .proto file to a Haskell module
 
 Available options:
   -h,--help                Show this help text
-  --out FILEPATH           Output directory path where generated Haskell modules
-                           will be written (directory is created if it does not
-                           exist; note that files in the output directory may be
-                           overwritten!)
-  --includeDir FILEPATH... Path to search for included .proto files (can be
+  --includeDir DIR         Path to search for included .proto files (can be
                            repeated, and paths will be searched in order; the
                            current directory is used if this option is not
                            provided)
-  --proto FILEPATH         Path to input .proto file
+  --extraInstanceFile FILE Additional file to provide instances that would
+                           otherwise be generated. Can be used multiple times.
+                           Types for which instance overrides are given must be
+                           fully qualified.
+  --proto FILE             Path to input .proto file
+  --out DIR                Output directory path where generated Haskell modules
+                           will be written (directory is created if it does not
+                           exist; note that files in the output directory may be
+                           overwritten!)
 ```
 
 `compile-proto-file` bases the name (and hence, path) of the generated Haskell
