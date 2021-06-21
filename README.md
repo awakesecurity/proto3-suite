@@ -12,7 +12,7 @@ that supports:
 - Type classes for encoding and decoding messages, and instances for all wire
   formats identified in the specification
 - A higher-level approach to encoding and decoding, based on `GHC.Generics`
-- A way of creating `.proto` files from Haskell types.
+- A way of creating `.proto` files from Haskell types
 
 See [the `Proto3.Suite.Tutorial` module](https://hackage.haskell.org/package/proto3-suite/docs/Proto3-Suite-Tutorial.html)
 for more details.
@@ -20,14 +20,14 @@ for more details.
 ## Building
 
 The Nix shell provides an incremental build environment (but see below for
-testing). From the root of this repository:
+testing). From the root of this repository, run:
 
 ```bash
 $ nix-shell
 [nix-shell]$ cabal build
 ```
 
-Once your source code compiles and you want to test, do this instead:
+Once your source code compiles and you want to test, run this instead:
 
 ```bash
 $ nix-shell
@@ -38,11 +38,11 @@ $ nix-shell
 
 ## Running the language interop tests
 
-We test inter-language interop using protoc's built-in Python code generation.
-In order to successfully run these tests, you'll need to install the google
-protobuf Python library. It's best to create a virtualenv and then use pip to
-install the right version (virtualenv is a python utility which can be installed
-with pip).
+We test inter-language interop using `protoc`'s built-in Python code generation.
+In order to successfully run these tests, you'll need to install the Google
+`protobuf` Python library. It's best to create a `virtualenv` and then use `pip`
+to install the right version (`virtualenv` is a Python utility which can be
+installed with `pip`).
 
 ```bash
 $ virtualenv pyenv
@@ -52,22 +52,22 @@ $ pip install protobuf==3.0.0b3  # Need the latest version for the newest protoc
 
 `brew install python` may also work.
 
-## `compile-proto-file` and `canonicalize-proto-file` installation
+## Installing `compile-proto-file` and `canonicalize-proto-file`
 
-Run the following commmand from the root of this repository to install the
-`compile-proto-file` and `canonicalize-proto-file` executables:
+To install the `compile-proto-file` and `canonicalize-proto-file` executables,
+run the following commmand from the root of this repository:
 
 ```bash
-$ nix-env --install --attr proto3-suite -f release.nix
+$ nix-env --file default.nix --install --attr proto3-suite
 ```
 
-To remove it from your nix user profile path, use:
+To uninstall, removing the executables from your Nix user profile `PATH`, run:
 
 ```bash
 $ nix-env --uninstall proto3-suite
 ```
 
-## `compile-proto-file` usage
+## Using `compile-proto-file`
 
 ```bash
 $ compile-proto-file --help
@@ -94,7 +94,7 @@ Available options:
 
 `compile-proto-file` bases the name (and hence, path) of the generated Haskell
 module on the filename of the input `.proto` file, _relative_ to the include
-path where it was found, snake-to-cameling as needed.
+path where it was found, converting snake case to camel case as needed.
 
 As an example, let's assume this is our current directory structure before
 performing any code generation:
@@ -110,7 +110,7 @@ performing any code generation:
             └── timestamp.proto
 ```
 
-where `my_package.proto` is:
+...where `my_package.proto` is:
 
 ```
 syntax = "proto3";
@@ -123,7 +123,7 @@ message MyMessage {
 }
 ```
 
-Then, after the following commands:
+Then, after running the following commands:
 
 ```bash
 $ compile-proto-file --out gen --includeDir my_protos --includeDir other_protos --proto google/protobuf/duration.proto
@@ -131,7 +131,7 @@ $ compile-proto-file --out gen --includeDir my_protos --includeDir other_protos 
 $ compile-proto-file --out gen --includeDir my_protos --includeDir other_protos --proto my_package.proto
 ```
 
-the directory tree will look like this:
+...the directory tree will look like this:
 
 ```
 .
@@ -150,17 +150,17 @@ the directory tree will look like this:
             └── timestamp.proto
 ```
 
-Finally, note that delimiting `.` characters in the input `.proto` basename are
-treated as `/` characters, so the input filenames
-`google.protobuf.timestamp.proto` and `google/protobuf/timestamp.proto` would
-produce the same generated Haskell module name and path.
+Note that delimiting `.` characters in the input `.proto` basename are treated
+as `/` characters, so the input filenames `google.protobuf.timestamp.proto` and
+`google/protobuf/timestamp.proto` would produce the same generated Haskell
+module name and path.
 
 This is essentially the same module naming scheme as the `protoc` Python plugin
 uses when compiling `.proto` files.
 
 ## Docker
 
-For those unable to run nix locally, a Dockerfile is provided:
+For those unable to run Nix locally, a Dockerfile is provided:
 ```
 docker build -t compile-proto-file .
 docker run --rm -v $PWD:/opt compile-proto-file --proto proto/test.proto --out src/gen
