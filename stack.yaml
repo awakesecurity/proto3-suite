@@ -1,19 +1,16 @@
-resolver: lts-15.5
+resolver:
+  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/0.yaml
+
 allow-newer: true
 
 packages:
   - .
 
 extra-deps:
-  - aeson-1.4.7.1
-  - aeson-pretty-0.8.2
-  - cabal-doctest-1.0.8
-  - insert-ordered-containers-0.2.3.1
-  - neat-interpolation-0.3.2.1
-  - optparse-applicative-0.16.1.0
-  - optparse-generic-1.4.4
-  - swagger2-2.6
-  - turtle-1.5.22
-  - parameterized-0.5.0.0@sha256:880717fbb958de1bac015f0a375ab6636f162a72483d987a11e305da6fac6c97,1969
-  - git: https://github.com/awakesecurity/proto3-wire.git
-    commit: 25b378b8e663a9f5305a648b826200e88e5d11b8
+  - github: awakesecurity/proto3-wire
+    commit: 9b1c178f8a23a5f03237cb77cce403bc386da523
+
+nix:
+  packages:
+    - zlib.dev
+    - zlib.out

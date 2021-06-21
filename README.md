@@ -49,6 +49,31 @@ $ nix-build --attr proto3-suite
 
 The build products will be available via the `./result` symlink.
 
+### Stack
+
+We use Nix and Cabal at Awake Security, so those are the most exercised paths.
+Stack support is provided on a best effort basis.
+
+Building the library and executable components is straightforward. From the root
+of this repository, run:
+
+```bash
+$ stack build
+```
+
+Building and running tests is more complicated when using Stack. You'll need to
+use the `compile-proto-file` executable you just compiled to convert
+`test_*.proto` files to Haskell modules, by running the following from the root
+of this repository:
+
+```bash
+$ mkdir gen
+$ for proto in $(find test-files -name 'test_*.proto'); do
+    stack run compile-proto-file -- --out gen --includeDir test-files --proto "${proto#test-files/}"
+  done
+$ stack test
+```
+
 ## Running the language interop tests
 
 We test inter-language interop using `protoc`'s built-in Python code generation.
