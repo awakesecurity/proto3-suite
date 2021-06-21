@@ -17,6 +17,25 @@ that supports:
 See [the `Proto3.Suite.Tutorial` module](https://hackage.haskell.org/package/proto3-suite/docs/Proto3-Suite-Tutorial.html)
 for more details.
 
+## Building
+
+The Nix shell provides an incremental build environment (but see below for
+testing). From the root of this repository:
+
+```bash
+$ nix-shell
+[nix-shell]$ cabal build
+```
+
+Once your source code compiles and you want to test, do this instead:
+
+```bash
+$ nix-shell
+[nix-shell]$ cabal configure --enable-tests
+[nix-shell]$ cabal build
+[nix-shell]$ cabal test
+```
+
 ## Running the language interop tests
 
 We test inter-language interop using protoc's built-in Python code generation.
@@ -32,27 +51,6 @@ $ pip install protobuf==3.0.0b3  # Need the latest version for the newest protoc
 ```
 
 `brew install python` may also work.
-
-Alternately, the `nix-shell` environment provides an incremental build
-environment (but see below for testing). From the root of this repository:
-
-```bash
-$ nix-shell
-[nix-shell]$ cabal configure
-[nix-shell]$ cabal build
-```
-
-Once your source code compiles and you want to test, do this instead:
-
-```bash
-$ nix-shell
-[nix-shell]$ cabal configure --enable-tests
-[nix-shell]$ cabal build
-[nix-shell]$ cabal test
-```
-
-The above steps will work only if your Haskell source compiles, because some of
-the tests require the current `compile-proto-file` executable.
 
 ## `compile-proto-file` and `canonicalize-proto-file` installation
 
