@@ -9,7 +9,7 @@
 { fast ? false
 , compiler ? "ghc884"
 , enableDhall ? false
-, enableSwagger ? false
+, enableSwagger ? true
 }@args:
 
 with (import ./default.nix { inherit compiler enableDhall enableSwagger; });
