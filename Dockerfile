@@ -1,8 +1,8 @@
-From nixos/nix:2.3
+FROM nixos/nix:2.3
 
-Add . /opt
-Workdir /opt
+ADD . /opt
+WORKDIR /opt
 
-Run nix-env --install --attr proto3-suite -f release.nix
+RUN nix-env --file default.nix --install --attr proto3-suite
 
-Entrypoint ["compile-proto-file"]
+ENTRYPOINT ["compile-proto-file"]
