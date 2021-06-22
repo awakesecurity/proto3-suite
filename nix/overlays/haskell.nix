@@ -21,7 +21,15 @@ pkgsNew: pkgsOld:
                   });
 
               proto3-wire =
-                haskellPackagesNew.callPackage ../proto3-wire.nix { };
+                let
+                  source = pkgsNew.fetchFromGitHub {
+                    owner = "awakesecurity";
+                    repo = "proto3-wire";
+                    rev = "9b1c178f8a23a5f03237cb77cce403bc386da523";
+                    sha256 = "0yf4008qrikxmnlcir7nvb7jx23fykjymjiinshb5j3s6kffqqzq";
+                  };
+                in
+                haskellPackagesNew.callCabal2nix "proto3-wire" source { };
 
               proto3-suite-base =
                 let
