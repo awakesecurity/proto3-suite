@@ -5,8 +5,6 @@
 
 let
   pkgs = import ./nix/nixpkgs.nix {
-    config = { allowBroken = true; };
-
     overlays = [
       (import ./nix/overlays/haskell.nix { inherit compiler enableDhall enableSwagger; })
     ];

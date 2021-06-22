@@ -13,7 +13,12 @@ pkgsNew: pkgsOld:
           let
             manualOverrides = haskellPackagesNew: haskellPackagesOld: {
               parameterized =
-                pkgsNew.haskell.lib.dontCheck haskellPackagesOld.parameterized;
+                pkgsNew.haskell.lib.overrideCabal
+                  haskellPackagesOld.parameterized
+                  (old: {
+                    doCheck = false;
+                    broken = false;
+                  });
 
               proto3-wire =
                 haskellPackagesNew.callPackage ../proto3-wire.nix { };
