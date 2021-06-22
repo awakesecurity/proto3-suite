@@ -1,1 +1,1 @@
-(import ./release.nix {}).proto3-suite.env
+(import ./default.nix { }).proto3-suite.env
