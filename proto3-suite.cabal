@@ -22,12 +22,12 @@ category:            Codec
 build-type:          Simple
 data-files:          test-files/*.bin tests/encode.sh tests/decode.sh
 
-Flag dhall
+flag dhall
   Description:   Turn on Dhall interpret and inject codegen
   Default:       False
   Manual:        True
 
-Flag swagger
+flag swagger
   Description:   Turn on Swagger doc generation.
   Default:       True
   Manual:        True

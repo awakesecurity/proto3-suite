@@ -1,6 +1,6 @@
 { compiler ? "ghc884"
 , enableDhall ? false
-, enableSwagger ? false
+, enableSwagger ? true
 }:
 
 let

@@ -35,7 +35,7 @@ pkgsNew: pkgsOld:
                 let
                   cabal2nixFlags = pkgsNew.lib.concatStringsSep " " [
                     (if enableDhall then "-fdhall" else "")
-                    (if enableSwagger then "-fswagger" else "")
+                    (if enableSwagger then "" else "-f-swagger")
                   ];
                 in
                 (haskellPackagesNew.callCabal2nixWithOptions
@@ -52,7 +52,7 @@ pkgsNew: pkgsOld:
                     configureFlags = (oldArgs.configureFlags or [ ])
                       ++ [ "--disable-optimization" ]
                       ++ (if enableDhall then [ "-fdhall" ] else [ ])
-                      ++ (if enableSwagger then [ "-fswagger" ] else [ ]);
+                      ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ]);
                     doCheck = false;
                     doHaddock = false;
                   });
@@ -113,7 +113,7 @@ pkgsNew: pkgsOld:
 
                       configureFlags = (oldArgs.configureFlags or [ ])
                         ++ (if enableDhall then [ "-fdhall" ] else [ ])
-                        ++ (if enableSwagger then [ "-fswagger" ] else [ ]);
+                        ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ]);
 
                       postPatch = (oldArgs.postPatch or "") + copyGeneratedCode;
 
