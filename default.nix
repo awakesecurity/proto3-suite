@@ -1,5 +1,6 @@
 { compiler ? "ghc884"
 , enableDhall ? false
+, enableSwagger ? false
 }:
 
 let
@@ -7,7 +8,7 @@ let
     config = { allowBroken = true; };
 
     overlays = [
-      (import ./nix/overlays/haskell.nix { inherit compiler enableDhall; })
+      (import ./nix/overlays/haskell.nix { inherit compiler enableDhall enableSwagger; })
     ];
   };
 

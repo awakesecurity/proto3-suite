@@ -1,4 +1,7 @@
-{ compiler, enableDhall }:
+{ compiler
+, enableDhall
+, enableSwagger
+}:
 
 pkgsNew: pkgsOld:
 
@@ -17,7 +20,10 @@ pkgsNew: pkgsOld:
 
               proto3-suite-base =
                 let
-                  cabal2nixFlags = if enableDhall then "-fdhall" else "";
+                  cabal2nixFlags = pkgsNew.lib.concatStringsSep " " [
+                    (if enableDhall then "-fdhall" else "")
+                    (if enableSwagger then "-fswagger" else "")
+                  ];
                 in
                 haskellPackagesNew.callCabal2nixWithOptions
                   "proto3-suite"
@@ -31,7 +37,8 @@ pkgsNew: pkgsOld:
                   (oldArgs: {
                     configureFlags = (oldArgs.configureFlags or [ ])
                       ++ [ "--disable-optimization" ]
-                      ++ (if enableDhall then [ "-fdhall" ] else [ ]);
+                      ++ (if enableDhall then [ "-fdhall" ] else [ ])
+                      ++ (if enableSwagger then [ "-fswagger" ] else [ ]);
                     doCheck = false;
                     doHaddock = false;
                   });
@@ -89,7 +96,8 @@ pkgsNew: pkgsOld:
                     in
                     {
                       configureFlags = (oldArgs.configureFlags or [ ])
-                        ++ (if enableDhall then [ "-fdhall" ] else [ ]);
+                        ++ (if enableDhall then [ "-fdhall" ] else [ ])
+                        ++ (if enableSwagger then [ "-fswagger" ] else [ ]);
 
                       postPatch = (oldArgs.postPatch or "") + copyGeneratedCode;
 
