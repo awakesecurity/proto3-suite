@@ -6,9 +6,13 @@
 #
 #   $ nix-shell --arg fast true
 #
-{ fast ? false }:
+{ fast ? false
+, compiler ? "ghc884"
+, enableDhall ? false
+, enableSwagger ? false
+}@args:
 
-with (import ./default.nix { });
+with (import ./default.nix { inherit compiler enableDhall enableSwagger; });
 
 if fast then
   proto3-suite-boot.env
