@@ -1,4 +1,6 @@
-{ compiler ? "ghc884", enableDhall ? false }:
+{ compiler ? "ghc884"
+, enableDhall ? false
+}:
 
 let
   pkgs = import ./nix/nixpkgs.nix {
@@ -10,6 +12,9 @@ let
   };
 
 in
-  { inherit (pkgs.haskell.packages."${compiler}")
-      proto3-suite-boot proto3-suite;
-  }
+{
+  inherit (pkgs.haskell.packages."${compiler}")
+    proto3-suite-boot
+    proto3-suite
+    ;
+}
