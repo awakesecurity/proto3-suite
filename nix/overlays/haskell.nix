@@ -25,16 +25,17 @@ pkgsNew: pkgsOld:
                     (if enableSwagger then "-fswagger" else "")
                   ];
                 in
-                haskellPackagesNew.callCabal2nixWithOptions
+                (haskellPackagesNew.callCabal2nixWithOptions
                   "proto3-suite"
                   ../../.
                   cabal2nixFlags
-                  { };
+                  { }).overrideAttrs (old: { pname = "proto3-suite-base"; });
 
               proto3-suite-boot =
                 pkgsNew.haskell.lib.overrideCabal
                   haskellPackagesNew.proto3-suite-base
                   (oldArgs: {
+                    pname = "proto3-suite-boot";
                     configureFlags = (oldArgs.configureFlags or [ ])
                       ++ [ "--disable-optimization" ]
                       ++ (if enableDhall then [ "-fdhall" ] else [ ])
@@ -95,6 +96,8 @@ pkgsNew: pkgsOld:
 
                     in
                     {
+                      pname = "proto3-suite";
+
                       configureFlags = (oldArgs.configureFlags or [ ])
                         ++ (if enableDhall then [ "-fdhall" ] else [ ])
                         ++ (if enableSwagger then [ "-fswagger" ] else [ ]);
