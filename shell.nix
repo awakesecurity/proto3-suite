@@ -1,13 +1,20 @@
-let fetchNixpkgs = import ./nix/fetchNixpkgs.nix;
-    nixpkgs = fetchNixpkgs {
-      rev = "fdfd5ab05444c38a006cb107d7d1ee8cb0b15719";
-      sha256 = "17hsjpjahl0hff3z2khrcwxygjyyrav2pia3qqlli0sgywfrgf95";
-    };
-    pkgs = import nixpkgs {};
+# Entering the shell for `proto3-suite` requires rebuilding `proto3-suite`
+# when basically _any_ file changes, which makes development painful.
+#
+# If you don't need to run the test suite, you can forgo test dependencies
+# and skip `compile-proto-file` codegen by running:
+#
+#   $ nix-shell --arg fast true
+#
+{ fast ? false
+, compiler ? "ghc884"
+, enableDhall ? false
+, enableSwagger ? true
+}@args:
 
-in
-with pkgs;
+with (import ./default.nix { inherit compiler enableDhall enableSwagger; });
 
-((import ./release.nix {}).proto3-suite.env).overrideAttrs (super: rec {
-  buildInputs = super.buildInputs ++ [wget cacert cabal2nix];
-})
+if fast then
+  proto3-suite-boot.env
+else
+  proto3-suite.env

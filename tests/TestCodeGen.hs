@@ -19,6 +19,7 @@ import           Data.String                    (IsString)
 import           Data.Swagger                   (ToSchema)
 import qualified Data.Swagger
 import qualified Data.Text                      as T
+import           Google.Protobuf.Timestamp      (Timestamp(..))
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate
 import           Proto3.Suite.DotProto          (fieldLikeName, prefixedEnumFieldName, typeLikeName)
@@ -37,12 +38,23 @@ codeGenTests = testGroup "Code generator unit tests"
   [ camelCaseMessageNames
   , camelCaseMessageFieldNames
   , don'tAlterEnumFieldNames
+  , knownTypeMessages
   {-
    - These tests have been temporarily removed to pass CI.
   , simpleEncodeDotProto
   , simpleDecodeDotProto
   -}
   ]
+
+knownTypeMessages :: TestTree
+knownTypeMessages =
+  testGroup
+    "KnownType custom codec"
+    [ testCase "Timestamp rfc3339 json encoding"
+        $ encode defaultOptions (Timestamp 0 0) @?= "\"1970-01-01T00:00:00Z\""
+    , testCase "Timestamp rfc3339 json decoding"
+        $ eitherDecode "\"1970-01-01T00:00:00Z\"" @?= Right (Timestamp 0 0)
+    ]
 
 camelCaseMessageNames :: TestTree
 camelCaseMessageNames = testGroup "CamelCasing of message names"

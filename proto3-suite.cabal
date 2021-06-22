@@ -1,18 +1,35 @@
+cabal-version:       2.0
 name:                proto3-suite
-version:             0.4.1
-synopsis:            A low level library for writing out data in the Protocol Buffers wire format
+version:             0.4.2
+synopsis:            A higher-level API to the proto3-wire library
+description:
+  This library provides a higher-level API to <https://github.com/awakesecurity/proto3-wire the `proto3-wire` library>
+  that supports:
+  .
+  - Type classes for encoding and decoding messages, and instances for all wire
+    formats identified in the specification
+  - A higher-level approach to encoding and decoding, based on `GHC.Generics`
+  - A way of creating `.proto` files from Haskell types.
+  .
+  See <https://hackage.haskell.org/package/proto3-suite/docs/Proto3-Suite-Tutorial.html the `Proto3.Suite.Tutorial` module>
+  for more details.
+  .
 license:             Apache-2.0
-author:              Awake Security
-maintainer:          opensource@awakesecurity.com
-copyright:           2017-2018 Awake Security
+author:              Arista Networks <opensource@awakesecurity.com>
+maintainer:          Arista Networks <opensource@awakesecurity.com>
+copyright:           2017-2020 Awake Security, 2021 Arista Networks
 category:            Codec
 build-type:          Simple
-cabal-version:       >=1.10
 data-files:          test-files/*.bin tests/encode.sh tests/decode.sh
 
-Flag dhall
+flag dhall
   Description:   Turn on Dhall interpret and inject codegen
   Default:       False
+  Manual:        True
+
+flag swagger
+  Description:   Turn on Swagger doc generation.
+  Default:       True
   Manual:        True
 
 library
@@ -20,8 +37,12 @@ library
   if flag(dhall)
     exposed-modules:   Proto3.Suite.DhallPB
     build-depends:     dhall >=1.13 && < 1.34
-
     cpp-options:       -DDHALL
+
+  if flag(swagger)
+    exposed-modules:   Proto3.Suite.DotProto.Generate.Swagger
+    build-depends:     swagger2 >=2.1.6 && <2.7
+    cpp-options:       -DSWAGGER
 
   exposed-modules:     Proto3.Suite
                        Proto3.Suite.Class
@@ -34,9 +55,12 @@ library
                        Proto3.Suite.JSONPB
                        Proto3.Suite.Tutorial
                        Proto3.Suite.Types
+
+                       Google.Protobuf.Timestamp
+
                        Proto3.Suite.DotProto.Internal
-                       Proto3.Suite.DotProto.Generate.Swagger
                        Proto3.Suite.JSONPB.Class
+
   build-depends:       aeson >= 1.1.1.0 && < 1.6,
                        aeson-pretty,
                        attoparsec >= 0.13.0.1,
@@ -60,12 +84,12 @@ library
                        parsers >= 0.12 && <0.13,
                        pretty ==1.1.*,
                        pretty-show >= 1.6.12 && < 2.0,
-                       proto3-wire == 1.2.*,
+                       proto3-wire >= 1.2.2 && < 1.3,
                        QuickCheck >=2.10 && <2.15,
                        quickcheck-instances < 0.4,
                        safe ==0.3.*,
-                       swagger2 >=2.1.6 && <2.7,
                        system-filepath,
+                       time,
                        text >= 0.2 && <1.3,
                        transformers >=0.4 && <0.6,
                        turtle,
@@ -85,16 +109,12 @@ test-suite tests
     build-depends:     dhall >=1.13 && < 1.34
     cpp-options:       -DDHALL
 
+  if flag(swagger)
+    build-depends:     swagger2
+    cpp-options:       -DSWAGGER
+
   other-modules:       ArbitraryGeneratedTestTypes
                        TestCodeGen
-                       TestProto
-                       TestProtoImport
-                       TestProtoOneof
-                       TestProtoOneofImport
-                       --TestProtoLeadingDot
-                       TestProtoNestedMessage
-                       --TestProtoProtocPlugin
-  autogen-modules:
                        TestProto
                        TestProtoImport
                        TestProtoOneof
@@ -121,8 +141,7 @@ test-suite tests
                        pretty-show >= 1.6.12 && < 2.0,
                        proto3-suite,
                        proto3-wire == 1.2.*,
-                       swagger2,
-                       tasty >= 0.11 && <1.3,
+                       tasty >= 0.11 && <1.5,
                        tasty-hunit >= 0.9 && <0.11,
                        tasty-quickcheck >= 0.8.4 && <0.11,
                        text >= 0.2 && <1.3,
