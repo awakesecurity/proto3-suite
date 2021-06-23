@@ -604,6 +604,24 @@ dotProtoMessageD
 dotProtoMessageD pkgIdent ctxt parentIdent messageIdent messageParts = do
     messageName <- qualifiedMessageName parentIdent messageIdent
 
+    let googleProtobuf = Dots (Path ("google" :| ["protobuf"]))
+
+    let wrapperNames =
+          [ "DoubleValue"
+          , "FloatValue"
+          , "Int64Value"
+          , "UInt64Value"
+          , "Int32Value"
+          , "UInt32Value"
+          , "BoolValue"
+          , "StringValue"
+          , "BytesValue"
+          ]
+
+    if pkgIdent == googleProtobuf && messageName `elem` wrapperNames
+      then pure () -- Wrapper
+      else pure () -- Not wrapper
+
     let mkDataDecl flds =
           dataDecl_ messageName
             [ recDecl_ (HsIdent messageName) flds ]
