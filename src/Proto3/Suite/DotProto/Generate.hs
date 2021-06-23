@@ -562,7 +562,7 @@ dotProtoDefinitionD :: MonadError CompileError m
                     => DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
 dotProtoDefinitionD pkgIdent ctxt = \case
   DotProtoMessage _ messageName messageParts ->
-    dotProtoMessageD ctxt Anonymous messageName messageParts
+    dotProtoMessageD pkgIdent ctxt Anonymous messageName messageParts
 
   DotProtoEnum _ enumName enumParts ->
     dotProtoEnumD Anonymous enumName enumParts
@@ -595,12 +595,13 @@ hasDefaultInstD messageName =
 dotProtoMessageD
     :: forall m
      . MonadError CompileError m
-    => TypeContext
+    => DotProtoIdentifier
+    -> TypeContext
     -> DotProtoIdentifier
     -> DotProtoIdentifier
     -> [DotProtoMessagePart]
     -> m [HsDecl]
-dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
+dotProtoMessageD pkgIdent ctxt parentIdent messageIdent messageParts = do
     messageName <- qualifiedMessageName parentIdent messageIdent
 
     let mkDataDecl flds =
@@ -672,7 +673,7 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     nestedDecls :: DotProtoDefinition -> m [HsDecl]
     nestedDecls (DotProtoMessage _ subMsgName subMessageDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoMessageD ctxt' parentIdent' subMsgName subMessageDef
+      dotProtoMessageD pkgIdent ctxt' parentIdent' subMsgName subMessageDef
 
     nestedDecls (DotProtoEnum _ subEnumName subEnumDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
