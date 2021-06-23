@@ -45,7 +45,7 @@ import           Data.Maybe                     (fromMaybe)
 import           Data.Monoid
 import           Data.Ord                       (comparing)
 import qualified Data.Set                       as S
-import           Data.String                    (fromString)
+import           Data.String                    (IsString (..))
 import qualified Data.Text                      as T
 import           Filesystem.Path.CurrentOS      ((</>), (<.>))
 import qualified Filesystem.Path.CurrentOS      as FP
@@ -434,15 +434,7 @@ dptToHsTypeWrapped opts =
       Float    -> pure $ primType_ "Float"
       Double   -> pure $ primType_ "Double"
       Named (Dots (Path ("google" :| ["protobuf", x])))
-        | x == "Int32Value" -> pure $ protobufWrapperType_ x
-        | x == "Int64Value" -> pure $ protobufWrapperType_ x
-        | x == "UInt32Value" -> pure $ protobufWrapperType_ x
-        | x == "UInt64Value" -> pure $ protobufWrapperType_ x
-        | x == "StringValue" -> pure $ protobufWrapperType_ x
-        | x == "BytesValue" -> pure $ protobufWrapperType_ x
-        | x == "BoolValue" -> pure $ protobufWrapperType_ x
-        | x == "FloatValue" -> pure $ protobufWrapperType_ x
-        | x == "DoubleValue" -> pure $ protobufWrapperType_ x
+        | x `elem` wrapperTypeNames -> pure $ protobufWrapperType_ x
       Named msgName ->
         case M.lookup msgName ctxt of
           Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
@@ -588,24 +580,23 @@ hasDefaultInstD messageName =
       [ type_ messageName ]
       [ ]
 
+wrapperTypeNames :: IsString s => [s]
+wrapperTypeNames =
+  [ "DoubleValue"
+  , "FloatValue"
+  , "Int64Value"
+  , "UInt64Value"
+  , "Int32Value"
+  , "UInt32Value"
+  , "BoolValue"
+  , "StringValue"
+  , "BytesValue"
+  ]
+
 isWrapperType :: DotProtoIdentifier -> String -> Bool
 isWrapperType pkgIdent messageName =
-  let
-    googleProtobuf = Dots (Path ("google" :| ["protobuf"]))
-
-    wrapperNames =
-      [ "DoubleValue"
-      , "FloatValue"
-      , "Int64Value"
-      , "UInt64Value"
-      , "Int32Value"
-      , "UInt32Value"
-      , "BoolValue"
-      , "StringValue"
-      , "BytesValue"
-      ]
-  in
-  pkgIdent == googleProtobuf && messageName `elem` wrapperNames
+     pkgIdent == Dots (Path ("google" :| ["protobuf"]))
+  && messageName `elem` wrapperTypeNames
 
 -- ** Generate types and instances for .proto messages
 
