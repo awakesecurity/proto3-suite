@@ -588,6 +588,25 @@ hasDefaultInstD messageName =
       [ type_ messageName ]
       [ ]
 
+isWrapperType :: DotProtoIdentifier -> String -> Bool
+isWrapperType pkgIdent messageName =
+  let
+    googleProtobuf = Dots (Path ("google" :| ["protobuf"]))
+
+    wrapperNames =
+      [ "DoubleValue"
+      , "FloatValue"
+      , "Int64Value"
+      , "UInt64Value"
+      , "Int32Value"
+      , "UInt32Value"
+      , "BoolValue"
+      , "StringValue"
+      , "BytesValue"
+      ]
+  in
+  pkgIdent == googleProtobuf && messageName `elem` wrapperNames
+
 -- ** Generate types and instances for .proto messages
 
 -- | Generate data types, 'Bounded', 'Enum', 'FromJSONPB', 'Named', 'Message',
@@ -604,21 +623,7 @@ dotProtoMessageD
 dotProtoMessageD pkgIdent ctxt parentIdent messageIdent messageParts = do
     messageName <- qualifiedMessageName parentIdent messageIdent
 
-    let googleProtobuf = Dots (Path ("google" :| ["protobuf"]))
-
-    let wrapperNames =
-          [ "DoubleValue"
-          , "FloatValue"
-          , "Int64Value"
-          , "UInt64Value"
-          , "Int32Value"
-          , "UInt32Value"
-          , "BoolValue"
-          , "StringValue"
-          , "BytesValue"
-          ]
-
-    if pkgIdent == googleProtobuf && messageName `elem` wrapperNames
+    if isWrapperType pkgIdent messageName
       then pure () -- Wrapper
       else pure () -- Not wrapper
 
