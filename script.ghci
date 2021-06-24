@@ -1,0 +1,13 @@
+:reload
+import Proto3.Suite.DotProto.Generate
+:set -XOverloadedStrings
+:{
+let args = CompileArgs
+      { includeDir = []
+      , extraInstanceFiles = []
+      , inputProto = "wrappers.proto"
+      , outputDir = "."
+      }
+:}
+compileDotProtoFileOrDie args
+putStrLn "Compiled proto"

@@ -614,9 +614,11 @@ dotProtoMessageD
 dotProtoMessageD pkgIdent ctxt parentIdent messageIdent messageParts = do
     messageName <- qualifiedMessageName parentIdent messageIdent
 
-    if isWrapperType pkgIdent messageName
-      then pure () -- Wrapper
-      else pure () -- Not wrapper
+    -- TODO TODO TODO
+    -- - Make codegen a no-op for wrapper types.
+    -- - Bake instances for wrapped types into `proto3-suite`
+
+    let unwrap = isWrapperType pkgIdent messageName
 
     let mkDataDecl flds =
           dataDecl_ messageName
@@ -630,7 +632,10 @@ dotProtoMessageD pkgIdent ctxt parentIdent messageIdent messageParts = do
 
     foldMapM id
       [ sequence
-          [ mkDataDecl <$> foldMapM (messagePartFieldD messageName) messageParts
+          [ if unwrap then
+              typeDecl_ messageName <$> wrapperFieldD (head messageParts)
+            else
+              mkDataDecl <$> foldMapM (messagePartFieldD messageName) messageParts
           , pure (namedInstD messageName)
           , pure (hasDefaultInstD messageName)
           , messageInstD ctxt' parentIdent messageIdent messageParts
@@ -669,6 +674,13 @@ dotProtoMessageD pkgIdent ctxt parentIdent messageIdent messageParts = do
     ctxt' :: TypeContext
     ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup messageIdent ctxt)
                 <> ctxt
+
+    wrapperFieldD :: DotProtoMessagePart -> m HsType
+    wrapperFieldD = \case
+      DotProtoMessageField DotProtoField{..} ->
+        dptToHsType ctxt' dotProtoFieldType
+      _ ->
+        error "wrapperFieldD: not a wrapper type"
 
     messagePartFieldD :: String -> DotProtoMessagePart -> m [([HsName], HsBangType)]
     messagePartFieldD messageName (DotProtoMessageField DotProtoField{..}) = do
@@ -1865,6 +1877,10 @@ module_ = HsModule defaultSrcLoc
 
 importDecl_ :: Module -> Bool -> Maybe Module -> Maybe (Bool, [HsImportSpec]) -> HsImportDecl
 importDecl_ = HsImportDecl defaultSrcLoc
+
+typeDecl_ :: String -> HsType -> HsDecl
+typeDecl_ messageName hsType =
+  HsTypeDecl defaultSrcLoc (HsIdent messageName) [] hsType
 
 dataDecl_ :: String -> [HsConDecl] -> [HsQName] -> HsDecl
 dataDecl_ messageName [constructor@(HsRecDecl _ _ [_])] =
