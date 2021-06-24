@@ -124,30 +124,3 @@ test-suite tests
                        turtle,
                        vector >=0.11 && < 0.13
   ghc-options:         -O2 -Wall
-
-executable compile-proto-file
-  main-is:             Main.hs
-  hs-source-dirs:      tools/compile-proto-file
-  default-language:    Haskell2010
-  build-depends:       base >=4.12 && <5.0
-                       , optparse-applicative
-                       , proto3-suite
-                       , system-filepath
-                       , text
-                       , turtle
-  ghc-options:         -O2 -Wall
-
-executable canonicalize-proto-file
-  main-is:             Main.hs
-  hs-source-dirs:      tools/canonicalize-proto-file
-  default-language:    Haskell2010
-  build-depends:       base >=4.8 && <5.0
-                       , containers >=0.5 && <0.7
-                       , mtl ==2.2.*
-                       , optparse-generic
-                       , proto3-suite
-                       , proto3-wire == 1.2.*
-                       , range-set-list >=0.1.2 && <0.2
-                       , system-filepath
-                       , turtle
-  ghc-options:         -O2 -Wall
