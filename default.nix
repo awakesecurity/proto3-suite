@@ -4,11 +4,7 @@
 }:
 
 let
-  pkgs = import ./nix/nixpkgs.nix {
-    overlays = [
-      (import ./nix/overlays/haskell.nix { inherit compiler enableDhall enableSwagger; })
-    ];
-  };
+  pkgs = import ./nix/pkgs.nix { inherit compiler enableDhall enableSwagger; };
 
 in
 {
