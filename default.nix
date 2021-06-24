@@ -8,7 +8,7 @@ let
 
 in
 {
-  inherit (pkgs.haskell.packages."${compiler}")
+  inherit (pkgs.haskellPackages)
     proto3-suite
     proto3-suite-compile
     proto3-suite-compile-boot
