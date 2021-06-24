@@ -20,7 +20,6 @@ maintainer:          Arista Networks <opensource@awakesecurity.com>
 copyright:           2017-2020 Awake Security, 2021 Arista Networks
 category:            Codec
 build-type:          Simple
-data-files:          test-files/*.bin tests/encode.sh tests/decode.sh
 
 flag dhall
   Description:   Turn on Dhall interpret and inject codegen
@@ -103,38 +102,18 @@ test-suite tests
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
 
-  if flag(dhall)
-    other-modules:     TestDhall
-    build-depends:     dhall >=1.13 && < 1.34
-    cpp-options:       -DDHALL
-
-  if flag(swagger)
-    build-depends:     swagger2
-    cpp-options:       -DSWAGGER
-
-  other-modules:       ArbitraryGeneratedTestTypes
-                       TestCodeGen
-                       TestProto
-                       TestProtoImport
-                       TestProtoOneof
-                       TestProtoOneofImport
-
-  hs-source-dirs:      tests gen
+  hs-source-dirs:      tests
   default-language:    Haskell2010
   build-depends:       base >=4.8 && <5.0,
                        QuickCheck >=2.10 && <2.15,
                        aeson >= 1.1.1.0 && < 1.6,
-                       attoparsec >= 0.13.0.1,
                        base >=4.8 && <5.0,
-                       base64-bytestring >= 1.0.0.1 && < 1.2,
                        bytestring >=0.10.6.0 && <0.11.0,
-                       cereal >= 0.5.1 && <0.6,
                        containers >=0.5 && < 0.7,
                        deepseq ==1.4.*,
                        doctest,
                        generic-arbitrary,
                        mtl ==2.2.*,
-                       pretty-show >= 1.6.12 && < 2.0,
                        proto3-suite,
                        proto3-wire == 1.2.*,
                        tasty >= 0.11 && <1.5,
@@ -144,8 +123,6 @@ test-suite tests
                        transformers >=0.4 && <0.6,
                        turtle,
                        vector >=0.11 && < 0.13
-  if !impl(ghc >= 8.0)
-    build-depends:     semigroups >= 0.18 && < 0.20
   ghc-options:         -O2 -Wall
 
 executable compile-proto-file

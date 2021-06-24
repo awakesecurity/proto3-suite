@@ -102,6 +102,10 @@ import           Proto3.Suite.Types               (Enumerated (..), Fixed (..))
 import           Proto3.Wire.Class                (ProtoEnum(..))
 import           Test.QuickCheck.Arbitrary        (Arbitrary(..))
 
+
+-- $setup
+-- >>> :set -XTypeApplications
+
 -- * Typeclass definitions
 
 -- | 'A.ToJSON' variant for JSONPB direct encoding via 'A.Encoding'
