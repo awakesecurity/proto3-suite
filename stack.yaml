@@ -4,7 +4,7 @@ resolver:
 allow-newer: true
 
 packages:
-  - .
+  - proto3-suite
 
 extra-deps:
   - github: awakesecurity/proto3-wire

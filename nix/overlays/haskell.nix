@@ -40,7 +40,7 @@ pkgsNew: pkgsOld:
                 in
                 (haskellPackagesNew.callCabal2nixWithOptions
                   "proto3-suite"
-                  ../../.
+                  ../../proto3-suite
                   cabal2nixFlags
                   { }).overrideAttrs (old: { pname = "proto3-suite-base"; });
 
@@ -73,7 +73,7 @@ pkgsNew: pkgsOld:
                             haskellPackagesNew.proto3-suite-boot
                           ]);
 
-                      test-files = ../../test-files;
+                      test-files = ../../proto3-suite/test-files;
 
                       cg-artifacts = pkgsNew.runCommand "proto3-suite-test-cg-artifacts" { } ''
                         mkdir -p $out/protos
