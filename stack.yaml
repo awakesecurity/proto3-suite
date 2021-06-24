@@ -5,6 +5,7 @@ allow-newer: true
 
 packages:
   - proto3-suite
+  - proto3-suite-compile
 
 extra-deps:
   - github: awakesecurity/proto3-wire

@@ -1,0 +1,127 @@
+cabal-version:       2.0
+name:                proto3-suite-compile
+version:             0.4.2
+synopsis:            TODO
+description:         TODO
+license:             Apache-2.0
+author:              Arista Networks <opensource@awakesecurity.com>
+maintainer:          Arista Networks <opensource@awakesecurity.com>
+copyright:           2017-2020 Awake Security, 2021 Arista Networks
+category:            Codec
+build-type:          Simple
+data-files:          test-files/*.bin tests/encode.sh tests/decode.sh
+
+flag dhall
+  Description:   Turn on Dhall interpret and inject codegen
+  Default:       False
+  Manual:        True
+
+flag swagger
+  Description:   Turn on Swagger doc generation.
+  Default:       True
+  Manual:        True
+
+library
+
+  if flag(dhall)
+    build-depends:     dhall >=1.13 && < 1.34
+    cpp-options:       -DDHALL
+
+  if flag(swagger)
+    build-depends:     swagger2 >=2.1.6 && <2.7
+    cpp-options:       -DSWAGGER
+
+  exposed-modules:     Proto3.Suite.DotProto.Generate
+
+  build-depends:       aeson >= 1.1.1.0 && < 1.6,
+                       aeson-pretty,
+                       base >=4.8 && <5.0,
+                       bytestring >=0.10.6.0 && <0.11.0,
+                       containers >=0.5 && < 0.7,
+                       hashable,
+                       haskell-src ==1.0.*,
+                       insert-ordered-containers,
+                       lens,
+                       mtl ==2.2.*,
+                       neat-interpolation,
+                       proto3-suite,
+                       proto3-wire >= 1.2.2 && < 1.3,
+                       system-filepath,
+                       text >= 0.2 && <1.3,
+                       transformers >=0.4 && <0.6,
+                       turtle,
+                       vector >=0.11 && < 0.13
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  ghc-options:         -O2 -Wall
+
+test-suite tests
+  type:                exitcode-stdio-1.0
+  main-is:             Main.hs
+
+  if flag(dhall)
+    other-modules:     TestDhall
+    build-depends:     dhall >=1.13 && < 1.34
+    cpp-options:       -DDHALL
+
+  if flag(swagger)
+    build-depends:     swagger2
+    cpp-options:       -DSWAGGER
+
+  other-modules:       ArbitraryGeneratedTestTypes
+                       TestCodeGen
+                       TestProto
+                       TestProtoImport
+                       TestProtoOneof
+                       TestProtoOneofImport
+
+  hs-source-dirs:      tests gen
+  default-language:    Haskell2010
+  build-depends:       base >=4.8 && <5.0,
+                       QuickCheck >=2.10 && <2.15,
+                       aeson >= 1.1.1.0 && < 1.6,
+                       base >=4.8 && <5.0,
+                       bytestring >=0.10.6.0 && <0.11.0,
+                       containers >=0.5 && < 0.7,
+                       deepseq ==1.4.*,
+                       doctest,
+                       generic-arbitrary,
+                       mtl ==2.2.*,
+                       proto3-suite,
+                       proto3-suite-compile,
+                       proto3-wire == 1.2.*,
+                       tasty >= 0.11 && <1.5,
+                       tasty-hunit >= 0.9 && <0.11,
+                       tasty-quickcheck >= 0.8.4 && <0.11,
+                       text >= 0.2 && <1.3,
+                       transformers >=0.4 && <0.6,
+                       turtle,
+                       vector >=0.11 && < 0.13
+  ghc-options:         -O2 -Wall
+
+executable compile-proto-file
+  main-is:             Main.hs
+  hs-source-dirs:      tools/compile-proto-file
+  default-language:    Haskell2010
+  build-depends:       base >=4.12 && <5.0
+                       , optparse-applicative
+                       , proto3-suite-compile
+                       , system-filepath
+                       , text
+                       , turtle
+  ghc-options:         -O2 -Wall
+
+executable canonicalize-proto-file
+  main-is:             Main.hs
+  hs-source-dirs:      tools/canonicalize-proto-file
+  default-language:    Haskell2010
+  build-depends:       base >=4.8 && <5.0
+                       , mtl ==2.2.*
+                       , optparse-generic
+                       , proto3-suite
+                       , proto3-suite-compile
+                       , proto3-wire == 1.2.*
+                       , range-set-list >=0.1.2 && <0.2
+                       , system-filepath
+                       , turtle
+  ghc-options:         -O2 -Wall

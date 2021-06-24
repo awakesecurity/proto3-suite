@@ -31,7 +31,20 @@ pkgsNew: pkgsOld:
                 in
                 haskellPackagesNew.callCabal2nix "proto3-wire" source { };
 
-              proto3-suite-base =
+              proto3-suite =
+                let
+                  cabal2nixFlags = pkgsNew.lib.concatStringsSep " " [
+                    (if enableDhall then "-fdhall" else "")
+                    (if enableSwagger then "" else "-f-swagger")
+                  ];
+                in
+                haskellPackagesNew.callCabal2nixWithOptions
+                  "proto3-suite"
+                  ../../proto3-suite
+                  cabal2nixFlags
+                  { };
+
+              proto3-suite-compile-base =
                 let
                   cabal2nixFlags = pkgsNew.lib.concatStringsSep " " [
                     (if enableDhall then "-fdhall" else "")
@@ -39,16 +52,16 @@ pkgsNew: pkgsOld:
                   ];
                 in
                 (haskellPackagesNew.callCabal2nixWithOptions
-                  "proto3-suite"
-                  ../../proto3-suite
+                  "proto3-suite-compile"
+                  ../../proto3-suite-compile
                   cabal2nixFlags
-                  { }).overrideAttrs (old: { pname = "proto3-suite-base"; });
+                  { }).overrideAttrs (old: { pname = "proto3-suite-compile-base"; });
 
-              proto3-suite-boot =
+              proto3-suite-compile-boot =
                 pkgsNew.haskell.lib.overrideCabal
-                  haskellPackagesNew.proto3-suite-base
+                  haskellPackagesNew.proto3-suite-compile-base
                   (oldArgs: {
-                    pname = "proto3-suite-boot";
+                    pname = "proto3-suite-compile-boot";
                     configureFlags = (oldArgs.configureFlags or [ ])
                       ++ [ "--disable-optimization" ]
                       ++ (if enableDhall then [ "-fdhall" ] else [ ])
@@ -57,9 +70,9 @@ pkgsNew: pkgsOld:
                     doHaddock = false;
                   });
 
-              proto3-suite =
+              proto3-suite-compile =
                 pkgsNew.haskell.lib.overrideCabal
-                  haskellPackagesNew.proto3-suite-base
+                  haskellPackagesNew.proto3-suite-compile-base
                   (oldArgs:
                     let
                       inherit (pkgsNew) protobuf;
@@ -70,12 +83,12 @@ pkgsNew: pkgsOld:
                       ghc =
                         haskellPackagesNew.ghcWithPackages
                           (pkgs: (oldArgs.testHaskellDepends or [ ]) ++ [
-                            haskellPackagesNew.proto3-suite-boot
+                            haskellPackagesNew.proto3-suite-compile-boot
                           ]);
 
-                      test-files = ../../proto3-suite/test-files;
+                      test-files = ../../proto3-suite-compile/test-files;
 
-                      cg-artifacts = pkgsNew.runCommand "proto3-suite-test-cg-artifacts" { } ''
+                      cg-artifacts = pkgsNew.runCommand "proto3-suite-compile-test-cg-artifacts" { } ''
                         mkdir -p $out/protos
 
                         cp -r ${test-files}/. $out/protos/.
@@ -83,8 +96,8 @@ pkgsNew: pkgsOld:
                         cd $out
 
                         build () {
-                          echo "[proto3-suite-test-cg-artifacts] Compiling proto-file/$1"
-                          ${haskellPackagesNew.proto3-suite-boot}/bin/compile-proto-file \
+                          echo "[proto3-suite-compile-test-cg-artifacts] Compiling proto-file/$1"
+                          ${haskellPackagesNew.proto3-suite-compile-boot}/bin/compile-proto-file \
                             --out $out \
                             --includeDir "$2" \
                             --proto "$1"
@@ -94,7 +107,7 @@ pkgsNew: pkgsOld:
                           build ''${proto#${test-files}/} ${test-files}
                         done
 
-                        echo "[proto3-suite-test-cg-artifacts] Protobuf CG complete"
+                        echo "[proto3-suite-compile-test-cg-artifacts] Protobuf CG complete"
                       '';
 
                       copyGeneratedCode = ''
@@ -109,7 +122,7 @@ pkgsNew: pkgsOld:
 
                     in
                     {
-                      pname = "proto3-suite";
+                      pname = "proto3-suite-compile";
 
                       configureFlags = (oldArgs.configureFlags or [ ])
                         ++ (if enableDhall then [ "-fdhall" ] else [ ])
@@ -121,7 +134,7 @@ pkgsNew: pkgsOld:
                         (oldArgs.testHaskellDepends or [ ]) ++ [
                           pkgsNew.ghc
                           pkgsNew.protobuf3_1
-                          haskellPackagesNew.proto3-suite-boot
+                          haskellPackagesNew.proto3-suite-compile-boot
                           python
                           protobuf
                         ];
