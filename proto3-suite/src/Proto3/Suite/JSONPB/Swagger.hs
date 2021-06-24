@@ -10,7 +10,7 @@
 
 -- | This module provides helper functions to generate Swagger schemas that
 -- describe JSONPB encodings for protobuf types.
-module Proto3.Suite.DotProto.Generate.Swagger
+module Proto3.Suite.JSONPB.Swagger
   ( ppSchema
   , OverrideToSchema(..)
   , asProxy

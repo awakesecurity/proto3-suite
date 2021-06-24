@@ -40,9 +40,9 @@ module Proto3.Suite.JSONPB
   , Swagger.ParamSchema(..)
   , Swagger.SwaggerType(..)
   , Swagger.declareSchemaRef
-  , Proto3.Suite.DotProto.Generate.Swagger.OverrideToSchema(..)
-  , Proto3.Suite.DotProto.Generate.Swagger.asProxy
-  , Proto3.Suite.DotProto.Generate.Swagger.insOrdFromList
+  , OverrideToSchema(..)
+  , asProxy
+  , insOrdFromList
 #endif
   )
 where
@@ -51,6 +51,6 @@ import qualified Data.Aeson                             as A
 import qualified Data.Aeson.Types                       as A
 #ifdef SWAGGER
 import qualified Data.Swagger                           as Swagger
-import           Proto3.Suite.DotProto.Generate.Swagger
+import           Proto3.Suite.JSONPB.Swagger
 #endif
 import           Proto3.Suite.JSONPB.Class

@@ -40,14 +40,13 @@ library
     cpp-options:       -DDHALL
 
   if flag(swagger)
-    exposed-modules:   Proto3.Suite.DotProto.Generate.Swagger
+    exposed-modules:   Proto3.Suite.JSONPB.Swagger
     build-depends:     swagger2 >=2.1.6 && <2.7
     cpp-options:       -DSWAGGER
 
   exposed-modules:     Proto3.Suite
                        Proto3.Suite.Class
                        Proto3.Suite.DotProto
-                       Proto3.Suite.DotProto.Generate
                        Proto3.Suite.DotProto.AST
                        Proto3.Suite.DotProto.AST.Lens
                        Proto3.Suite.DotProto.Parsing
