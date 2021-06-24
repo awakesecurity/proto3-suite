@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -136,6 +137,7 @@ instance HsJSONPB.ToJSON Timestamp where
 instance HsJSONPB.FromJSON Timestamp where
   parseJSON = HsJSONPB.parseJSONPB
 
+#ifdef SWAGGER
 instance HsJSONPB.ToSchema Timestamp where
   declareNamedSchema _ =
     do
@@ -165,3 +167,4 @@ instance HsJSONPB.ToSchema Timestamp where
                   }
             }
         )
+#endif
