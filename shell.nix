@@ -18,5 +18,5 @@ pkgs.haskellPackages.shellFor {
   buildInputs = [
     pkgs.cabal-install
     pkgs.ghcid
-  ];
+  ] ++ pkgs.haskellPackages.proto3-suite-compile-base.env.buildInputs;
 }

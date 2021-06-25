@@ -5,6 +5,48 @@
 
 pkgsNew: pkgsOld:
 
+let
+  compile-test-protos_Template =
+    { compile-proto-file
+    , test-files
+    , out
+    }:
+
+    pkgsNew.writeShellScriptBin "compile-test-protos" ''
+      #!/usr/bin/env bash
+
+      set -euo pipefail
+
+      test_files="${test-files}"
+
+      compile() {
+        echo "Compiling '$1'"
+        ${compile-proto-file} \
+          --proto "$1" \
+          --includeDir "$2" \
+          --out "${out}"
+      }
+
+      mkdir -p "${out}"
+
+      for proto in $(find $test_files -name 'test_*.proto'); do
+        compile ''${proto#$test_files/} $test_files
+      done
+    '';
+
+  compile-test-protos_nixShell = compile-test-protos_Template {
+    compile-proto-file = "cabal run proto3-suite-compile:exe:compile-proto-file --";
+    test-files = "$(git rev-parse --show-toplevel)/proto3-suite-compile/test-files";
+    out = "$(git rev-parse --show-toplevel)/proto3-suite-compile/gen";
+  };
+
+  compile-test-protos_nixBuild = compile-test-protos_Template {
+    compile-proto-file = "${pkgsNew.haskellPackages.proto3-suite-compile-boot}/bin/compile-proto-file";
+    test-files = ../../proto3-suite-compile/test-files;
+    out = "$out";
+  };
+
+in
 {
   haskellPackages = pkgsOld.haskell.packages.${compiler}.override (old: {
     overrides =
@@ -60,6 +102,14 @@ pkgsNew: pkgsOld:
               configureFlags = (old.configureFlags or [ ])
                 ++ (if enableDhall then [ "-fdhall" ] else [ ])
                 ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ]);
+
+              passthru = old.passthru // {
+                env = old.passthru.env.overrideAttrs (oldEnv: {
+                  buildInputs = (oldEnv.buildInputs or [ ]) ++ [
+                    compile-test-protos_nixShell
+                  ];
+                });
+              };
             });
 
           proto3-suite-compile-boot =
@@ -94,43 +144,13 @@ pkgsNew: pkgsOld:
 
                   test-files = ../../proto3-suite-compile/test-files;
 
-                  cg-artifacts = pkgsNew.runCommand "proto3-suite-compile-test-cg-artifacts" { } ''
-                    mkdir -p $out/protos
-
-                    cp -r ${test-files}/. $out/protos/.
-
-                    cd $out
-
-                    build () {
-                      echo "[proto3-suite-compile-test-cg-artifacts] Compiling proto-file/$1"
-                      ${haskellPackagesNew.proto3-suite-compile-boot}/bin/compile-proto-file \
-                        --out $out \
-                        --includeDir "$2" \
-                        --proto "$1"
-                    }
-
-                    for proto in $(find ${test-files} -name 'test_*.proto'); do
-                      build ''${proto#${test-files}/} ${test-files}
-                    done
-
-                    echo "[proto3-suite-compile-test-cg-artifacts] Protobuf CG complete"
-                  '';
-
-                  copyGeneratedCode = ''
-                    echo "Copying CG  artifacts from ${cg-artifacts} into ./gen/"
-                    mkdir -p gen
-                    ${pkgsNew.rsync}/bin/rsync \
-                      --recursive \
-                      --checksum \
-                      ${cg-artifacts}/ gen
-                    chmod -R u+w gen
-                  '';
-
                 in
                 {
                   pname = "proto3-suite-compile";
 
-                  postPatch = (oldArgs.postPatch or "") + copyGeneratedCode;
+                  postPatch = (oldArgs.postPatch or "") + ''
+                    ${compile-test-protos_nixBuild}/bin/test-files-codegen
+                  '';
 
                   testHaskellDepends =
                     (oldArgs.testHaskellDepends or [ ]) ++ [
@@ -142,8 +162,6 @@ pkgsNew: pkgsOld:
                     ];
 
                   shellHook = (oldArgs.shellHook or "") + ''
-                    ${copyGeneratedCode}
-
                     export PATH=${haskellPackagesNew.cabal-install}/bin:${ghc}/bin:${python}/bin:${protobuf}/bin''${PATH:+:}$PATH
                   '';
                 }
