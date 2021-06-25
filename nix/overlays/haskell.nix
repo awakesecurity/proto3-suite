@@ -40,18 +40,27 @@ pkgsNew: pkgsOld:
               "proto3-suite"
               ../../.
               cabal2nixFlags
-              { }).overrideAttrs (old: { pname = "proto3-suite-base"; });
+              { }
+            ).overrideAttrs (oldAttrs: {
+              pname = "proto3-suite-base";
+
+              configureFlags = (old.configureFlags or [ ])
+                ++ (if enableDhall then [ "-fdhall" ] else [ ])
+                ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ]);
+
+            });
 
           proto3-suite-boot =
             pkgsNew.haskell.lib.overrideCabal
               haskellPackagesNew.proto3-suite-base
               (oldArgs: {
                 pname = "proto3-suite-boot";
+
                 configureFlags = (oldArgs.configureFlags or [ ])
-                  ++ [ "--disable-optimization" ]
-                  ++ (if enableDhall then [ "-fdhall" ] else [ ])
-                  ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ]);
+                  ++ [ "--disable-optimization" ];
+
                 doCheck = false;
+
                 doHaddock = false;
               });
 
@@ -108,10 +117,6 @@ pkgsNew: pkgsOld:
                 in
                 {
                   pname = "proto3-suite";
-
-                  configureFlags = (oldArgs.configureFlags or [ ])
-                    ++ (if enableDhall then [ "-fdhall" ] else [ ])
-                    ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ]);
 
                   postPatch = (oldArgs.postPatch or "") + copyGeneratedCode;
 
