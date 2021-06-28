@@ -314,10 +314,10 @@ ctxtImports = fmap (map mkImport . nub)
 --   been provided with a valid module path in its 'dotProtoTypeInfoModulePath'
 --   field. The latter describes the name of the Haskell module being generated.
 msgTypeFromDpTypeInfo :: MonadError CompileError m
-                      => DotProtoTypeInfo -> DotProtoIdentifier -> m HsType
-msgTypeFromDpTypeInfo DotProtoTypeInfo{..} ident = do
+                      => TypeContext -> DotProtoTypeInfo -> DotProtoIdentifier -> m HsType
+msgTypeFromDpTypeInfo ctxt DotProtoTypeInfo{..} ident = do
     modName   <- modulePathModName dotProtoTypeInfoModulePath
-    identName <- qualifiedMessageName dotProtoTypeInfoParent ident
+    identName <- qualifiedMessageTypeName ctxt dotProtoTypeInfoParent ident
     pure $ HsTyCon (Qual modName (HsIdent identName))
 
 haskellName, jsonpbName, grpcName, protobufName, protobufWrapperName, proxyName :: String -> HsQName
@@ -446,8 +446,8 @@ dptToHsTypeWrapped opts =
       Named msgName ->
         case M.lookup msgName ctxt of
           Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
-              HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ty msgName
-          Just ty -> msgTypeFromDpTypeInfo ty msgName
+              HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ctxt ty msgName
+          Just ty -> msgTypeFromDpTypeInfo ctxt ty msgName
           Nothing -> noSuchTypeError msgName
 
 foldDPT :: MonadError CompileError m
@@ -541,8 +541,8 @@ dpptToHsType ctxt = \case
   Named msgName ->
     case M.lookup msgName ctxt of
       Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
-          HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ty msgName
-      Just ty -> msgTypeFromDpTypeInfo ty msgName
+          HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ctxt ty msgName
+      Just ty -> msgTypeFromDpTypeInfo ctxt ty msgName
       Nothing -> noSuchTypeError msgName
 
 validMapKey :: DotProtoPrimType -> Bool

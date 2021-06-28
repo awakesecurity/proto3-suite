@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package TestProto.NestedMessage;
+
+message Request {
+  Foo foo = 1;
+  message Foo {
+    Bar bar = 1;
+    message Bar {
+      Buz buz = 1;
+      message Buz {
+        uint32 x = 1;
+      }
+    }
+  }
+}

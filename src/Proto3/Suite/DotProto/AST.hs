@@ -342,6 +342,7 @@ data DotProtoMessagePart
   | DotProtoMessageOneOf DotProtoIdentifier [DotProtoField]
   | DotProtoMessageDefinition DotProtoDefinition
   | DotProtoMessageReserved   [DotProtoReservedField]
+  | DotProtoMessageOption DotProtoOption
   deriving (Show, Eq)
 
 instance Arbitrary DotProtoMessagePart where

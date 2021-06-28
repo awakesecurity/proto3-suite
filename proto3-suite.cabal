@@ -119,6 +119,9 @@ test-suite tests
                        TestProtoImport
                        TestProtoOneof
                        TestProtoOneofImport
+                       --TestProtoLeadingDot
+                       TestProtoNestedMessage
+                       --TestProtoProtocPlugin
 
   hs-source-dirs:      tests gen
   default-language:    Haskell2010

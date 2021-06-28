@@ -437,6 +437,28 @@ nestedTypeName (Qualified {})        _  = internalError "nestedTypeName: Qualifi
 qualifiedMessageName :: MonadError CompileError m => DotProtoIdentifier -> DotProtoIdentifier -> m String
 qualifiedMessageName parentIdent msgIdent = nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
 
+qualifiedMessageTypeName :: MonadError CompileError m =>
+                            TypeContext ->
+                            DotProtoIdentifier ->
+                            DotProtoIdentifier ->
+                            m String
+qualifiedMessageTypeName ctxt parentIdent msgIdent = do
+  xs <- parents parentIdent []
+  case xs of
+    [] -> nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+    x : xs' -> nestedTypeName (Dots . Path $ x NE.:| xs') =<< dpIdentUnqualName msgIdent
+  where
+    parents par@(Single x) xs =
+      case M.lookup par ctxt of
+        Just (DotProtoTypeInfo { dotProtoTypeInfoParent = parentIdent' }) ->
+          parents parentIdent' $ x : xs
+        Nothing ->
+          pure $ x : xs
+    parents Anonymous xs =
+      pure xs
+    parents par _ =
+      internalError $ "qualifiedMessageTypeName: wrong parent " <> show par
+
 --------------------------------------------------------------------------------
 --
 -- ** Codegen bookkeeping helpers

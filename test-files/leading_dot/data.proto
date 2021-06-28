@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package LeadingDot.Rpc.Data;
+
+message Request {
+  uint32 hello = 1;
+}
+
+message Response {
+  uint32 world = 1;
+}
