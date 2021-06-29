@@ -700,6 +700,86 @@ message proxy = DotProtoMessage ""
                                 (Single $ nameOf proxy)
                                 (DotProtoMessageField <$> dotProto proxy)
 
+-- * Wrapped Type Instances
+
+encodeWrapperMessage
+  :: MessageField a
+  => FieldNumber
+  -> a
+  -> Encode.MessageBuilder
+encodeWrapperMessage _ x = encodeMessageField (FieldNumber 1) x
+
+decodeWrapperMessage
+  :: MessageField a
+  => FieldNumber
+  -> Decode.Parser Decode.RawMessage a
+decodeWrapperMessage _ = at decodeMessageField (FieldNumber 1)
+
+dotProtoWrapper :: Primitive a => Proxy# a -> [DotProtoField]
+dotProtoWrapper proxy =
+  [ DotProtoField
+      (FieldNumber 1)
+      (Prim (primType proxy))
+      (Single "value")
+      []
+      ""
+  ]
+
+instance Message Double where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
+instance Message Float where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
+instance Message Int64 where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
+instance Message Word64 where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
+instance Message Int32 where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
+instance Message Word32 where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
+instance Message Bool where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
+instance Message T.Text where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
+instance Message TL.Text where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
+instance Message B.ByteString where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
+instance Message BL.ByteString where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
 -- * Generic Instances
 
 class GenericMessage (f :: * -> *) where
