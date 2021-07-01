@@ -765,7 +765,17 @@ instance Message T.Text where
   decodeMessage = decodeWrapperMessage
   dotProto = dotProtoWrapper
 
+instance Message TL.Text where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
 instance Message B.ByteString where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
+instance Message BL.ByteString where
   encodeMessage = encodeWrapperMessage
   decodeMessage = decodeWrapperMessage
   dotProto = dotProtoWrapper
