@@ -60,7 +60,6 @@ in
               configureFlags = (old.configureFlags or [ ])
                 ++ (if enableDhall then [ "-fdhall" ] else [ ])
                 ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ]);
-
             });
 
           proto3-suite-boot =
@@ -75,6 +74,10 @@ in
                 doCheck = false;
 
                 doHaddock = false;
+
+                enableLibraryProfiling = false;
+
+                enableExecutableProfiling = false;
               });
 
           proto3-suite =
