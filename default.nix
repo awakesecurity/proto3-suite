@@ -4,15 +4,11 @@
 }:
 
 let
-  pkgs = import ./nix/nixpkgs.nix {
-    overlays = [
-      (import ./nix/overlays/haskell.nix { inherit compiler enableDhall enableSwagger; })
-    ];
-  };
+  pkgs = import ./nix/pkgs.nix { inherit compiler enableDhall enableSwagger; };
 
 in
 {
-  inherit (pkgs.haskell.packages."${compiler}")
+  inherit (pkgs.haskellPackages)
     proto3-suite-boot
     proto3-suite
     ;
