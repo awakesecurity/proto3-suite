@@ -5,6 +5,19 @@
 
 pkgsNew: pkgsOld:
 
+let
+  gitignoreSource =
+    let
+      source = pkgsNew.fetchFromGitHub {
+        owner = "hercules-ci";
+        repo = "gitignore.nix";
+        rev = "211907489e9f198594c0eb0ca9256a1949c9d412";
+        sha256 = "06j7wpvj54khw0z10fjyi31kpafkr6hi1k0di13k1xp8kywvfyx8";
+      };
+    in
+    (import source { inherit (pkgsNew) lib; }).gitignoreSource;
+
+in
 {
   haskellPackages = pkgsOld.haskell.packages."${compiler}".override (old: {
     overrides =
@@ -38,7 +51,7 @@ pkgsNew: pkgsOld:
             in
             (haskellPackagesNew.callCabal2nixWithOptions
               "proto3-suite"
-              ../../.
+              (gitignoreSource ../../.)
               cabal2nixFlags
               { }
             ).overrideAttrs (oldAttrs: {
@@ -47,7 +60,6 @@ pkgsNew: pkgsOld:
               configureFlags = (old.configureFlags or [ ])
                 ++ (if enableDhall then [ "-fdhall" ] else [ ])
                 ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ]);
-
             });
 
           proto3-suite-boot =
@@ -62,6 +74,10 @@ pkgsNew: pkgsOld:
                 doCheck = false;
 
                 doHaddock = false;
+
+                enableLibraryProfiling = false;
+
+                enableExecutableProfiling = false;
               });
 
           proto3-suite =
@@ -80,7 +96,7 @@ pkgsNew: pkgsOld:
                         haskellPackagesNew.proto3-suite-boot
                       ]);
 
-                  test-files = ../../test-files;
+                  test-files = (gitignoreSource ../../test-files);
 
                   cg-artifacts = pkgsNew.runCommand "proto3-suite-test-cg-artifacts" { } ''
                     mkdir -p $out/protos
