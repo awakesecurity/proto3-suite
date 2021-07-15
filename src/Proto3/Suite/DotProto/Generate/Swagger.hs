@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
@@ -30,11 +31,13 @@ import           Data.Aeson.Encode.Pretty        (encodePretty)
 import qualified Data.ByteString                 as B
 import qualified Data.ByteString.Lazy            as BL
 import qualified Data.ByteString.Lazy.Char8      as LC8
+import           Data.Functor                    ((<&>))
 import           Data.Hashable                   (Hashable)
 import           Data.HashMap.Strict.InsOrd      (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd
 import           Data.Map                        (Map)
 import           Data.Swagger
+import           Data.Swagger.Declare            (Declare)
 import qualified Data.Text                       as T
 import qualified Data.Text.Lazy                  as TL
 import           Data.Proxy
@@ -91,6 +94,58 @@ instance {-# OVERLAPPING #-} (ToJSONKey k, ToSchema k) => ToSchema (OverrideToSc
         & type_ .~ SwaggerObject
 #endif
         & additionalProperties ?~ AdditionalPropertiesSchema (Inline byteSchema)
+
+-- | Wrapped Type Schemas
+
+declareWrapperNamedSchema
+  :: forall a
+   . ToSchema a
+  => T.Text
+  -> Proxy (OverrideToSchema a)
+  -> Declare (Definitions Schema) NamedSchema
+declareWrapperNamedSchema formatValue _ =
+  declareNamedSchema (Proxy :: Proxy a)
+#if MIN_VERSION_swagger2(2,4,0)
+    <&> schema . paramSchema . format ?~ formatValue
+#else
+    <&> schema . paramSchema . format .~ formatValue
+#endif
+
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Double)) where
+  declareNamedSchema = declareWrapperNamedSchema "DoubleValue"
+
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Float)) where
+  declareNamedSchema = declareWrapperNamedSchema "FloatValue"
+
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Int64)) where
+  declareNamedSchema = declareWrapperNamedSchema "Int64Value"
+
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Word64)) where
+  declareNamedSchema = declareWrapperNamedSchema "UInt64Value"
+
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Int32)) where
+  declareNamedSchema = declareWrapperNamedSchema "Int32Value"
+
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Word32)) where
+  declareNamedSchema = declareWrapperNamedSchema "UInt32Value"
+
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Bool)) where
+  declareNamedSchema = declareWrapperNamedSchema "BoolValue"
+
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe T.Text)) where
+  declareNamedSchema = declareWrapperNamedSchema "StringValue"
+
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe TL.Text)) where
+  declareNamedSchema = declareWrapperNamedSchema "StringValue"
+
+-- TODO: Figure out what to do about conflicting `Maybe ByteString` instance
+-- above
+
+-- instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe B.ByteString)) where
+--   declareNamedSchema = declareWrapperNamedSchema "BytesValue"
+
+-- instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe BL.ByteString)) where
+--   declareNamedSchema = declareWrapperNamedSchema "BytesValue"
 
 {-| This is a convenience function that uses type inference to select the
     correct instance of `ToSchema` to use for fields of a message
