@@ -1,9 +1,9 @@
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -27,7 +27,8 @@ import           Data.Aeson                      (Value (String), ToJSONKey,
                                                   ToJSONKeyFunction(..))
 import qualified Data.Aeson                      as Aeson
 import           Data.Aeson.Encode.Pretty        (encodePretty)
-import           Data.ByteString                 (ByteString)
+import qualified Data.ByteString                 as B
+import qualified Data.ByteString.Lazy            as BL
 import qualified Data.ByteString.Lazy.Char8      as LC8
 import           Data.Hashable                   (Hashable)
 import           Data.HashMap.Strict.InsOrd      (InsOrdHashMap)
@@ -35,6 +36,7 @@ import qualified Data.HashMap.Strict.InsOrd
 import           Data.Map                        (Map)
 import           Data.Swagger
 import qualified Data.Text                       as T
+import qualified Data.Text.Lazy                  as TL
 import           Data.Proxy
 import qualified Data.Vector                     as V
 import           GHC.Exts                        (Proxy#, proxy#)
@@ -56,15 +58,15 @@ newtype OverrideToSchema a = OverrideToSchema { unOverride :: a }
 instance {-# OVERLAPPABLE #-} ToSchema a => ToSchema (OverrideToSchema a) where
   declareNamedSchema _ = declareNamedSchema (Proxy :: Proxy a)
 
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema ByteString) where
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema B.ByteString) where
   declareNamedSchema _ = return (NamedSchema Nothing byteSchema)
 
 -- | This instance is the same as the instance for @OverrideToSchema ByteString@.
 -- See: https://hackage.haskell.org/package/swagger2-2.6/docs/src/Data.Swagger.Internal.Schema.html#line-451
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe ByteString)) where
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe B.ByteString)) where
   declareNamedSchema _ = return (NamedSchema Nothing byteSchema)
 
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (V.Vector ByteString)) where
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (V.Vector B.ByteString)) where
   declareNamedSchema _ = return (NamedSchema Nothing schema_)
     where
       schema_ = mempty
@@ -75,12 +77,12 @@ instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (V.Vector ByteString)) w
 #endif
         & items ?~ SwaggerItemsObject (Inline byteSchema)
 
-instance {-# OVERLAPPING #-} (ToJSONKey k, ToSchema k) => ToSchema (OverrideToSchema (Map k ByteString)) where
+instance {-# OVERLAPPING #-} (ToJSONKey k, ToSchema k) => ToSchema (OverrideToSchema (Map k B.ByteString)) where
   declareNamedSchema _ = case Aeson.toJSONKey :: ToJSONKeyFunction k of
       ToJSONKeyText _ _ -> do
           return (NamedSchema Nothing schema_)
       ToJSONKeyValue _ _ -> do
-          declareNamedSchema (Proxy :: Proxy [(k, (OverrideToSchema ByteString))])
+          declareNamedSchema (Proxy :: Proxy [(k, (OverrideToSchema B.ByteString))])
     where
       schema_ = mempty
 #if MIN_VERSION_swagger2(2,4,0)
