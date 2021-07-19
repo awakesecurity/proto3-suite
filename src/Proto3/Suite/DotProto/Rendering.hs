@@ -187,7 +187,6 @@ instance Pretty DotProtoValue where
 
 instance Pretty DotProtoType where
   pPrint (Prim           ty) = pPrint ty
-  pPrint (Optional       ty) = pPrint ty
   pPrint (Repeated       ty) = PP.text "repeated" <+> pPrint ty
   pPrint (NestedRepeated ty) = PP.text "repeated" <+> pPrint ty
   pPrint (Map keyty valuety) = PP.text "map<" <> pPrint keyty <> PP.text ", " <> pPrint valuety <> PP.text ">"
