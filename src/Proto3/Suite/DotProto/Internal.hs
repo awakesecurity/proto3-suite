@@ -27,11 +27,10 @@ import           Data.Either
 import           Data.Foldable
 import           Data.Functor.Compose
 import           Data.Int                  (Int32)
-import           Data.List                 (find, intercalate)
+import           Data.List                 (intercalate)
 import qualified Data.List.NonEmpty        as NE
 import qualified Data.Map                  as M
 import           Data.Maybe                (fromMaybe)
-import           Data.Semigroup            (Semigroup(..))
 import qualified Data.Text                 as T
 import           Data.Tuple                (swap)
 import           Filesystem.Path.CurrentOS ((</>))
@@ -45,8 +44,7 @@ import           Proto3.Wire.Types         (FieldNumber (..))
 import           System.FilePath           (isPathSeparator)
 import           Text.Parsec               (ParseError)
 import qualified Turtle
-import           Turtle                    (ExitCode (..), FilePath, MonadIO,
-                                            Text)
+import           Turtle                    (ExitCode (..), FilePath, Text)
 import           Turtle.Format             ((%))
 import qualified Turtle.Format             as F
 

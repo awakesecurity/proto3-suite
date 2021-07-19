@@ -15,7 +15,6 @@ import qualified Data.ByteString.Lazy        as BL
 import           Data.Either                 (isRight)
 import qualified Data.List.NonEmpty          as NE
 import           Data.String
-import           Data.Semigroup              ((<>))
 import           GHC.Exts                    (fromList, Proxy#)
 import           Proto3.Suite
 import           Proto3.Wire.Decode          (ParseError)

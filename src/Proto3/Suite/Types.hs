@@ -32,7 +32,6 @@ import           Control.DeepSeq (NFData)
 import           GHC.Exts (IsList(..))
 import           GHC.Generics
 import           Data.Int (Int32)
-import           Data.Semigroup (Semigroup)
 import qualified Data.Vector as V
 import           GHC.TypeLits (Symbol)
 import           Proto3.Wire.Class (ProtoEnum(..))

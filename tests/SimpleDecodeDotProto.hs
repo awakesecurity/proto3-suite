@@ -7,13 +7,10 @@ module Main where
 
 import Test.Tasty
 import Test.Tasty.HUnit (Assertion, (@?=), (@=?), testCase)
-import Control.Applicative
-import Control.Monad
 import qualified Data.Map as M
 import Proto3.Suite
 import qualified Data.ByteString.Char8 as BC
 import System.IO
-import System.Exit
 
 import TestProto
 import qualified TestProtoImport
