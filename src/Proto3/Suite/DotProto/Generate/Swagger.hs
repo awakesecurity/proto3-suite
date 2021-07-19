@@ -64,11 +64,6 @@ instance {-# OVERLAPPABLE #-} ToSchema a => ToSchema (OverrideToSchema a) where
 instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema B.ByteString) where
   declareNamedSchema _ = return (NamedSchema Nothing byteSchema)
 
--- | This instance is the same as the instance for @OverrideToSchema ByteString@.
--- See: https://hackage.haskell.org/package/swagger2-2.6/docs/src/Data.Swagger.Internal.Schema.html#line-451
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe B.ByteString)) where
-  declareNamedSchema _ = return (NamedSchema Nothing byteSchema)
-
 instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (V.Vector B.ByteString)) where
   declareNamedSchema _ = return (NamedSchema Nothing schema_)
     where
@@ -97,6 +92,18 @@ instance {-# OVERLAPPING #-} (ToJSONKey k, ToSchema k) => ToSchema (OverrideToSc
 
 -- | Wrapped Type Schemas
 
+setFormat
+  :: T.Text
+  -> Declare (Definitions Schema) NamedSchema
+  -> Declare (Definitions Schema) NamedSchema
+setFormat formatValue namedSchema =
+  namedSchema
+#if MIN_VERSION_swagger2(2,4,0)
+    <&> schema . paramSchema . format ?~ formatValue
+#else
+    <&> schema . paramSchema . format .~ formatValue
+#endif
+
 declareWrapperNamedSchema
   :: forall a
    . ToSchema a
@@ -104,12 +111,7 @@ declareWrapperNamedSchema
   -> Proxy (OverrideToSchema a)
   -> Declare (Definitions Schema) NamedSchema
 declareWrapperNamedSchema formatValue _ =
-  declareNamedSchema (Proxy :: Proxy a)
-#if MIN_VERSION_swagger2(2,4,0)
-    <&> schema . paramSchema . format ?~ formatValue
-#else
-    <&> schema . paramSchema . format .~ formatValue
-#endif
+  setFormat formatValue (declareNamedSchema (Proxy :: Proxy a))
 
 instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Double)) where
   declareNamedSchema = declareWrapperNamedSchema "DoubleValue"
@@ -138,14 +140,13 @@ instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe T.Text)) where
 instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe TL.Text)) where
   declareNamedSchema = declareWrapperNamedSchema "StringValue"
 
--- TODO: Figure out what to do about conflicting `Maybe ByteString` instance
--- above
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe B.ByteString)) where
+  declareNamedSchema _ =
+    setFormat "BytesValue" (pure (NamedSchema Nothing byteSchema))
 
--- instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe B.ByteString)) where
---   declareNamedSchema = declareWrapperNamedSchema "BytesValue"
-
--- instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe BL.ByteString)) where
---   declareNamedSchema = declareWrapperNamedSchema "BytesValue"
+instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe BL.ByteString)) where
+  declareNamedSchema _ =
+    setFormat "BytesValue" (pure (NamedSchema Nothing byteSchema))
 
 {-| This is a convenience function that uses type inference to select the
     correct instance of `ToSchema` to use for fields of a message
