@@ -90,6 +90,7 @@ instance {-# OVERLAPPING #-} (ToJSONKey k, ToSchema k) => ToSchema (OverrideToSc
 #endif
         & additionalProperties ?~ AdditionalPropertiesSchema (Inline byteSchema)
 
+#ifdef SWAGGER_WRAPPER_FORMAT
 -- | Wrapped Type Schemas
 
 setFormat
@@ -147,6 +148,7 @@ instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe B.ByteString)) wh
 instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe BL.ByteString)) where
   declareNamedSchema _ =
     setFormat "BytesValue" (pure (NamedSchema Nothing byteSchema))
+#endif
 
 {-| This is a convenience function that uses type inference to select the
     correct instance of `ToSchema` to use for fields of a message
