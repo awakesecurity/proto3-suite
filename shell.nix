@@ -12,9 +12,20 @@
 , enableSwagger ? true
 }:
 
-with (import ./default.nix { inherit compiler enableDhall enableSwagger; });
+let
+  pkgs = import ./nix/pkgs.nix {
+    inherit compiler enableDhall enableSwagger;
+  };
 
-if fast then
-  proto3-suite-boot.env
-else
-  proto3-suite.env
+  proto3-suite =
+    if fast then
+      pkgs.haskellPackages.proto3-suite-boot
+    else
+      pkgs.haskellPackages.proto3-suite;
+
+in proto3-suite.env.overrideAttrs (old: {
+  buildInputs = (old.buildInputs or []) ++ [
+    pkgs.cabal-install
+    pkgs.python36Packages.virtualenv
+  ];
+})
