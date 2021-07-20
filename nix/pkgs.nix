@@ -2,7 +2,7 @@
 
 import ./nixpkgs.nix {
   overlays = [
-    (import ./haskell-packages.nix {
+    (import ./overlays/haskell-packages.nix {
       inherit compiler enableDhall enableSwagger;
     })
   ];

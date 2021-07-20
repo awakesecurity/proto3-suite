@@ -23,9 +23,13 @@ in {
             proto3-suite-flags = (if enableDhall then ["-fdhall"] else []) ++ (if enableSwagger then [] else ["-f-swagger"]);
 
           in {
-            tasty = haskellPackagesNew.callPackage ./haskell-packages/tasty.nix { };
-
-            tasty-ant-xml = haskellPackagesNew.callPackage ./haskell-packages/tasty-ant-xml.nix { };
+            range-set-list =
+              pkgsOld.haskell.lib.overrideCabal
+                (haskellPackagesOld.callHackage "range-set-list" "0.1.3.1" { })
+                (oldArgs: {
+                  broken = false;
+                  jailbreak = true;
+                });
 
             proto3-wire =
               let
@@ -38,11 +42,14 @@ in {
               in haskellPackagesNew.callCabal2nix "proto3-wire" source { };
 
             proto3-suite-base =
-              haskellPackagesNew.callCabal2nixWithOptions
+              (haskellPackagesNew.callCabal2nixWithOptions
                 "proto3-suite"
-                (gitignoreSource ../.)
+                (gitignoreSource ../../.)
                 (pkgsNew.lib.concatStringsSep " " proto3-suite-flags)
-                { };
+                { }
+              ).overrideAttrs (_: {
+                pname = "proto3-suite-base";
+              });
 
             proto3-suite-boot =
               pkgsNew.haskell.lib.overrideCabal
@@ -67,7 +74,7 @@ in {
                   pkgs.protobuf
                 ]);
 
-                test-files = (gitignoreSource ../test-files);
+                test-files = (gitignoreSource ../../test-files);
 
                 cg-artifacts = pkgsNew.runCommand "proto3-suite-test-cg-artifacts" {} ''
                   mkdir -p $out/protos
