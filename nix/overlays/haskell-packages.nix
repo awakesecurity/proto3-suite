@@ -16,125 +16,137 @@ let
 in {
   haskellPackages = pkgsOld.haskell.packages."${compiler}".override (old: {
     overrides =
-      pkgsOld.lib.composeExtensions
-        (old.overrides or (_: _: {}))
-        (haskellPackagesNew: haskellPackagesOld:
-          let
-            proto3-suite-flags = (if enableDhall then ["-fdhall"] else []) ++ (if enableSwagger then [] else ["-f-swagger"]);
-
-          in {
-            range-set-list =
-              pkgsOld.haskell.lib.overrideCabal
-                (haskellPackagesOld.callHackage "range-set-list" "0.1.3.1" { })
-                (oldArgs: {
-                  broken = false;
-                  jailbreak = true;
-                });
-
-            haskeline = haskellPackagesOld.haskeline_0_8_1_2;
-
-            proto3-wire =
-              let
-                source = pkgsNew.fetchFromGitHub {
-                  owner = "awakesecurity";
-                  repo = "proto3-wire";
-                  rev = "e5e0158ceaaa50d258bb86dbf2e6c42d5e16c3c5";
-                  sha256 = "14r2qm6x4bcaywbi3cypriz4hr8i2v3j4qm61lal6x21p0z9i9ak";
-                };
-              in haskellPackagesNew.callCabal2nix "proto3-wire" source { };
-
-            proto3-suite-base =
-              (haskellPackagesNew.callCabal2nixWithOptions
-                "proto3-suite"
-                (gitignoreSource ../../.)
-                (pkgsNew.lib.concatStringsSep " " proto3-suite-flags)
-                { }
-              ).overrideAttrs (oldAttrs: {
-                pname = "proto3-suite-base";
-
-                buildInputs =
-                  (oldAttrs.buildInputs or [])
-                  ++ (if enableDhall then [haskellPackagesNew.dhall] else [])
-                  ++ (if enableSwagger then [haskellPackagesNew.swagger] else []);
+      pkgsNew.lib.composeExtensions
+        (old.overrides or (_: _: { }))
+        (haskellPackagesNew: haskellPackagesOld: {
+          range-set-list =
+            pkgsNew.haskell.lib.overrideCabal
+              haskellPackagesOld.range-set-list
+              (old: {
+                broken = false;
+                jailbreak = true;
               });
 
-            proto3-suite-boot =
-              pkgsNew.haskell.lib.overrideCabal
-                haskellPackagesNew.proto3-suite-base
-                (oldArgs: {
-                  pname = "proto3-suite-boot";
+          proto3-wire =
+            let
+              source = pkgsNew.fetchFromGitHub {
+                owner = "awakesecurity";
+                repo = "proto3-wire";
+                rev = "e5e0158ceaaa50d258bb86dbf2e6c42d5e16c3c5";
+                sha256 = "14r2qm6x4bcaywbi3cypriz4hr8i2v3j4qm61lal6x21p0z9i9ak";
+              };
+            in haskellPackagesNew.callCabal2nix "proto3-wire" source { };
 
-                  configureFlags = (old.configureFlags or []) ++ ["--disable-optimization"];
+          proto3-suite-base =
+            let
+              cabal2nixFlags = pkgsNew.lib.concatStringsSep " " [
+                (if enableDhall then "-fdhall" else "")
+                (if enableSwagger then "" else "-f-swagger")
+              ];
+            in
+            (haskellPackagesNew.callCabal2nixWithOptions
+              "proto3-suite"
+              (gitignoreSource ../../.)
+              cabal2nixFlags
+              { }
+            ).overrideAttrs (oldAttrs: {
+              pname = "proto3-suite-base";
 
-                  doCheck = false;
+              configureFlags = (old.configureFlags or [ ])
+                ++ (if enableDhall then [ "-fdhall" ] else [ ])
+                ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ]);
+            });
 
-                  doHaddock = false;
+          proto3-suite-boot =
+            pkgsNew.haskell.lib.overrideCabal
+              haskellPackagesNew.proto3-suite-base
+              (oldArgs: {
+                pname = "proto3-suite-boot";
 
-                  enableLibraryProfiling = false;
+                configureFlags = (oldArgs.configureFlags or [ ])
+                  ++ [ "--disable-optimization" ];
 
-                  enableExecutableProfiling = false;
-                });
+                doCheck = false;
 
-            proto3-suite =
-              let
-                python = pkgsNew.python.withPackages (pkgs: [
-                  pkgs.protobuf
-                ]);
+                doHaddock = false;
 
-                test-files = (gitignoreSource ../../test-files);
+                enableLibraryProfiling = false;
 
-                cg-artifacts = pkgsNew.runCommand "proto3-suite-test-cg-artifacts" {} ''
-                  mkdir -p $out/protos
-                  cp -r ${test-files}/. $out/protos/.
-                  cd $out
-                  build () {
-                    echo "[proto3-suite-test-cg-artifacts] Compiling proto-file/$1"
-                    ${haskellPackagesNew.proto3-suite-boot}/bin/compile-proto-file \
-                      --out $out \
-                      --includeDir "$2" \
-                      --proto "$1"
-                  }
-                  for proto in $(find ${test-files} -name 'test_*.proto'); do
-                    build ''${proto#${test-files}/} ${test-files}
-                  done
-                  echo "[proto3-suite-test-cg-artifacts] Protobuf CG complete"
-                '';
+                enableExecutableProfiling = false;
+              });
 
-                copyGeneratedCode = ''
-                  echo "Copying CG artifacts from ${cg-artifacts} into ./gen/"
-                  mkdir -p gen
-                  ${pkgsNew.rsync}/bin/rsync \
-                    --recursive \
-                    --checksum \
-                    ${cg-artifacts}/ gen
-                  chmod -R u+w gen
-                '';
-
-              in pkgsNew.haskell.lib.overrideCabal haskellPackagesNew.proto3-suite-base (oldArgs:
+          proto3-suite =
+            pkgsNew.haskell.lib.overrideCabal
+              haskellPackagesNew.proto3-suite-base
+              (oldArgs:
                 let
+                  inherit (pkgsNew) protobuf;
+
+                  python =
+                    pkgsNew.python.withPackages (pkgs: [ pkgs.protobuf ]);
+
                   ghc =
                     haskellPackagesNew.ghcWithPackages
                       (pkgs: (oldArgs.testHaskellDepends or [ ]) ++ [
                         haskellPackagesNew.proto3-suite-boot
                       ]);
 
-                in {
-                  testHaskellDepends =
-                    (oldArgs.testHaskellDepends or []) ++ [
-                      pkgsNew.ghc
-                      pkgsNew.protobuf3_1
-                      pkgsNew.protobuf
-                      python
-                    ];
+                  test-files = (gitignoreSource ../../test-files);
+
+                  cg-artifacts = pkgsNew.runCommand "proto3-suite-test-cg-artifacts" { } ''
+                    mkdir -p $out/protos
+
+                    cp -r ${test-files}/. $out/protos/.
+
+                    cd $out
+
+                    build () {
+                      echo "[proto3-suite-test-cg-artifacts] Compiling proto-file/$1"
+                      ${haskellPackagesNew.proto3-suite-boot}/bin/compile-proto-file \
+                        --out $out \
+                        --includeDir "$2" \
+                        --proto "$1"
+                    }
+
+                    for proto in $(find ${test-files} -name 'test_*.proto'); do
+                      build ''${proto#${test-files}/} ${test-files}
+                    done
+
+                    echo "[proto3-suite-test-cg-artifacts] Protobuf CG complete"
+                  '';
+
+                  copyGeneratedCode = ''
+                    echo "Copying CG  artifacts from ${cg-artifacts} into ./gen/"
+                    mkdir -p gen
+                    ${pkgsNew.rsync}/bin/rsync \
+                      --recursive \
+                      --checksum \
+                      ${cg-artifacts}/ gen
+                    chmod -R u+w gen
+                  '';
+
+                in
+                {
+                  pname = "proto3-suite";
 
                   postPatch = (oldArgs.postPatch or "") + copyGeneratedCode;
+
+                  testHaskellDepends =
+                    (oldArgs.testHaskellDepends or [ ]) ++ [
+                      pkgsNew.ghc
+                      pkgsNew.protobuf3_1
+                      haskellPackagesNew.proto3-suite-boot
+                      python
+                      protobuf
+                    ];
 
                   shellHook = (oldArgs.shellHook or "") + ''
                     ${copyGeneratedCode}
 
-                    export PATH=${haskellPackagesNew.cabal-install}/bin:${ghc}/bin:${python}/bin:${pkgsNew.protobuf}/bin''${PATH:+:}$PATH
+                    export PATH=${haskellPackagesNew.cabal-install}/bin:${ghc}/bin:${python}/bin:${protobuf}/bin''${PATH:+:}$PATH
                   '';
-                });
-          });
+                }
+              );
+        });
   });
 }
