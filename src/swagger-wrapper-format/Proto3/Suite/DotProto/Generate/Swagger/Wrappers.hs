@@ -7,8 +7,6 @@
 
 module Proto3.Suite.DotProto.Generate.Swagger.Wrappers where
 
-#ifdef SWAGGER_WRAPPER_FORMAT
-
 #if MIN_VERSION_swagger2(2,4,0)
 import Control.Lens ((?~))
 #else
@@ -93,5 +91,3 @@ instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe B.ByteString)) wh
 instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe BL.ByteString)) where
   declareNamedSchema _ =
     setFormat "BytesValue" (pure (NamedSchema Nothing byteSchema))
-
-#endif
