@@ -1,4 +1,8 @@
-{ compiler, enableDhall, enableSwagger }:
+{ compiler
+, enableDhall
+, enableSwagger
+, swaggerWrapperFormat
+}:
 
 pkgsNew: pkgsOld:
 
@@ -42,6 +46,7 @@ in {
               cabal2nixFlags = pkgsNew.lib.concatStringsSep " " [
                 (if enableDhall then "-fdhall" else "")
                 (if enableSwagger then "" else "-f-swagger")
+                (if swaggerWrapperFormat then "-fswagger-wrapper-format" else "")
               ];
             in
             (haskellPackagesNew.callCabal2nixWithOptions
@@ -54,7 +59,8 @@ in {
 
               configureFlags = (old.configureFlags or [ ])
                 ++ (if enableDhall then [ "-fdhall" ] else [ ])
-                ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ]);
+                ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ])
+                ++ (if swaggerWrapperFormat then [ "-fswagger-wrapper-format" ] else [ "" ]);
             });
 
           proto3-suite-boot =
