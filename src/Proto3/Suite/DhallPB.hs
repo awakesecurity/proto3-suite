@@ -69,20 +69,22 @@ instance Dhall.FromDhall Data.ByteString.ByteString where
 -- TODO: we should perform run-time bounds-checking to at least hint
 -- to the user that we interpreted something bad.
 
--- instance Dhall.FromDhall Int where
---   autoWith _ = fmap fromInteger Dhall.integer
+#if !MIN_VERSION_dhall(1,35,0)
+instance Dhall.FromDhall Int where
+  autoWith _ = fmap fromInteger Dhall.integer
 
--- instance Dhall.FromDhall Int32 where
---   autoWith _ = fmap fromInteger Dhall.integer
+instance Dhall.FromDhall Int32 where
+  autoWith _ = fmap fromInteger Dhall.integer
 
--- instance Dhall.FromDhall Int64 where
---   autoWith _ = fmap fromInteger Dhall.integer
+instance Dhall.FromDhall Int64 where
+  autoWith _ = fmap fromInteger Dhall.integer
 
--- instance Dhall.FromDhall Word32 where
---   autoWith _ = fmap fromIntegral Dhall.integer
+instance Dhall.FromDhall Word32 where
+  autoWith _ = fmap fromIntegral Dhall.integer
 
--- instance Dhall.FromDhall Word64 where
---   autoWith _ = fmap fromIntegral Dhall.integer
+instance Dhall.FromDhall Word64 where
+  autoWith _ = fmap fromIntegral Dhall.integer
+#endif
 
 instance Dhall.FromDhall (Fixed Int32) where
   autoWith = fmap Fixed . Dhall.autoWith
