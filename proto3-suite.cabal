@@ -46,6 +46,7 @@ library
 
   if flag(swagger)
     exposed-modules:   Proto3.Suite.DotProto.Generate.Swagger
+                       Proto3.Suite.DotProto.Generate.Swagger.Wrappers
     build-depends:     swagger2 >=2.1.6 && <2.7
     cpp-options:       -DSWAGGER
     if flag(swagger-wrapper-format)
