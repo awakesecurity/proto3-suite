@@ -3,7 +3,6 @@ module TestDhall where
 import           TestProtoOneof
 import           Test.Tasty
 import           Test.Tasty.HUnit               (testCase, (@?=))
-
 import qualified Dhall
 import qualified Dhall.Core
 

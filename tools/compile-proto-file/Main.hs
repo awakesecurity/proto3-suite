@@ -8,7 +8,6 @@
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TypeOperators       #-}
 
-import           Data.Semigroup                 ((<>))
 import           Options.Applicative
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate

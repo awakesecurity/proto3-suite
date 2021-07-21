@@ -102,7 +102,6 @@ import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
 import qualified Data.Map               as M
 import           Data.Maybe             (fromMaybe, isNothing)
-import           Data.Monoid            ((<>))
 import           Data.Proxy             (Proxy (..))
 import           Data.String            (IsString (..))
 import qualified Data.Text              as T
@@ -117,7 +116,6 @@ import           GHC.TypeLits
 import           Proto3.Suite.DotProto  as DotProto
 import           Proto3.Suite.Types     as Wire
 import           Proto3.Wire
-import           Proto3.Wire.Class      (ProtoEnum(..))
 import           Proto3.Wire.Decode     (ParseError, Parser (..), RawField,
                                          RawMessage, RawPrimitive, runParser)
 import qualified Proto3.Wire.Decode     as Decode

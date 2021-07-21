@@ -1,7 +1,4 @@
-{ compiler
-, enableDhall
-, enableSwagger
-}:
+{ compiler, enableDhall, enableSwagger }:
 
 pkgsNew: pkgsOld:
 
@@ -14,21 +11,20 @@ let
         rev = "211907489e9f198594c0eb0ca9256a1949c9d412";
         sha256 = "06j7wpvj54khw0z10fjyi31kpafkr6hi1k0di13k1xp8kywvfyx8";
       };
-    in
-    (import source { inherit (pkgsNew) lib; }).gitignoreSource;
+    in (import source { inherit (pkgsNew) lib; }).gitignoreSource;
 
-in
-{
+in {
   haskellPackages = pkgsOld.haskell.packages."${compiler}".override (old: {
     overrides =
-      let
-        manualOverrides = haskellPackagesNew: haskellPackagesOld: {
-          parameterized =
+      pkgsNew.lib.composeExtensions
+        (old.overrides or (_: _: { }))
+        (haskellPackagesNew: haskellPackagesOld: {
+          range-set-list =
             pkgsNew.haskell.lib.overrideCabal
-              haskellPackagesOld.parameterized
+              haskellPackagesOld.range-set-list
               (old: {
-                doCheck = false;
                 broken = false;
+                jailbreak = true;
               });
 
           proto3-wire =
@@ -36,11 +32,10 @@ in
               source = pkgsNew.fetchFromGitHub {
                 owner = "awakesecurity";
                 repo = "proto3-wire";
-                rev = "9b1c178f8a23a5f03237cb77cce403bc386da523";
-                sha256 = "0yf4008qrikxmnlcir7nvb7jx23fykjymjiinshb5j3s6kffqqzq";
+                rev = "e5e0158ceaaa50d258bb86dbf2e6c42d5e16c3c5";
+                sha256 = "14r2qm6x4bcaywbi3cypriz4hr8i2v3j4qm61lal6x21p0z9i9ak";
               };
-            in
-            haskellPackagesNew.callCabal2nix "proto3-wire" source { };
+            in haskellPackagesNew.callCabal2nix "proto3-wire" source { };
 
           proto3-suite-base =
             let
@@ -139,7 +134,6 @@ in
                   testHaskellDepends =
                     (oldArgs.testHaskellDepends or [ ]) ++ [
                       pkgsNew.ghc
-                      pkgsNew.protobuf3_1
                       haskellPackagesNew.proto3-suite-boot
                       python
                       protobuf
@@ -152,12 +146,6 @@ in
                   '';
                 }
               );
-        };
-
-      in
-      pkgsNew.lib.foldr pkgsNew.lib.composeExtensions (old.overrides or (_: _: { }))
-        [
-          manualOverrides
-        ];
+        });
   });
 }

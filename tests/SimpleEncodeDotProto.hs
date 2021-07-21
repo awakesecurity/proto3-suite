@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedLists      #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
@@ -8,9 +9,12 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as M
 import           Proto3.Suite
 import           TestProto
-import qualified TestProtoImport
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
+
+#if DHALL
+import qualified TestProtoImport
+#end
 
 outputMessage :: Message a => a -> IO ()
 outputMessage msg =

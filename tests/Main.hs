@@ -15,7 +15,6 @@ import qualified Data.ByteString.Lazy        as BL
 import           Data.Either                 (isRight)
 import qualified Data.List.NonEmpty          as NE
 import           Data.String
-import           Data.Semigroup              ((<>))
 import           GHC.Exts                    (fromList, Proxy#)
 import           Proto3.Suite
 import           Proto3.Wire.Decode          (ParseError)
@@ -255,12 +254,12 @@ dotProtoUnitTests = testGroup ".proto parsing tests"
   ]
 
 trivialDotProto :: DotProto
-trivialDotProto = DotProto [] [] DotProtoNoPackage [] (DotProtoMeta (Path $ "test-files" NE.:| ["trivial"]))
+trivialDotProto = DotProto [] [] DotProtoNoPackage [] (DotProtoMeta (Path $ "test-files" NE.:| ["test_trivial"]))
 
 dotProtoParseTrivial :: TestTree
 dotProtoParseTrivial = testCase
   "Parse a content-less file" $
-  testDotProtoParse "test-files/trivial.proto" trivialDotProto
+  testDotProtoParse (testFilesPfx <> "trivial.proto") trivialDotProto
 
 dotProtoPrintTrivial :: TestTree
 dotProtoPrintTrivial = testCase

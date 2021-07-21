@@ -57,9 +57,7 @@ import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.AST.Lens
 import           Proto3.Suite.DotProto.Internal
-import           Proto3.Suite.DotProto.Rendering (Pretty(..))
 import           Proto3.Wire.Types              (FieldNumber (..))
-import           System.IO                      (writeFile, readFile)
 import qualified Turtle
 import           Turtle                         (FilePath)
 
@@ -348,13 +346,11 @@ dhallPBName name = Qual (Module hsDhallPB) (HsIdent name)
 
 -- *** Generate Dhall Interpret and Inject generic instances
 
-fromDhall, toDhall :: String
-(fromDhall, toDhall) =
-#if MIN_VERSION_dhall(1,27,0)
-  ("FromDhall", "ToDhall")
-#else
-  ("Interpret", "Inject")
-#endif
+fromDhall :: String
+fromDhall = "FromDhall"
+
+toDhall :: String
+toDhall = "ToDhall"
 
 dhallInterpretInstDecl :: String -> HsDecl
 dhallInterpretInstDecl typeName =

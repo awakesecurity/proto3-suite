@@ -1,4 +1,12 @@
-import (builtins.fetchTarball {
-  url = "https://github.com/NixOS/nixpkgs/archive/9a1672105db0eebe8ef59f310397435f2d0298d0.tar.gz";
-  sha256 = "06z4r0aaha5qyd0prg7h1f5sjrsndca75150zf5w4ff6g9vdv1rb";
-})
+args:
+
+let
+  # nixpkgs release 21.05
+  rev = "7e9b0dff974c89e070da1ad85713ff3c20b0ca97";
+  sha256 = "1ckzhh24mgz6jd1xhfgx0i9mijk6xjqxwsshnvq789xsavrmsc36";
+
+  nixpkgs = builtins.fetchTarball {
+    url = "https://github.com/NixOS/nixpkgs/archive/${rev}.tar.gz";
+    inherit sha256;
+  };
+in import nixpkgs ({ config = { }; } // args)
