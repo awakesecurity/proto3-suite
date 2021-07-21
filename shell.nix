@@ -10,11 +10,12 @@
 , compiler ? "ghc8104"
 , enableDhall ? false
 , enableSwagger ? true
+, swaggerWrapperFormat ? false
 }:
 
 let
   pkgs = import ./nix/pkgs.nix {
-    inherit compiler enableDhall enableSwagger;
+    inherit compiler enableDhall enableSwagger swaggerWrapperFormat;
   };
 
   proto3-suite =
