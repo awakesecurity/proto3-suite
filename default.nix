@@ -9,5 +9,7 @@ let
   };
 
 in {
-  proto3-suite = pkgs.haskell.lib.buildStrictly pkgs.haskellPackages.proto3-suite;
+  proto3-suite-boot = pkgs.haskellPackages.proto3-suite-boot;
+
+  proto3-suite = pkgs.haskellPackages.proto3-suite;
 }

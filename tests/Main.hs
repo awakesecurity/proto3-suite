@@ -254,12 +254,12 @@ dotProtoUnitTests = testGroup ".proto parsing tests"
   ]
 
 trivialDotProto :: DotProto
-trivialDotProto = DotProto [] [] DotProtoNoPackage [] (DotProtoMeta (Path $ "test-files" NE.:| ["trivial"]))
+trivialDotProto = DotProto [] [] DotProtoNoPackage [] (DotProtoMeta (Path $ "test-files" NE.:| ["test_trivial"]))
 
 dotProtoParseTrivial :: TestTree
 dotProtoParseTrivial = testCase
   "Parse a content-less file" $
-  testDotProtoParse "test-files/trivial.proto" trivialDotProto
+  testDotProtoParse (testFilesPfx <> "trivial.proto") trivialDotProto
 
 dotProtoPrintTrivial :: TestTree
 dotProtoPrintTrivial = testCase

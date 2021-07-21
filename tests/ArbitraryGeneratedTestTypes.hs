@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ArbitraryGeneratedTestTypes where
@@ -9,9 +10,12 @@ import           Test.QuickCheck       (listOf)
 import qualified Test.QuickCheck       as QC
 import           Test.QuickCheck.Arbitrary.Generic (genericArbitrary, Arbitrary (arbitrary))
 import           TestProto
-import qualified TestProtoImport
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
+
+#if DHALL
+import qualified TestProtoImport
+#endif
 
 instance Arbitrary Trivial where
   arbitrary = Trivial <$> arbitrary

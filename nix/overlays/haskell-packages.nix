@@ -134,7 +134,6 @@ in {
                   testHaskellDepends =
                     (oldArgs.testHaskellDepends or [ ]) ++ [
                       pkgsNew.ghc
-                      pkgsNew.protobuf3_1
                       haskellPackagesNew.proto3-suite-boot
                       python
                       protobuf
