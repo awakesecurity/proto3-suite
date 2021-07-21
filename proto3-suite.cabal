@@ -118,7 +118,6 @@ test-suite tests
     other-modules:     TestDhall
     build-depends:     dhall >=1.13 && < 1.39
     cpp-options:       -DDHALL
-    other-modules:     TestProtoImport
 
   if flag(swagger)
     build-depends:     swagger2
@@ -129,6 +128,7 @@ test-suite tests
   other-modules:       ArbitraryGeneratedTestTypes
                        TestCodeGen
                        TestProto
+                       TestProtoImport
                        TestProtoOneof
                        TestProtoOneofImport
                        --TestProtoLeadingDot

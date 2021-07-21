@@ -346,11 +346,13 @@ dhallPBName name = Qual (Module hsDhallPB) (HsIdent name)
 
 -- *** Generate Dhall Interpret and Inject generic instances
 
-fromDhall :: String
-fromDhall = "FromDhall"
-
-toDhall :: String
-toDhall = "ToDhall"
+fromDhall, toDhall :: String
+(fromDhall, toDhall) =
+#if MIN_VERSION_dhall(1,27,0)
+  ("FromDhall", "ToDhall")
+#else
+  ("Interpret", "Inject")
+#endif
 
 dhallInterpretInstDecl :: String -> HsDecl
 dhallInterpretInstDecl typeName =
