@@ -32,6 +32,11 @@ flag swagger
   Default:       True
   Manual:        True
 
+flag swagger-wrapper-format
+  Description:   Change Swagger schema format for Protobuf wrapper types
+  Default:       False
+  Manual:        True
+
 library
 
   if flag(dhall)
@@ -43,6 +48,8 @@ library
     exposed-modules:   Proto3.Suite.DotProto.Generate.Swagger
     build-depends:     swagger2 >=2.1.6 && <2.7
     cpp-options:       -DSWAGGER
+    if flag(swagger-wrapper-format)
+      cpp-options:       -DSWAGGER_WRAPPER_FORMAT
 
   exposed-modules:     Proto3.Suite
                        Proto3.Suite.Class
@@ -112,6 +119,8 @@ test-suite tests
   if flag(swagger)
     build-depends:     swagger2
     cpp-options:       -DSWAGGER
+    if flag(swagger-wrapper-format)
+      cpp-options:       -DSWAGGER_WRAPPER_FORMAT
 
   other-modules:       ArbitraryGeneratedTestTypes
                        TestCodeGen
