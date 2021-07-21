@@ -5,9 +5,9 @@ module ArbitraryGeneratedTestTypes where
 import qualified Data.Text.Lazy        as T
 import qualified Data.Vector           as V
 import qualified Proto3.Suite.Types as DotProto
-import           Test.QuickCheck       (Arbitrary, arbitrary, listOf)
+import           Test.QuickCheck       (listOf)
 import qualified Test.QuickCheck       as QC
-import           Test.QuickCheck.Arbitrary.Generic (genericArbitrary)
+import           Test.QuickCheck.Arbitrary.Generic (genericArbitrary, Arbitrary (arbitrary))
 import           TestProto
 import qualified TestProtoImport
 import qualified TestProtoOneof

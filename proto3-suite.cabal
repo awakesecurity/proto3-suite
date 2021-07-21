@@ -36,7 +36,8 @@ library
 
   if flag(dhall)
     exposed-modules:   Proto3.Suite.DhallPB
-    build-depends:     dhall >=1.13 && < 1.34
+    build-depends:     dhall
+-- >=1.13 && < 1.4
     cpp-options:       -DDHALL
 
   if flag(swagger)
@@ -106,7 +107,8 @@ test-suite tests
 
   if flag(dhall)
     other-modules:     TestDhall
-    build-depends:     dhall >=1.13 && < 1.34
+    build-depends:     dhall
+    --                   >=1.13 && < 1.4
     cpp-options:       -DDHALL
 
   if flag(swagger)

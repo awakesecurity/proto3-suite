@@ -31,6 +31,8 @@ in {
                   jailbreak = true;
                 });
 
+            haskeline = haskellPackagesOld.haskeline_0_8_1_2;
+
             proto3-wire =
               let
                 source = pkgsNew.fetchFromGitHub {
@@ -47,8 +49,13 @@ in {
                 (gitignoreSource ../../.)
                 (pkgsNew.lib.concatStringsSep " " proto3-suite-flags)
                 { }
-              ).overrideAttrs (_: {
+              ).overrideAttrs (oldAttrs: {
                 pname = "proto3-suite-base";
+
+                buildInputs =
+                  (oldAttrs.buildInputs or [])
+                  ++ (if enableDhall then [haskellPackagesNew.dhall] else [])
+                  ++ (if enableSwagger then [haskellPackagesNew.swagger] else []);
               });
 
             proto3-suite-boot =
