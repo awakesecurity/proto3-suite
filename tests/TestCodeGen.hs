@@ -34,7 +34,7 @@ import qualified Turtle.Format                  as F
 
 codeGenTests :: TestTree
 codeGenTests = testGroup "Code generator unit tests"
-  [ camelCaseMessageNames
+  [ pascalCaseMessageNames
   , camelCaseMessageFieldNames
   , don'tAlterEnumFieldNames
   , knownTypeMessages
@@ -55,8 +55,8 @@ knownTypeMessages =
         $ eitherDecode "\"1970-01-01T00:00:00Z\"" @?= Right (Timestamp 0 0)
     ]
 
-camelCaseMessageNames :: TestTree
-camelCaseMessageNames = testGroup "CamelCasing of message names"
+pascalCaseMessageNames :: TestTree
+pascalCaseMessageNames = testGroup "PascalCasing of message names"
   [ testCase "Capitalizes letters after underscores"
       $ typeLikeName "protocol_analysis" @?= Right "ProtocolAnalysis"
 
@@ -102,8 +102,8 @@ don'tAlterEnumFieldNames
         prefixedEnumFieldName enumName fieldName @?= (enumName <> fieldName)
 
 setPythonPath :: IO ()
-setPythonPath = Turtle.export "PYTHONPATH" =<<
-  maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) <$> Turtle.need "PYTHONPATH"
+setPythonPath = Turtle.export "PYTHONPATH" .
+  maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) =<< Turtle.need "PYTHONPATH"
 
 simpleEncodeDotProto :: TestTree
 simpleEncodeDotProto =
@@ -143,10 +143,9 @@ simpleDecodeDotProto =
 
 -- E.g. dumpAST ["test-files"] "test_proto.proto"
 dumpAST :: [FilePath] -> FilePath -> IO ()
-dumpAST incs fp = (either (error . show) putStrLn <=< runExceptT) $ do
+dumpAST incs fp = either (error . show) putStrLn <=< runExceptT $ do
   (dp, tc) <- readDotProtoWithContext incs fp
-  src <- renderHsModuleForDotProto mempty dp tc
-  pure src
+  renderHsModuleForDotProto mempty dp tc
 
 hsTmpDir, pyTmpDir :: IsString a => a
 hsTmpDir = "test-files/hs-tmp"

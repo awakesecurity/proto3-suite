@@ -17,4 +17,5 @@ message Request {
 
 service Service {
   rpc CreateSite(Request) returns (.LeadingDot.Rpc.Data.Response);
+  rpc createSite(Request) returns (.LeadingDot.Rpc.Data.Response);
 }
