@@ -380,9 +380,7 @@ concatDotProtoIdentifier i1 i2 = case (i1, i2) of
   (Dots (Path a), Dots (Path b)) -> pure (Dots (Path (a <> b)))
 
 -- | @'toPascalCase' xs'@ sends a snake-case string @xs@ to a pascal-cased string. Trailing underscores are not dropped
--- from the input string and exactly double underscores are replaced with a single underscore.
---
--- @since 0.1.0.0
+-- from the input string and exactly double underscores are replaced by a single underscore.
 toPascalCase :: String -> String
 toPascalCase xs = foldMap go (segmentBy (== '_') xs)
   where
@@ -392,24 +390,18 @@ toPascalCase xs = foldMap go (segmentBy (== '_') xs)
       | otherwise = ""
 
 -- | @'toCamelCase' xs@ sends a snake-case string @xs@ to a camel-cased string.
---
--- @since 0.4.2.0
 toCamelCase :: String -> String
 toCamelCase xs = case toPascalCase xs of
   "" -> ""
   x : xs' -> toLower x : xs'
 
 -- | @'toUpperFirst' xs@ sends the first character @x@ in @xs@ to be upper case, @'toUpperFirst' "" = ""@.
---
--- @since 0.4.2.0
 toUpperFirst :: String -> String
 toUpperFirst [] = []
 toUpperFirst (x : xs) = toUpper x : xs
 
 -- | @'segmentBy' p xs@  partitions @xs@ into segments of @'Either' [a] [a]@ where @'Right' xs'@ satisfy @p@ and
 -- @'Left' xs'@ segments satisfy @'not' . p@.
---
--- @since 0.1.0.0
 segmentBy :: (a -> Bool) -> [a] -> [Either [a] [a]]
 segmentBy p xs = case span p xs of
   ([], []) -> []
@@ -423,8 +415,6 @@ segmentBy p xs = case span p xs of
 
 -- | @'suffixBy' p xs@ yields @'Right' (xs', suf)@ if @suf@ is the longest suffix satisfying @p@ and @xs'@ is the rest
 -- of the rest, otherwise the string is given back as @'Left' xs@ signifying @xs@ had no suffix satisfying @p@.
---
--- @since 0.1.0.0
 suffixBy :: forall a. (a -> Bool) -> [a] -> Either [a] ([a], [a])
 suffixBy p xs' = do
   (pref, suf) <- foldr go (Left []) xs'
@@ -441,8 +431,6 @@ suffixBy p xs' = do
 -- | @'typeLikeName' xs@ produces either the pascal-cased version of the string @xs@ if it begins with an alphabetical
 -- character or underscore - which is replaced with 'X'. A 'CompileError' is emitted if the starting character is
 -- non-alphabetic or if @xs == ""@.
---
--- @since 0.3.0.1
 typeLikeName :: MonadError CompileError m => String -> m String
 typeLikeName "" = invalidTypeNameError "<empty name>"
 typeLikeName (x : xs)
@@ -457,8 +445,6 @@ typeLikeName (x : xs)
 -- | @'fieldLikeName' field@ is the casing transformation used to produce record selectors from message fields. If
 -- @field@ is prefixed by a span of uppercase characters then that prefix will be lowercased while the remaining string
 -- is left unchanged.
---
--- @since 0.1.0.0
 fieldLikeName :: String -> String
 fieldLikeName "" = ""
 fieldLikeName (x : xs)
@@ -476,11 +462,6 @@ prefixedConName msgName conName = do
 
 -- | @'prefixedMethodName' service method@ produces a Haskell record selector name for the service method @method@ by
 -- joining the names @service@, @method@ under concatenation on a camel-casing transformation.
---
--- >>> prefixedMethodName myService myMethodInService
--- "myServicemyMethodInService"
---
--- @since 0.1.0.0
 prefixedMethodName :: MonadError CompileError m => String -> String -> m String
 prefixedMethodName _ "" = invalidTypeNameError "<empty name>"
 prefixedMethodName serviceName (x : xs)
@@ -491,8 +472,6 @@ prefixedMethodName serviceName (x : xs)
 
 -- | @'prefixedFieldName' prefix field@ constructs a Haskell record selector name by prepending @prefix@ in camel-case
 -- to the message field/service method name @field@.
---
--- @since 0.4.2.0
 prefixedFieldName :: MonadError CompileError m => String -> String -> m String
 prefixedFieldName msgName fieldName = do
   field <- typeLikeName fieldName
