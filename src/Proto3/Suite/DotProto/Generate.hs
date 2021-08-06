@@ -1278,10 +1278,7 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
       | i == 0 -> return ()
       | otherwise -> throwError $ NonzeroFirstEnumeration enumName conIdent i
 
-  enumCons <- fmap (sortBy (comparing fst)) $
-    traverse (traverse
-                (fmap (prefixedEnumFieldName enumName) . dpIdentUnqualName))
-             enumeratorDecls
+  enumCons <- sortBy (comparing fst) <$> traverse (traverse (fmap (prefixedEnumFieldName enumName) . dpIdentUnqualName)) enumeratorDecls
 
   let enumConNames = map snd enumCons
 
@@ -1426,7 +1423,7 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
      let endpointPrefix = "/" ++ packageName ++ "." ++ serviceName ++ "/"
 
      let serviceFieldD (DotProtoServiceRPCMethod RPCMethod{..}) = do
-           fullName <- prefixedFieldName serviceName =<< dpIdentUnqualName rpcMethodName
+           fullName <- prefixedMethodName serviceName =<< dpIdentUnqualName rpcMethodName
 
            methodName <- case rpcMethodName of
                            Single nm -> pure nm

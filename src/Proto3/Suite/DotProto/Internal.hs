@@ -9,6 +9,7 @@
 {-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE ViewPatterns      #-}
 
@@ -364,6 +365,8 @@ isMap _ = False
 -- * Name resolution
 --
 
+
+
 concatDotProtoIdentifier :: MonadError CompileError m
                          => DotProtoIdentifier -> DotProtoIdentifier -> m DotProtoIdentifier
 concatDotProtoIdentifier i1 i2 = case (i1, i2) of
@@ -376,41 +379,103 @@ concatDotProtoIdentifier i1 i2 = case (i1, i2) of
   (a            , Single b     ) -> concatDotProtoIdentifier a (Dots (Path (pure b)))
   (Dots (Path a), Dots (Path b)) -> pure (Dots (Path (a <> b)))
 
-camelCased :: String -> String
-camelCased s = do
-  (prev, cur) <- zip (Nothing:map Just s) (map Just s ++ [Nothing])
-  case (prev, cur) of
-    (Just '_', Just x)
-      | isAlpha x        -> pure (toUpper x)
-    (Just '_', Nothing)  -> pure '_'
-    (Just '_', Just '_') -> pure '_'
-    (_, Just '_')        -> empty
-    (_, Just x)          -> pure x
-    (_, _)               -> empty
+-- | @'toPascalCase' xs'@ sends a snake-case string @xs@ to a pascal-cased string. Trailing underscores are not dropped
+-- from the input string and exactly double underscores are replaced by a single underscore.
+toPascalCase :: String -> String
+toPascalCase xs = foldMap go (segmentBy (== '_') xs)
+  where
+    go (Left seg) = toUpperFirst seg
+    go (Right seg)
+      | seg == "__" = "_"
+      | otherwise = ""
 
+-- | @'toCamelCase' xs@ sends a snake-case string @xs@ to a camel-cased string.
+toCamelCase :: String -> String
+toCamelCase xs = case toPascalCase xs of
+  "" -> ""
+  x : xs' -> toLower x : xs'
+
+-- | @'toUpperFirst' xs@ sends the first character @x@ in @xs@ to be upper case, @'toUpperFirst' "" = ""@.
+toUpperFirst :: String -> String
+toUpperFirst [] = []
+toUpperFirst (x : xs) = toUpper x : xs
+
+-- | @'segmentBy' p xs@  partitions @xs@ into segments of @'Either' [a] [a]@ where @'Right' xs'@ satisfy @p@ and
+-- @'Left' xs'@ segments satisfy @'not' . p@.
+segmentBy :: (a -> Bool) -> [a] -> [Either [a] [a]]
+segmentBy p xs = case span p xs of
+  ([], []) -> []
+  (ys, []) -> [Right ys]
+  ([], ys) -> Left seg : segmentBy p ys'
+    where
+      (seg, ys') = break p ys
+  (xs', ys) -> Right xs' : Left seg : segmentBy p ys'
+    where
+      (seg, ys') = break p ys
+
+-- | @'suffixBy' p xs@ yields @'Right' (xs', suf)@ if @suf@ is the longest suffix satisfying @p@ and @xs'@ is the rest
+-- of the rest, otherwise the string is given back as @'Left' xs@ signifying @xs@ had no suffix satisfying @p@.
+suffixBy :: forall a. (a -> Bool) -> [a] -> Either [a] ([a], [a])
+suffixBy p xs' = do
+  (pref, suf) <- foldr go (Left []) xs'
+  if null suf
+    then Left pref
+    else return (pref, suf)
+  where
+    go :: a -> Either [a] ([a], [a]) -> Either [a] ([a], [a])
+    go x (Right (xs, suf)) = Right (x : xs, suf)
+    go x (Left xs)
+      | p x = Left (x : xs)
+      | otherwise = Right ([x], xs)
+
+-- | @'typeLikeName' xs@ produces either the pascal-cased version of the string @xs@ if it begins with an alphabetical
+-- character or underscore - which is replaced with 'X'. A 'CompileError' is emitted if the starting character is
+-- non-alphabetic or if @xs == ""@.
 typeLikeName :: MonadError CompileError m => String -> m String
-typeLikeName ident@(c:cs)
-  | isUpper c = pure (camelCased ident)
-  | isLower c = pure (camelCased (toUpper c : cs))
-  | '_'  == c = pure (camelCased ('X':ident))
-typeLikeName ident = invalidTypeNameError ident
+typeLikeName "" = invalidTypeNameError "<empty name>"
+typeLikeName (x : xs)
+  | isAlpha x = case suffixBy (== '_') (x : xs) of
+      Left xs' -> return (toPascalCase xs')
+      Right (xs', suf) -> return (toPascalCase xs' <> suf)
+  | x == '_' = case suffixBy (== '_') xs of
+      Left xs' -> return ('X' : toPascalCase xs')
+      Right (xs', suf) -> return ('X' : toPascalCase xs' <> suf)
+  | otherwise = invalidTypeNameError (x : xs)
 
+-- | @'fieldLikeName' field@ is the casing transformation used to produce record selectors from message fields. If
+-- @field@ is prefixed by a span of uppercase characters then that prefix will be lowercased while the remaining string
+-- is left unchanged.
 fieldLikeName :: String -> String
-fieldLikeName ident@(c:_)
-  | isUpper c = let (prefix, suffix) = span isUpper ident
-                in map toLower prefix ++ suffix
-fieldLikeName ident = ident
+fieldLikeName "" = ""
+fieldLikeName (x : xs)
+  | isUpper x = map toLower prefix ++ suffix
+  | otherwise = x : xs
+  where (prefix, suffix) = span isUpper (x : xs)
 
 prefixedEnumFieldName :: String -> String -> String
-prefixedEnumFieldName enumName fieldName = enumName <> fieldName
+prefixedEnumFieldName enumName enumItem = enumName ++ enumItem
 
 prefixedConName :: MonadError CompileError m => String -> String -> m String
-prefixedConName msgName conName = (msgName ++) <$> typeLikeName conName
+prefixedConName msgName conName = do
+  constructor <- typeLikeName conName
+  return (msgName ++ constructor)
 
--- TODO: This should be ~:: MessageName -> FieldName -> ...; same elsewhere, the
--- String types are a bit of a hassle.
+-- | @'prefixedMethodName' service method@ produces a Haskell record selector name for the service method @method@ by
+-- joining the names @service@, @method@ under concatenation on a camel-casing transformation.
+prefixedMethodName :: MonadError CompileError m => String -> String -> m String
+prefixedMethodName _ "" = invalidTypeNameError "<empty name>"
+prefixedMethodName serviceName (x : xs)
+  | isLower x = return (fieldLikeName serviceName ++ fieldLikeName (x : xs))
+  | otherwise = do
+      method <- typeLikeName (x : xs)
+      return (fieldLikeName serviceName ++ method)
+
+-- | @'prefixedFieldName' prefix field@ constructs a Haskell record selector name by prepending @prefix@ in camel-case
+-- to the message field/service method name @field@.
 prefixedFieldName :: MonadError CompileError m => String -> String -> m String
-prefixedFieldName msgName fieldName = (fieldLikeName msgName ++) <$> typeLikeName fieldName
+prefixedFieldName msgName fieldName = do
+  field <- typeLikeName fieldName
+  return (fieldLikeName msgName ++ field)
 
 dpIdentUnqualName :: MonadError CompileError m => DotProtoIdentifier -> m String
 dpIdentUnqualName (Single name)       = pure name
@@ -494,7 +559,7 @@ getQualifiedFields :: MonadError CompileError m
 getQualifiedFields msgName msgParts = flip foldMapM msgParts $ \case
   DotProtoMessageField DotProtoField{..} -> do
     fieldName <- dpIdentUnqualName dotProtoFieldName
-    qualName  <- prefixedFieldName msgName fieldName
+    qualName <- prefixedFieldName msgName fieldName
     pure . (:[]) $ QualifiedField { recordFieldName = coerce qualName
                                   , fieldInfo = FieldNormal (coerce fieldName)
                                                             dotProtoFieldNumber
