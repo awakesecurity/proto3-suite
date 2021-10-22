@@ -433,14 +433,28 @@ suffixBy p xs' = do
 -- non-alphabetic or if @xs == ""@.
 typeLikeName :: MonadError CompileError m => String -> m String
 typeLikeName "" = invalidTypeNameError "<empty name>"
-typeLikeName (x : xs)
-  | isAlpha x = case suffixBy (== '_') (x : xs) of
-      Left xs' -> return (toPascalCase xs')
-      Right (xs', suf) -> return (toPascalCase xs' <> suf)
-  | x == '_' = case suffixBy (== '_') xs of
-      Left xs' -> return ('X' : toPascalCase xs')
-      Right (xs', suf) -> return ('X' : toPascalCase xs' <> suf)
-  | otherwise = invalidTypeNameError (x : xs)
+typeLikeName s@(x : xs)
+  | isAlpha x = pure $ case suffixBy (== '_') s of
+      Left xs' -> invalidToCamelCase $ toPascalCase xs'
+      Right (xs', suf) -> invalidToCamelCase $ toPascalCase xs' <> suf
+  | x == '_' = pure $ case suffixBy (== '_') xs of
+      Left xs' -> invalidToCamelCase $ 'X' : toPascalCase xs'
+      Right (xs', suf) -> invalidToCamelCase $ 'X' : (toPascalCase xs' <> suf)
+  | otherwise = invalidTypeNameError s
+  where
+    -- Transforms special characters that are not valid as a part of a Haskell name to CamelCase.
+    -- For instance “foo-bar---baz” will become “FooBarBaz”.
+    -- This function presumes that the first character of the initial value satisfies "isAlpha".
+    -- This must be checked outside of this function.
+    invalidToCamelCase a =
+      case span isValidNameChar a of
+        ("", "") -> ""
+        ("", cs) -> invalidToCamelCase . dropWhile (not . isValidNameChar) $ cs
+        (b : bs, cs) -> toUpper b : bs <> invalidToCamelCase cs
+
+    -- Only valid as a secondary character.
+    -- First character of a Haskell name can only be "isAlpha".
+    isValidNameChar x = isAlphaNum x || x == '_'
 
 -- | @'fieldLikeName' field@ is the casing transformation used to produce record selectors from message fields. If
 -- @field@ is prefixed by a span of uppercase characters then that prefix will be lowercased while the remaining string
