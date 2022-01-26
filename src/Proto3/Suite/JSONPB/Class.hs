@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DefaultSignatures   #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleInstances   #-}
@@ -71,6 +72,11 @@ import qualified Data.Aeson                       as A (Encoding, FromJSON (..),
 import qualified Data.Aeson.Encoding              as E
 import qualified Data.Aeson.Encoding.Internal     as E
 import qualified Data.Aeson.Internal              as A (formatError, iparse)
+#if MIN_VERSION_aeson(2,0,0)
+import qualified Data.Aeson.Key                   as A
+#else
+import qualified Data.Aeson.Encoding.Internal     as E
+#endif
 import qualified Data.Aeson.Parser                as A (eitherDecodeWith)
 import qualified Data.Aeson.Types                 as A (Object, Pair, Parser,
                                                         Series,
@@ -101,6 +107,16 @@ import           Proto3.Suite.Class               (HasDefault (def, isDefault),
 import           Proto3.Suite.Types               (Enumerated (..), Fixed (..))
 import           Proto3.Wire.Class                (ProtoEnum(..))
 import           Test.QuickCheck.Arbitrary        (Arbitrary(..))
+
+#if MIN_VERSION_aeson(2,0,0)
+type Key = A.Key
+keyFromText :: Text -> Key
+keyFromText = A.fromText
+#else
+type Key = Text
+keyFromText :: Text -> Text
+keyFromText = id
+#endif
 
 -- * Typeclass definitions
 
@@ -164,8 +180,8 @@ eitherDecode = eitherFormatError . A.eitherDecodeWith jsonEOF (A.iparse parseJSO
 class Monoid m => KeyValuePB m where
   pair :: ToJSONPB v => Text -> v -> Options -> m
 
-instance KeyValuePB A.Series where pair k v opts = E.pair k (toEncodingPB v opts)
-instance KeyValuePB [A.Pair] where pair k v opts = pure (k, toJSONPB v opts)
+instance KeyValuePB A.Series where pair k v opts = E.pair (keyFromText k) (toEncodingPB v opts)
+instance KeyValuePB [A.Pair] where pair k v opts = pure (keyFromText k, toJSONPB v opts)
 
 -- | Construct a monoidal key-value pair, using 'mempty' to represent omission
 -- of default values (unless the given 'Options' force their emission).
@@ -183,12 +199,12 @@ k .= v = mk
 -- object, or if it is present but its value is null, we produce the default
 -- protobuf value for the field type
 (.:) :: (FromJSONPB a, HasDefault a) => A.Object -> Text -> A.Parser a
-obj .: key = obj .:? key A..!= def
+obj .: key = obj .:? keyFromText key A..!= def
   where
     (.:?) = A.explicitParseFieldMaybe parseJSONPB
 
 parseField :: FromJSONPB a
-           => A.Object -> Text -> A.Parser a
+           => A.Object -> Key -> A.Parser a
 parseField = A.explicitParseField parseJSONPB
 
 -- | >>> isDefault (def @E.Encoding)
