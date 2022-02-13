@@ -10,7 +10,8 @@ where
 
 import Data.Int (Int32)
 
-import Proto3.Suite.DotProto.AST.Option (DotProtoOption, DotProtoIdentifier)
+import Proto3.Suite.DotProto.AST.Core (DotProtoIdentifier)
+import Proto3.Suite.DotProto.AST.Option (DotProtoOption)
 
 --------------------------------------------------------------------------------
 

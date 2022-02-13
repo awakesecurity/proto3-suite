@@ -27,7 +27,7 @@ module Proto3.Suite.DotProto.AST.Type
   )
 where
 
-import Proto3.Suite.DotProto.AST.Option (DotProtoIdentifier)
+import Proto3.Suite.DotProto.AST.Core (DotProtoIdentifier)
 
 --------------------------------------------------------------------------------
 

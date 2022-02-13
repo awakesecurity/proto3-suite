@@ -27,6 +27,7 @@ module Proto3.Suite.DotProto.AST
     protoMeta,
 
     -- * Re-exports
+    module Proto3.Suite.DotProto.AST.Core,
     module Proto3.Suite.DotProto.AST.Enumerate,
     module Proto3.Suite.DotProto.AST.Field,
     module Proto3.Suite.DotProto.AST.Message,
@@ -37,6 +38,7 @@ where
 
 import Data.String (IsString)
 
+import Proto3.Suite.DotProto.AST.Core
 import Proto3.Suite.DotProto.AST.Enumerate
 import Proto3.Suite.DotProto.AST.Field
 import Proto3.Suite.DotProto.AST.Message

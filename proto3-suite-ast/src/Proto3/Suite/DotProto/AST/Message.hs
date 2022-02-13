@@ -41,9 +41,10 @@ where
 
 import Data.String (IsString)
 
+import Proto3.Suite.DotProto.AST.Core (DotProtoIdentifier)
+import Proto3.Suite.DotProto.AST.Option (DotProtoOption)
 import Proto3.Suite.DotProto.AST.Enumerate (DotProtoEnumPart)
 import Proto3.Suite.DotProto.AST.Field (DotProtoField, DotProtoReservedField)
-import Proto3.Suite.DotProto.AST.Option (DotProtoOption, DotProtoIdentifier)
 
 --------------------------------------------------------------------------------
 

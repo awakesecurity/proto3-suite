@@ -25,7 +25,8 @@ where
 import Data.String (IsString)
 import Proto3.Wire.Types (FieldNumber)
 
-import Proto3.Suite.DotProto.AST.Option (DotProtoIdentifier, DotProtoOption)
+import Proto3.Suite.DotProto.AST.Core (DotProtoIdentifier)
+import Proto3.Suite.DotProto.AST.Option (DotProtoOption)
 import Proto3.Suite.DotProto.AST.Type (DotProtoType)
 
 --------------------------------------------------------------------------------
