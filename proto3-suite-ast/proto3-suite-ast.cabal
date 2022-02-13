@@ -1,0 +1,35 @@
+cabal-version:       2.4
+name:                proto3-suite
+version:             1.0.0
+-- synopsis:
+-- description:
+license:             Apache-2.0
+author:              Arista Networks <opensource@awakesecurity.com>
+maintainer:          Arista Networks <opensource@awakesecurity.com>
+copyright:           2017-2020 Awake Security, 2021 Arista Networks
+category:            Codec
+build-type:          Simple
+
+tested-with:
+  GHC == 8.10.7
+
+common common
+  default-extensions:
+    ExplicitNamespaces DerivingStrategies DerivingVia ImportQualifiedPost
+
+library
+  import:           common
+  default-language: Haskell2010
+  hs-source-dirs:   src
+
+  build-depends:
+      base        >= 4.8   && < 5.0
+    , proto3-wire >= 1.2.2 && < 1.3,
+
+  exposed-modules:
+    Proto3.Suite.DotProto.AST
+    Proto3.Suite.DotProto.AST.Enumerate
+    Proto3.Suite.DotProto.AST.Field
+    Proto3.Suite.DotProto.AST.Message
+    Proto3.Suite.DotProto.AST.Option
+    Proto3.Suite.DotProto.AST.Type
