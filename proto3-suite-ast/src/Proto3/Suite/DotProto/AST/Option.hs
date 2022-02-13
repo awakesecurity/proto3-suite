@@ -14,6 +14,10 @@ import Proto3.Suite.DotProto.AST.Core
     DotProtoValue,
   )
 
+import Text.PrettyPrint.HughesPJClass (Pretty, pPrint)
+import Text.PrettyPrint ((<+>))
+import Text.PrettyPrint qualified as PP
+
 --------------------------------------------------------------------------------
 
 -- | TODO: docs
@@ -24,3 +28,7 @@ data DotProtoOption = DotProtoOption
   , dotProtoOptionValue :: DotProtoValue
   }
   deriving stock (Eq, Ord, Show)
+
+-- | @since 1.0.0
+instance Pretty DotProtoOption where
+  pPrint (DotProtoOption key value) = pPrint key <+> PP.text "=" <+> pPrint value

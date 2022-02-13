@@ -18,6 +18,13 @@ module Proto3.Suite.DotProto.AST
     DotProtoMeta (DotProtoMeta),
     metaModulePath,
 
+    -- * Import Qualifiers
+    DotProtoImportQualifier
+      ( DotProtoImportPublic,
+        DotProtoImportWeak,
+        DotProtoImportDefault
+      ),
+
     -- * Protocol Buffers
     DotProto (DotProto),
     protoImports,
@@ -37,6 +44,11 @@ module Proto3.Suite.DotProto.AST
 where
 
 import Data.String (IsString)
+import Data.Text qualified as Text
+import qualified Turtle
+import Text.PrettyPrint.HughesPJClass  (Pretty, pPrint)
+import Text.PrettyPrint ((<+>))
+import Text.PrettyPrint qualified as PP
 
 import Proto3.Suite.DotProto.AST.Core
 import Proto3.Suite.DotProto.AST.Enumerate
@@ -64,9 +76,18 @@ newtype PackageName = PackageName
 -- @since 1.0.0
 data DotProtoImport = DotProtoImport
   { dotProtoImportQualifier :: DotProtoImportQualifier
-  , dotProtoImportPath :: FilePath
+  , dotProtoImportPath :: Turtle.FilePath
   }
   deriving stock (Eq, Ord, Show)
+
+-- @since 1.0.0
+instance Pretty DotProtoImport where
+  pPrint (DotProtoImport q i) =
+    PP.text "import" <+> pPrint q <+> (PP.text fp <> PP.text ";")
+    where
+      fp = case Text.unpack . either id id . Turtle.toText $ i of
+             [] -> show ("" :: String)
+             x  -> x
 
 --------------------------------------------------------------------------------
 
@@ -79,6 +100,12 @@ data DotProtoImportQualifier
   | DotProtoImportDefault
   deriving stock (Eq, Ord, Show)
 
+-- | @since 1.0.0
+instance Pretty DotProtoImportQualifier where
+  pPrint DotProtoImportDefault = PP.empty
+  pPrint DotProtoImportPublic  = PP.text "public"
+  pPrint DotProtoImportWeak    = PP.text "weak"
+
 --------------------------------------------------------------------------------
 
 -- | TODO: docs
@@ -88,6 +115,11 @@ data DotProtoPackageSpec
   = DotProtoPackageSpec DotProtoIdentifier
   | DotProtoNoPackage
   deriving stock (Eq, Show)
+
+-- | @since 1.0.0
+instance Pretty DotProtoPackageSpec where
+  pPrint (DotProtoPackageSpec p) = PP.text "package" <+> (pPrint p <> PP.text ";")
+  pPrint (DotProtoNoPackage)     = PP.empty
 
 --------------------------------------------------------------------------------
 

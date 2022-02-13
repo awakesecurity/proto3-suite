@@ -24,6 +24,9 @@ where
 
 import Data.String (IsString)
 import Proto3.Wire.Types (FieldNumber)
+import Text.PrettyPrint.HughesPJClass  (Pretty, pPrint)
+import Text.PrettyPrint ((<+>))
+import Text.PrettyPrint qualified as PP
 
 import Proto3.Suite.DotProto.AST.Core (DotProtoIdentifier)
 import Proto3.Suite.DotProto.AST.Option (DotProtoOption)
@@ -65,6 +68,12 @@ data DotProtoReservedField
   | FieldRange Int Int
   | ReservedIdentifier String
   deriving stock (Eq, Show)
+
+-- | @since 1.0.0
+instance Pretty DotProtoReservedField where
+  pPrint (SingleField num)      = PP.text $ show num
+  pPrint (FieldRange start end) = (PP.text $ show start) <+> PP.text "to" <+> (PP.text $ show end)
+  pPrint (ReservedIdentifier i) = PP.text $ show i
 
 --------------------------------------------------------------------------------
 

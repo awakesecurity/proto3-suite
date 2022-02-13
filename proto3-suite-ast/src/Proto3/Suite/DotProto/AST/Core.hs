@@ -14,7 +14,13 @@ module Proto3.Suite.DotProto.AST.Core
   )
 where
 
+import Data.Char (toLower)
+import Text.PrettyPrint.HughesPJClass  (Pretty, pPrint)
+import Text.PrettyPrint ((<+>))
+import Text.PrettyPrint qualified as PP
+
 import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 
 --------------------------------------------------------------------------------
 
@@ -27,6 +33,13 @@ data DotProtoIdentifier
   | Qualified DotProtoIdentifier DotProtoIdentifier
   | Anonymous -- TODO: is there a better way to represent unnamed things?
   deriving stock (Eq, Ord, Show)
+
+-- | @since 1.0.0
+instance Pretty DotProtoIdentifier where
+  pPrint (Single name)                    = PP.text name
+  pPrint (Dots (Path names))              = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> NonEmpty.toList names
+  pPrint (Qualified qualifier identifier) = PP.parens (pPrint qualifier) <> PP.text "." <> pPrint identifier
+  pPrint Anonymous                        = PP.empty
 
 --------------------------------------------------------------------------------
 
@@ -43,6 +56,14 @@ data DotProtoValue
   | FloatLit Double
   | BoolLit Bool
   deriving stock (Eq, Ord, Show)
+
+-- | @since 1.0.0
+instance Pretty DotProtoValue where
+  pPrint (Identifier value) = pPrint value
+  pPrint (StringLit  value) = PP.text $ show value
+  pPrint (IntLit     value) = PP.text $ show value
+  pPrint (FloatLit   value) = PP.text $ show value
+  pPrint (BoolLit    value) = PP.text $ toLower <$> show value
 
 --------------------------------------------------------------------------------
 
