@@ -1488,7 +1488,7 @@ dotProtoServiceD pkgIdent ctxt serviceIdent service = do
                                , patVar "sslConfig"
                                , patVar "logger"
                                , patVar "serverMaxReceiveMessageLength"
-                               , patVar "serverMaxMetdataSize"
+                               , patVar "serverMaxMetadataSize"
                                ]
                       ]
                       (HsUnGuardedRhs (apply serverLoopE [ serverOptsE ]))
