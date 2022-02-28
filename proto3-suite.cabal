@@ -58,8 +58,6 @@ library
                        Proto3.Suite.Class
                        Proto3.Suite.DotProto
                        Proto3.Suite.DotProto.Generate
-                       -- Proto3.Suite.DotProto.AST
-                       -- Proto3.Suite.DotProto.AST.Lens
                        Proto3.Suite.DotProto.Parsing
                        Proto3.Suite.DotProto.Rendering
                        Proto3.Suite.JSONPB
@@ -95,6 +93,7 @@ library
                        pretty ==1.1.*,
                        pretty-show >= 1.6.12 && < 2.0,
                        proto3-wire >= 1.2.2 && < 1.3,
+                       proto3-suite-ast,
                        QuickCheck >=2.10 && <2.15,
                        quickcheck-instances < 0.4,
                        safe ==0.3.*,

@@ -19,7 +19,7 @@ module Proto3.Suite.DotProto.AST.Message
       ),
 
     -- * Definitions
-    DotProtoDefinition (DotProtoMessage, DotProtoEnum, DotProtoService),
+    DotProtoDefinition (DotProtoEnum, DotProtoMessage, DotProtoService),
 
     -- * Services
     DotProtoServicePart
@@ -42,7 +42,11 @@ module Proto3.Suite.DotProto.AST.Message
   )
 where
 
+import Control.Lens (makePrisms)
 import Data.String (IsString)
+import Text.PrettyPrint.HughesPJClass  (Pretty, pPrint)
+import Text.PrettyPrint ((<+>))
+import Text.PrettyPrint qualified as PP
 
 import Proto3.Suite.DotProto.AST.Enumerate (DotProtoEnumPart)
 import Proto3.Suite.DotProto.AST.Field (DotProtoField, DotProtoReservedField)
@@ -94,6 +98,23 @@ data DotProtoServicePart
   | DotProtoServiceEmpty
   deriving stock (Eq, Show)
 
+-- | @since 1.0.0
+instance Pretty DotProtoServicePart where
+  pPrint = \case
+    DotProtoServiceRPCMethod RPCMethod{..} ->
+      PP.text "rpc"
+        <+> pPrint rpcMethodName
+        <+> PP.parens (pPrint rpcMethodRequestStreaming <+> pPrint rpcMethodRequestType)
+        <+> PP.text "returns"
+        <+> PP.parens (pPrint rpcMethodResponseStreaming <+> pPrint rpcMethodResponseType)
+        <+> case rpcMethodOptions of
+              [] -> PP.text ";"
+              _  -> PP.braces . PP.vcat $ topOption <$> rpcMethodOptions
+    DotProtoServiceOption option -> topOption option
+    DotProtoServiceEmpty          -> PP.empty
+    where
+      topOption o = (PP.text "option" <+> pPrint o) <> PP.text ";"
+
 --------------------------------------------------------------------------------
 
 -- | TODO: docs
@@ -118,3 +139,8 @@ data Streaming
   = Streaming
   | NonStreaming
   deriving stock (Eq, Show)
+
+-- | @since 1.0.0
+instance Pretty Streaming where
+  pPrint Streaming    = PP.text "stream"
+  pPrint NonStreaming = PP.empty

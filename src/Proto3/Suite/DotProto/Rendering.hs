@@ -19,10 +19,7 @@ module Proto3.Suite.DotProto.Rendering
   , Pretty(..)
   ) where
 
-import           Data.Char
 import qualified Data.List.NonEmpty              as NE
-import qualified Data.Text                       as T
-import           Filesystem.Path.CurrentOS       (toText)
 #if (MIN_VERSION_base(4,11,0))
 import           Prelude                         hiding ((<>))
 #endif
@@ -31,6 +28,8 @@ import           Proto3.Wire.Types               (FieldNumber (..))
 import           Text.PrettyPrint                (($$), (<+>), (<>))
 import qualified Text.PrettyPrint                as PP
 import           Text.PrettyPrint.HughesPJClass  (Pretty(..))
+
+--------------------------------------------------------------------------------
 
 -- | Options for rendering a @.proto@ file.
 data RenderingOptions = RenderingOptions
@@ -67,23 +66,10 @@ renderDotProto opts DotProto{..}
  $$ (PP.vcat $ pPrint    <$> protoImports)
  $$ (PP.vcat $ topOption <$> protoOptions)
  $$ (PP.vcat $ prettyPrintProtoDefinition opts <$> protoDefinitions)
+  where
+    topOption o = (PP.text "option" <+> pPrint o) <> PP.text ";"
 
-instance Pretty DotProtoPackageSpec where
-  pPrint (DotProtoPackageSpec p) = PP.text "package" <+> pPrint p <> PP.text ";"
-  pPrint (DotProtoNoPackage)     = PP.empty
 
-instance Pretty DotProtoImport where
-  pPrint (DotProtoImport q i) =
-    PP.text "import" <+> pPrint q <+> PP.text fp <> PP.text ";"
-    where
-      fp = case T.unpack . either id id . toText $ i of
-             [] -> show ("" :: String)
-             x  -> x
-
-instance Pretty DotProtoImportQualifier where
-  pPrint DotProtoImportDefault = PP.empty
-  pPrint DotProtoImportPublic  = PP.text "public"
-  pPrint DotProtoImportWeak    = PP.text "weak"
 
 optionAnnotation :: [DotProtoOption] -> PP.Doc
 optionAnnotation [] = PP.empty
@@ -91,12 +77,6 @@ optionAnnotation os = PP.brackets
                     . PP.hcat
                     . PP.punctuate (PP.text ", ")
                     $ pPrint <$> os
-
-topOption :: DotProtoOption -> PP.Doc
-topOption o = PP.text "option" <+> pPrint o <> PP.text ";"
-
-instance Pretty DotProtoOption where
-  pPrint (DotProtoOption key value) = pPrint key <+> PP.text "=" <+> pPrint value
 
 renderComment :: String -> PP.Doc
 renderComment = PP.vcat . map ((PP.text "//" <+>) . textIfNonempty) . lines
@@ -155,67 +135,11 @@ prettyPrintProtoDefinition opts = defn where
   enumPart _       DotProtoEnumEmpty
     = PP.empty
 
-instance Pretty DotProtoServicePart where
-  pPrint (DotProtoServiceRPCMethod RPCMethod{..})
-    =   PP.text "rpc"
-    <+> pPrint rpcMethodName
-    <+> PP.parens (pPrint rpcMethodRequestStreaming <+> pPrint rpcMethodRequestType)
-    <+> PP.text "returns"
-    <+> PP.parens (pPrint rpcMethodResponseStreaming <+> pPrint rpcMethodResponseType)
-    <+> case rpcMethodOptions of
-          [] -> PP.text ";"
-          _  -> PP.braces . PP.vcat $ topOption <$> rpcMethodOptions
-  pPrint (DotProtoServiceOption option) = topOption option
-  pPrint DotProtoServiceEmpty           = PP.empty
 
-instance Pretty Streaming where
-  pPrint Streaming    = PP.text "stream"
-  pPrint NonStreaming = PP.empty
-
-instance Pretty DotProtoIdentifier where
-  pPrint (Single name)                    = PP.text name
-  pPrint (Dots (Path names))              = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> NE.toList names
-  pPrint (Qualified qualifier identifier) = PP.parens (pPrint qualifier) <> PP.text "." <> pPrint identifier
-  pPrint Anonymous                        = PP.empty
-
-instance Pretty DotProtoValue where
-  pPrint (Identifier value) = pPrint value
-  pPrint (StringLit  value) = PP.text $ show value
-  pPrint (IntLit     value) = PP.text $ show value
-  pPrint (FloatLit   value) = PP.text $ show value
-  pPrint (BoolLit    value) = PP.text $ toLower <$> show value
-
-instance Pretty DotProtoType where
-  pPrint (Prim           ty) = pPrint ty
-  pPrint (Repeated       ty) = PP.text "repeated" <+> pPrint ty
-  pPrint (NestedRepeated ty) = PP.text "repeated" <+> pPrint ty
-  pPrint (Map keyty valuety) = PP.text "map<" <> pPrint keyty <> PP.text ", " <> pPrint valuety <> PP.text ">"
-
-instance Pretty DotProtoPrimType where
-  pPrint (Named i)  = pPrint i
-  pPrint Int32      = PP.text "int32"
-  pPrint Int64      = PP.text "int64"
-  pPrint SInt32     = PP.text "sint32"
-  pPrint SInt64     = PP.text "sint64"
-  pPrint UInt32     = PP.text "uint32"
-  pPrint UInt64     = PP.text "uint64"
-  pPrint Fixed32    = PP.text "fixed32"
-  pPrint Fixed64    = PP.text "fixed64"
-  pPrint SFixed32   = PP.text "sfixed32"
-  pPrint SFixed64   = PP.text "sfixed64"
-  pPrint String     = PP.text "string"
-  pPrint Bytes      = PP.text "bytes"
-  pPrint Bool       = PP.text "bool"
-  pPrint Float      = PP.text "float"
-  pPrint Double     = PP.text "double"
 
 instance Pretty FieldNumber where
   pPrint = PP.text . show . getFieldNumber
 
-instance Pretty DotProtoReservedField where
-  pPrint (SingleField num)      = PP.text $ show num
-  pPrint (FieldRange start end) = (PP.text $ show start) <+> PP.text "to" <+> (PP.text $ show end)
-  pPrint (ReservedIdentifier i) = PP.text $ show i
 
 -- | Render protobufs metadata as a .proto file stringy
 toProtoFile :: RenderingOptions -> DotProto -> String
