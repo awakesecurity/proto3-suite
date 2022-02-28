@@ -1,12 +1,11 @@
+{-# LANGUAGE DerivingStrategies #-}
+
 -- |
 --
 -- @since 1.0.0
-module Proto3.Suite.DotProto.AST.Core
+module Proto3.Suite.DotProto.AST.Identifier
   ( -- * Identifiers
     DotProtoIdentifier (Single, Dots, Qualified, Anonymous),
-
-    -- * Identifiers
-    DotProtoValue (Identifier, StringLit, IntLit, FloatLit, BoolLit),
 
     -- * Path
     Path (Path),
@@ -26,22 +25,6 @@ data DotProtoIdentifier
   | Dots Path
   | Qualified DotProtoIdentifier DotProtoIdentifier
   | Anonymous -- TODO: is there a better way to represent unnamed things?
-  deriving stock (Eq, Ord, Show)
-
---------------------------------------------------------------------------------
-
--- | TODO: docs
---
--- Matches the definition of `constant` in the proto3 language spec
--- These are only used as rvalues
---
--- @since 1.0.0
-data DotProtoValue
-  = Identifier DotProtoIdentifier
-  | StringLit String
-  | IntLit Int
-  | FloatLit Double
-  | BoolLit Bool
   deriving stock (Eq, Ord, Show)
 
 --------------------------------------------------------------------------------

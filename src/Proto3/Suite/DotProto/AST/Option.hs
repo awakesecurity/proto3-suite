@@ -1,3 +1,5 @@
+{-# LANGUAGE DerivingStrategies #-}
+
 -- |
 --
 -- @since 1.0.0
@@ -9,10 +11,8 @@ module Proto3.Suite.DotProto.AST.Option
   )
 where
 
-import Proto3.Suite.DotProto.AST.Core
-  ( DotProtoIdentifier (Single),
-    DotProtoValue,
-  )
+import Proto3.Suite.DotProto.AST.Identifier (DotProtoIdentifier (Single))
+import Proto3.Suite.DotProto.AST.Value (DotProtoValue)
 
 --------------------------------------------------------------------------------
 

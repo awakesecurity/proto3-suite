@@ -229,4 +229,5 @@ toProtoFileDef = toProtoFile defRenderingOptions
 
 packageFromDefs :: String -> [DotProtoDefinition] -> DotProto
 packageFromDefs package defs =
-  DotProto [] [] (DotProtoPackageSpec $ Single package) defs (DotProtoMeta fakePath)
+  let fakePath = Path ("fakePath" NE.:| [])
+   in DotProto [] [] (DotProtoPackageSpec $ Single package) defs (DotProtoMeta fakePath)

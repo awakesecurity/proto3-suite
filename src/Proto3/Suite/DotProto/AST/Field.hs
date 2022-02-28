@@ -1,3 +1,6 @@
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE DerivingStrategies #-}
+
 -- |
 --
 -- @since 1.0.0
@@ -25,7 +28,7 @@ where
 import Data.String (IsString)
 import Proto3.Wire.Types (FieldNumber)
 
-import Proto3.Suite.DotProto.AST.Core (DotProtoIdentifier)
+import Proto3.Suite.DotProto.AST.Identifier (DotProtoIdentifier)
 import Proto3.Suite.DotProto.AST.Option (DotProtoOption)
 import Proto3.Suite.DotProto.AST.Type (DotProtoType)
 

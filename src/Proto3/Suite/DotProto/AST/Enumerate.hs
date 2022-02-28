@@ -1,3 +1,6 @@
+{-# LANGUAGE ExplicitNamespaces #-}
+{-# LANGUAGE DerivingStrategies #-}
+
 -- |
 --
 -- @since 1.0.0
@@ -10,7 +13,7 @@ where
 
 import Data.Int (Int32)
 
-import Proto3.Suite.DotProto.AST.Core (DotProtoIdentifier)
+import Proto3.Suite.DotProto.AST.Identifier (DotProtoIdentifier)
 import Proto3.Suite.DotProto.AST.Option (DotProtoOption)
 
 --------------------------------------------------------------------------------
