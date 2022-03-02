@@ -27,7 +27,7 @@ module Proto3.Suite.DotProto.Generate
   , CompileArgs(..)
   , compileDotProtoFile
   , compileDotProtoFileOrDie
-  , rnProtoFile
+  , renameProtoFile
   , hsModuleForDotProto
   , renderHsModuleForDotProto
   , readDotProtoWithContext
@@ -79,7 +79,7 @@ data CompileArgs = CompileArgs
 compileDotProtoFile :: CompileArgs -> IO (Either CompileError ())
 compileDotProtoFile CompileArgs{..} = runExceptT $ do
   (dotProto, importTypeContext) <- readDotProtoWithContext includeDir inputProto
-  modulePathPieces <- traverse rnProtoFile (toModuleComponents dotProto)
+  modulePathPieces <- traverse renameProtoFile (toModuleComponents dotProto)
 
   let relativePath = FP.concat (map fromString $ NE.toList modulePathPieces) <.> "hs"
   let modulePath = outputDir </> relativePath
@@ -121,16 +121,16 @@ compileDotProtoFileOrDie args = compileDotProtoFile args >>= \case
 --
 -- ==== __Examples__
 --
--- >>> rnProtoFile @(Either CompileError) "abc_xyz"
+-- >>> renameProtoFile @(Either CompileError) "abc_xyz"
 -- Right "AbcXyz"
 --
--- >>> rnProtoFile @(Either CompileError) "abc_1bc"
+-- >>> renameProtoFile @(Either CompileError) "abc_1bc"
 -- Left (InvalidModuleName "_1bc")
 --
--- >>> rnProtoFile @(Either CompileError) "_"
+-- >>> renameProtoFile @(Either CompileError) "_"
 -- Left (InvalidModuleName "_")
-rnProtoFile :: MonadError CompileError m => String -> m String
-rnProtoFile str = do
+renameProtoFile :: MonadError CompileError m => String -> m String
+renameProtoFile str = do
   -- @underscores@ is zero or more underscore characters prefixing the remaining
   -- substring @rest.
   let (underscores, rest) = span (== '_') str
@@ -143,7 +143,7 @@ rnProtoFile str = do
       | null suffix -> pure (toUpperFirst prefix)
       | otherwise -> do
         let renamed = drop 1 underscores ++ toUpperFirst prefix
-        suffix' <- rnProtoFile suffix
+        suffix' <- renameProtoFile suffix
         pure (renamed ++ suffix')
   where
     isValidName "" = False
