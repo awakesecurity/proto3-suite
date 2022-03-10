@@ -35,7 +35,7 @@ testResolution resolve nm = do
   let res = Name.Gen.nameRes nm
   let got = resolve occ
 
-  annotate ("protobuf name: " ++ res)
+  annotate ("protobuf name: " ++ occ)
   annotate ("expected name: " ++ res)
   annotate ("resolved name: " ++ show got)
 
