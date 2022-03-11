@@ -26,6 +26,7 @@ module Proto3.Suite.DotProto.Generate
   , CompileArgs(..)
   , compileDotProtoFile
   , compileDotProtoFileOrDie
+  , renameProtoFile
   , hsModuleForDotProto
   , renderHsModuleForDotProto
   , readDotProtoWithContext
@@ -58,9 +59,12 @@ import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.AST.Lens
 import           Proto3.Suite.DotProto.Internal
 import           Proto3.Wire.Types              (FieldNumber (..))
+import Text.Parsec (Parsec, alphaNum, eof, parse, satisfy, try)
+import qualified Text.Parsec as Parsec
 import qualified Turtle
 import           Turtle                         (FilePath)
 
+--------------------------------------------------------------------------------
 
 --
 -- * Public interface
@@ -75,20 +79,21 @@ data CompileArgs = CompileArgs
 -- | Generate a Haskell module corresponding to a @.proto@ file
 compileDotProtoFile :: CompileArgs -> IO (Either CompileError ())
 compileDotProtoFile CompileArgs{..} = runExceptT $ do
-    (dotProto, importTypeContext) <- readDotProtoWithContext includeDir inputProto
+  (dotProto, importTypeContext) <- readDotProtoWithContext includeDir inputProto
+  modulePathPieces <- traverse renameProtoFile (toModuleComponents dotProto)
 
-    modulePathPieces <- traverse typeLikeName . components . metaModulePath . protoMeta $ dotProto
+  let relativePath = FP.concat (map fromString $ NE.toList modulePathPieces) <.> "hs"
+  let modulePath = outputDir </> relativePath
 
-    let relativePath = FP.concat (map fromString $ NE.toList modulePathPieces) <.> "hs"
-    let modulePath   = outputDir </> relativePath
+  Turtle.mktree (Turtle.directory modulePath)
 
-    Turtle.mktree (Turtle.directory modulePath)
+  extraInstances <- foldMapM getExtraInstances extraInstanceFiles
+  haskellModule <- renderHsModuleForDotProto extraInstances dotProto importTypeContext
 
-    extraInstances <- foldMapM getExtraInstances extraInstanceFiles
-
-    haskellModule <- renderHsModuleForDotProto extraInstances dotProto importTypeContext
-
-    liftIO (writeFile (FP.encodeString modulePath) haskellModule)
+  liftIO (writeFile (FP.encodeString modulePath) haskellModule)
+  where
+    toModuleComponents :: DotProto -> NonEmpty String
+    toModuleComponents = components . metaModulePath . protoMeta
 
 -- | Same as 'compileDotProtoFile', except terminates the program with an error
 -- message on failure.
@@ -104,6 +109,49 @@ compileDotProtoFileOrDie args = compileDotProtoFile args >>= \case
       ${errText}
     |]
   _ -> pure ()
+
+-- | Renaming protobuf file names to valid Haskell module names.
+--
+-- By convention, protobuf filenames are snake case. 'rnProtoFile' renames
+-- snake-cased protobuf filenames by:
+--
+-- * Replacing occurrences of one or more underscores followed by an
+-- alphabetical character with one less underscore.
+--
+-- * Capitalizing the first character following the string of underscores.
+--
+-- ==== __Examples__
+--
+-- >>> renameProtoFile @(Either CompileError) "abc_xyz"
+-- Right "AbcXyz"
+--
+-- >>> renameProtoFile @(Either CompileError) "abc_1bc"
+-- Left (InvalidModuleName "abc_1bc")
+--
+-- >>> renameProtoFile @(Either CompileError) "_"
+-- Left (InvalidModuleName "_")
+renameProtoFile :: MonadError CompileError m => String -> m String
+renameProtoFile filename =
+  case parse parser "" filename of
+    Left {} -> throwError (InvalidModuleName filename)
+    Right (nm, ps, sn) -> pure (toUpperFirst nm ++ rename ps ++ sn)
+  where
+    rename :: [(String, String)] -> String
+    rename = foldMap $ \(us, nm) ->
+      drop 1 us ++ toUpperFirst nm
+
+    parser :: Parsec String () (String, [(String, String)], String)
+    parser = do
+      nm <- pName
+      ps <- Parsec.many (try pNamePart)
+      sn <- Parsec.many (satisfy (== '_'))
+      pure (nm, ps, sn) <* eof
+
+    pNamePart :: Parsec String () (String, String)
+    pNamePart = liftA2 (,) (Parsec.many1 (satisfy (== '_'))) pName
+
+    pName :: Parsec String () String
+    pName = liftA2 (:) (satisfy isAlpha) (Parsec.many alphaNum)
 
 -- | Compile a 'DotProto' AST into a 'String' representing the Haskell
 --   source of a module implementing types and instances for the .proto

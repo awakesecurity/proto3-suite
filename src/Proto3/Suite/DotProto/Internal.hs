@@ -365,10 +365,11 @@ isMap _ = False
 -- * Name resolution
 --
 
-
-
-concatDotProtoIdentifier :: MonadError CompileError m
-                         => DotProtoIdentifier -> DotProtoIdentifier -> m DotProtoIdentifier
+concatDotProtoIdentifier ::
+  MonadError CompileError m =>
+  DotProtoIdentifier ->
+  DotProtoIdentifier ->
+  m DotProtoIdentifier
 concatDotProtoIdentifier i1 i2 = case (i1, i2) of
   (Qualified{}  ,  _           ) -> internalError "concatDotProtoIdentifier: Qualified"
   (_            , Qualified{}  ) -> internalError "concatDotProtoIdentifier Qualified"
@@ -391,17 +392,35 @@ toPascalCase xs = foldMap go (segmentBy (== '_') xs)
 
 -- | @'toCamelCase' xs@ sends a snake-case string @xs@ to a camel-cased string.
 toCamelCase :: String -> String
-toCamelCase xs = case toPascalCase xs of
-  "" -> ""
-  x : xs' -> toLower x : xs'
+toCamelCase xs =
+  case toPascalCase xs of
+    "" -> ""
+    x : xs' -> toLower x : xs'
 
--- | @'toUpperFirst' xs@ sends the first character @x@ in @xs@ to be upper case, @'toUpperFirst' "" = ""@.
+-- | Uppercases the first character of a string.
+--
+-- ==== __Examples__
+--
+-- >>> toUpperFirst "abc"
+-- "Abc"
+--
+-- >>> toUpperFirst ""
+-- ""
 toUpperFirst :: String -> String
-toUpperFirst [] = []
+toUpperFirst "" = ""
 toUpperFirst (x : xs) = toUpper x : xs
 
--- | @'segmentBy' p xs@  partitions @xs@ into segments of @'Either' [a] [a]@ where @'Right' xs'@ satisfy @p@ and
--- @'Left' xs'@ segments satisfy @'not' . p@.
+-- | @'segmentBy' p xs@  partitions @xs@ into segments of @'Either' [a] [a]@
+-- with:
+--
+-- * 'Right' sublists containing elements satisfying @p@, otherwise;
+--
+-- * 'Left' sublists containing elements that do not satisfy @p@
+--
+-- ==== __Examples__
+--
+-- >>> segmentBy (\c -> c == '_') "abc_123_xyz"
+-- [Left "abc",Right "_",Left "123",Right "_",Left "xyz"]
 segmentBy :: (a -> Bool) -> [a] -> [Either [a] [a]]
 segmentBy p xs = case span p xs of
   ([], []) -> []
@@ -454,7 +473,7 @@ typeLikeName s@(x : xs)
 
     -- Only valid as a secondary character.
     -- First character of a Haskell name can only be "isAlpha".
-    isValidNameChar x = isAlphaNum x || x == '_'
+    isValidNameChar ch = isAlphaNum ch || ch == '_'
 
 -- | @'fieldLikeName' field@ is the casing transformation used to produce record selectors from message fields. If
 -- @field@ is prefixed by a span of uppercase characters then that prefix will be lowercased while the remaining string
@@ -625,18 +644,19 @@ oneofSubDisjunctBinder = intercalate "_or_" . fmap oneofSubBinder
 --
 
 data CompileError
-  = CircularImport          FilePath
-  | CompileParseError       ParseError
-  | InternalError           String
-  | InvalidPackageName      DotProtoIdentifier
-  | InvalidMethodName       DotProtoIdentifier
-  | InvalidTypeName         String
-  | InvalidMapKeyType       String
+  = CircularImport FilePath
+  | CompileParseError ParseError
+  | InternalError String
+  | InvalidPackageName DotProtoIdentifier
+  | InvalidMethodName DotProtoIdentifier
+  | InvalidModuleName String
+  | InvalidTypeName String
+  | InvalidMapKeyType String
   | NoPackageDeclaration
-  | NoSuchType              DotProtoIdentifier
+  | NoSuchType DotProtoIdentifier
   | NonzeroFirstEnumeration String DotProtoIdentifier Int32
-  | EmptyEnumeration        String
-  | Unimplemented           String
+  | EmptyEnumeration String
+  | Unimplemented String
   deriving (Show, Eq)
 
 
