@@ -10,6 +10,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
 
 import Hedgehog (MonadTest, Property, annotate, forAll, property, (===))
+import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
 import Test.Proto.Generate.Name.Gen (GenName)
@@ -48,5 +49,5 @@ testResolution resolve nm = do
 
 resolve'protofile :: Property
 resolve'protofile = property do
-  nm <- forAll (Name.Gen.protofile (Range.linear 1 10))
+  nm <- forAll $ Gen.sized (Name.Gen.protofile . Range.linear 1 . fromIntegral)
   testResolution (renameProtoFile @(Either CompileError)) nm

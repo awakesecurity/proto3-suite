@@ -1,6 +1,10 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ImportQualifiedPost #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
 module Test.Proto.Generate.Name.Gen
@@ -15,7 +19,6 @@ import Hedgehog.Range qualified as Range
 
 import Control.Applicative
 import Data.Char qualified as Char
-import Data.List qualified as List
 
 -- -----------------------------------------------------------------------------
 
@@ -45,16 +48,31 @@ data GenName = GenName
 
 -- | Generate the name of a Protobuf file and the Haskell module it should be
 -- resolved to.
-protofile :: MonadGen m => Range Int -> m GenName
+protofile :: forall m. MonadGen m => Range Int -> m GenName
 protofile len = do
-  parts <- Gen.list len $ Gen.sized \sz -> do
-    let rng = Range.linear 1 (fromIntegral sz)
-    liftA2 (:) Gen.alpha (alphaNum rng)
+  (psize, usize) <- Gen.sized \sz -> do
+    x <- Gen.int (Range.linear 0 (fromIntegral sz))
+    y <- Gen.int (Range.linear 0 (fromIntegral sz))
+    pure (x, y)
 
-  let nameOcc = List.intercalate "_" parts
-  let nameRes = concatMap upperFirst parts
+  nm <- Gen.sized (ident . Range.linear 1 . fromIntegral)
+  ps <- nameParts (Range.linear 0 psize)
+  us <- underscores (Range.linear 0 usize)
+
+  let nameOcc = nm ++ concatMap fst ps ++ us
+  let nameRes = upperFirst nm ++ concatMap snd ps ++ us
   pure GenName {nameOcc, nameRes}
   where
+    ident :: Range Int -> m String
+    ident = liftA2 (:) Gen.alpha . alphaNum
+
+    nameParts :: Range Int -> m [(String, String)]
+    nameParts rng = Gen.list len do
+      n <- Gen.sized (Gen.int . Range.linear 1 . fromIntegral)
+      nm <- ident rng
+      us <- underscores (Range.linear 1 (fromIntegral n))
+      pure (us ++ nm, drop 1 us ++ upperFirst nm)
+
     upperFirst :: String -> String
     upperFirst (c : cs) = Char.toUpper c : cs
     upperFirst "" = ""
@@ -63,6 +81,10 @@ protofile len = do
 --
 -- Primitive Name Generation Combinators
 --
+
+-- | Generate a string made up of underscores.
+underscores :: MonadGen m => Range Int -> m String
+underscores rng = Gen.list rng (pure '_')
 
 -- | Generate a name containing alphabetical and numeric characters
 -- @'a' .. 'z'@, @'A' .. 'Z'@, and @'0' .. '1'@.
