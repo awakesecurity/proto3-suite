@@ -59,6 +59,8 @@ import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.AST.Lens
 import           Proto3.Suite.DotProto.Internal
 import           Proto3.Wire.Types              (FieldNumber (..))
+import Text.Parsec (Parsec, alphaNum, eof, parse, satisfy, try)
+import qualified Text.Parsec as Parsec
 import qualified Turtle
 import           Turtle                         (FilePath)
 
@@ -124,29 +126,32 @@ compileDotProtoFileOrDie args = compileDotProtoFile args >>= \case
 -- Right "AbcXyz"
 --
 -- >>> renameProtoFile @(Either CompileError) "abc_1bc"
--- Left (InvalidModuleName "_1bc")
+-- Left (InvalidModuleName "abc_1bc")
 --
 -- >>> renameProtoFile @(Either CompileError) "_"
 -- Left (InvalidModuleName "_")
 renameProtoFile :: MonadError CompileError m => String -> m String
-renameProtoFile str = do
-  -- @underscores@ is zero or more underscore characters prefixing the remaining
-  -- substring @rest.
-  let (underscores, rest) = span (== '_') str
-
-  unless (isValidName rest) $ do
-    throwError (InvalidModuleName str)
-
-  case break (== '_') rest of
-    (prefix, suffix)
-      | null suffix -> pure (toUpperFirst prefix)
-      | otherwise -> do
-        let renamed = drop 1 underscores ++ toUpperFirst prefix
-        suffix' <- renameProtoFile suffix
-        pure (renamed ++ suffix')
+renameProtoFile filename =
+  case parse parser "" filename of
+    Left {} -> throwError (InvalidModuleName filename)
+    Right (nm, ps, sn) -> pure (toUpperFirst nm ++ rename ps ++ sn)
   where
-    isValidName "" = False
-    isValidName (c : _) = isAlpha c
+    rename :: [(String, String)] -> String
+    rename = foldMap $ \(us, nm) ->
+      drop 1 us ++ toUpperFirst nm
+
+    parser :: Parsec String () (String, [(String, String)], String)
+    parser = do
+      nm <- pName
+      ps <- Parsec.many (try pNamePart)
+      sn <- Parsec.many (satisfy (== '_'))
+      pure (nm, ps, sn) <* eof
+
+    pNamePart :: Parsec String () (String, String)
+    pNamePart = liftA2 (,) (Parsec.many1 (satisfy (== '_'))) pName
+
+    pName :: Parsec String () String
+    pName = liftA2 (:) (satisfy isAlpha) (Parsec.many alphaNum)
 
 -- | Compile a 'DotProto' AST into a 'String' representing the Haskell
 --   source of a module implementing types and instances for the .proto
