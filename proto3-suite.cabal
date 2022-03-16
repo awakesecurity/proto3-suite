@@ -38,6 +38,12 @@ flag swagger-wrapper-format
   Manual:        True
 
 library
+  hs-source-dirs:   src
+  default-language: Haskell2010
+  ghc-options:
+    -O2
+    -Wall
+    -Widentities
 
   if flag(dhall)
     exposed-modules:   Proto3.Suite.DhallPB
@@ -54,22 +60,21 @@ library
     else
       hs-source-dirs:  src/no-swagger-wrapper-format
 
-  exposed-modules:     Proto3.Suite
-                       Proto3.Suite.Class
-                       Proto3.Suite.DotProto
-                       Proto3.Suite.DotProto.Generate
-                       Proto3.Suite.DotProto.AST
-                       Proto3.Suite.DotProto.AST.Lens
-                       Proto3.Suite.DotProto.Parsing
-                       Proto3.Suite.DotProto.Rendering
-                       Proto3.Suite.JSONPB
-                       Proto3.Suite.Tutorial
-                       Proto3.Suite.Types
-
-                       Google.Protobuf.Timestamp
-
-                       Proto3.Suite.DotProto.Internal
-                       Proto3.Suite.JSONPB.Class
+  exposed-modules:
+    Google.Protobuf.Timestamp
+    Proto3.Suite
+    Proto3.Suite.Class
+    Proto3.Suite.DotProto
+    Proto3.Suite.DotProto.AST
+    Proto3.Suite.DotProto.AST.Lens
+    Proto3.Suite.DotProto.Generate
+    Proto3.Suite.DotProto.Internal
+    Proto3.Suite.DotProto.Parsing
+    Proto3.Suite.DotProto.Rendering
+    Proto3.Suite.JSONPB
+    Proto3.Suite.JSONPB.Class
+    Proto3.Suite.Tutorial
+    Proto3.Suite.Types
 
   build-depends:       aeson >= 1.1.1.0 && < 2.1,
                        aeson-pretty,
@@ -106,9 +111,6 @@ library
                        vector >=0.11 && < 0.13
   if !impl(ghc >= 8.0)
     build-depends:     semigroups >= 0.18 && < 0.20
-  hs-source-dirs:      src
-  default-language:    Haskell2010
-  ghc-options:         -O2 -Wall
 
 test-suite tests
   default-language: Haskell2010
