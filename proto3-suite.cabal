@@ -131,6 +131,12 @@ test-suite tests
     if flag(swagger-wrapper-format)
       cpp-options:       -DSWAGGER_WRAPPER_FORMAT
 
+  autogen-modules:
+    TestProto
+    TestProtoImport
+    TestProtoOneof
+    TestProtoOneofImport
+    TestProtoNestedMessage
   other-modules:
     ArbitraryGeneratedTestTypes
     TestCodeGen
