@@ -144,11 +144,14 @@ simpleDecodeDotProto format =
 dumpAST :: [FilePath] -> FilePath -> IO ()
 dumpAST incs fp = either (error . show) putStrLn <=< runExceptT $ do
   (dp, tc) <- readDotProtoWithContext incs fp
-  renderHsModuleForDotProto mempty dp tc
+  renderHsModuleForDotProto theStringType mempty dp tc
 
 hsTmpDir, pyTmpDir :: IsString a => a
 hsTmpDir = "test-files/hs-tmp"
 pyTmpDir = "test-files/py-tmp"
+
+theStringType :: StringType
+theStringType = StringType "Data.Text.Lazy" "Text"
 
 compileTestDotProtos :: IO ()
 compileTestDotProtos = do
@@ -173,6 +176,7 @@ compileTestDotProtos = do
                    , extraInstanceFiles = []
                    , outputDir = hsTmpDir
                    , inputProto = protoFile
+                   , stringType = theStringType
                    }
 
     let cmd = T.concat [ "protoc --python_out="
