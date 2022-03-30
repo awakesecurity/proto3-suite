@@ -74,8 +74,6 @@ import qualified Data.Aeson.Encoding.Internal     as E
 import qualified Data.Aeson.Internal              as A (formatError, iparse)
 #if MIN_VERSION_aeson(2,0,0)
 import qualified Data.Aeson.Key                   as A
-#else
-import qualified Data.Aeson.Encoding.Internal     as E
 #endif
 import qualified Data.Aeson.Parser                as A (eitherDecodeWith)
 import qualified Data.Aeson.Types                 as A (Object, Pair, Parser,
