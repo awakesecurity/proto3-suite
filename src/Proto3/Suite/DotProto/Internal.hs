@@ -322,17 +322,17 @@ definitionTypeContext _ _ = pure mempty
 isMessage :: TypeContext -> DotProtoIdentifier -> Bool
 isMessage ctxt n = Just DotProtoKindMessage == (dotProtoTypeInfoKind <$> M.lookup n ctxt)
 
+boolOption :: String -> [DotProtoOption] -> Maybe Bool
+boolOption desired opts =
+    case find (\(DotProtoOption name _) -> name == Single desired) opts of
+        Just (DotProtoOption _ (BoolLit x)) -> Just x
+        _ -> Nothing
+
 isPacked :: [DotProtoOption] -> Bool
-isPacked opts =
-    case find (\(DotProtoOption name _) -> name == Single "packed") opts of
-        Just (DotProtoOption _ (BoolLit x)) -> x
-        _ -> False
+isPacked = fromMaybe False . boolOption "packed"
 
 isUnpacked :: [DotProtoOption] -> Bool
-isUnpacked opts =
-    case find (\(DotProtoOption name _) -> name == Single "packed") opts of
-        Just (DotProtoOption _ (BoolLit x)) -> not x
-        _ -> False
+isUnpacked = maybe False not . boolOption "packed"
 
 -- | Returns 'True' if the given primitive type is packable. The 'TypeContext'
 -- is used to distinguish Named enums and messages, only the former of which are
