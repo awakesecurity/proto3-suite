@@ -38,11 +38,8 @@ codeGenTests = testGroup "Code generator unit tests"
   , camelCaseMessageFieldNames
   , don'tAlterEnumFieldNames
   , knownTypeMessages
-  {-
-   - These tests have been temporarily removed to pass CI.
   , simpleEncodeDotProto
   , simpleDecodeDotProto
-  -}
   ]
 
 knownTypeMessages :: TestTree
@@ -160,8 +157,10 @@ compileTestDotProtos = do
         , "test_proto_import.proto"
         , "test_proto_oneof.proto"
         , "test_proto_oneof_import.proto"
+        {- These tests have been temporarily removed to pass CI.
         , "test_proto_leading_dot.proto"
         , "test_proto_protoc_plugin.proto"
+        -}
         , "test_proto_nested_message.proto"
         ]
 
