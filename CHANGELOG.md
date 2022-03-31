@@ -1,0 +1,20 @@
+* [BREAKING CHANGE: Proto3 standard compatibility improvements](https://github.com/awakesecurity/proto3-suite/pull/143)
+  * This is a breaking change due to adding a new `DotProtoMessageOption`
+    constructor to `DotProtoMessagePart`, which requires updating any
+    exhaustive pattern matches
+* [BREAKING CHANGE: Don't capitalize first character of prefixed service method names](https://github.com/awakesecurity/proto3-suite/pull/171)
+  * This is a breaking change because the generated Haskell code will have
+    slightly different field names for service methods
+* [BREAKING CHANGE: Remove `Optional` from Protobuf AST](https://github.com/awakesecurity/proto3-suite/pull/165)
+  * This is a technically breaking change because we no longer support the
+    `optional` keyword, but this wasn't supported by proto3 anyway
+* [Support GHC 9.0.2](https://github.com/awakesecurity/proto3-suite/pull/176)
+* [Fix dashes in Haskell module names](https://github.com/awakesecurity/proto3-suite/pull/173)
+  * This prevents the code generator from generating invalid Haskell module
+    names with dashes in them
+* [Add `Message` instance for wrapped types](https://github.com/awakesecurity/proto3-suite/pull/162)
+  * This adds `Message` instances for several scalar Haskell types that
+    correspond to the standard `*Wrapper` protobuf types
+* [Use Swagger schema `format` to distinguish wrapper types from primitives](https://github.com/awakesecurity/proto3-suite/pull/167)
+* [Update codegen to add the `serverMaxMetadataSize` field to generated `ServiceOptions`](https://github.com/awakesecurity/proto3-suite/pull/181)
+* [Fix module renaming in `compile-proto-file`](https://github.com/awakesecurity/proto3-suite/pull/183)
