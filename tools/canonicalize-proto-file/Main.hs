@@ -17,7 +17,7 @@ import           Control.Monad.Except
 import           Data.List                        (sort, sortOn)
 import qualified Data.List.NonEmpty              as NE
 import           Data.RangeSet.List               (fromRangeList, toRangeList)
-import           Data.Semigroup                   (Min(..), Option(..))
+import           Data.Semigroup                   (Min(..))
 import           Options.Generic
 import           Prelude                          hiding (FilePath)
 import           Proto3.Suite.DotProto.AST
@@ -147,7 +147,7 @@ instance Canonicalize DotProtoMessagePart where
 
 instance CanonicalRank [DotProtoField] (Maybe FieldNumber) where
   canonicalRank =
-    fmap getMin . getOption . foldMap (Option . fmap Min . canonicalRank)
+    fmap getMin . foldMap (fmap Min . canonicalRank)
 
 instance Canonicalize [DotProtoField] where
   canonicalize = canonicalSort . filter keep
