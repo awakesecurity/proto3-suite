@@ -41,6 +41,12 @@ in {
               };
             in haskellPackagesNew.callCabal2nix "proto3-wire" source { };
 
+          proto3-suite-ast =
+            haskellPackagesNew.callCabal2nix
+              "proto3-suite-ast"
+              (../../proto3-suite-ast)
+              { };
+
           proto3-suite-base =
             let
               cabal2nixFlags = pkgsNew.lib.concatStringsSep " " [
