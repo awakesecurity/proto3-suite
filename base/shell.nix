@@ -6,7 +6,7 @@ let
     inherit compiler;
   };
 
-in pkgs.haskellPackages.proto3-suite.env.overrideAttrs (old: {
+in pkgs.haskellPackages.proto3-base.env.overrideAttrs (old: {
   buildInputs = (old.buildInputs or []) ++ [
     pkgs.cabal-install
     pkgs.python36Packages.virtualenv
