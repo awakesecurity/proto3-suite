@@ -1,0 +1,234 @@
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE MagicHash         #-}
+{-# LANGUAGE OverloadedLists   #-}
+{-# LANGUAGE OverloadedStrings #-}
+
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
+module Main where
+
+import           ArbitraryGeneratedTestTypes ()
+import qualified Data.ByteString             as B
+import qualified Data.ByteString.Char8       as BC
+import qualified Data.ByteString.Lazy        as BL
+import           Data.Either                 (isRight)
+import qualified Data.List.NonEmpty          as NE
+import           Data.String
+import           GHC.Exts                    (fromList, Proxy#)
+import           Proto3.Suite
+import           Proto3.Wire.Decode          (ParseError)
+import qualified Proto3.Wire.Decode          as Decode
+import           Proto3.Wire.Types           as P
+import qualified Test.DocTest
+import           Test.QuickCheck             (Arbitrary, Property, arbitrary,
+                                              oneof)
+import           Test.Tasty
+import           Test.Tasty.HUnit            (assertBool, testCase, (@?=))
+import           Test.Tasty.QuickCheck       (testProperty, (===))
+import           TestCodeGen
+import qualified TestProto                   as TP
+
+-- -----------------------------------------------------------------------------
+
+main :: IO ()
+main = defaultMain tests
+
+tests :: TestTree
+tests = testGroup "Tests"
+  [ docTests
+  , qcProperties
+  , encodeUnitTests
+  , decodeUnitTests
+  , parserUnitTests
+  , codeGenTests
+  ]
+
+-- -----------------------------------------------------------------------------
+-- Doctests
+
+docTests :: TestTree
+docTests = testCase "doctests" $ do
+  putStrLn "Running all doctests..."
+  Test.DocTest.doctest
+    [ "-isrc"
+    , "-igen"
+    , "-itests/arbgen"
+    , "-itests"
+    , "src/Proto3/Suite.hs"  -- No tests, but this lets us import it.
+    , "src/Proto3/Suite/JSONPB/Class.hs"
+    , "tests/TestCodeGen.hs"
+    ]
+
+--------------------------------------------------------------------------------
+-- QuickCheck properties
+
+type MsgProp a = a -> Property
+
+qcProperties :: TestTree
+qcProperties = testGroup "QuickCheck properties"
+  [ qcPropDecEncId
+  ]
+
+-- | Verifies that @decode . encode = id@ for various message types
+qcPropDecEncId :: TestTree
+qcPropDecEncId = testGroup "Property: (decode . encode = id) for various message types"
+  [ testProperty "Trivial"             (prop :: MsgProp TP.Trivial)
+  , testProperty "MultipleFields"      (prop :: MsgProp TP.MultipleFields)
+  , testProperty "WithEnum"            (prop :: MsgProp TP.WithEnum)
+  , testProperty "WithNesting"         (prop :: MsgProp TP.WithNesting)
+  , testProperty "WithRepetition"      (prop :: MsgProp TP.WithRepetition)
+  , testProperty "WithRepeatedSigned"  (prop :: MsgProp TP.WithRepeatedSigned)
+  , testProperty "WithFixed"           (prop :: MsgProp TP.WithFixed)
+  , testProperty "WithBytes"           (prop :: MsgProp TP.WithBytes)
+  , testProperty "AllPackedTypes"      (prop :: MsgProp TP.AllPackedTypes)
+  , testProperty "SignedInts"          (prop :: MsgProp TP.SignedInts)
+  , testProperty "WithNestingRepeated" (prop :: MsgProp TP.WithNestingRepeated)
+  , deeplyNest prop 1000
+  ]
+  where
+    prop :: (Message a, Arbitrary a, Eq a, Show a) => MsgProp a
+    prop msg = msg === (dec . enc) msg
+      where
+        dec = either (error . ("error parsing: " <>) . show) id . fromByteString
+        enc = BL.toStrict . toLazyByteString
+
+    deeplyNest :: MsgProp TP.Wrapped -> Int -> TestTree
+    deeplyNest pf 0 = testProperty "Deeply nested" pf
+    deeplyNest pf n = deeplyNest (pf . TP.Wrapped . Just) (n-1)
+
+
+--------------------------------------------------------------------------------
+-- Encoding
+
+encodeUnitTests :: TestTree
+encodeUnitTests = testGroup "Encoder unit tests"
+  [ encoderMatchesGoldens
+  ]
+
+-- TODO: We should consider generating the reference encodings
+-- (test-files/make_reference_encodings.py) as a part of running the test suite
+-- rather than having them in the repository.
+encoderMatchesGoldens :: TestTree
+encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
+  [ check "trivial.bin"               $ TP.Trivial 123
+  , check "trivial_negative.bin"      $ TP.Trivial (-1)
+  , check "multiple_fields.bin"       $ TP.MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
+  , check "signedints.bin"            $ TP.SignedInts (-42) (-84)
+  , check "with_nesting.bin"          $ TP.WithNesting $ Just $ TP.WithNesting_Nested "123abc" 123456 [] []
+  , check "with_enum0.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM1
+  , check "with_enum1.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM2
+  , check "with_repetition.bin"       $ TP.WithRepetition [1..5]
+  , check "with_repeated_signed.bin"  $ TP.WithRepeatedSigned [0,1,-1,2,-2] [0,1,-1,2,-2]
+  , check "with_bytes.bin"            $ TP.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
+  , check "with_nesting_repeated.bin" $ TP.WithNestingRepeated
+                                          [ TP.WithNestingRepeated_Nested "123abc" 123456 [1,2,3,4] [5,6,7,8]
+                                          , TP.WithNestingRepeated_Nested "abc123" 654321 [0,9,8,7] [6,5,4,3]
+                                          ]
+  ]
+  where
+    check fp v = testCase fp $ do
+      goldenEncoding <- BL.readFile (testFilesPfx <> fp)
+      toLazyByteString v @?= goldenEncoding
+
+--------------------------------------------------------------------------------
+-- Decoding
+
+decodeUnitTests :: TestTree
+decodeUnitTests = testGroup "Decoder unit tests"
+  [ decodeFromGoldens
+  ]
+
+decodeFromGoldens :: TestTree
+decodeFromGoldens = testGroup "Decode golden encodings into key/value lists"
+  [ check "trivial.bin"
+  , check "trivial_negative.bin"
+  , check "multiple_fields.bin"
+  , check "signedints.bin"
+  , check "with_nesting.bin"
+  , check "with_enum0.bin"
+  , check "with_enum1.bin"
+  , check "with_repetition.bin"
+  , check "with_bytes.bin"
+  , check "with_nesting_repeated.bin"
+  ]
+  where
+    check fp = testCase fp $ do
+      kvs <- Decode.decodeWire <$> B.readFile (testFilesPfx <> fp)
+      assertBool ("parsing " <> fp <> " into a key-value list succeeds") (isRight kvs)
+
+--------------------------------------------------------------------------------
+-- Parser
+
+parserUnitTests :: TestTree
+parserUnitTests = testGroup "Parser unit tests"
+  [ parseFromGoldens
+  ]
+
+parseFromGoldens :: TestTree
+parseFromGoldens = testGroup "Parse golden encodings"
+  [ check "trivial.bin"               $ TP.Trivial 123
+  , check "multiple_fields.bin"       $ TP.MultipleFields 1.23 (-0.5) 123 1234567890 "Hello, world!" True
+  , check "signedints.bin"            $ TP.SignedInts (-42) (-84)
+  , check "with_nesting.bin"          $ TP.WithNesting $ Just $ TP.WithNesting_Nested "123abc" 123456 [] []
+  , check "with_enum0.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM1
+  , check "with_enum1.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM2
+  , check "with_repetition.bin"       $ TP.WithRepetition [1..5]
+  , check "with_repeated_signed.bin"  $ TP.WithRepeatedSigned [0,1,-1,2,-2] [0,1,-1,2,-2]
+  , check "with_fixed.bin"            $ TP.WithFixed 16 (-123) 4096 (-4096)
+  , check "with_bytes.bin"            $ TP.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
+  , check "with_packing.bin"          $ TP.WithPacking [1,2,3] [1,2,3]
+  , check "all_packed_types.bin"      $ TP.AllPackedTypes
+                                          [1,2,3]
+                                          [1,2,3]
+                                          [-1,-2,-3]
+                                          [-1,-2,-3]
+                                          (fromList [1..3])
+                                          (fromList [1..3])
+                                          [1.0,2.0]
+                                          [1.0,-1.0]
+                                          (fromList [1,2,3])
+                                          (fromList [1,2,3])
+                                          [False,True]
+                                          (Enumerated . Right <$> [TP.EFLD0, TP.EFLD1])
+                                          (Enumerated . Right <$> [TP.EFLD0, TP.EFLD1])
+  , check "with_nesting_repeated.bin" $ TP.WithNestingRepeated
+                                          [ TP.WithNestingRepeated_Nested "123abc" 123456 [1,2,3,4] [5,6,7,8]
+                                          , TP.WithNestingRepeated_Nested "abc123" 654321 [0,9,8,7] [6,5,4,3]
+                                          ]
+  , -- Checks parsing repeated embedded messages when one is expected (i.e.,
+    -- this tests correct merging; this value was encoded as a
+    -- WithNestingRepeated).
+    check "with_nesting_repeated.bin" $ TP.WithNesting $ Just $ TP.WithNesting_Nested "abc123" 654321 [1,2,3,4,0,9,8,7] [5,6,7,8,6,5,4,3]
+  , -- Checks that embedded message merging works correctly when fields have
+    -- default values; this value was encoded as a WithNestingRepeatedInts
+    check "with_nesting_ints.bin"     $ TP.WithNestingInts $ Just $ TP.NestedInts 2 2
+  ]
+  where
+    check fp = testCase fp . testParser (testFilesPfx <> fp) fromByteString
+
+testParser :: (Show a, Eq a)
+           => FilePath -> (B.ByteString -> Either ParseError a) -> a -> IO ()
+testParser fp p reference = do
+  bs <- B.readFile fp
+  case p bs of
+    Left err        -> error $ "Got error: " ++ show err
+    Right ourResult -> ourResult @?= reference
+
+--------------------------------------------------------------------------------
+-- Helpers
+
+dotProtoFor :: (Named a, Message a) => Proxy# a -> DotProto
+dotProtoFor proxy = DotProto [] [] DotProtoNoPackage
+  [ DotProtoMessage
+      "" (Single (nameOf proxy)) (DotProtoMessageField <$> dotProto proxy)
+  ]
+  (DotProtoMeta (Path $ "mypath" NE.:| []))
+
+showDotProtoFor :: (Named a, Message a) => Proxy# a -> IO ()
+showDotProtoFor proxy = putStrLn . toProtoFileDef $ dotProtoFor proxy
+
+instance Arbitrary WireType where
+  arbitrary = oneof $ map return [Varint, P.Fixed32, P.Fixed64, LengthDelimited]
+
+testFilesPfx :: IsString a => a
+testFilesPfx = "test-files/"

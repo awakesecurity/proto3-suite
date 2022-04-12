@@ -24,4 +24,7 @@ jobs:
         with:
           name: awakesecurity
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix-build --attr proto3-suite --argstr compiler "${{ matrix.compiler }}" --arg enableDhall true
+      - run: nix-build --attr proto3-compile --argstr compiler "${{ matrix.compiler }}"
+      - run: nix-build --attr proto3-base --argstr compiler "${{ matrix.compiler }}"
+      - run: nix-build --attr proto3-dhall --argstr compiler "${{ matrix.compiler }}"
+      - run: nix-build --attr proto3-swagger --argstr compiler "${{ matrix.compiler }}"

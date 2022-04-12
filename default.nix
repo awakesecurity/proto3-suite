@@ -1,16 +1,17 @@
 { compiler ? "ghc8104"
-, enableDhall ? false
-, enableSwagger ? true
-, swaggerWrapperFormat ? false
 }:
 
 let
   pkgs = import ./nix/pkgs.nix {
-    inherit compiler enableDhall enableSwagger swaggerWrapperFormat;
+    inherit compiler;
   };
 
 in {
-  proto3-suite-boot = pkgs.haskellPackages.proto3-suite-boot;
+  proto3-compile = pkgs.haskellPackages.proto3-compile;
 
-  proto3-suite = pkgs.haskellPackages.proto3-suite;
+  proto3-base = pkgs.haskellPackages.proto3-base;
+
+  proto3-dhall = pkgs.haskellPackages.proto3-dhall;
+
+  proto3-swagger = pkgs.haskellPackages.proto3-swagger;
 }

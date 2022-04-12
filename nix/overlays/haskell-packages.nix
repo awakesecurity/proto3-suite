@@ -1,7 +1,4 @@
 { compiler
-, enableDhall
-, enableSwagger
-, swaggerWrapperFormat
 }:
 
 pkgsNew: pkgsOld:
@@ -16,6 +13,41 @@ let
         sha256 = "06j7wpvj54khw0z10fjyi31kpafkr6hi1k0di13k1xp8kywvfyx8";
       };
     in (import source { inherit (pkgsNew) lib; }).gitignoreSource;
+
+  cgArtifacts = { pkgsNew, haskellPackagesNew, part, integrations }:
+    let
+      test-files = gitignoreSource (../.. + "/${part}/test-files");
+      pkgName = "proto3-" + part;
+    in
+      pkgsNew.runCommand (pkgName + "-test-cg-artifacts") { } ''
+        mkdir -p $out/protos
+
+        cp -r ${test-files}/. $out/protos/.
+
+        cd $out
+
+        build () {
+          echo "[${pkgName}-test-cg-artifacts] Compiling proto-file/$1"
+          ${haskellPackagesNew.proto3-compile}/bin/compile-proto-file \
+            --out $out \
+            --includeDir "$2" \
+            --proto "$1" \
+            ${integrations}
+        }
+
+        for proto in $(find ${test-files} -name 'test_*.proto'); do
+          build ''${proto#${test-files}/} ${test-files}
+        done
+
+        echo "[${pkgName}-test-cg-artifacts] Protobuf CG complete"
+      '';
+
+  copyGeneratedCode = { pkgsNew }: cgArt: ''
+    echo "Copying CG artifacts from ${cgArt} into ./gen/"
+    mkdir -p gen
+    ${pkgsNew.rsync}/bin/rsync --recursive --checksum ${cgArt}/ gen
+    chmod -R u+w gen
+  '';
 
 in {
   haskellPackages = pkgsOld.haskell.packages."${compiler}".override (old: {
@@ -41,49 +73,19 @@ in {
               };
             in haskellPackagesNew.callCabal2nix "proto3-wire" source { };
 
-          proto3-suite-base =
-            let
-              cabal2nixFlags = pkgsNew.lib.concatStringsSep " " [
-                (if enableDhall then "-fdhall" else "")
-                (if enableSwagger then "" else "-f-swagger")
-                (if swaggerWrapperFormat then "-fswagger-wrapper-format" else "")
-              ];
-            in
-            (haskellPackagesNew.callCabal2nixWithOptions
-              "proto3-suite"
-              (gitignoreSource ../../.)
-              cabal2nixFlags
-              { }
-            ).overrideAttrs (oldAttrs: {
-              pname = "proto3-suite-base";
+          proto3-compile =
+            haskellPackagesNew.callCabal2nix
+              "proto3-compile"
+              (gitignoreSource ../../compile)
+              { };
 
-              configureFlags = (old.configureFlags or [ ])
-                ++ (if enableDhall then [ "-fdhall" ] else [ ])
-                ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ])
-                ++ (if swaggerWrapperFormat then [ "-fswagger-wrapper-format" ] else [ "" ]);
-            });
-
-          proto3-suite-boot =
+          proto3-base =
             pkgsNew.haskell.lib.overrideCabal
-              haskellPackagesNew.proto3-suite-base
-              (oldArgs: {
-                pname = "proto3-suite-boot";
-
-                configureFlags = (oldArgs.configureFlags or [ ])
-                  ++ [ "--disable-optimization" ];
-
-                doCheck = false;
-
-                doHaddock = false;
-
-                enableLibraryProfiling = false;
-
-                enableExecutableProfiling = false;
-              });
-
-          proto3-suite =
-            pkgsNew.haskell.lib.overrideCabal
-              haskellPackagesNew.proto3-suite-base
+              ( haskellPackagesNew.callCabal2nix
+                  "proto3-base"
+                  (gitignoreSource ../../base)
+                  { }
+              )
               (oldArgs:
                 let
                   inherit (pkgsNew) protobuf;
@@ -91,64 +93,88 @@ in {
                   python =
                     pkgsNew.python.withPackages (pkgs: [ pkgs.protobuf ]);
 
-                  ghc =
-                    haskellPackagesNew.ghcWithPackages
-                      (pkgs: (oldArgs.testHaskellDepends or [ ]) ++ [
-                        haskellPackagesNew.proto3-suite-boot
-                      ]);
-
-                  test-files = (gitignoreSource ../../test-files);
-
-                  cg-artifacts = pkgsNew.runCommand "proto3-suite-test-cg-artifacts" { } ''
-                    mkdir -p $out/protos
-
-                    cp -r ${test-files}/. $out/protos/.
-
-                    cd $out
-
-                    build () {
-                      echo "[proto3-suite-test-cg-artifacts] Compiling proto-file/$1"
-                      ${haskellPackagesNew.proto3-suite-boot}/bin/compile-proto-file \
-                        --out $out \
-                        --includeDir "$2" \
-                        --proto "$1"
-                    }
-
-                    for proto in $(find ${test-files} -name 'test_*.proto'); do
-                      build ''${proto#${test-files}/} ${test-files}
-                    done
-
-                    echo "[proto3-suite-test-cg-artifacts] Protobuf CG complete"
-                  '';
-
-                  copyGeneratedCode = ''
-                    echo "Copying CG  artifacts from ${cg-artifacts} into ./gen/"
-                    mkdir -p gen
-                    ${pkgsNew.rsync}/bin/rsync \
-                      --recursive \
-                      --checksum \
-                      ${cg-artifacts}/ gen
-                    chmod -R u+w gen
-                  '';
+                  cg-artifacts = cgArtifacts {
+                    inherit pkgsNew haskellPackagesNew;
+                    part = "base";
+                    integrations = "";
+                  };
 
                 in
                 {
-                  pname = "proto3-suite";
-
-                  postPatch = (oldArgs.postPatch or "") + copyGeneratedCode;
+                  postPatch = (oldArgs.postPatch or "") +
+                    copyGeneratedCode { inherit pkgsNew; } cg-artifacts;
 
                   testHaskellDepends =
                     (oldArgs.testHaskellDepends or [ ]) ++ [
-                      pkgsNew.ghc
-                      haskellPackagesNew.proto3-suite-boot
+                      haskellPackagesNew.proto3-compile
                       python
                       protobuf
                     ];
 
                   shellHook = (oldArgs.shellHook or "") + ''
-                    ${copyGeneratedCode}
+                    ${copyGeneratedCode { inherit pkgsNew; } cg-artifacts}
 
-                    export PATH=${haskellPackagesNew.cabal-install}/bin:${ghc}/bin:${python}/bin:${protobuf}/bin''${PATH:+:}$PATH
+                    export PATH=${haskellPackagesNew.cabal-install}/bin:${python}/bin:${protobuf}/bin''${PATH:+:}$PATH
+                  '';
+                }
+              );
+
+          proto3-dhall =
+            pkgsNew.haskell.lib.overrideCabal
+              ( haskellPackagesNew.callCabal2nix
+                  "proto3-dhall"
+                  (gitignoreSource ../../dhall)
+                  { }
+              )
+              (oldArgs:
+                let
+                  inherit (pkgsNew) protobuf;
+
+                  cg-artifacts = cgArtifacts {
+                    inherit pkgsNew haskellPackagesNew;
+                    part = "dhall";
+                    integrations = "--enableDhall";
+                  };
+
+                in
+                {
+                  postPatch = (oldArgs.postPatch or "") +
+                    copyGeneratedCode { inherit pkgsNew; } cg-artifacts;
+
+                  shellHook = (oldArgs.shellHook or "") + ''
+                    ${copyGeneratedCode { inherit pkgsNew; } cg-artifacts}
+
+                    export PATH=${haskellPackagesNew.cabal-install}/bin''${PATH:+:}$PATH
+                  '';
+                }
+              );
+
+          proto3-swagger =
+            pkgsNew.haskell.lib.overrideCabal
+              ( haskellPackagesNew.callCabal2nix
+                  "proto3-swagger"
+                  (gitignoreSource ../../swagger)
+                  { }
+              )
+              (oldArgs:
+                let
+                  inherit (pkgsNew) protobuf;
+
+                  cg-artifacts = cgArtifacts {
+                    inherit pkgsNew haskellPackagesNew;
+                    part = "swagger";
+                    integrations = "--enableSwagger";
+                  };
+
+                in
+                {
+                  postPatch = (oldArgs.postPatch or "") +
+                    copyGeneratedCode { inherit pkgsNew; } cg-artifacts;
+
+                  shellHook = (oldArgs.shellHook or "") + ''
+                    ${copyGeneratedCode { inherit pkgsNew; } cg-artifacts}
+
+                    export PATH=${haskellPackagesNew.cabal-install}/bin''${PATH:+:}$PATH
                   '';
                 }
               );

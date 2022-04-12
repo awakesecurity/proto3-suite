@@ -1,18 +1,27 @@
 # `proto3-suite`
 
-[![Hackage](https://img.shields.io/hackage/v/proto3-suite.svg?logo=haskell&label=proto3-suite)](https://hackage.haskell.org/package/proto3-suite)
+[![Hackage](https://img.shields.io/hackage/v/proto3-suite.svg?logo=haskell&label=proto3-compile)](https://hackage.haskell.org/package/proto3-compile)
+[![Hackage](https://img.shields.io/hackage/v/proto3-suite.svg?logo=haskell&label=proto3-base)](https://hackage.haskell.org/package/proto3-base)
+[![Hackage](https://img.shields.io/hackage/v/proto3-suite.svg?logo=haskell&label=proto3-dhall)](https://hackage.haskell.org/package/proto3-dhall)
+[![Hackage](https://img.shields.io/hackage/v/proto3-suite.svg?logo=haskell&label=proto3-swagger)](https://hackage.haskell.org/package/proto3-swagger)
 [![Build Status](https://github.com/awakesecurity/proto3-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/awakesecurity/proto3-suite/actions/workflows/ci.yml)
 
-This package defines tools for working with protocol buffers version 3 in
-Haskell.
-
-This library provides a higher-level API to [the `proto3-wire` library](https://github.com/awakesecurity/proto3-wire)
+These packages define tools for working with protocol buffers version 3 in
+Haskell, including a higher-level API to
+[the `proto3-wire` library](https://github.com/awakesecurity/proto3-wire)
 that supports:
 
 - Type classes for encoding and decoding messages, and instances for all wire
   formats identified in the specification
 - A higher-level approach to encoding and decoding, based on `GHC.Generics`
 - A way of creating `.proto` files from Haskell types
+
+Typically ne would generate Haskell code from `.proto` files using
+the `compile-proto-file` executable provided by `proto3-compile`,
+then build that generated code against the `proto3-base` library.
+
+If you enable Dhall and/or Swagger support, then the generated code
+also depends upon `proto3-dhall` and/or `proto3-swagger`, respectively.
 
 See [the `Proto3.Suite.Tutorial` module](https://hackage.haskell.org/package/proto3-suite/docs/Proto3-Suite-Tutorial.html)
 for more details.
@@ -25,13 +34,21 @@ The Nix shell provides an incremental build environment (but see below for
 testing). From the root of this repository, run:
 
 ```bash
+$ cd compile
 $ nix-shell
 [nix-shell]$ cabal build
+...
+$ exit
+$ cd ../suite
+$ nix-shell
+[nix-shell]$ cabal build
+...
 ```
 
 Once your source code compiles and you want to test, run this instead:
 
 ```bash
+$ cd suite
 $ nix-shell
 [nix-shell]$ cabal configure --enable-tests
 [nix-shell]$ cabal build
@@ -44,10 +61,13 @@ Building with Nix is simple, but not incremental. From the root of this
 repository, run:
 
 ```bash
-$ nix-build --attr proto3-suite
+$ nix-build --attr proto3-compile
+$ nix-build --attr proto3-base
+$ nix-build --attr proto3-dhall
+$ nix-build --attr proto3-swagger
 ```
 
-The build products will be available via the `./result` symlink.
+After each step the build products will be available via the `./result` symlink.
 
 ### Stack
 
@@ -58,13 +78,14 @@ Building the library and executable components is straightforward. From the root
 of this repository, run:
 
 ```bash
+$ cd suite
 $ stack build
 ```
 
 Building and running tests is more complicated when using Stack. You'll need to
-use the `compile-proto-file` executable you just compiled to convert
-`test_*.proto` files to Haskell modules, by running the following from the root
-of this repository:
+use the `compile-proto-file` executable built in the `compile` directory to
+convert `test_*.proto` files to Haskell modules, by running the following from
+the root of this repository:
 
 ```bash
 $ mkdir gen
@@ -96,13 +117,13 @@ To install the `compile-proto-file` and `canonicalize-proto-file` executables,
 run the following commmand from the root of this repository:
 
 ```bash
-$ nix-env --file default.nix --install --attr proto3-suite
+$ nix-env --file default.nix --install --attr proto3-compile
 ```
 
 To uninstall, removing the executables from your Nix user profile `PATH`, run:
 
 ```bash
-$ nix-env --uninstall proto3-suite
+$ nix-env --uninstall proto3-compile
 ```
 
 ## Using `compile-proto-file`
@@ -110,7 +131,8 @@ $ nix-env --uninstall proto3-suite
 ```bash
 $ compile-proto-file --help
 Usage: compile-proto-file [--includeDir DIR] [--extraInstanceFile FILE]
-                          --proto FILE --out DIR
+                          --proto FILE --out DIR [--enableDhall] 
+                          [--enableSwagger]
   Compiles a .proto file to a Haskell module
 
 Available options:
@@ -128,6 +150,8 @@ Available options:
                            will be written (directory is created if it does not
                            exist; note that files in the output directory may be
                            overwritten!)
+  --enableDhall            Generate code supporting Dhall interpret and inject
+  --enableSwagger          Generate code supporting Swagger
 ```
 
 `compile-proto-file` bases the name (and hence, path) of the generated Haskell

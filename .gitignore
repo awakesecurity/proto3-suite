@@ -3,6 +3,7 @@
 Setup.hs
 cabal.sandbox.config
 cabal.project.local
+cabal.project.local~*
 dist/
 dist-newstyle/
 .stack-work/
@@ -13,7 +14,7 @@ result-*
 test-files/test_proto_pb2.py
 test-files/test_proto_import_pb2.py
 # Auto-generated when creating test .bins
-test-files/test_files/
+base/test-files/test_files/
 *.hi
 # Ignore Emacs backup files
 *~
