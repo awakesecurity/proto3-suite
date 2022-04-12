@@ -23,6 +23,7 @@ copyright:           2017-2020 Awake Security, 2022 Arista Networks
 category:            Codec
 build-type:          Simple
 data-files:          test-files/*.bin
+extra-source-files:  CHANGELOG.md
 
 library
 
@@ -41,7 +42,7 @@ library
                        base >=4.9 && <5.0,
                        base64-bytestring >= 1.0.0.1 && < 1.3,
                        binary >=0.8.3,
-                       bytestring >=0.10.6.0 && <0.11.0,
+                       bytestring >=0.10.6.0 && <0.12.0,
                        deepseq ==1.4.*,
                        containers >=0.5 && < 0.7,
                        proto3-compile == 0.6.*,
@@ -74,7 +75,7 @@ library tests-gen
 
   build-depends:
       base >=4.9 && <5.0
-    , bytestring >=0.10.6.0 && <0.11.0
+    , bytestring >=0.10.6.0 && <0.12.0
     , containers >=0.5 && < 0.7
     , deepseq ==1.4.*
     , generic-arbitrary
@@ -92,7 +93,7 @@ executable tests-decode
   hs-source-dirs:      tests
   default-language:    Haskell2010
   build-depends:       base >=4.9 && <5.0
-                     , bytestring >=0.10.6.0 && <0.11.0
+                     , bytestring >=0.10.6.0 && <0.12.0
                      , containers >=0.5 && < 0.7
                      , proto3-base
                      , tasty >= 0.11 && <1.5
@@ -105,7 +106,7 @@ executable tests-encode
   hs-source-dirs:      tests
   default-language:    Haskell2010
   build-depends:       base >=4.9 && <5.0
-                     , bytestring >=0.10.6.0 && <0.11.0
+                     , bytestring >=0.10.6.0 && <0.12.0
                      , containers >=0.5 && < 0.7
                      , proto3-base
                      , tests-gen
@@ -127,7 +128,7 @@ test-suite tests
 
   build-depends:
       base >=4.9 && <5.0
-    , bytestring >=0.10.6.0 && <0.11.0
+    , bytestring >=0.10.6.0 && <0.12.0
     , containers >=0.5 && < 0.7
     , doctest
     , proto3-compile == 0.6.*
