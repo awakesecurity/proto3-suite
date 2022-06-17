@@ -129,8 +129,13 @@ dieLines (Turtle.textToLines -> msg) = do
 -- >>> toModulePath "foo/FiLeName_underscore.and.then.some.dots.proto"
 -- Right (Path {components = "Foo" :| ["FiLeName_underscore","And","Then","Some","Dots"]})
 --
+#if MIN_VERSION_turtle(1,6,0)
+-- >>> toModulePath "foo/bar/././baz/../boggle.proto"
+-- Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
+#else
 -- >>> toModulePath "foo/bar/././baz/../boggle.proto"
 -- Right (Path {components = "Foo" :| ["Bar","Boggle"]})
+#endif
 --
 -- >>> toModulePath "./foo.proto"
 -- Right (Path {components = "Foo" :| []})
