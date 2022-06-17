@@ -37,7 +37,6 @@ import           Control.Monad
 import           Data.Int                  (Int32)
 import qualified Data.List.NonEmpty        as NE
 import           Data.String               (IsString)
-import qualified Filesystem.Path.CurrentOS as FP
 import           Numeric.Natural
 import           Prelude                   hiding (FilePath)
 import           Proto3.Wire.Types         (FieldNumber (..))
@@ -91,7 +90,7 @@ data DotProtoImport = DotProtoImport
 instance Arbitrary DotProtoImport where
     arbitrary = do
       dotProtoImportQualifier <- arbitrary
-      let dotProtoImportPath = FP.empty
+      let dotProtoImportPath = mempty
       return (DotProtoImport {..})
 
 data DotProtoImportQualifier

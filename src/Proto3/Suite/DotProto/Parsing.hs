@@ -27,7 +27,6 @@ import Control.Monad.Fail
 import qualified Data.List.NonEmpty as NE
 import Data.Functor
 import qualified Data.Text as T
-import qualified Filesystem.Path.CurrentOS as FP
 import Proto3.Suite.DotProto.AST
 import Proto3.Wire.Types (FieldNumber(..))
 import Text.Parsec (parse, ParseError)
@@ -57,7 +56,7 @@ parseProtoWithFile modulePath filePath = parse (runProtoParser (topLevel moduleP
 -- relative to some @--includeDir@.
 parseProtoFile :: Turtle.MonadIO m
                => Path -> Turtle.FilePath -> m (Either ParseError DotProto)
-parseProtoFile modulePath (FP.encodeString -> fp) =
+parseProtoFile modulePath (Turtle.encodeString -> fp) =
   parseProtoWithFile modulePath fp <$> Turtle.liftIO (readFile fp)
 
 ----------------------------------------
@@ -212,7 +211,7 @@ import_ = do symbol "import"
              qualifier <- option DotProtoImportDefault $
                                  symbol "weak" $> DotProtoImportWeak
                              <|> symbol "public" $> DotProtoImportPublic
-             target <- FP.fromText . T.pack <$> stringLit
+             target <- Turtle.fromText . T.pack <$> stringLit
              semi
              return $ DotProtoImport qualifier target
 

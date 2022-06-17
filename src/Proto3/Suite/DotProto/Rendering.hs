@@ -22,7 +22,6 @@ module Proto3.Suite.DotProto.Rendering
 import           Data.Char
 import qualified Data.List.NonEmpty              as NE
 import qualified Data.Text                       as T
-import           Filesystem.Path.CurrentOS       (toText)
 #if (MIN_VERSION_base(4,11,0))
 import           Prelude                         hiding ((<>))
 #endif
@@ -31,6 +30,7 @@ import           Proto3.Wire.Types               (FieldNumber (..))
 import           Text.PrettyPrint                (($$), (<+>), (<>))
 import qualified Text.PrettyPrint                as PP
 import           Text.PrettyPrint.HughesPJClass  (Pretty(..))
+import           Turtle                          (toText)
 
 -- | Options for rendering a @.proto@ file.
 data RenderingOptions = RenderingOptions

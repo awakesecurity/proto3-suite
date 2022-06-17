@@ -20,9 +20,11 @@ let
 in {
   haskellPackages = pkgsOld.haskell.packages."${compiler}".override (old: {
     overrides =
-      pkgsNew.lib.composeExtensions
+      pkgsNew.lib.fold pkgsNew.lib.composeExtensions
         (old.overrides or (_: _: { }))
-        (haskellPackagesNew: haskellPackagesOld: {
+        [ (pkgsNew.haskell.lib.packagesFromDirectory { directory = ../packages; })
+
+          (haskellPackagesNew: haskellPackagesOld: {
           range-set-list =
             pkgsNew.haskell.lib.overrideCabal
               haskellPackagesOld.range-set-list
@@ -152,6 +154,7 @@ in {
                   '';
                 }
               );
-        });
+          })
+        ];
   });
 }
