@@ -48,8 +48,6 @@ import           Data.Ord                       (comparing)
 import qualified Data.Set                       as S
 import           Data.String                    (fromString)
 import qualified Data.Text                      as T
-import           Filesystem.Path.CurrentOS      ((</>), (<.>))
-import qualified Filesystem.Path.CurrentOS      as FP
 import           Language.Haskell.Parser        (ParseResult(..), parseModule)
 import           Language.Haskell.Pretty
 import           Language.Haskell.Syntax
@@ -62,7 +60,7 @@ import           Proto3.Wire.Types              (FieldNumber (..))
 import Text.Parsec (Parsec, alphaNum, eof, parse, satisfy, try)
 import qualified Text.Parsec as Parsec
 import qualified Turtle
-import           Turtle                         (FilePath)
+import           Turtle                         (FilePath, (</>), (<.>))
 
 --------------------------------------------------------------------------------
 
@@ -82,7 +80,7 @@ compileDotProtoFile CompileArgs{..} = runExceptT $ do
   (dotProto, importTypeContext) <- readDotProtoWithContext includeDir inputProto
   modulePathPieces <- traverse renameProtoFile (toModuleComponents dotProto)
 
-  let relativePath = FP.concat (map fromString $ NE.toList modulePathPieces) <.> "hs"
+  let relativePath = mconcat (map fromString $ NE.toList modulePathPieces) <.> "hs"
   let modulePath = outputDir </> relativePath
 
   Turtle.mktree (Turtle.directory modulePath)
@@ -90,7 +88,7 @@ compileDotProtoFile CompileArgs{..} = runExceptT $ do
   extraInstances <- foldMapM getExtraInstances extraInstanceFiles
   haskellModule <- renderHsModuleForDotProto extraInstances dotProto importTypeContext
 
-  liftIO (writeFile (FP.encodeString modulePath) haskellModule)
+  liftIO (writeFile (Turtle.encodeString modulePath) haskellModule)
   where
     toModuleComponents :: DotProto -> NonEmpty String
     toModuleComponents = components . metaModulePath . protoMeta
@@ -223,7 +221,7 @@ getExtraInstances
     => FilePath -> m ([HsImportDecl], [HsDecl])
 getExtraInstances extraInstanceFile = do
 
-  contents <- liftIO (readFile (FP.encodeString extraInstanceFile))
+  contents <- liftIO (readFile (Turtle.encodeString extraInstanceFile))
 
   case parseModule contents of
     ParseOk (HsModule _srcloc _mod _es idecls decls) -> do

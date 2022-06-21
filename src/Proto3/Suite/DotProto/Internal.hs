@@ -34,8 +34,6 @@ import qualified Data.Map                  as M
 import           Data.Maybe                (fromMaybe)
 import qualified Data.Text                 as T
 import           Data.Tuple                (swap)
-import           Filesystem.Path.CurrentOS ((</>))
-import qualified Filesystem.Path.CurrentOS as FP
 import qualified NeatInterpolation         as Neat
 import           Prelude                   hiding (FilePath)
 import           Proto3.Suite.DotProto.AST
@@ -45,7 +43,8 @@ import           Proto3.Wire.Types         (FieldNumber (..))
 import           System.FilePath           (isPathSeparator)
 import           Text.Parsec               (ParseError)
 import qualified Turtle
-import           Turtle                    (ExitCode (..), FilePath, Text)
+import           Turtle                    (ExitCode (..), FilePath, Text,
+                                            (</>))
 import           Turtle.Format             ((%))
 import qualified Turtle.Format             as F
 
@@ -130,8 +129,13 @@ dieLines (Turtle.textToLines -> msg) = do
 -- >>> toModulePath "foo/FiLeName_underscore.and.then.some.dots.proto"
 -- Right (Path {components = "Foo" :| ["FiLeName_underscore","And","Then","Some","Dots"]})
 --
+#if MIN_VERSION_turtle(1,6,0)
+-- >>> toModulePath "foo/bar/././baz/../boggle.proto"
+-- Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
+#else
 -- >>> toModulePath "foo/bar/././baz/../boggle.proto"
 -- Right (Path {components = "Foo" :| ["Bar","Boggle"]})
+#endif
 --
 -- >>> toModulePath "./foo.proto"
 -- Right (Path {components = "Foo" :| []})
@@ -140,16 +144,16 @@ dieLines (Turtle.textToLines -> msg) = do
 -- >>> toModulePath ".foo.proto"
 -- Right (Path {components = "Foo" :| []})
 toModulePath :: FilePath -> Either String Path
-toModulePath fp0@(fromMaybe fp0 . FP.stripPrefix "./" -> fp)
+toModulePath fp0@(fromMaybe fp0 . Turtle.stripPrefix "./" -> fp)
   | Turtle.absolute fp
     = Left "expected include-relative path"
   | Turtle.extension fp /= Just "proto"
     = Left "expected .proto suffix"
   | otherwise
-    = case FP.stripPrefix "../" fp of
+    = case Turtle.stripPrefix "../" fp of
         Just{}  -> Left "expected include-relative path, but the path started with ../"
         Nothing
-          | T.isInfixOf ".." . Turtle.format F.fp . FP.collapse $ fp
+          | T.isInfixOf ".." . Turtle.format F.fp . Turtle.collapse $ fp
             -> Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
           | otherwise
             -> maybe (Left "empty path after canonicalization") (Right . Path)
@@ -161,7 +165,7 @@ toModulePath fp0@(fromMaybe fp0 . FP.stripPrefix "./" -> fp)
              . concatMap (T.splitOn ".")
              . T.split isPathSeparator
              . Turtle.format F.fp
-             . FP.collapse
+             . Turtle.collapse
              . Turtle.dropExtension
              $ fp
 
