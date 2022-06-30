@@ -18,4 +18,4 @@ test-files/test_files/
 # Ignore Emacs backup files
 *~
 # Ignore code generation artifacts
-gen/
+gen/*.hs
