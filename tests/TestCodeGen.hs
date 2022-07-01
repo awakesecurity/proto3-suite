@@ -162,6 +162,7 @@ compileTestDotProtos = do
         , "test_proto_protoc_plugin.proto"
         -}
         , "test_proto_nested_message.proto"
+        , "test_proto_wrappers.proto"
         ]
 
   forM_ protoFiles $ \protoFile -> do

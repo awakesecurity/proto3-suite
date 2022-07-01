@@ -68,6 +68,7 @@ library
                        Proto3.Suite.Types
 
                        Google.Protobuf.Timestamp
+                       Google.Protobuf.Wrappers.Polymorphic
 
                        Proto3.Suite.DotProto.Internal
                        Proto3.Suite.JSONPB.Class

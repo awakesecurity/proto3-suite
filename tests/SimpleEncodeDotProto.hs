@@ -12,6 +12,7 @@ import           TestProto
 import qualified TestProtoImport
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
+import qualified TestProtoWrappers
 
 outputMessage :: Message a => a -> IO ()
 outputMessage msg =
@@ -195,6 +196,71 @@ testCase19 = do
                        , mapTestSigned = M.fromList [(1,2),(3,4),(5,6)]
                        }
 
+testCase_DoubleValue :: IO ()
+testCase_DoubleValue = do
+  let emit = outputMessage . TestProtoWrappers.TestDoubleValue
+  emit Nothing
+  emit (Just 3.5)
+
+testCase_FloatValue :: IO ()
+testCase_FloatValue = do
+  let emit = outputMessage . TestProtoWrappers.TestFloatValue
+  emit Nothing
+  emit (Just 2.5)
+
+testCase_Int64Value :: IO ()
+testCase_Int64Value = do
+  let emit = outputMessage . TestProtoWrappers.TestInt64Value
+  emit Nothing
+  emit (Just 0)
+  emit (Just maxBound)
+  emit (Just (-1))
+  emit (Just minBound)
+
+testCase_UInt64Value :: IO ()
+testCase_UInt64Value = do
+  let emit = outputMessage . TestProtoWrappers.TestUInt64Value
+  emit Nothing
+  emit (Just 0)
+  emit (Just maxBound)
+
+testCase_Int32Value :: IO ()
+testCase_Int32Value = do
+  let emit = outputMessage . TestProtoWrappers.TestInt32Value
+  emit Nothing
+  emit (Just 0)
+  emit (Just maxBound)
+  emit (Just (-1))
+  emit (Just minBound)
+
+testCase_UInt32Value :: IO ()
+testCase_UInt32Value = do
+  let emit = outputMessage . TestProtoWrappers.TestUInt32Value
+  emit Nothing
+  emit (Just 0)
+  emit (Just maxBound)
+
+testCase_BoolValue :: IO ()
+testCase_BoolValue = do
+  let emit = outputMessage . TestProtoWrappers.TestBoolValue
+  emit Nothing
+  emit (Just False)
+  emit (Just True)
+
+testCase_StringValue :: IO ()
+testCase_StringValue = do
+  let emit = outputMessage . TestProtoWrappers.TestStringValue
+  emit Nothing
+  emit (Just "")
+  emit (Just "abc")
+
+testCase_BytesValue :: IO ()
+testCase_BytesValue = do
+  let emit = outputMessage . TestProtoWrappers.TestBytesValue
+  emit Nothing
+  emit (Just "")
+  emit (Just "012")
+
 
 main :: IO ()
 main = do testCase1
@@ -223,5 +289,16 @@ main = do testCase1
 
           -- Map tests
           testCase19
+
+          -- Wrappers
+          testCase_DoubleValue
+          testCase_FloatValue
+          testCase_Int64Value
+          testCase_UInt64Value
+          testCase_Int32Value
+          testCase_UInt32Value
+          testCase_BoolValue
+          testCase_StringValue
+          testCase_BytesValue
 
           outputMessage (MultipleFields 0 0 0 0 "All tests complete" False)

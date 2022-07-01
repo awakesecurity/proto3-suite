@@ -337,13 +337,20 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
       pure $ importTypeContext <> qualifiedTypeContext <> transitiveImportsTC
 
 -- | Given a type context, generates the Haskell import statements necessary
---   to import all the required types.
+--   to import all the required types.  Excludes "google.protobuf.wrappers"
+--   because the generated code does not actually make use of wrapper types
+--   as such; instead it uses @Maybe a@, where @a@ is the wrapped type.
 ctxtImports :: MonadError CompileError m => TypeContext -> m [HsImportDecl]
 ctxtImports = fmap (map mkImport . nub)
             . traverse (modulePathModName . dotProtoTypeInfoModulePath)
+            . filter (not . isWrappers . dotProtoTypeInfoPackage)
             . M.elems
   where
     mkImport modName = importDecl_ modName True Nothing Nothing
+
+    isWrappers (DotProtoPackageSpec
+                  (Dots (Path ("google" :| ["protobuf", "wrappers"])))) = True
+    isWrappers _ = False
 
 --------------------------------------------------------------------------------
 --
@@ -364,13 +371,12 @@ msgTypeFromDpTypeInfo ctxt DotProtoTypeInfo{..} ident = do
     identName <- qualifiedMessageTypeName ctxt dotProtoTypeInfoParent ident
     pure $ HsTyCon (Qual modName (HsIdent identName))
 
-haskellName, jsonpbName, grpcName, protobufName, protobufWrapperName, proxyName :: String -> HsQName
+haskellName, jsonpbName, grpcName, protobufName, proxyName :: String -> HsQName
 haskellName  name = Qual (Module "Hs")         (HsIdent name)
 jsonpbName   name = Qual (Module "HsJSONPB")   (HsIdent name)
 grpcName     name = Qual (Module "HsGRPC")     (HsIdent name)
 protobufName name = Qual (Module "HsProtobuf") (HsIdent name)
 proxyName    name = Qual (Module "Proxy")      (HsIdent name)
-protobufWrapperName name = Qual (Module "Google.Protobuf.Wrappers") (HsIdent name)
 
 modulePathModName :: MonadError CompileError m => Path -> m Module
 modulePathModName (Path comps) = Module . intercalate "." <$> traverse typeLikeName (NE.toList comps)
@@ -478,15 +484,15 @@ dptToHsTypeWrapped opts =
       Float    -> pure $ primType_ "Float"
       Double   -> pure $ primType_ "Double"
       Named (Dots (Path ("google" :| ["protobuf", x])))
-        | x == "Int32Value" -> pure $ protobufWrapperType_ x
-        | x == "Int64Value" -> pure $ protobufWrapperType_ x
-        | x == "UInt32Value" -> pure $ protobufWrapperType_ x
-        | x == "UInt64Value" -> pure $ protobufWrapperType_ x
-        | x == "StringValue" -> pure $ protobufWrapperType_ x
-        | x == "BytesValue" -> pure $ protobufWrapperType_ x
-        | x == "BoolValue" -> pure $ protobufWrapperType_ x
-        | x == "FloatValue" -> pure $ protobufWrapperType_ x
-        | x == "DoubleValue" -> pure $ protobufWrapperType_ x
+        | x == "Int32Value" -> pure $ protobufWrapperType_ "Int32"
+        | x == "Int64Value" -> pure $ protobufWrapperType_ "Int64"
+        | x == "UInt32Value" -> pure $ protobufWrapperType_ "Word32"
+        | x == "UInt64Value" -> pure $ protobufWrapperType_ "Word64"
+        | x == "StringValue" -> pure $ protobufWrapperType_ "Text"
+        | x == "BytesValue" -> pure $ protobufWrapperType_ "ByteString"
+        | x == "BoolValue" -> pure $ protobufWrapperType_ "Bool"
+        | x == "FloatValue" -> pure $ protobufWrapperType_ "Float"
+        | x == "DoubleValue" -> pure $ protobufWrapperType_ "Double"
       Named msgName ->
         case M.lookup msgName ctxt of
           Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
@@ -1815,6 +1821,7 @@ defaultImports usesGrpc =
     , importDecl_ (m "Data.Word")             & qualified haskellNS  & selecting  [i"Word16", i"Word32", i"Word64"]
     , importDecl_ (m "GHC.Enum")              & qualified haskellNS  & everything
     , importDecl_ (m "GHC.Generics")          & qualified haskellNS  & everything
+    , importDecl_ (m "Google.Protobuf.Wrappers.Polymorphic") & qualified protobufNS & selecting [HsIThingAll (HsIdent "Wrapped")]
     , importDecl_ (m "Unsafe.Coerce")         & qualified haskellNS  & everything
     ]
     <>
@@ -1917,7 +1924,8 @@ uvar_ = HsVar . unqual_
 protobufType_, primType_, protobufWrapperType_ :: String -> HsType
 protobufType_ = HsTyCon . protobufName
 primType_ = HsTyCon . haskellName
-protobufWrapperType_ = HsTyCon . protobufWrapperName
+protobufWrapperType_ =
+  HsTyApp (HsTyCon (protobufName "Wrapped")) . HsTyCon .  haskellName
 
 type_ :: String -> HsType
 type_ = HsTyCon . unqual_

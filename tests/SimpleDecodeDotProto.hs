@@ -10,12 +10,14 @@ import Test.Tasty.HUnit (Assertion, (@?=), (@=?), testCase)
 import qualified Data.Map as M
 import Proto3.Suite
 import qualified Data.ByteString.Char8 as BC
+import GHC.Stack (HasCallStack)
 import System.IO
 
 import TestProto
 import qualified TestProtoImport
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
+import qualified TestProtoWrappers
 
 main :: IO ()
 main = do putStr "\n"
@@ -32,6 +34,9 @@ tests = testGroup "Decode protobuf messages from Python"
           , testCase11, testCase12, testCase13, testCase14
           , testCase15, testCase16, testCase17, testCase18
           , testCase19
+          , testCase_DoubleValue, testCase_FloatValue, testCase_Int64Value
+          , testCase_UInt64Value, testCase_Int32Value, testCase_UInt32Value
+          , testCase_BoolValue, testCase_StringValue, testCase_BytesValue
           , allTestsDone -- this should always run last
           ]
 
@@ -42,7 +47,7 @@ readProto = do length <- readLn
                  Left err -> fail ("readProto: " ++ show err)
                  Right  x -> pure x
 
-expect :: (Eq a, Message a, Show a) => a -> Assertion
+expect :: (HasCallStack, Eq a, Message a, Show a) => a -> Assertion
 expect v = (v @=?) =<< readProto
 
 testCase1  = testCase "Trivial message" $
@@ -335,6 +340,62 @@ testCase19 = testCase "Maps" $ do
                         , mapTestSigned = M.fromList [(1,2),(3,4),(5,6)]
                         }
   result @?= expected
+
+testCase_DoubleValue = testCase "DoubleValue" $ do
+  let w = TestProtoWrappers.TestDoubleValue
+  expect (w Nothing)
+  expect (w (Just 3.5))
+ 
+testCase_FloatValue = testCase "FloatValue" $ do
+  let w = TestProtoWrappers.TestFloatValue
+  expect (w Nothing)
+  expect (w (Just 2.5))
+
+testCase_Int64Value = testCase "Int64Value" $ do
+  let w = TestProtoWrappers.TestInt64Value
+  expect (w Nothing)
+  expect (w (Just 0))
+  expect (w (Just maxBound))
+  expect (w (Just (-1)))
+  expect (w (Just minBound))
+
+testCase_UInt64Value = testCase "UInt64Value" $ do
+  let w = TestProtoWrappers.TestUInt64Value
+  expect (w Nothing)
+  expect (w (Just 0))
+  expect (w (Just maxBound))
+
+testCase_Int32Value = testCase "Int32Value" $ do
+  let w = TestProtoWrappers.TestInt32Value
+  expect (w Nothing)
+  expect (w (Just 0))
+  expect (w (Just maxBound))
+  expect (w (Just (-1)))
+  expect (w (Just minBound))
+
+testCase_UInt32Value = testCase "UInt32Value" $ do
+  let w = TestProtoWrappers.TestUInt32Value
+  expect (w Nothing)
+  expect (w (Just 0))
+  expect (w (Just maxBound))
+
+testCase_BoolValue = testCase "BoolValue" $ do
+  let w = TestProtoWrappers.TestBoolValue
+  expect (w Nothing)
+  expect (w (Just False))
+  expect (w (Just True))
+
+testCase_StringValue = testCase "StringValue" $ do
+  let w = TestProtoWrappers.TestStringValue
+  expect (w Nothing)
+  expect (w (Just ""))
+  expect (w (Just "abc"))
+
+testCase_BytesValue = testCase "BytesValue" $ do
+  let w = TestProtoWrappers.TestBytesValue
+  expect (w Nothing)
+  expect (w (Just ""))
+  expect (w (Just "012"))
 
 
 allTestsDone = testCase "Receive end of test suite sentinel message" $

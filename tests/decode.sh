@@ -10,6 +10,7 @@ ghc                                         \
     $hsTmpDir/TestProtoImport.hs            \
     $hsTmpDir/TestProtoOneof.hs             \
     $hsTmpDir/TestProtoOneofImport.hs       \
+    $hsTmpDir/TestProtoWrappers.hs          \
     tests/SimpleDecodeDotProto.hs           \
     >/dev/null
 
