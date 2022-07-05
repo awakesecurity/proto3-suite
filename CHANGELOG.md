@@ -1,7 +1,7 @@
 
 1.5.1
 * Support newer versions of proto3-wire, bytestring, and turtle
-* Increase minimum version of base from 4.8 to 4.11
+* Increase minimum version of base for canonicalize-proto-file from 4.8 to 4.11
 
 1.5.0
 * [BREAKING CHANGE: Proto3 standard compatibility improvements](https://github.com/awakesecurity/proto3-suite/pull/143)
