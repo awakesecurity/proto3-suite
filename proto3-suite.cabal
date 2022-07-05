@@ -17,7 +17,7 @@ description:
 license:             Apache-2.0
 author:              Arista Networks <opensource@awakesecurity.com>
 maintainer:          Arista Networks <opensource@awakesecurity.com>
-copyright:           2017-2020 Awake Security, 2021 Arista Networks
+copyright:           2017-2020 Awake Security, 2021-2022 Arista Networks
 category:            Codec
 build-type:          Simple
 data-files:          test-files/*.bin tests/encode.sh tests/decode.sh
