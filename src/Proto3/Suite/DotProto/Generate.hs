@@ -57,10 +57,10 @@ import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.AST.Lens
 import           Proto3.Suite.DotProto.Internal
 import           Proto3.Wire.Types              (FieldNumber (..))
-import           System.FilePath                (FilePath, (</>), (<.>), joinPath)
 import Text.Parsec (Parsec, alphaNum, eof, parse, satisfy, try)
 import qualified Text.Parsec as Parsec
 import qualified Turtle
+import           Turtle                         (FilePath, (</>), (<.>))
 
 --------------------------------------------------------------------------------
 
@@ -80,7 +80,9 @@ compileDotProtoFile CompileArgs{..} = runExceptT $ do
   (dotProto, importTypeContext) <- readDotProtoWithContext includeDir inputProto
   modulePathPieces <- traverse renameProtoFile (toModuleComponents dotProto)
 
-  let relativePath = joinPath (map fromString $ NE.toList modulePathPieces) <.> "hs"
+  let relativePath = foldr combine mempty (map fromString $ NE.toList modulePathPieces) <.> "hs"
+      combine p1 p2 | p2 == mempty = p1
+      combine p1 p2 = p1 </> p2
   let modulePath = outputDir </> relativePath
 
   Turtle.mktree (Turtle.directory modulePath)
