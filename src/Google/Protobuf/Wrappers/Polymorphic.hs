@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DataKinds           #-}
@@ -15,9 +14,7 @@ module Google.Protobuf.Wrappers.Polymorphic
 import           Control.DeepSeq (NFData)
 import qualified Data.ByteString
 import qualified Data.ByteString.Lazy
-import qualified Data.HashMap.Strict.InsOrd as HsInsOrd
 import           Data.Int (Int32, Int64)
-import           Data.Proxy (Proxy(..))
 import           Data.String (IsString(..))
 import qualified Data.Text (Text)
 import qualified Data.Text.Lazy (Text)
@@ -90,28 +87,6 @@ instance (HsJSONPB.FromJSONPB a, HsProtobuf.HasDefault a, NameOfWrapperFor a) =>
          HsJSONPB.FromJSON (Wrapped a) where
   parseJSON = HsJSONPB.parseJSONPB
   {-# INLINE parseJSON #-}
-
-#ifdef SWAGGER
-
-instance (HsJSONPB.ToSchema a, NameOfWrapperFor a) =>
-         HsJSONPB.ToSchema (Wrapped a) where
-  declareNamedSchema _ = do
-    let declare_value = HsJSONPB.declareSchemaRef
-    v <- declare_value Proxy
-    let _ = Wrapped <$> HsJSONPB.asProxy declare_value
-              :: Proxy (Wrapped a)
-    return HsJSONPB.NamedSchema
-      { HsJSONPB._namedSchemaName =
-          Just (nameOfWrapperFor (proxy# :: Proxy# a))
-      , HsJSONPB._namedSchemaSchema = mempty
-          { HsJSONPB._schemaParamSchema =
-              mempty{ HsJSONPB._paramSchemaType = Just HsJSONPB.SwaggerObject }
-          , HsJSONPB._schemaProperties =
-              HsInsOrd.singleton "value" v
-          }
-      }
-
-#endif
 
 -- | Defines the name to be returned by @`HsProtobuf.Named` (`Wrapped` a)@.
 class NameOfWrapperFor a where

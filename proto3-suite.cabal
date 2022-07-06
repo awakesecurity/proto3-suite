@@ -48,6 +48,7 @@ library
   if flag(swagger)
     exposed-modules:   Proto3.Suite.DotProto.Generate.Swagger
                        Proto3.Suite.DotProto.Generate.Swagger.Wrappers
+    other-modules:     Proto3.Suite.DotProto.Generate.Swagger.OverrideToSchema
     build-depends:     swagger2 >=2.1.6 && <2.8
     cpp-options:       -DSWAGGER
     if flag(swagger-wrapper-format)

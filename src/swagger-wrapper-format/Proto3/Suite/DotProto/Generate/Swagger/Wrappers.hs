@@ -27,7 +27,7 @@ import Data.Swagger
   )
 import Data.Swagger.Declare (Declare)
 import Data.Word (Word32, Word64)
-import {-# SOURCE #-} Proto3.Suite.DotProto.Generate.Swagger (OverrideToSchema (..))
+import Proto3.Suite.DotProto.Generate.Swagger.OverrideToSchema (OverrideToSchema(..))
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL

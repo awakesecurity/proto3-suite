@@ -2,15 +2,28 @@
 import sys
 import os
 # Import protoc generated {de,}serializers (generated from test_proto{,_import}.proto)
-from google.protobuf.wrappers_pb2 import *
-from test_proto_pb2 import *
+from google.protobuf               import json_format
+from google.protobuf.wrappers_pb2  import *
+from test_proto_pb2                import *
 import test_proto_import_pb2       as test_proto_import
 import test_proto_oneof_pb2        as test_proto_oneof
 import test_proto_oneof_import_pb2 as test_proto_oneof_import
 import test_proto_wrappers_pb2     as test_proto_wrappers
 
+binary = 'Binary'
+jsonpb = 'Jsonpb'
+if len(sys.argv) != 2:
+    sys.exit("Usage: " + sys.argv[0] + " (Binary|Jsonpb)")
+
+format = sys.argv[1]
+if format != binary and format != jsonpb:
+    sys.exit("Bad format argument: " + str(format))
+
 def write_proto(msg):
-    out = msg.SerializeToString()
+    if format == binary:
+        out = msg.SerializeToString()
+    else:
+        out = json_format.MessageToJson(msg)
     print len(out)
     sys.stdout.write(out)
 
@@ -142,8 +155,8 @@ write_proto(AllPackedTypes(packedWord32 = [1],
                            packedSFixed32 = [-9],
                            packedSFixed64 = [-10],
                            packedBool = [True],
-                           packedEnum = [FLD1],
-                           unpackedEnum = [FLD1]))
+                           packedEnum = [FLD1,2],
+                           unpackedEnum = [FLD1,2]))
 expected_fp = [x / 8.0 for x in range(8, 80001)]
 write_proto(AllPackedTypes(packedWord32 = range(1, 10001),
                            packedWord64 = range(1, 10001),
@@ -156,8 +169,8 @@ write_proto(AllPackedTypes(packedWord32 = range(1, 10001),
                            packedSFixed32 = range(1, 10001),
                            packedSFixed64 = range(1, 10001),
                            packedBool = [False,True],
-                           packedEnum = [FLD0,FLD1],
-                           unpackedEnum = [FLD0,FLD1]))
+                           packedEnum = [FLD0,FLD1,2],
+                           unpackedEnum = [FLD0,FLD1,2]))
 
 # Test case 12: message with out of order field numbers
 write_proto(OutOfOrderFields(field1 = [], field2 = "", field3 = 2 ** 63 - 1, field4 = []))

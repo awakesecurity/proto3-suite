@@ -1,16 +1,30 @@
 #!/usr/bin/python
 import sys
 # Import protoc generated {de,}serializers (generated from test_proto{,_import}.proto)
+from google.protobuf             import json_format
 from test_proto_pb2              import *
 from test_proto_import_pb2       import WithNesting as ImportedWithNesting
 from test_proto_oneof_pb2        import Something, WithImported, DUMMY0, DUMMY1
 from test_proto_oneof_import_pb2 import WithOneof
 from test_proto_wrappers_pb2     import *
 
-def read_proto(cls):
+binary = 'Binary'
+jsonpb = 'Jsonpb'
+if len(sys.argv) != 2:
+    sys.exit("Usage: " + sys.argv[0] + " (Binary|Jsonpb)")
+
+format = sys.argv[1]
+if format != binary and format != jsonpb:
+    sys.exit("Bad format argument: " + str(format))
+
+def read_proto(cls, skip_if_json=False):
+    global format
     length = int(raw_input())
     data = sys.stdin.read(length)
-    return cls.FromString(data)
+    if format == binary:
+        return cls.FromString(data)
+    else:
+        return json_format.Parse(data, cls())
 
 # Test case 1: Trivial message
 case1 = read_proto(Trivial)
@@ -194,8 +208,8 @@ assert list(case11c.packedWord32) == [1] and list(case11c.packedWord64) == [2] a
     list(case11c.packedFloat) == [-7] and list(case11c.packedDouble) == [-8] and \
     list(case11c.packedSFixed32) == [-9] and list(case11c.packedSFixed64) == [-10] and \
     list(case11c.packedBool) == [True] and \
-    list(case11c.packedEnum) == [FLD1] and \
-    list(case11c.unpackedEnum) == [FLD1]
+    list(case11c.packedEnum) == [FLD1,2] and \
+    list(case11c.unpackedEnum) == [FLD1,2]
 
 case11d = read_proto(AllPackedTypes)
 expected_fp = [x / 8.0 for x in range(8, 80001)]
@@ -205,8 +219,8 @@ assert list(case11d.packedWord32) == range(1,10001) and list(case11d.packedWord6
     list(case11d.packedFloat) == expected_fp and list(case11d.packedDouble) == expected_fp and \
     list(case11d.packedSFixed32) == range(1,10001) and list(case11d.packedSFixed64) == range(1,10001) and \
     list(case11d.packedBool) == [False,True] and \
-    list(case11d.packedEnum) == [FLD0,FLD1] and \
-    list(case11d.unpackedEnum) == [FLD0,FLD1]
+    list(case11d.packedEnum) == [FLD0,FLD1,2] and \
+    list(case11d.unpackedEnum) == [FLD0,FLD1,2]
 
 # Test case 12: message with out of order field numbers
 case12a = read_proto(OutOfOrderFields)
@@ -367,7 +381,7 @@ case19 = read_proto(MapTest)
 assert case19.prim['foo'] == 1
 assert case19.trivial[101].trivial.trivialField == 1234567
 # generated python proto types do not define structural equality.
-assert case19.trivial[79].trivial.trivialField == Trivial().trivialField
+assert not case19.trivial[79].HasField('trivial')
 assert case19.signed[1] == 2
 
 case_DoubleValue_A = read_proto(TestDoubleValue)

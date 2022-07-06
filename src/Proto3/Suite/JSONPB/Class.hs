@@ -11,7 +11,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Support for the "JSONPB" canonical JSON encoding described at
--- https://developers.google.com/protocol-buffers/docs/proto3#json.
+-- <https://developers.google.com/protocol-buffers/docs/proto3#json>.
 --
 -- This modules provides 'Data.Aeson'-like helper functions, typeclasses, and
 -- instances for converting to and from values of types which have a JSONPB
@@ -222,7 +222,7 @@ instance HasDefault A.Value where
 data Options = Options
   { optEmitDefaultValuedFields :: Bool
   , optEmitNamedOneof :: Bool
-  -- ^ For compatibility with the Go JSONPB implementation.
+  -- ^ For compatibility with the Go, C++, and Python JSONPB implementations.
   --
   -- If 'False', the following message
   --
@@ -464,44 +464,32 @@ instance FromJSONPB BS.ByteString where
 -- Enumerated types
 
 enumToJSONPB :: (e -> Options -> a) -- ^ JSONPB encoder function to use
-             -> a                   -- ^ null value to use for out-of-range enums
+             -> (Int32 -> a)        -- ^ handles out-of-range enums
              -> Enumerated e        -- ^ the enumerated value to encode
              -> Options             -- ^ JSONPB encoding options
              -> a                   -- ^ the JSONPB-encoded value
-enumToJSONPB enc null_ (Enumerated e) opts = either err (\input -> enc input opts) e
-  where
-    err 0 = error "enumToJSONPB: The first enum value must be zero in proto3"
-            -- TODO: Raise a compilation error when the first enum value in an
-            -- enumeration is not zero.
-            --
-            -- See https://github.com/awakesecurity/proto3-suite/issues/28
-            --
-            -- The proto3 spec states that the default value is the first
-            -- defined enum value, which must be 0. Since we currently don't
-            -- raise a compilation error for this like we should, we have to
-            -- handle this case.
-            --
-            -- For now, die horribly to mimic what should be a compilation
-            -- error.
-    err _ = null_
-            -- From the JSONPB spec:
-            --
-            --   If a value is missing in the JSON-encoded data or if its value
-            --   is null, it will be interpreted as the appropriate default
-            --   value when parsed into a protocol buffer.
-            --
-            -- Thus, interpreting a wire value out of enum range as "missing",
-            -- we yield null here to mean the default value.
+enumToJSONPB enc outOfRange (Enumerated e) opts =
+  either outOfRange (\input -> enc input opts) e
 
-
+-- | If you ask for an unrecognized enumerator code to be emitted, then this
+-- instance will emit it numerically, relying upon parser behavior required by:
+-- <https://developers.google.com/protocol-buffers/docs/proto3#json>
 instance ToJSONPB e => ToJSONPB (Enumerated e) where
-  toJSONPB     = enumToJSONPB toJSONPB A.Null
-  toEncodingPB = enumToJSONPB toEncodingPB E.null_
+  toJSONPB     = enumToJSONPB toJSONPB (A.Number . fromIntegral)
+  toEncodingPB = enumToJSONPB toEncodingPB E.int32
 
+-- | Supports both names and integer codes, as required by:
+-- <https://developers.google.com/protocol-buffers/docs/proto3#json>
 instance (ProtoEnum e, FromJSONPB e) => FromJSONPB (Enumerated e) where
-  parseJSONPB A.Null = pure def -- So CG does not have to handle this case in
-                                -- every generated instance
-  parseJSONPB v      = Enumerated . Right <$> parseJSONPB v
+  -- In order to reduce the amount of generated Haskell code we delegate to
+  -- such code only in the String case, and when converting 'Int32' to @e@.
+  -- The rest of the parser we implement here, generically.
+  parseJSONPB A.Null = pure def
+  parseJSONPB (A.String s) = Enumerated . Right <$> parseJSONPB (A.String s)
+  parseJSONPB (A.Number n) = fromCode <$> parseJSONPB (A.Number n)
+    where
+      fromCode c = Enumerated $ maybe (Left c) Right (toProtoEnumMay c)
+  parseJSONPB v = fail $ "Expected enumerator name or code, not: " ++ show v
 
 -- ** Instances for composite types
 
