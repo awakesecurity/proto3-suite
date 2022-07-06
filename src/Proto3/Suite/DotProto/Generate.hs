@@ -80,7 +80,9 @@ compileDotProtoFile CompileArgs{..} = runExceptT $ do
   (dotProto, importTypeContext) <- readDotProtoWithContext includeDir inputProto
   modulePathPieces <- traverse renameProtoFile (toModuleComponents dotProto)
 
-  let relativePath = foldr (</>) mempty (map fromString $ NE.toList modulePathPieces) <.> "hs"
+  let relativePath = foldr combine mempty (map fromString $ NE.toList modulePathPieces) <.> "hs"
+      combine p1 p2 | p2 == mempty = p1
+      combine p1 p2 = p1 </> p2
   let modulePath = outputDir </> relativePath
 
   Turtle.mktree (Turtle.directory modulePath)
