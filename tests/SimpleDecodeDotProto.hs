@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -19,7 +20,6 @@ import GHC.Stack (HasCallStack)
 import System.Environment (lookupEnv)
 import System.Exit (die)
 import System.IO
-import System.IO.Unsafe (unsafePerformIO)
 import Text.Read (readEither)
 
 import TestProto
@@ -31,34 +31,39 @@ import qualified TestProtoWrappers
 data Format = Binary | Jsonpb
   deriving (Bounded, Enum, Eq, Read, Show)
 
+main :: IO ()
+main = do
+  format <- getFormat
+  let ?format = format
+  putStr "\n"
+  defaultMain tests
+
 -- | In order to keep using 'defaultMain', which is convenient, we take
 -- the format as an environment variable instead of a command line argument.
-format :: Format
-format = unsafePerformIO $ do
+getFormat :: IO Format
+getFormat = do
   maybeFormat <- lookupEnv "FORMAT"
   case maybeFormat of
     Nothing -> die $
       "Please export a value for the FORMAT environment variable: one of: " ++
       (intercalate ", " (map show ([minBound .. maxBound] :: [Format])))
-    Just formatStr -> case readEither formatStr of
-      Left msg -> die $
-        "Bad value of FORMAT environment variable: " ++ show format ++
-        ": " ++ show msg
-      Right f -> pure f
+    Just fstr -> case readEither fstr of
+      Left _ -> die $ "Bad value of FORMAT environment variable: " ++ show fstr
+      Right format -> pure format
 
-main :: IO ()
-main = do putStr "\n"
-          defaultMain tests
-
-tests, testCase1, testCase2, testCase3, testCase4, testCase5,
-    testCase6, testCase8, testCase9, testCase10, testCase11,
-    testCase12, testCase13, testCase14, testCase15, testCase16,
-    testCase17 :: TestTree
+tests, testCase1, testCase2, testCaseSignedInts, testCase3, testCase4,
+    testCase5, testCase6, testCase7, testCase8, testCase9, testCase10,
+    testCase11, testCase12, testCase13, testCase14, testCase15,
+    testCase16, testCase17, testCase18, testCase19,
+    testCase_DoubleValue, testCase_FloatValue, testCase_Int64Value,
+    testCase_UInt64Value, testCase_Int32Value, testCase_UInt32Value,
+    testCase_BoolValue, testCase_StringValue, testCase_BytesValue,
+    allTestsDone :: (?format :: Format) => TestTree
 tests = testGroup
-          ("Decode protobuf messages from Python: format " ++ show format)
-          [  testCase1,  testCase2, testCaseSignedInts
-          ,  testCase3,  testCase4,  testCase5,  testCase6
-          ,  testCase7,  testCase8,  testCase9, testCase10
+          ("Decode protobuf messages from Python: format " ++ show ?format)
+          [ testCase1, testCase2, testCaseSignedInts
+          , testCase3, testCase4, testCase5, testCase6
+          , testCase7, testCase8, testCase9, testCase10
           , testCase11, testCase12, testCase13, testCase14
           , testCase15, testCase16, testCase17, testCase18
           , testCase19
@@ -68,7 +73,7 @@ tests = testGroup
           , allTestsDone -- this should always run last
           ]
 
-readProto :: (Message a, JSONPB.FromJSONPB a) => IO a
+readProto :: (Message a, JSONPB.FromJSONPB a, ?format :: Format) => IO a
 readProto = do
     length <- readLn
     res <- parse <$> BC.hGet stdin length
@@ -76,17 +81,20 @@ readProto = do
       Left err -> fail ("readProto: " ++ err)
       Right  x -> pure x
   where
-    parse = case format of
+    parse = case ?format of
       Binary -> Bifunctor.first show . fromByteString
       Jsonpb -> JSONPB.eitherDecode . BL.fromStrict
 
 expect ::
-  (HasCallStack, Eq a, Message a, JSONPB.FromJSONPB a, Show a) =>
+  ( HasCallStack, Eq a, Message a, JSONPB.FromJSONPB a, Show a
+  , ?format :: Format
+  ) =>
   a ->
   Assertion
 expect v = (v @=?) =<< readProto
 
-testCaseInFormat = testCase . (++ ": format " ++ show format)
+testCaseInFormat :: (?format :: Format) => String -> Assertion -> TestTree
+testCaseInFormat = testCase . (++ ": format " ++ show ?format)
 
 testCase1 = testCaseInFormat "Trivial message" $
     do Trivial { .. } <- readProto
@@ -263,7 +271,7 @@ testCase13 = testCaseInFormat "Nested message with the same name as another pack
        -- is fixed, the Haskell JSONPB parser will fail to find the this
        -- field under its lowerCamelCase name.  Once the fix is available
        -- we can make the following verification unconditional:
-       when (format /= Jsonpb) $
+       when (?format /= Jsonpb) $
          messageShadowerShadowedMessage @?= Just (MessageShadower_ShadowedMessage "name" "string value")
 
        MessageShadower_ShadowedMessage { .. } <- readProto
