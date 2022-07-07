@@ -97,7 +97,6 @@ import qualified Data.ByteString        as B
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy   as BL
 import           Data.Coerce            (coerce)
-import qualified Data.Foldable          as Foldable
 import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
 import qualified Data.Map               as M
@@ -318,11 +317,11 @@ class Primitive a where
 
 -- | Serialize a message as a lazy 'BL.ByteString'.
 toLazyByteString :: Message a => a -> BL.ByteString
-toLazyByteString = Encode.toLazyByteString . encodeMessage (fieldNumber 1)
+toLazyByteString = Encode.toLazyByteString . encodeMessage 1
 
 -- | Parse any message that can be decoded.
 fromByteString :: Message a => B.ByteString -> Either ParseError a
-fromByteString = Decode.parse (decodeMessage (fieldNumber 1))
+fromByteString = Decode.parse (decodeMessage 1)
 
 -- | As 'fromByteString', except the input bytestring is base64-encoded.
 fromB64 :: Message a => B.ByteString -> Either ParseError a
@@ -485,51 +484,61 @@ instance MessageField BL.ByteString
 instance (Named e, ProtoEnum e) => MessageField (Enumerated e)
 
 instance (Ord k, Primitive k, MessageField k, Primitive v, MessageField v) => MessageField (M.Map k v) where
-  encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . M.toList
+  encodeMessageField num =
+    let encodeField :: k -> v -> Encode.MessageBuilder
+        encodeField k v = Encode.embedded num (encodeMessage 1 (k, v))
+     in M.foldrWithKey (\k -> (<>) . encodeField k) mempty
 
   -- Data.Map.fromList will retain the last key/value mapping. From the spec:
   --
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
-  decodeMessageField = M.fromList . Foldable.toList
-                       <$> repeated (Decode.embedded' (decodeMessage (fieldNumber 1)))
+  decodeMessageField = M.fromList <$> repeated (Decode.embedded' (decodeMessage 1))
+
   protoType _ = messageField (Map (primType (proxy# :: Proxy# k)) (primType (proxy# :: Proxy# v))) Nothing
 
 instance {-# OVERLAPS #-} (Ord k, Primitive k, Named v, Message v, MessageField k) => MessageField (M.Map k (Nested v)) where
-  encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . M.toList
+  encodeMessageField num =
+    let encodeField :: k -> Nested v -> Encode.MessageBuilder
+        encodeField k v = Encode.embedded num (encodeMessage 1 (k, v))
+     in M.foldrWithKey (\k -> (<>) . encodeField k) mempty
 
   -- Data.Map.fromList will retain the last key/value mapping. From the spec:
   --
   -- > When parsing from the wire or when merging, if there are duplicate map
   -- > keys the last key seen is used.
-  decodeMessageField = M.fromList . Foldable.toList
-                       <$> repeated (Decode.embedded' (decodeMessage (fieldNumber 1)))
+  decodeMessageField = M.fromList <$> repeated (Decode.embedded' (decodeMessage 1))
+
   protoType _ = messageField (Map (primType (proxy# :: Proxy# k)) (Named . Single $ nameOf (proxy# :: Proxy# v))) Nothing
 
 instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
   encodeMessageField = encodePrimitive
 
 instance (Named a, Message a) => MessageField (Nested a) where
-  encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1))
-                           . coerce @(Nested a) @(Maybe a)
-  decodeMessageField = coerce @(Parser RawField (Maybe a)) @(Parser RawField (Nested a))
-                       (Decode.embedded (decodeMessage (fieldNumber 1)))
+  encodeMessageField num x =
+    case coerce @(Nested a) @(Maybe a) x of
+      Nothing -> mempty
+      Just x' -> Encode.embedded num (encodeMessage 1 x')
+
+  decodeMessageField = coerce @(Maybe a) @(Nested a) <$> Decode.embedded (decodeMessage 1)
+
   protoType _ = messageField (Prim . Named . Single $ nameOf (proxy# :: Proxy# a)) Nothing
 
 instance Primitive a => MessageField (UnpackedVec a) where
   encodeMessageField fn = Encode.vectorMessageBuilder (encodePrimitive fn) . unpackedvec
-  decodeMessageField =
-    UnpackedVec . fromList . Foldable.toList <$> repeated decodePrimitive
+
+  decodeMessageField = UnpackedVec . fromList <$> repeated decodePrimitive
+
   protoType _ = messageField (Repeated $ primType (proxy# :: Proxy# a)) (Just DotProto.UnpackedField)
 
 instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
-  encodeMessageField fn = Encode.vectorMessageBuilder (Encode.embedded fn . encodeMessage (fieldNumber 1)) . nestedvec
-  decodeMessageField =
-      fmap (coerce @(Vector a) @(NestedVec a) . fromList . Foldable.toList)
-           (repeated (Decode.embedded' oneMsg))
+  encodeMessageField fn = Encode.vectorMessageBuilder (Encode.embedded fn . encodeMessage 1) . nestedvec
+
+  decodeMessageField = fmap (coerce @(Vector a) @(NestedVec a) . fromList) (repeated (Decode.embedded' oneMsg))
     where
       oneMsg :: Parser RawMessage a
-      oneMsg = decodeMessage (fieldNumber 1)
+      oneMsg = decodeMessage 1
+
   protoType _ = messageField (NestedRepeated . Named . Single $ nameOf (proxy# :: Proxy# a)) Nothing
 
 instance (Named e, ProtoEnum e) => MessageField (PackedVec (Enumerated e)) where
@@ -539,19 +548,17 @@ instance (Named e, ProtoEnum e) => MessageField (PackedVec (Enumerated e)) where
       omit :: Enumerated e -> Maybe Int32
       omit (Enumerated (Right e)) = Just (fromProtoEnum e)
       omit _                      = Nothing
+
   decodeMessageField = decodePacked (foldMap retain <$> Decode.packedVarints @Word64)
     where
       -- retain only those values which are inside the enum range
       retain = foldMap (pure . Enumerated . Right) . toProtoEnumMay . fromIntegral
+
   protoType _ = messageField (Repeated . Named . Single $ nameOf (proxy# :: Proxy# e)) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Bool) where
   encodeMessageField fn = omittingDefault (Encode.packedBoolsV id fn) . packedvec
-  decodeMessageField = fmap (fmap toBool) (decodePacked Decode.packedVarints)
-    where
-      toBool :: Word64 -> Bool
-      toBool 1 = True
-      toBool _ = False
+  decodeMessageField = fmap (1 ==) <$> decodePacked (Decode.packedVarints @Word64)
   protoType _ = messageField (Repeated Bool) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Word32) where
@@ -644,73 +651,57 @@ instance MessageField (PackedVec Double) where
   protoType _ = messageField (Repeated Double) (Just DotProto.PackedField)
 
 instance (MessageField e, KnownSymbol comments) => MessageField (e // comments) where
-  encodeMessageField fn = encodeMessageField fn . unCommented
-  decodeMessageField = coerce @(Parser RawField e)
-                              @(Parser RawField (Commented comments e))
-                              decodeMessageField
-  protoType p = (protoType (lowerProxy1 p))
-                  { dotProtoFieldComment = symbolVal (lowerProxy2 p) }
-    where
-      lowerProxy1 :: forall k f (a :: k). Proxy# (f a) -> Proxy# a
-      lowerProxy1 _ = proxy#
+  encodeMessageField = coerce (encodeMessageField @e)
 
-      lowerProxy2 :: forall k f (a :: k) b. Proxy# (f a b) -> Proxy a
-      lowerProxy2 _ = Proxy
+  decodeMessageField = coerce (decodeMessageField @e)
 
-decodePacked
-  :: Parser RawPrimitive [a]
-  -> Parser RawField (PackedVec a)
-decodePacked = Parser
-             . fmap (fmap (pack . Foldable.toList))
-             . TR.traverse
-             . runParser
+  protoType _ =
+    let ty = protoType @e proxy#
+        cs = symbolVal' @comments proxy#
+     in ty { dotProtoFieldComment = cs }
+
+decodePacked :: Parser RawPrimitive [a] -> Parser RawField (PackedVec a)
+decodePacked = Parser . fmap (fmap pack) . TR.traverse . runParser
   where
     pack :: forall a. [[a]] -> PackedVec a
     pack = fromList . join . reverse
-
 
 -- | This class captures those types which correspond to protocol buffer messages.
 class Message a where
   -- | Encode a message
   encodeMessage :: FieldNumber -> a -> Encode.MessageBuilder
+
   -- | Decode a message
   decodeMessage :: FieldNumber -> Parser RawMessage a
+
   -- | Generate a .proto message from the type information.
   dotProto :: Proxy# a -> [DotProtoField]
 
-  default encodeMessage :: (Generic a, GenericMessage (Rep a))
-                        => FieldNumber -> a -> Encode.MessageBuilder
+  default encodeMessage :: (Generic a, GenericMessage (Rep a)) => FieldNumber -> a -> Encode.MessageBuilder
   encodeMessage num = genericEncodeMessage num . from
 
-  default decodeMessage :: (Generic a, GenericMessage (Rep a))
-                        => FieldNumber -> Parser RawMessage a
+  default decodeMessage :: (Generic a, GenericMessage (Rep a)) => FieldNumber -> Parser RawMessage a
   decodeMessage = fmap to . genericDecodeMessage
 
-  default dotProto :: GenericMessage (Rep a)
-                   => Proxy# a -> [DotProtoField]
+  default dotProto :: GenericMessage (Rep a) => Proxy# a -> [DotProtoField]
   dotProto _ = genericDotProto (proxy# :: Proxy# (Rep a))
 
 instance (MessageField k, MessageField v) => Message (k, v)
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy# a -> DotProtoDefinition
-message proxy = DotProtoMessage ""
-                                (Single $ nameOf proxy)
-                                (DotProtoMessageField <$> dotProto proxy)
+message proxy =
+  DotProtoMessage
+    ""
+    (Single $ nameOf proxy)
+    (DotProtoMessageField <$> dotProto proxy)
 
 -- * Wrapped Type Instances
 
-encodeWrapperMessage
-  :: MessageField a
-  => FieldNumber
-  -> a
-  -> Encode.MessageBuilder
+encodeWrapperMessage :: MessageField a => FieldNumber -> a -> Encode.MessageBuilder
 encodeWrapperMessage _ x = encodeMessageField (FieldNumber 1) x
 
-decodeWrapperMessage
-  :: MessageField a
-  => FieldNumber
-  -> Decode.Parser Decode.RawMessage a
+decodeWrapperMessage :: MessageField a => FieldNumber -> Decode.Parser Decode.RawMessage a
 decodeWrapperMessage _ = at decodeMessageField (FieldNumber 1)
 
 dotProtoWrapper :: Primitive a => Proxy# a -> [DotProtoField]
