@@ -121,6 +121,19 @@ import           Proto3.Wire.Decode     (ParseError, Parser (..), RawField,
 import qualified Proto3.Wire.Decode     as Decode
 import qualified Proto3.Wire.Encode     as Encode
 
+-- | Pass through those values that are outside the enum range;
+-- this is for forward compatibility as enumerations are extended.
+codeFromEnumerated :: ProtoEnum e => Enumerated e -> Int32
+codeFromEnumerated = either id fromProtoEnum . enumerated
+{-# INLINE codeFromEnumerated #-}
+
+-- | Values inside the enum range are in Right, the rest in Left;
+-- this is for forward compatibility as enumerations are extended.
+codeToEnumerated :: ProtoEnum e => Int32 -> Enumerated e
+codeToEnumerated code =
+  Enumerated $ maybe (Left code) Right (toProtoEnumMay code)
+{-# INLINE codeToEnumerated #-}
+
 -- | A class for types with default values per the protocol buffers spec.
 class HasDefault a where
   -- | The default value for this type.
@@ -183,8 +196,8 @@ instance HasDefault BL.ByteString where
   def = mempty
 
 instance ProtoEnum e => HasDefault (Enumerated e) where
-  def = Enumerated $ maybe (Left 0) Right (toProtoEnumMay 0)
-  isDefault = (== 0) . either id fromProtoEnum . enumerated
+  def = codeToEnumerated 0
+  isDefault = (== 0) . codeFromEnumerated
 
 instance HasDefault (UnpackedVec a) where
   def = mempty
@@ -533,16 +546,8 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
   protoType _ = messageField (NestedRepeated . Named . Single $ nameOf (proxy# :: Proxy# a)) Nothing
 
 instance (Named e, ProtoEnum e) => MessageField (PackedVec (Enumerated e)) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . Vector.mapMaybe omit . packedvec
-    where
-      -- omit values which are outside the enum range
-      omit :: Enumerated e -> Maybe Int32
-      omit (Enumerated (Right e)) = Just (fromProtoEnum e)
-      omit _                      = Nothing
-  decodeMessageField = decodePacked (foldMap retain <$> Decode.packedVarints @Word64)
-    where
-      -- retain only those values which are inside the enum range
-      retain = foldMap (pure . Enumerated . Right) . toProtoEnumMay . fromIntegral
+  encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . Vector.map codeFromEnumerated . packedvec
+  decodeMessageField = decodePacked (map (codeToEnumerated . fromIntegral) <$> Decode.packedVarints @Word64)
   protoType _ = messageField (Repeated . Named . Single $ nameOf (proxy# :: Proxy# e)) (Just DotProto.PackedField)
 
 instance MessageField (PackedVec Bool) where

@@ -1,0 +1,39 @@
+syntax = "proto3";
+package TestProtoWrappers;
+import "google/protobuf/wrappers.proto";
+
+message TestDoubleValue {
+  google.protobuf.DoubleValue wrapper = 2;
+}
+
+message TestFloatValue {
+  google.protobuf.FloatValue wrapper = 2;
+}
+
+message TestInt64Value {
+  google.protobuf.Int64Value wrapper = 2;
+}
+
+message TestUInt64Value {
+  google.protobuf.UInt64Value wrapper = 2;
+}
+
+message TestInt32Value {
+  google.protobuf.Int32Value wrapper = 2;
+}
+
+message TestUInt32Value {
+  google.protobuf.UInt32Value wrapper = 2;
+}
+
+message TestBoolValue {
+  google.protobuf.BoolValue wrapper = 2;
+}
+
+message TestStringValue {
+  google.protobuf.StringValue wrapper = 2;
+}
+
+message TestBytesValue {
+  google.protobuf.BytesValue wrapper = 2;
+}

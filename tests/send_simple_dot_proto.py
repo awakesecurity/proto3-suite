@@ -2,13 +2,28 @@
 import sys
 import os
 # Import protoc generated {de,}serializers (generated from test_proto{,_import}.proto)
-from test_proto_pb2 import *
+from google.protobuf               import json_format
+from google.protobuf.wrappers_pb2  import *
+from test_proto_pb2                import *
 import test_proto_import_pb2       as test_proto_import
 import test_proto_oneof_pb2        as test_proto_oneof
 import test_proto_oneof_import_pb2 as test_proto_oneof_import
+import test_proto_wrappers_pb2     as test_proto_wrappers
+
+binary = 'Binary'
+jsonpb = 'Jsonpb'
+if len(sys.argv) != 2:
+    sys.exit("Usage: " + sys.argv[0] + " (Binary|Jsonpb)")
+
+format = sys.argv[1]
+if format != binary and format != jsonpb:
+    sys.exit("Bad format argument: " + str(format))
 
 def write_proto(msg):
-    out = msg.SerializeToString()
+    if format == binary:
+        out = msg.SerializeToString()
+    else:
+        out = json_format.MessageToJson(msg)
     print len(out)
     sys.stdout.write(out)
 
@@ -140,8 +155,8 @@ write_proto(AllPackedTypes(packedWord32 = [1],
                            packedSFixed32 = [-9],
                            packedSFixed64 = [-10],
                            packedBool = [True],
-                           packedEnum = [FLD1],
-                           unpackedEnum = [FLD1]))
+                           packedEnum = [FLD1,2],
+                           unpackedEnum = [FLD1,2]))
 expected_fp = [x / 8.0 for x in range(8, 80001)]
 write_proto(AllPackedTypes(packedWord32 = range(1, 10001),
                            packedWord64 = range(1, 10001),
@@ -154,8 +169,8 @@ write_proto(AllPackedTypes(packedWord32 = range(1, 10001),
                            packedSFixed32 = range(1, 10001),
                            packedSFixed64 = range(1, 10001),
                            packedBool = [False,True],
-                           packedEnum = [FLD0,FLD1],
-                           unpackedEnum = [FLD0,FLD1]))
+                           packedEnum = [FLD0,FLD1,2],
+                           unpackedEnum = [FLD0,FLD1,2]))
 
 # Test case 12: message with out of order field numbers
 write_proto(OutOfOrderFields(field1 = [], field2 = "", field3 = 2 ** 63 - 1, field4 = []))
@@ -219,6 +234,53 @@ write_proto(MapTest( prim={'foo': 1, 'bar': 42, 'baz': 1234567 },
                     signed={ 1: 2, 3: 4, 5: 6 }
                   )
           )
+
+# Test DoubleValue
+write_proto(test_proto_wrappers.TestDoubleValue())
+write_proto(test_proto_wrappers.TestDoubleValue(wrapper=DoubleValue(value=3.5)))
+
+# Test FloatValue
+write_proto(test_proto_wrappers.TestFloatValue())
+write_proto(test_proto_wrappers.TestFloatValue(wrapper=FloatValue(value=2.5)))
+
+# Test Int64Value
+write_proto(test_proto_wrappers.TestInt64Value())
+write_proto(test_proto_wrappers.TestInt64Value(wrapper=Int64Value(value=0)))
+write_proto(test_proto_wrappers.TestInt64Value(wrapper=Int64Value(value=9223372036854775807)))
+write_proto(test_proto_wrappers.TestInt64Value(wrapper=Int64Value(value=-1)))
+write_proto(test_proto_wrappers.TestInt64Value(wrapper=Int64Value(value=-9223372036854775808)))
+
+# Test UInt64Value
+write_proto(test_proto_wrappers.TestUInt64Value())
+write_proto(test_proto_wrappers.TestUInt64Value(wrapper=UInt64Value(value=0)))
+write_proto(test_proto_wrappers.TestUInt64Value(wrapper=UInt64Value(value=18446744073709551615)))
+
+# Test Int32Value
+write_proto(test_proto_wrappers.TestInt32Value())
+write_proto(test_proto_wrappers.TestInt32Value(wrapper=Int32Value(value=0)))
+write_proto(test_proto_wrappers.TestInt32Value(wrapper=Int32Value(value=2147483647)))
+write_proto(test_proto_wrappers.TestInt32Value(wrapper=Int32Value(value=-1)))
+write_proto(test_proto_wrappers.TestInt32Value(wrapper=Int32Value(value=-2147483648)))
+
+# Test UInt32Value
+write_proto(test_proto_wrappers.TestUInt32Value())
+write_proto(test_proto_wrappers.TestUInt32Value(wrapper=UInt32Value(value=0)))
+write_proto(test_proto_wrappers.TestUInt32Value(wrapper=UInt32Value(value=4294967295)))
+
+# Test BoolValue
+write_proto(test_proto_wrappers.TestBoolValue())
+write_proto(test_proto_wrappers.TestBoolValue(wrapper=BoolValue(value=False)))
+write_proto(test_proto_wrappers.TestBoolValue(wrapper=BoolValue(value=True)))
+
+# Test StringValue
+write_proto(test_proto_wrappers.TestStringValue())
+write_proto(test_proto_wrappers.TestStringValue(wrapper=StringValue(value="")))
+write_proto(test_proto_wrappers.TestStringValue(wrapper=StringValue(value="abc")))
+
+# Test BytesValue
+write_proto(test_proto_wrappers.TestBytesValue())
+write_proto(test_proto_wrappers.TestBytesValue(wrapper=BytesValue(value="")))
+write_proto(test_proto_wrappers.TestBytesValue(wrapper=BytesValue(value="012")))
 
 # Send the special 'done' message
 write_proto(MultipleFields(multiFieldString = "All tests complete"))

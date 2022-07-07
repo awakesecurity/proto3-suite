@@ -43,17 +43,13 @@ import           GHC.Int
 import           GHC.Word
 import           Proto3.Suite                    (Enumerated (..), Finite (..),
                                                   Fixed (..), Named (..), enumerate)
+import           Proto3.Suite.DotProto.Generate.Swagger.OverrideToSchema (OverrideToSchema(..))
 import           Proto3.Suite.DotProto.Generate.Swagger.Wrappers ()
 
 -- | Convenience re-export so that users of generated code don't have to add
 --   an explicit dependency on @insert-ordered-containers@
 insOrdFromList :: (Eq k, Hashable k) => [(k, v)] -> InsOrdHashMap k v
 insOrdFromList = Data.HashMap.Strict.InsOrd.fromList
-
-{-| This is a hack to work around the `swagger2` library forbidding `ToSchema`
-    instances for `ByteString`s
--}
-newtype OverrideToSchema a = OverrideToSchema { unOverride :: a }
 
 instance {-# OVERLAPPABLE #-} ToSchema a => ToSchema (OverrideToSchema a) where
   declareNamedSchema _ = declareNamedSchema (Proxy :: Proxy a)

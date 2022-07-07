@@ -1,6 +1,6 @@
 cabal-version:       2.0
 name:                proto3-suite
-version:             0.5.1
+version:             0.5.2
 synopsis:            A higher-level API to the proto3-wire library
 description:
   This library provides a higher-level API to <https://github.com/awakesecurity/proto3-wire the `proto3-wire` library>
@@ -48,6 +48,7 @@ library
   if flag(swagger)
     exposed-modules:   Proto3.Suite.DotProto.Generate.Swagger
                        Proto3.Suite.DotProto.Generate.Swagger.Wrappers
+    other-modules:     Proto3.Suite.DotProto.Generate.Swagger.OverrideToSchema
     build-depends:     swagger2 >=2.1.6 && <2.8
     cpp-options:       -DSWAGGER
     if flag(swagger-wrapper-format)
@@ -68,6 +69,7 @@ library
                        Proto3.Suite.Types
 
                        Google.Protobuf.Timestamp
+                       Google.Protobuf.Wrappers.Polymorphic
 
                        Proto3.Suite.DotProto.Internal
                        Proto3.Suite.JSONPB.Class

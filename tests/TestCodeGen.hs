@@ -38,8 +38,10 @@ codeGenTests = testGroup "Code generator unit tests"
   , camelCaseMessageFieldNames
   , don'tAlterEnumFieldNames
   , knownTypeMessages
-  , simpleEncodeDotProto
-  , simpleDecodeDotProto
+  , simpleEncodeDotProto "Binary"
+  , simpleDecodeDotProto "Binary"
+  , simpleEncodeDotProto "Jsonpb"
+  , simpleDecodeDotProto "Jsonpb"
   ]
 
 knownTypeMessages :: TestTree
@@ -102,9 +104,9 @@ setPythonPath :: IO ()
 setPythonPath = Turtle.export "PYTHONPATH" .
   maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) =<< Turtle.need "PYTHONPATH"
 
-simpleEncodeDotProto :: TestTree
-simpleEncodeDotProto =
-    testCase "generate code for a simple .proto and then use it to encode messages"
+simpleEncodeDotProto :: T.Text -> TestTree
+simpleEncodeDotProto format =
+    testCase ("generate code for a simple .proto and then use it to encode messages in format " ++ show format)
     $ do
          compileTestDotProtos
          -- Compile our generated encoder
@@ -113,23 +115,23 @@ simpleEncodeDotProto =
          -- The python encoder test exits with a special error code to indicate
          -- all tests were successful
          setPythonPath
-         let cmd = hsTmpDir <> "/simpleEncodeDotProto | python tests/check_simple_dot_proto.py"
+         let cmd = hsTmpDir <> "/simpleEncodeDotProto " <> format <> " | python tests/check_simple_dot_proto.py " <> format
          Turtle.shell cmd empty >>= (@?= ExitFailure 12)
 
          -- Not using bracket so that we can inspect the output to fix the tests
          Turtle.rmtree hsTmpDir
          Turtle.rmtree pyTmpDir
 
-simpleDecodeDotProto :: TestTree
-simpleDecodeDotProto =
-    testCase "generate code for a simple .proto and then use it to decode messages"
+simpleDecodeDotProto :: T.Text -> TestTree
+simpleDecodeDotProto format =
+    testCase ("generate code for a simple .proto and then use it to decode messages in format " ++ show format)
     $ do
          compileTestDotProtos
          -- Compile our generated decoder
          Turtle.proc "tests/decode.sh" [hsTmpDir] empty >>= (@?= ExitSuccess)
 
          setPythonPath
-         let cmd = "python tests/send_simple_dot_proto.py | " <> hsTmpDir <> "/simpleDecodeDotProto "
+         let cmd = "python tests/send_simple_dot_proto.py " <> format <> " | FORMAT=" <> format <> " " <> hsTmpDir <> "/simpleDecodeDotProto "
          Turtle.shell cmd empty >>= (@?= ExitSuccess)
 
          -- Not using bracket so that we can inspect the output to fix the tests
@@ -162,6 +164,7 @@ compileTestDotProtos = do
         , "test_proto_protoc_plugin.proto"
         -}
         , "test_proto_nested_message.proto"
+        , "test_proto_wrappers.proto"
         ]
 
   forM_ protoFiles $ \protoFile -> do

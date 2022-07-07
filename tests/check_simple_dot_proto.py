@@ -1,15 +1,30 @@
 #!/usr/bin/python
 import sys
 # Import protoc generated {de,}serializers (generated from test_proto{,_import}.proto)
+from google.protobuf             import json_format
 from test_proto_pb2              import *
 from test_proto_import_pb2       import WithNesting as ImportedWithNesting
 from test_proto_oneof_pb2        import Something, WithImported, DUMMY0, DUMMY1
 from test_proto_oneof_import_pb2 import WithOneof
+from test_proto_wrappers_pb2     import *
 
-def read_proto(cls):
+binary = 'Binary'
+jsonpb = 'Jsonpb'
+if len(sys.argv) != 2:
+    sys.exit("Usage: " + sys.argv[0] + " (Binary|Jsonpb)")
+
+format = sys.argv[1]
+if format != binary and format != jsonpb:
+    sys.exit("Bad format argument: " + str(format))
+
+def read_proto(cls, skip_if_json=False):
+    global format
     length = int(raw_input())
     data = sys.stdin.read(length)
-    return cls.FromString(data)
+    if format == binary:
+        return cls.FromString(data)
+    else:
+        return json_format.Parse(data, cls())
 
 # Test case 1: Trivial message
 case1 = read_proto(Trivial)
@@ -193,8 +208,8 @@ assert list(case11c.packedWord32) == [1] and list(case11c.packedWord64) == [2] a
     list(case11c.packedFloat) == [-7] and list(case11c.packedDouble) == [-8] and \
     list(case11c.packedSFixed32) == [-9] and list(case11c.packedSFixed64) == [-10] and \
     list(case11c.packedBool) == [True] and \
-    list(case11c.packedEnum) == [FLD1] and \
-    list(case11c.unpackedEnum) == [FLD1]
+    list(case11c.packedEnum) == [FLD1,2] and \
+    list(case11c.unpackedEnum) == [FLD1,2]
 
 case11d = read_proto(AllPackedTypes)
 expected_fp = [x / 8.0 for x in range(8, 80001)]
@@ -204,8 +219,8 @@ assert list(case11d.packedWord32) == range(1,10001) and list(case11d.packedWord6
     list(case11d.packedFloat) == expected_fp and list(case11d.packedDouble) == expected_fp and \
     list(case11d.packedSFixed32) == range(1,10001) and list(case11d.packedSFixed64) == range(1,10001) and \
     list(case11d.packedBool) == [False,True] and \
-    list(case11d.packedEnum) == [FLD0,FLD1] and \
-    list(case11d.unpackedEnum) == [FLD0,FLD1]
+    list(case11d.packedEnum) == [FLD0,FLD1,2] and \
+    list(case11d.unpackedEnum) == [FLD0,FLD1,2]
 
 # Test case 12: message with out of order field numbers
 case12a = read_proto(OutOfOrderFields)
@@ -366,8 +381,115 @@ case19 = read_proto(MapTest)
 assert case19.prim['foo'] == 1
 assert case19.trivial[101].trivial.trivialField == 1234567
 # generated python proto types do not define structural equality.
-assert case19.trivial[79].trivial.trivialField == Trivial().trivialField
+assert not case19.trivial[79].HasField('trivial')
 assert case19.signed[1] == 2
+
+case_DoubleValue_A = read_proto(TestDoubleValue)
+assert not case_DoubleValue_A.HasField('wrapper')
+
+case_DoubleValue_B = read_proto(TestDoubleValue)
+assert case_DoubleValue_B.HasField('wrapper')
+assert case_DoubleValue_B.wrapper.value == 3.5
+
+case_FloatValue_A = read_proto(TestFloatValue)
+assert not case_FloatValue_A.HasField('wrapper')
+
+case_FloatValue_B = read_proto(TestFloatValue)
+assert case_FloatValue_B.HasField('wrapper')
+assert case_FloatValue_B.wrapper.value == 2.5
+
+case_Int64Value_A = read_proto(TestInt64Value)
+assert not case_Int64Value_A.HasField('wrapper')
+
+case_Int64Value_B = read_proto(TestInt64Value)
+assert case_Int64Value_B.HasField('wrapper')
+assert case_Int64Value_B.wrapper.value == 0
+
+case_Int64Value_C = read_proto(TestInt64Value)
+assert case_Int64Value_C.HasField('wrapper')
+assert case_Int64Value_C.wrapper.value == 9223372036854775807
+
+case_Int64Value_D = read_proto(TestInt64Value)
+assert case_Int64Value_D.HasField('wrapper')
+assert case_Int64Value_D.wrapper.value == -1
+
+case_Int64Value_E = read_proto(TestInt64Value)
+assert case_Int64Value_E.HasField('wrapper')
+assert case_Int64Value_E.wrapper.value == -9223372036854775808
+
+case_UInt64Value_A = read_proto(TestUInt64Value)
+assert not case_UInt64Value_A.HasField('wrapper')
+
+case_UInt64Value_B = read_proto(TestUInt64Value)
+assert case_UInt64Value_B.HasField('wrapper')
+assert case_UInt64Value_B.wrapper.value == 0
+
+case_UInt64Value_C = read_proto(TestUInt64Value)
+assert case_UInt64Value_C.HasField('wrapper')
+assert case_UInt64Value_C.wrapper.value == 18446744073709551615
+
+case_Int32Value_A = read_proto(TestInt32Value)
+assert not case_Int32Value_A.HasField('wrapper')
+
+case_Int32Value_B = read_proto(TestInt32Value)
+assert case_Int32Value_B.HasField('wrapper')
+assert case_Int32Value_B.wrapper.value == 0
+
+case_Int32Value_C = read_proto(TestInt32Value)
+assert case_Int32Value_C.HasField('wrapper')
+assert case_Int32Value_C.wrapper.value == 2147483647
+
+case_Int32Value_D = read_proto(TestInt32Value)
+assert case_Int32Value_D.HasField('wrapper')
+assert case_Int32Value_D.wrapper.value == -1
+
+case_Int32Value_E = read_proto(TestInt32Value)
+assert case_Int32Value_E.HasField('wrapper')
+assert case_Int32Value_E.wrapper.value == -2147483648
+
+case_UInt32Value_A = read_proto(TestUInt32Value)
+assert not case_UInt32Value_A.HasField('wrapper')
+
+case_UInt32Value_B = read_proto(TestUInt32Value)
+assert case_UInt32Value_B.HasField('wrapper')
+assert case_UInt32Value_B.wrapper.value == 0
+
+case_UInt32Value_C = read_proto(TestUInt32Value)
+assert case_UInt32Value_C.HasField('wrapper')
+assert case_UInt32Value_C.wrapper.value == 4294967295
+
+case_BoolValue_A = read_proto(TestBoolValue)
+assert not case_BoolValue_A.HasField('wrapper')
+
+case_BoolValue_B = read_proto(TestBoolValue)
+assert case_BoolValue_B.HasField('wrapper')
+assert case_BoolValue_B.wrapper.value == False
+
+case_BoolValue_C = read_proto(TestBoolValue)
+assert case_BoolValue_C.HasField('wrapper')
+assert case_BoolValue_C.wrapper.value == True
+
+case_StringValue_A = read_proto(TestStringValue)
+assert not case_StringValue_A.HasField('wrapper')
+
+case_StringValue_B = read_proto(TestStringValue)
+assert case_StringValue_B.HasField('wrapper')
+assert case_StringValue_B.wrapper.value == ""
+
+case_StringValue_C = read_proto(TestStringValue)
+assert case_StringValue_C.HasField('wrapper')
+assert case_StringValue_C.wrapper.value == "abc"
+
+case_BytesValue_A = read_proto(TestBytesValue)
+assert not case_BytesValue_A.HasField('wrapper')
+
+case_BytesValue_B = read_proto(TestBytesValue)
+assert case_BytesValue_B.HasField('wrapper')
+assert case_BytesValue_B.wrapper.value == ""
+
+case_BytesValue_C = read_proto(TestBytesValue)
+assert case_BytesValue_C.HasField('wrapper')
+assert case_BytesValue_C.wrapper.value == "012"
 
 # Wait for the special 'done' messsage
 done_msg = read_proto(MultipleFields)

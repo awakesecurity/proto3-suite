@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -7,49 +8,99 @@ module Main where
 
 import Test.Tasty
 import Test.Tasty.HUnit (Assertion, (@?=), (@=?), testCase)
+import Control.Monad (when)
 import qualified Data.Map as M
 import Proto3.Suite
+import qualified Proto3.Suite.JSONPB as JSONPB
+import qualified Data.Bifunctor as Bifunctor
 import qualified Data.ByteString.Char8 as BC
+import qualified Data.ByteString.Lazy as BL
+import Data.List (intercalate)
+import GHC.Stack (HasCallStack)
+import System.Environment (lookupEnv)
+import System.Exit (die)
 import System.IO
+import Text.Read (readEither)
 
 import TestProto
 import qualified TestProtoImport
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
+import qualified TestProtoWrappers
+
+data Format = Binary | Jsonpb
+  deriving (Bounded, Enum, Eq, Read, Show)
 
 main :: IO ()
-main = do putStr "\n"
-          defaultMain tests
+main = do
+  format <- getFormat
+  let ?format = format
+  putStr "\n"
+  defaultMain tests
 
-tests, testCase1, testCase2, testCase3, testCase4, testCase5,
-    testCase6, testCase8, testCase9, testCase10, testCase11,
-    testCase12, testCase13, testCase14, testCase15, testCase16,
-    testCase17 :: TestTree
-tests = testGroup "Decode protobuf messages from Python"
-          [  testCase1,  testCase2, testCaseSignedInts
-          ,  testCase3,  testCase4,  testCase5,  testCase6
-          ,  testCase7,  testCase8,  testCase9, testCase10
+-- | In order to keep using 'defaultMain', which is convenient, we take
+-- the format as an environment variable instead of a command line argument.
+getFormat :: IO Format
+getFormat = do
+  maybeFormat <- lookupEnv "FORMAT"
+  case maybeFormat of
+    Nothing -> die $
+      "Please export a value for the FORMAT environment variable: one of: " ++
+      (intercalate ", " (map show ([minBound .. maxBound] :: [Format])))
+    Just fstr -> case readEither fstr of
+      Left _ -> die $ "Bad value of FORMAT environment variable: " ++ show fstr
+      Right format -> pure format
+
+tests, testCase1, testCase2, testCaseSignedInts, testCase3, testCase4,
+    testCase5, testCase6, testCase7, testCase8, testCase9, testCase10,
+    testCase11, testCase12, testCase13, testCase14, testCase15,
+    testCase16, testCase17, testCase18, testCase19,
+    testCase_DoubleValue, testCase_FloatValue, testCase_Int64Value,
+    testCase_UInt64Value, testCase_Int32Value, testCase_UInt32Value,
+    testCase_BoolValue, testCase_StringValue, testCase_BytesValue,
+    allTestsDone :: (?format :: Format) => TestTree
+tests = testGroup
+          ("Decode protobuf messages from Python: format " ++ show ?format)
+          [ testCase1, testCase2, testCaseSignedInts
+          , testCase3, testCase4, testCase5, testCase6
+          , testCase7, testCase8, testCase9, testCase10
           , testCase11, testCase12, testCase13, testCase14
           , testCase15, testCase16, testCase17, testCase18
           , testCase19
+          , testCase_DoubleValue, testCase_FloatValue, testCase_Int64Value
+          , testCase_UInt64Value, testCase_Int32Value, testCase_UInt32Value
+          , testCase_BoolValue, testCase_StringValue, testCase_BytesValue
           , allTestsDone -- this should always run last
           ]
 
-readProto :: Message a => IO a
-readProto = do length <- readLn
-               res <- fromByteString <$> BC.hGet stdin length
-               case res of
-                 Left err -> fail ("readProto: " ++ show err)
-                 Right  x -> pure x
+readProto :: (Message a, JSONPB.FromJSONPB a, ?format :: Format) => IO a
+readProto = do
+    length <- readLn
+    res <- parse <$> BC.hGet stdin length
+    case res of
+      Left err -> fail ("readProto: " ++ err)
+      Right  x -> pure x
+  where
+    parse = case ?format of
+      Binary -> Bifunctor.first show . fromByteString
+      Jsonpb -> JSONPB.eitherDecode . BL.fromStrict
 
-expect :: (Eq a, Message a, Show a) => a -> Assertion
+expect ::
+  ( HasCallStack, Eq a, Message a, JSONPB.FromJSONPB a, Show a
+  , ?format :: Format
+  ) =>
+  a ->
+  Assertion
 expect v = (v @=?) =<< readProto
 
-testCase1  = testCase "Trivial message" $
+testCaseInFormat :: (?format :: Format) => String -> Assertion -> TestTree
+testCaseInFormat = testCase . (++ ": format " ++ show ?format)
+
+testCase1 = testCaseInFormat "Trivial message" $
     do Trivial { .. } <- readProto
        trivialTrivialField @?= 0x7BADBEEF
 
-testCase2  = testCase "Multi-field message" $
+testCase2 = testCaseInFormat "Multi-field message" $
     do MultipleFields { .. } <- readProto
 
        multipleFieldsMultiFieldDouble @?= 1.125
@@ -59,14 +110,14 @@ testCase2  = testCase "Multi-field message" $
        multipleFieldsMultiFieldString @?= "Goodnight moon"
        multipleFieldsMultiFieldBool   @?= False
 
-testCaseSignedInts = testCase "Signed integer types" $
+testCaseSignedInts = testCaseInFormat "Signed integer types" $
     do expect (SignedInts 0 0)
        expect (SignedInts 42 84)
        expect (SignedInts (-42) (-84))
        expect (SignedInts minBound minBound)
        expect (SignedInts maxBound maxBound)
 
-testCase3  = testCase "Nested enumeration" $
+testCase3 = testCaseInFormat "Nested enumeration" $
     do WithEnum { withEnumEnumField = Enumerated a } <- readProto
        a @?= Right WithEnum_TestEnumENUM1
 
@@ -79,14 +130,14 @@ testCase3  = testCase "Nested enumeration" $
        WithEnum { withEnumEnumField = Enumerated d } <- readProto
        d @?= Left 0xBEEF
 
-testCase4  = testCase "Nested message" $
+testCase4 = testCaseInFormat "Nested message" $
     do WithNesting { withNestingNestedMessage = a } <- readProto
        a @?= Just (WithNesting_Nested "testCase4 nestedField1" 0xABCD [] [])
 
        WithNesting { withNestingNestedMessage = b } <- readProto
        b @?= Nothing
 
-testCase5  = testCase "Nested repeated message" $
+testCase5 = testCaseInFormat "Nested repeated message" $
     do WithNestingRepeated { withNestingRepeatedNestedMessages = a } <- readProto
        length a @?= 3
        let [a1, a2, a3] = a
@@ -98,7 +149,7 @@ testCase5  = testCase "Nested repeated message" $
        WithNestingRepeated { withNestingRepeatedNestedMessages = b } <- readProto
        b @?= []
 
-testCase6  = testCase "Nested repeated int message" $
+testCase6 = testCaseInFormat "Nested repeated int message" $
     do WithNestingRepeatedInts { withNestingRepeatedIntsNestedInts = a } <- readProto
        a @?= [ NestedInts 636513 619021 ]
 
@@ -111,14 +162,14 @@ testCase6  = testCase "Nested repeated int message" $
              , NestedInts 545506 143731
              , NestedInts 193605 385360 ]
 
-testCase7  = testCase "Repeated int32 field" $
+testCase7 = testCaseInFormat "Repeated int32 field" $
     do WithRepetition { withRepetitionRepeatedField1 = a } <- readProto
        a @?= []
 
        WithRepetition { withRepetitionRepeatedField1 = b } <- readProto
        b @?= [1..10000]
 
-testCase8  = testCase "Fixed-width integer types" $
+testCase8 = testCaseInFormat "Fixed-width integer types" $
     do WithFixed { .. } <- readProto
        withFixedFixed1 @?= 0
        withFixedFixed2 @?= 0
@@ -137,7 +188,7 @@ testCase8  = testCase "Fixed-width integer types" $
        withFixedFixed3 @?= minBound
        withFixedFixed4 @?= minBound
 
-testCase9  = testCase "Bytes fields" $
+testCase9 = testCaseInFormat "Bytes fields" $
     do WithBytes { .. } <- readProto
        withBytesBytes1 @?= "\x00\x00\x00\x01\x02\x03\xFF\xFF\x00\x01"
        withBytesBytes2 @?= ["", "\x01", "\xAB\xBAhello", "\xBB"]
@@ -154,7 +205,7 @@ testCase9  = testCase "Bytes fields" $
        withBytesBytes1 @?= ""
        withBytesBytes2 @?= []
 
-testCase10 = testCase "Packed and unpacked repeated types" $
+testCase10 = testCaseInFormat "Packed and unpacked repeated types" $
     do WithPacking { .. } <- readProto
        withPackingPacking1 @?= []
        withPackingPacking2 @?= []
@@ -171,7 +222,7 @@ testCase10 = testCase "Packed and unpacked repeated types" $
        withPackingPacking1 @?= [1, 2, 3, 4, 5]
        withPackingPacking2 @?= [5, 4, 3, 2, 1]
 
-testCase11 = testCase "All possible packed types" $
+testCase11 = testCaseInFormat "All possible packed types" $
     do a <- readProto
        a @?= AllPackedTypes [] [] [] [] [] [] [] [] [] [] [] [] []
 
@@ -179,7 +230,7 @@ testCase11 = testCase "All possible packed types" $
        b @?= AllPackedTypes [1] [2] [3] [4] [5] [6] [7] [8] [9] [10] [False] [efld0] [efld0]
 
        c <- readProto
-       c @?= AllPackedTypes [1] [2] [-3] [-4] [5] [6] [-7] [-8] [-9] [-10] [True] [efld1] [efld1]
+       c @?= AllPackedTypes [1] [2] [-3] [-4] [5] [6] [-7] [-8] [-9] [-10] [True] [efld1, efld2] [efld1, efld2]
 
        d <- readProto
        d @?= AllPackedTypes [1..10000] [1..10000]
@@ -188,14 +239,15 @@ testCase11 = testCase "All possible packed types" $
                             [1,1.125..10000] [1,1.125..10000]
                             [1..10000] [1..10000]
                             [False,True]
-                            [efld0,efld1]
-                            [efld0,efld1]
+                            [efld0,efld1,efld2]
+                            [efld0,efld1,efld2]
     where
       efld0 = Enumerated (Right EFLD0)
       efld1 = Enumerated (Right EFLD1)
+      efld2 = Enumerated (Left 2)
 
 
-testCase12 = testCase "Message with out of order field numbers" $
+testCase12 = testCaseInFormat "Message with out of order field numbers" $
     do OutOfOrderFields { .. } <- readProto
        outOfOrderFieldsField1 @?= []
        outOfOrderFieldsField2 @?= ""
@@ -208,30 +260,35 @@ testCase12 = testCase "Message with out of order field numbers" $
        outOfOrderFieldsField3 @?= minBound
        outOfOrderFieldsField4 @?= ["This", "is", "a", "test"]
 
-testCase13 = testCase "Nested message with the same name as another package-level message" $
+testCase13 = testCaseInFormat "Nested message with the same name as another package-level message" $
     do ShadowedMessage { .. } <- readProto
        shadowedMessageName  @?= "name"
        shadowedMessageValue @?= 0x7DADBEEF
 
        MessageShadower { .. } <- readProto
        messageShadowerName @?= "another name"
-       messageShadowerShadowedMessage @?= Just (MessageShadower_ShadowedMessage "name" "string value")
+       -- Until <https://github.com/awakesecurity/proto3-suite/issues/206>
+       -- is fixed, the Haskell JSONPB parser will fail to find the this
+       -- field under its lowerCamelCase name.  Once the fix is available
+       -- we can make the following verification unconditional:
+       when (?format /= Jsonpb) $
+         messageShadowerShadowedMessage @?= Just (MessageShadower_ShadowedMessage "name" "string value")
 
        MessageShadower_ShadowedMessage { .. } <- readProto
        messageShadower_ShadowedMessageName  @?= "another name"
        messageShadower_ShadowedMessageValue @?= "another string"
 
-testCase14 = testCase "Qualified name resolution" $
+testCase14 = testCaseInFormat "Qualified name resolution" $
     do WithQualifiedName { .. } <- readProto
        withQualifiedNameQname1 @?= Just (ShadowedMessage "int value" 42)
        withQualifiedNameQname2 @?= Just (MessageShadower_ShadowedMessage "string value" "hello world")
 
-testCase15 = testCase "Imported message resolution" $
+testCase15 = testCaseInFormat "Imported message resolution" $
     do TestProtoImport.WithNesting { .. } <- readProto
        withNestingNestedMessage1 @?= Just (TestProtoImport.WithNesting_Nested 1 2)
        withNestingNestedMessage2 @?= Nothing
 
-testCase16 = testCase "Proper resolution of shadowed message names" $
+testCase16 = testCaseInFormat "Proper resolution of shadowed message names" $
     do UsingImported { .. } <- readProto
        usingImportedImportedNesting @?=
          Just (TestProtoImport.WithNesting
@@ -239,7 +296,7 @@ testCase16 = testCase "Proper resolution of shadowed message names" $
                  (Just (TestProtoImport.WithNesting_Nested 3 4)))
        usingImportedLocalNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] [])))
 
-testCase17 = testCase "Oneof" $ do
+testCase17 = testCaseInFormat "Oneof" $ do
     -- Read default values for oneof subfields
     do TestProtoOneof.Something{ .. } <- readProto
        somethingValue   @?= 1
@@ -296,7 +353,7 @@ testCase17 = testCase "Oneof" $ do
        somethingAnother @?= 12
        somethingPickOne @?= Nothing
 
-testCase18 = testCase "Imported Oneof" $ do
+testCase18 = testCaseInFormat "Imported Oneof" $ do
   do TestProtoOneof.WithImported{ .. } <- readProto
      withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneDummyMsg1
                                      (TestProtoOneof.DummyMsg 0))
@@ -325,7 +382,7 @@ testCase18 = testCase "Imported Oneof" $ do
   do TestProtoOneof.WithImported{ .. } <- readProto
      withImportedPickOne @?= Nothing
 
-testCase19 = testCase "Maps" $ do
+testCase19 = testCaseInFormat "Maps" $ do
   result <- readProto
   let wt = Just . WrappedTrivial . Just . Trivial
   let expected = MapTest{ mapTestPrim = M.fromList [("foo", 1),("bar", 42),("baz", 1234567)]
@@ -336,7 +393,63 @@ testCase19 = testCase "Maps" $ do
                         }
   result @?= expected
 
+testCase_DoubleValue = testCaseInFormat "DoubleValue" $ do
+  let w = TestProtoWrappers.TestDoubleValue
+  expect (w Nothing)
+  expect (w (Just 3.5))
+ 
+testCase_FloatValue = testCaseInFormat "FloatValue" $ do
+  let w = TestProtoWrappers.TestFloatValue
+  expect (w Nothing)
+  expect (w (Just 2.5))
 
-allTestsDone = testCase "Receive end of test suite sentinel message" $
+testCase_Int64Value = testCaseInFormat "Int64Value" $ do
+  let w = TestProtoWrappers.TestInt64Value
+  expect (w Nothing)
+  expect (w (Just 0))
+  expect (w (Just maxBound))
+  expect (w (Just (-1)))
+  expect (w (Just minBound))
+
+testCase_UInt64Value = testCaseInFormat "UInt64Value" $ do
+  let w = TestProtoWrappers.TestUInt64Value
+  expect (w Nothing)
+  expect (w (Just 0))
+  expect (w (Just maxBound))
+
+testCase_Int32Value = testCaseInFormat "Int32Value" $ do
+  let w = TestProtoWrappers.TestInt32Value
+  expect (w Nothing)
+  expect (w (Just 0))
+  expect (w (Just maxBound))
+  expect (w (Just (-1)))
+  expect (w (Just minBound))
+
+testCase_UInt32Value = testCaseInFormat "UInt32Value" $ do
+  let w = TestProtoWrappers.TestUInt32Value
+  expect (w Nothing)
+  expect (w (Just 0))
+  expect (w (Just maxBound))
+
+testCase_BoolValue = testCaseInFormat "BoolValue" $ do
+  let w = TestProtoWrappers.TestBoolValue
+  expect (w Nothing)
+  expect (w (Just False))
+  expect (w (Just True))
+
+testCase_StringValue = testCaseInFormat "StringValue" $ do
+  let w = TestProtoWrappers.TestStringValue
+  expect (w Nothing)
+  expect (w (Just ""))
+  expect (w (Just "abc"))
+
+testCase_BytesValue = testCaseInFormat "BytesValue" $ do
+  let w = TestProtoWrappers.TestBytesValue
+  expect (w Nothing)
+  expect (w (Just ""))
+  expect (w (Just "012"))
+
+
+allTestsDone = testCaseInFormat "Receive end of test suite sentinel message" $
    do MultipleFields{..} <- readProto
       multipleFieldsMultiFieldString @?= "All tests complete"
