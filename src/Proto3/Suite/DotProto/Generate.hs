@@ -338,21 +338,17 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
 
       pure $ importTypeContext <> qualifiedTypeContext <> transitiveImportsTC
 
--- | Given a type context, generates the Haskell import statements necessary
---   to import all the required types.  Excludes package "google.protobuf"
+-- | Given a type context, generates the Haskell import statements necessary to
+--   import all the required types.  Excludes module "Google.Protobuf.Wrappers"
 --   because the generated code does not actually make use of wrapper types
 --   as such; instead it uses @Maybe a@, where @a@ is the wrapped type.
 ctxtImports :: MonadError CompileError m => TypeContext -> m [HsImportDecl]
-ctxtImports = fmap (map mkImport . nub)
-            . traverse (modulePathModName . dotProtoTypeInfoModulePath)
-            . filter (not . isWrappers . dotProtoTypeInfoPackage)
-            . M.elems
+ctxtImports =
+    fmap (map mkImport . nub . filter (Module "Google.Protobuf.Wrappers" /=))
+    . traverse (modulePathModName . dotProtoTypeInfoModulePath)
+    . M.elems
   where
     mkImport modName = importDecl_ modName True Nothing Nothing
-
-    isWrappers = \case
-      DotProtoPackageSpec (Dots (Path ("google" :| ["protobuf"]))) -> True
-      _ -> False
 
 --------------------------------------------------------------------------------
 --
