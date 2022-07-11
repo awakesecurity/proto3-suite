@@ -437,6 +437,12 @@ instance FromJSONPB Double where
 -- Stringly types (string and bytes)
 
 -- string
+instance ToJSONPB T.Text where
+  toJSONPB     = const . A.toJSON
+  toEncodingPB = const . A.toEncoding
+instance FromJSONPB T.Text where
+  parseJSONPB = A.parseJSON
+
 instance ToJSONPB TL.Text where
   toJSONPB     = const . A.toJSON
   toEncodingPB = const . A.toEncoding
