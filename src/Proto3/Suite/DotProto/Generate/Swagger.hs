@@ -1,10 +1,12 @@
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DerivingVia         #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TypeApplications    #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -13,7 +15,6 @@
 -- describe JSONPB encodings for protobuf types.
 module Proto3.Suite.DotProto.Generate.Swagger
   ( ppSchema
-  , OverrideToSchema(..)
   , asProxy
   , insOrdFromList
   )
@@ -24,26 +25,24 @@ import           Control.Lens                    ((&), (?~))
 #else
 import           Control.Lens                    ((&), (.~), (?~))
 #endif
-import           Data.Aeson                      (Value (String), ToJSONKey,
-                                                  ToJSONKeyFunction(..))
-import qualified Data.Aeson                      as Aeson
+import           Data.Aeson                      (Value (String))
 import           Data.Aeson.Encode.Pretty        (encodePretty)
-import qualified Data.ByteString                 as B
 import qualified Data.ByteString.Lazy.Char8      as LC8
 import           Data.Hashable                   (Hashable)
 import           Data.HashMap.Strict.InsOrd      (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd
-import           Data.Map                        (Map)
 import           Data.Swagger
 import qualified Data.Text                       as T
 import           Data.Proxy
 import qualified Data.Vector                     as V
 import           GHC.Exts                        (Proxy#, proxy#)
-import           GHC.Int
-import           GHC.Word
+import           Google.Protobuf.Wrappers.Polymorphic (Wrapped(..))
 import           Proto3.Suite                    (Enumerated (..), Finite (..),
-                                                  Fixed (..), Named (..), enumerate)
-import           Proto3.Suite.DotProto.Generate.Swagger.OverrideToSchema (OverrideToSchema(..))
+                                                  Fixed (..), Named (..),
+                                                  Nested (..), NestedVec (..),
+                                                  PackedVec (..), Signed (..),
+                                                  UnpackedVec (..), enumerate)
+import qualified Proto3.Suite.Types
 import           Proto3.Suite.DotProto.Generate.Swagger.Wrappers ()
 
 -- | Convenience re-export so that users of generated code don't have to add
@@ -51,42 +50,33 @@ import           Proto3.Suite.DotProto.Generate.Swagger.Wrappers ()
 insOrdFromList :: (Eq k, Hashable k) => [(k, v)] -> InsOrdHashMap k v
 insOrdFromList = Data.HashMap.Strict.InsOrd.fromList
 
-instance {-# OVERLAPPABLE #-} ToSchema a => ToSchema (OverrideToSchema a) where
-  declareNamedSchema _ = declareNamedSchema (Proxy :: Proxy a)
+-- Distinctions between varint and fixed-width formats do not matter to JSONPB.
+deriving via a instance ToSchema a => ToSchema (Fixed a)
 
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema B.ByteString) where
-  declareNamedSchema _ = return (NamedSchema Nothing byteSchema)
+-- Zig-zag encoding issues do not matter to JSONPB.
+deriving via a instance ToSchema a => ToSchema (Signed a)
 
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (V.Vector B.ByteString)) where
-  declareNamedSchema _ = return (NamedSchema Nothing schema_)
-    where
-      schema_ = mempty
-#if MIN_VERSION_swagger2(2,4,0)
-        & type_ ?~ SwaggerArray
-#else
-        & type_ .~ SwaggerArray
-#endif
-        & items ?~ SwaggerItemsObject (Inline byteSchema)
+-- Packed/unpacked distinctions do not matter to JSONPB.
+deriving via (V.Vector a) instance ToSchema a => ToSchema (NestedVec a)
+deriving via (V.Vector a) instance ToSchema a => ToSchema (PackedVec a)
+deriving via (V.Vector a) instance ToSchema a => ToSchema (UnpackedVec a)
 
-instance {-# OVERLAPPING #-} (ToJSONKey k, ToSchema k) => ToSchema (OverrideToSchema (Map k B.ByteString)) where
-  declareNamedSchema _ = case Aeson.toJSONKey :: ToJSONKeyFunction k of
-      ToJSONKeyText _ _ -> do
-          return (NamedSchema Nothing schema_)
-      ToJSONKeyValue _ _ -> do
-          declareNamedSchema (Proxy :: Proxy [(k, (OverrideToSchema B.ByteString))])
-    where
-      schema_ = mempty
-#if MIN_VERSION_swagger2(2,4,0)
-        & type_ ?~ SwaggerObject
-#else
-        & type_ .~ SwaggerObject
-#endif
-        & additionalProperties ?~ AdditionalPropertiesSchema (Inline byteSchema)
+-- Unless and until the overlapping instances for @Maybe (Wrapped _)@
+-- are selected, the schema is unaffected by 'Wrapped'.
+deriving via a instance ToSchema a => ToSchema (Wrapped a)
+
+instance ToSchema (Proto3.Suite.Types.String a) where
+  declareNamedSchema _ = declareNamedSchema (Proxy :: Proxy String)
+
+instance ToSchema (Proto3.Suite.Types.Bytes a) where
+  declareNamedSchema _ = pure (NamedSchema Nothing byteSchema)
+
+deriving via (Maybe a) instance ToSchema a => ToSchema (Nested a)
 
 {-| This is a convenience function that uses type inference to select the
     correct instance of `ToSchema` to use for fields of a message
 -}
-asProxy :: (Proxy (OverrideToSchema a) -> b) -> Proxy a
+asProxy :: (Proxy a -> b) -> Proxy a
 asProxy _ = Proxy
 
 -- | Pretty-prints a schema. Useful when playing around with schemas in the
@@ -108,15 +98,3 @@ instance (Finite e, Named e) => ToSchema (Enumerated e) where
              & type_ .~ SwaggerString
 #endif
              & enum_ ?~ fmap String enumMemberNames
-
-instance ToSchema (Fixed Int32) where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Int32)
-
-instance ToSchema (Fixed Int64) where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Int64)
-
-instance ToSchema (Fixed Word32) where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Word32)
-
-instance ToSchema (Fixed Word64) where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Word64)

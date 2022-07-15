@@ -40,7 +40,6 @@ module Proto3.Suite.JSONPB
   , Swagger.ParamSchema(..)
   , Swagger.SwaggerType(..)
   , Swagger.declareSchemaRef
-  , Proto3.Suite.DotProto.Generate.Swagger.OverrideToSchema(..)
   , Proto3.Suite.DotProto.Generate.Swagger.asProxy
   , Proto3.Suite.DotProto.Generate.Swagger.insOrdFromList
 #endif

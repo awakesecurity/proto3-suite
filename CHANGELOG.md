@@ -1,4 +1,8 @@
 
+# 0.6.0
+* Support use of ShortText as the Haskell type of a protobuf string.
+* Replace OverrideToSchema with String and Bytes.
+
 # 0.5.2
 * Support numeric enumerator codes in JSONPB,
   as required by the protobuf standard.
