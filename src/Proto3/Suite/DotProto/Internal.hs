@@ -42,7 +42,8 @@ import           Proto3.Suite.DotProto.Parsing
 import           Proto3.Wire.Types         (FieldNumber (..))
 import           System.FilePath           (isPathSeparator)
 import           Text.Parsec               (ParseError)
-import qualified Turtle
+import qualified Turtle hiding (absolute, collapse)
+import qualified Turtle.Compat as Turtle (absolute, collapse)
 import           Turtle                    (ExitCode (..), FilePath, Text,
                                             (</>))
 import           Turtle.Format             ((%))

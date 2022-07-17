@@ -30,7 +30,7 @@ import           Proto3.Wire.Types               (FieldNumber (..))
 import           Text.PrettyPrint                (($$), (<+>), (<>))
 import qualified Text.PrettyPrint                as PP
 import           Text.PrettyPrint.HughesPJClass  (Pretty(..))
-import           Turtle                          (toText)
+import           Turtle.Compat                   (toText)
 
 -- | Options for rendering a @.proto@ file.
 data RenderingOptions = RenderingOptions
