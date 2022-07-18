@@ -73,6 +73,8 @@ library
                        Proto3.Suite.DotProto.Internal
                        Proto3.Suite.JSONPB.Class
 
+  other-modules:       Turtle.Compat
+
   build-depends:       aeson >= 1.1.1.0 && < 2.1,
                        aeson-pretty,
                        attoparsec >= 0.13.0.1,
@@ -139,6 +141,7 @@ test-suite tests
     TestProtoImport
     TestProtoOneof
     TestProtoOneofImport
+    TestProtoWrappers
     TestProtoNestedMessage
 
   other-modules:
@@ -148,6 +151,7 @@ test-suite tests
     TestProtoImport
     TestProtoOneof
     TestProtoOneofImport
+    TestProtoWrappers
     --TestProtoLeadingDot
     TestProtoNestedMessage
     --TestProtoProtocPlugin

@@ -62,7 +62,8 @@ import           Proto3.Suite.DotProto.Internal
 import           Proto3.Wire.Types              (FieldNumber (..))
 import Text.Parsec (Parsec, alphaNum, eof, parse, satisfy, try)
 import qualified Text.Parsec as Parsec
-import qualified Turtle
+import qualified Turtle hiding (encodeString)
+import qualified Turtle.Compat as Turtle (encodeString)
 import           Turtle                         (FilePath, (</>), (<.>))
 
 --------------------------------------------------------------------------------

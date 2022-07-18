@@ -36,7 +36,8 @@ import Text.Parser.Combinators
 import Text.Parser.LookAhead
 import Text.Parser.Token
 import qualified Text.Parser.Token.Style as TokenStyle
-import qualified Turtle
+import qualified Turtle hiding (encodeString, fromText)
+import qualified Turtle.Compat as Turtle (encodeString, fromText)
 
 ----------------------------------------
 -- interfaces
