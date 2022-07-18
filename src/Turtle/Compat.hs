@@ -15,7 +15,7 @@ import qualified Data.Text
 import qualified System.FilePath
 import qualified Turtle
 
-absolute :: FilePath -> Bool
+absolute :: Turtle.FilePath -> Bool
 collapse :: Turtle.FilePath -> Turtle.FilePath
 encodeString :: Turtle.FilePath -> String
 fromText :: Turtle.Text -> Turtle.FilePath
