@@ -68,6 +68,12 @@ docTests = testCase "doctests" $ do
     , "-itests"
     , "-igen"
 #ifdef SWAGGER
+#ifdef SWAGGER_WRAPPER_FORMAT
+    , "-isrc/swagger-wrapper-format"
+    , "-DSWAGGER_WRAPPER_FORMAT"
+#else
+    , "-isrc/no-swagger-wrapper-format"
+#endif
     , "-DSWAGGER"
 #endif
 #ifdef DHALL
