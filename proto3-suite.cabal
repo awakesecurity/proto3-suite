@@ -141,6 +141,7 @@ test-suite tests
     TestProtoImport
     TestProtoOneof
     TestProtoOneofImport
+    TestProtoWrappers
     TestProtoNestedMessage
   other-modules:
     ArbitraryGeneratedTestTypes
@@ -149,6 +150,7 @@ test-suite tests
     TestProtoImport
     TestProtoOneof
     TestProtoOneofImport
+    TestProtoWrappers
     --TestProtoLeadingDot
     TestProtoNestedMessage
     --TestProtoProtocPlugin

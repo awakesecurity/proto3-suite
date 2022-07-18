@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -31,6 +32,7 @@ import           Test.Tasty.HUnit               (testCase, (@?=))
 import           Turtle                         (FilePath)
 import qualified Turtle
 import qualified Turtle.Format                  as F
+import qualified TestProtoWrappers              ()
 
 codeGenTests :: TestTree
 codeGenTests = testGroup "Code generator unit tests"
@@ -197,6 +199,7 @@ compileTestDotProtos = do
 -- >>> import Proto3.Suite.JSONPB
 -- >>> import TestProto
 -- >>> import TestProtoOneof
+-- >>> import TestProtoWrappers
 -- >>> :set -XOverloadedStrings
 -- >>> :set -XOverloadedLists
 -- >>> :set -XTypeApplications
@@ -278,6 +281,18 @@ compileTestDotProtos = do
 -- {"properties":{"dummy":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"}},"type":"object"}
 -- >>> schemaOf @(Enumerated DummyEnum)
 -- {"type":"string","enum":["DUMMY0","DUMMY1"]}
+--
+#ifdef SWAGGER_WRAPPER_FORMAT
+-- >>> schemaOf @TestInt32Value
+-- {"properties":{"wrapper":{"maximum":2147483647,"format":"Int32Value","minimum":-2147483648,"type":"integer"}},"type":"object"}
+#else
+-- >>> schemaOf @TestInt32Value
+-- {"properties":{"wrapper":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"}},"type":"object"}
+#endif
+-- >>> schemaOf @TestStringValue
+-- {"properties":{"wrapper":{"type":"string"}},"type":"object"}
+-- >>> schemaOf @TestBytesValue
+-- {"properties":{"wrapper":{"format":"byte","type":"string"}},"type":"object"}
 --
 -- Generic HasDefault
 --
