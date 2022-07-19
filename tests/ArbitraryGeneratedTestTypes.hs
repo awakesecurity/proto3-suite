@@ -3,16 +3,21 @@
 
 module ArbitraryGeneratedTestTypes where
 
-import qualified Data.Text.Lazy        as T
+import           Data.String           (fromString)
+import qualified Data.Text.Short       as TS
 import qualified Data.Vector           as V
 import qualified Proto3.Suite.Types as DotProto
 import           Test.QuickCheck       (listOf)
 import qualified Test.QuickCheck       as QC
-import           Test.QuickCheck.Arbitrary.Generic (genericArbitrary, Arbitrary (arbitrary))
+import           Test.QuickCheck.Arbitrary.Generic (genericArbitrary, Arbitrary (..), genericShrink)
 import           TestProto
 import qualified TestProtoImport
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
+
+instance Arbitrary TS.ShortText where
+  arbitrary = fmap TS.fromText arbitrary
+  shrink = map TS.fromText . shrink . TS.toText
 
 instance Arbitrary Trivial where
   arbitrary = Trivial <$> arbitrary
@@ -24,7 +29,7 @@ instance Arbitrary MultipleFields where
     <*> arbitrary
     <*> arbitrary
     <*> arbitrary
-    <*> fmap T.pack arbitrary
+    <*> fmap fromString arbitrary
     <*> arbitrary
 
 instance Arbitrary WithEnum_TestEnum where
@@ -36,7 +41,7 @@ instance Arbitrary WithEnum where
 instance Arbitrary WithNesting_Nested where
   arbitrary =
     WithNesting_Nested
-    <$> fmap T.pack arbitrary
+    <$> fmap fromString arbitrary
     <*> arbitrary
     <*> arbitrary
     <*> arbitrary
@@ -70,11 +75,14 @@ instance Arbitrary SignedInts where
 
 instance Arbitrary WithNestingRepeated where
   arbitrary = WithNestingRepeated <$> arbitrary
+  shrink (WithNestingRepeated xs) = map (WithNestingRepeated . V.fromList) $
+    QC.shrinkList (const []) (V.toList xs)
+      -- It is too expensive to shrink the submessages.
 
 instance Arbitrary WithNestingRepeated_Nested where
   arbitrary =
     WithNestingRepeated_Nested
-    <$> fmap T.pack arbitrary
+    <$> fmap fromString arbitrary
     <*> arbitrary
     <*> arbitrary
     <*> arbitrary
@@ -89,9 +97,9 @@ instance Arbitrary OutOfOrderFields where
   arbitrary =
     OutOfOrderFields
     <$> arbitrary
-    <*> fmap T.pack arbitrary
+    <*> fmap fromString arbitrary
     <*> arbitrary
-    <*> fmap (fmap T.pack) arbitrary
+    <*> fmap (fmap fromString) arbitrary
 
 instance Arbitrary UsingImported where
   arbitrary =
@@ -104,6 +112,7 @@ instance Arbitrary TestProtoImport.WithNesting where
     TestProtoImport.WithNesting
     <$> arbitrary
     <*> arbitrary
+  shrink = genericShrink
 
 instance Arbitrary TestProtoImport.WithNesting_Nested where
   arbitrary =
@@ -129,7 +138,7 @@ instance Arbitrary TestProtoOneof.Something where
 instance Arbitrary TestProtoOneof.SomethingPickOne where
   arbitrary =
     QC.oneof
-      [ TestProtoOneof.SomethingPickOneName       <$> fmap T.pack arbitrary
+      [ TestProtoOneof.SomethingPickOneName       <$> fmap fromString arbitrary
       , TestProtoOneof.SomethingPickOneSomeid     <$> arbitrary
       , TestProtoOneof.SomethingPickOneDummyMsg1  <$> arbitrary
       , TestProtoOneof.SomethingPickOneDummyMsg2  <$> arbitrary
@@ -157,6 +166,6 @@ instance Arbitrary TestProtoOneofImport.WithOneof where
 instance Arbitrary TestProtoOneofImport.WithOneofPickOne where
   arbitrary =
     QC.oneof
-      [ TestProtoOneofImport.WithOneofPickOneA <$> fmap T.pack arbitrary
+      [ TestProtoOneofImport.WithOneofPickOneA <$> fmap fromString arbitrary
       , TestProtoOneofImport.WithOneofPickOneB <$> arbitrary
       ]
