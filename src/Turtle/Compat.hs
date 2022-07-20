@@ -11,17 +11,12 @@ module Turtle.Compat
   , toText
   ) where
 
-import qualified Data.Text
-import qualified System.FilePath
 import qualified Turtle
 
-absolute :: Turtle.FilePath -> Bool
-collapse :: Turtle.FilePath -> Turtle.FilePath
-encodeString :: Turtle.FilePath -> String
-fromText :: Turtle.Text -> Turtle.FilePath
-toText :: Turtle.FilePath -> Either Turtle.Text Turtle.Text
-
 #if MIN_VERSION_turtle(1,6,0)
+
+import qualified Data.Text
+import qualified System.FilePath
 
 absolute = System.FilePath.isAbsolute
 collapse = System.FilePath.normalise
@@ -38,3 +33,9 @@ fromText = Turtle.fromText
 toText = Turtle.toText
 
 #endif
+
+absolute :: Turtle.FilePath -> Bool
+collapse :: Turtle.FilePath -> Turtle.FilePath
+encodeString :: Turtle.FilePath -> String
+fromText :: Turtle.Text -> Turtle.FilePath
+toText :: Turtle.FilePath -> Either Turtle.Text Turtle.Text
