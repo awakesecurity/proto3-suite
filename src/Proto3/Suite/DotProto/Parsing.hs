@@ -11,8 +11,15 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module Proto3.Suite.DotProto.Parsing
-  ( parseProto
+  ( runProtoParser 
+  , parseProto
   , parseProtoFile
+
+    -- * Option Parsers
+  , pOptionStmt
+  , pFieldOptions
+  , pFieldOptionStmt
+  , pOptionId
   ) where
 
 import Prelude hiding (fail)
@@ -24,6 +31,7 @@ import Control.Monad (fail)
 #if !MIN_VERSION_base(4,13,0)
 import Control.Monad.Fail
 #endif
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NE
 import Data.Functor
 import qualified Data.Text as T
@@ -107,14 +115,6 @@ identifier = token _identifier
 -- The leading dot denotes that the identifier path starts in global scope.
 globalIdentifier :: ProtoParser DotProtoIdentifier
 globalIdentifier = token $ string "." >> _identifier
-
--- Parses a nested identifier, consuming trailing space.
-nestedIdentifier :: ProtoParser DotProtoIdentifier
-nestedIdentifier = token $ do
-  h <- parens _identifier
-  string "."
-  t <- _identifier
-  return $ Qualified h t
 
 ----------------------------------------
 -- values
@@ -203,7 +203,7 @@ topLevel modulePath = do whiteSpace
 topStatement :: ProtoParser DotProtoStatement
 topStatement = DPSImport     <$> import_
            <|> DPSPackage    <$> package
-           <|> DPSOption     <$> topOption
+           <|> DPSOption     <$> pOptionStmt
            <|> DPSDefinition <$> definition
            <|> DPSEmpty      <$  empty
 
@@ -230,27 +230,78 @@ definition = message
 --------------------------------------------------------------------------------
 -- options
 
-inlineOption :: ProtoParser DotProtoOption
-inlineOption = DotProtoOption <$> (optionName <* symbol "=") <*> value
-  where
-    optionName = nestedIdentifier <|> identifier
+-- | Parses a protobuf option that could appear in a service, RPC, message, 
+-- enumeration, or at the top-level.
+--
+-- @since 0.5.2
+pOptionStmt :: ProtoParser DotProtoOption
+pOptionStmt = token (between pOptionKw (token semi) pFieldOptionStmt)
 
-optionAnnotation :: ProtoParser [DotProtoOption]
-optionAnnotation = brackets (commaSep1 inlineOption) <|> pure []
+-- | Parses zero or more message field options enclosed in square braces.
+--
+-- @since 0.5.2
+pFieldOptions :: ProtoParser [DotProtoOption]
+pFieldOptions = pOptions <|> pure []
+  where 
+    pOptions :: ProtoParser [DotProtoOption]
+    pOptions = between lbracket rbracket (commaSep1 (token pFieldOptionStmt))
 
-topOption :: ProtoParser DotProtoOption
-topOption = symbol "option" *> inlineOption <* semi
+    lbracket :: ProtoParser ()
+    lbracket = token (char '[' $> ()) <?> "left bracket"
+
+    rbracket :: ProtoParser ()
+    rbracket = token (char ']' $> ()) <?> "right bracket"
+
+-- | Parses a protobuf option in the context of a message field's options.
+--
+-- @since 0.5.2
+pFieldOptionStmt :: ProtoParser DotProtoOption
+pFieldOptionStmt = token $ do 
+  idt <- pOptionId 
+  token (char '=')
+  val <- value
+  pure (DotProtoOption idt val)
+
+-- | Parses a (qualified) identifier for a protobuf option.
+--
+-- @since 0.5.2
+pOptionId :: ProtoParser DotProtoIdentifier
+pOptionId = 
+  token (pOptionName <|> pOptionQName)
+    <?> "option identifier"
+  where 
+    pOptionName :: ProtoParser DotProtoIdentifier
+    pOptionName = do
+      nm <- identifierName
+      nms <- many (char '.' *> identifierName)
+      if null nms 
+        then pure (Single nm)
+        else pure (Dots (Path (nm :| nms)))
+
+    pOptionQName :: ProtoParser DotProtoIdentifier
+    pOptionQName = do 
+      idt <- parens pOptionName
+      nms <- char '.' *> pOptionName
+      pure (Qualified idt nms)
+
+-- | Parses a single keyword token "option".
+--
+-- @since 0.5.2
+pOptionKw :: ProtoParser ()
+pOptionKw = 
+  token (string "option" *> notFollowedBy alphaNum)
+    <?> "keyword 'option'"
 
 --------------------------------------------------------------------------------
 -- service statements
 
 servicePart :: ProtoParser DotProtoServicePart
 servicePart = DotProtoServiceRPCMethod <$> rpc
-          <|> DotProtoServiceOption <$> topOption
+          <|> DotProtoServiceOption <$> pOptionStmt
           <|> DotProtoServiceEmpty <$ empty
 
 rpcOptions :: ProtoParser [DotProtoOption]
-rpcOptions = braces $ many topOption
+rpcOptions = braces $ many pOptionStmt
 
 rpcClause :: ProtoParser (DotProtoIdentifier, Streaming)
 rpcClause = do
@@ -294,7 +345,7 @@ messagePart = try (DotProtoMessageDefinition <$> enum)
           <|> try (DotProtoMessageDefinition <$> message)
           <|> try messageOneOf
           <|> try (DotProtoMessageField      <$> messageField)
-          <|> try (DotProtoMessageOption     <$> topOption)
+          <|> try (DotProtoMessageOption     <$> pOptionStmt)
 
 messageType :: ProtoParser DotProtoType
 messageType = try mapType <|> try repType <|> (Prim <$> primType)
@@ -311,7 +362,7 @@ messageField = do mtype <- messageType
                   mname <- identifier
                   symbol "="
                   mnumber <- fieldNumber
-                  moptions <- optionAnnotation
+                  moptions <- pFieldOptions
                   semi
                   return $ DotProtoField mnumber mtype mname moptions mempty
 
@@ -322,13 +373,13 @@ enumField :: ProtoParser DotProtoEnumPart
 enumField = do fname <- identifier
                symbol "="
                fpos <- fromInteger <$> integer
-               opts <- optionAnnotation
+               opts <- pFieldOptions
                semi
                return $ DotProtoEnumField fname fpos opts
 
 
 enumStatement :: ProtoParser DotProtoEnumPart
-enumStatement = try (DotProtoEnumOption <$> topOption)
+enumStatement = try (DotProtoEnumOption <$> pOptionStmt)
             <|> enumField
             <|> empty $> DotProtoEnumEmpty
 
