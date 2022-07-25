@@ -97,12 +97,6 @@ swaggerWrapperFormat = testGroup "Swagger Wrapper Format"
         wf = False
 #endif
 
--- >>> schemaOf @TestStringValue
--- {"properties":{"wrapper":{"type":"string"}},"type":"object"}
--- >>> schemaOf @TestBytesValue
--- {"properties":{"wrapper":{"format":"byte","type":"string"}},"type":"object"}
---
-
 knownTypeMessages :: TestTree
 knownTypeMessages =
   testGroup
