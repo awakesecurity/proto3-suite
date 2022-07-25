@@ -263,6 +263,7 @@ dotProtoUnitTests = testGroup ".proto parsing tests"
   , dotProtoPrintTrivial
   , dotProtoRoundtripTrivial
   , dotProtoRoundtripSimpleMessage
+  , dotProtoRoundtripExtend
   , qcDotProtoRoundtrip
   ]
 
@@ -321,6 +322,14 @@ qcDotProtoRoundtrip = testProperty
                                   ++ "\n\nWhen attempting to parse:\n\n"
                                   ++ generated
                                   ++ "\n\nInitial AST:\n\n"
+
+dotProtoRoundtripExtend :: TestTree
+dotProtoRoundtripExtend = 
+  let expected :: DotProto
+      expected = DotProto [] [] DotProtoNoPackage [] (DotProtoMeta (Path ("test-files" NE.:| ["test_proto_extend"])))
+   in testCase
+        "Round-trip for a message extension" 
+        (testDotProtoRoundtrip expected)
 
 --------------------------------------------------------------------------------
 -- Helpers
