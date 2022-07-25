@@ -1,13 +1,14 @@
-{-# LANGUAGE CPP                 #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DerivingVia         #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE MagicHash           #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving  #-}
-{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE CPP                  #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE DerivingVia          #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE MagicHash            #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -71,7 +72,11 @@ instance ToSchema (Proto3.Suite.Types.String a) where
 instance ToSchema (Proto3.Suite.Types.Bytes a) where
   declareNamedSchema _ = pure (NamedSchema Nothing byteSchema)
 
-deriving via (Maybe a) instance ToSchema a => ToSchema (Nested a)
+-- Note that the context is @ToSchema (Maybe a)@, NOT @ToSchema a@.
+-- This design keeps this instance from bypassing overlapping
+-- instances such as @ToSchema (Maybe (Wrapped Bool))@ that
+-- are included by cabal flag @-fswagger-wrapper-format@.
+deriving via (Maybe a) instance ToSchema (Maybe a) => ToSchema (Nested a)
 
 {-| This is a convenience function that uses type inference to select the
     correct instance of `ToSchema` to use for fields of a message
