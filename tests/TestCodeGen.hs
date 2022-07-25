@@ -80,13 +80,13 @@ swaggerWrapperFormat = testGroup "Swagger Wrapper Format"
            "{\"properties\":{\"wrapper\":{\"format\":\"byte\",\"type\":\"string\"}},\"type\":\"object\"}"
     ]
   where
-    prop ::
+    expectSchema ::
       forall a .
       (ToSchema a, Typeable a) =>
       LBS.ByteString ->
       LBS.ByteString ->
       TestTree
-    prop wrapperFormat noWrapperFormat =
+    expectSchema wrapperFormat noWrapperFormat =
         testCase (tyConName (fst (splitTyConApp (typeRep (Proxy @a))))) $ do
           lbsSchemaOf @a @?= (if wf then wrapperFormat else noWrapperFormat)
       where
