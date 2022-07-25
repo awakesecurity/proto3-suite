@@ -11,7 +11,8 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module Proto3.Suite.DotProto.Parsing
-  ( runProtoParser 
+  ( ProtoParser 
+  , runProtoParser 
   , parseProto
   , parseProtoFile
 
@@ -20,6 +21,7 @@ module Proto3.Suite.DotProto.Parsing
   , pFieldOptions
   , pFieldOptionStmt
   , pOptionId
+  , pOptionKw
   ) where
 
 import Prelude hiding (fail)
@@ -267,11 +269,14 @@ pFieldOptionStmt = token $ do
 -- @since 0.5.2
 pOptionId :: ProtoParser DotProtoIdentifier
 pOptionId = 
-  token (pOptionName <|> pOptionQName)
-    <?> "option identifier"
+  choice 
+    [ try pOptionQName
+    , try (parens pOptionName)
+    , pOptionName
+    ]
   where 
     pOptionName :: ProtoParser DotProtoIdentifier
-    pOptionName = do
+    pOptionName = token $ do
       nm <- identifierName
       nms <- many (char '.' *> identifierName)
       if null nms 
@@ -279,7 +284,7 @@ pOptionId =
         else pure (Dots (Path (nm :| nms)))
 
     pOptionQName :: ProtoParser DotProtoIdentifier
-    pOptionQName = do 
+    pOptionQName = token $ do 
       idt <- parens pOptionName
       nms <- char '.' *> pOptionName
       pure (Qualified idt nms)
@@ -288,8 +293,9 @@ pOptionId =
 --
 -- @since 0.5.2
 pOptionKw :: ProtoParser ()
-pOptionKw = 
-  token (string "option" *> notFollowedBy alphaNum)
+pOptionKw = do
+  spaces
+  token (string "option" >> notFollowedBy alphaNum)
     <?> "keyword 'option'"
 
 --------------------------------------------------------------------------------
