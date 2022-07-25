@@ -51,31 +51,31 @@ codeGenTests = testGroup "Code generator unit tests"
 
 swaggerWrapperFormat :: TestTree
 swaggerWrapperFormat = testGroup "Swagger Wrapper Format"
-    [ prop @TestProtoWrappers.TestDoubleValue
+    [ expectSchema @TestProtoWrappers.TestDoubleValue
            "{\"properties\":{\"wrapper\":{\"format\":\"DoubleValue\",\"type\":\"number\"}},\"type\":\"object\"}"
            "{\"properties\":{\"wrapper\":{\"format\":\"double\",\"type\":\"number\"}},\"type\":\"object\"}"
-    , prop @TestProtoWrappers.TestFloatValue
+    , expectSchema @TestProtoWrappers.TestFloatValue
            "{\"properties\":{\"wrapper\":{\"format\":\"FloatValue\",\"type\":\"number\"}},\"type\":\"object\"}"
            "{\"properties\":{\"wrapper\":{\"format\":\"float\",\"type\":\"number\"}},\"type\":\"object\"}"
-    , prop @TestProtoWrappers.TestInt64Value
+    , expectSchema @TestProtoWrappers.TestInt64Value
            "{\"properties\":{\"wrapper\":{\"maximum\":9223372036854775807,\"format\":\"Int64Value\",\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
            "{\"properties\":{\"wrapper\":{\"maximum\":9223372036854775807,\"format\":\"int64\",\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
-    , prop @TestProtoWrappers.TestUInt64Value
+    , expectSchema @TestProtoWrappers.TestUInt64Value
            "{\"properties\":{\"wrapper\":{\"maximum\":18446744073709551615,\"format\":\"UInt64Value\",\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
            "{\"properties\":{\"wrapper\":{\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
-    , prop @TestProtoWrappers.TestInt32Value
+    , expectSchema @TestProtoWrappers.TestInt32Value
            "{\"properties\":{\"wrapper\":{\"maximum\":2147483647,\"format\":\"Int32Value\",\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
            "{\"properties\":{\"wrapper\":{\"maximum\":2147483647,\"format\":\"int32\",\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
-    , prop @TestProtoWrappers.TestUInt32Value
+    , expectSchema @TestProtoWrappers.TestUInt32Value
            "{\"properties\":{\"wrapper\":{\"maximum\":4294967295,\"format\":\"UInt32Value\",\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
            "{\"properties\":{\"wrapper\":{\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
-    , prop @TestProtoWrappers.TestBoolValue
+    , expectSchema @TestProtoWrappers.TestBoolValue
            "{\"properties\":{\"wrapper\":{\"format\":\"BoolValue\",\"type\":\"boolean\"}},\"type\":\"object\"}"
            "{\"properties\":{\"wrapper\":{\"type\":\"boolean\"}},\"type\":\"object\"}"
-    , prop @TestProtoWrappers.TestStringValue
+    , expectSchema @TestProtoWrappers.TestStringValue
            "{\"properties\":{\"wrapper\":{\"format\":\"StringValue\",\"type\":\"string\"}},\"type\":\"object\"}"
            "{\"properties\":{\"wrapper\":{\"type\":\"string\"}},\"type\":\"object\"}"
-    , prop @TestProtoWrappers.TestBytesValue
+    , expectSchema @TestProtoWrappers.TestBytesValue
            "{\"properties\":{\"wrapper\":{\"format\":\"BytesValue\",\"type\":\"string\"}},\"type\":\"object\"}"
            "{\"properties\":{\"wrapper\":{\"format\":\"byte\",\"type\":\"string\"}},\"type\":\"object\"}"
     ]
