@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package TestProtoExtend;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FileDescriptor {
+  bool test_bool_option = 50000;
+}
