@@ -157,6 +157,8 @@ test-suite tests
     --TestProtoProtocPlugin
     Test.Proto.Generate.Name
     Test.Proto.Generate.Name.Gen
+    Test.Proto.Parse.Gen
+    Test.Proto.Parse.Option
 
   build-depends:
       aeson >= 1.1.1.0 && < 2.1
@@ -171,6 +173,8 @@ test-suite tests
     , generic-arbitrary
     , hedgehog
     , mtl ==2.2.*
+    , parsec >= 3.1.9 && <3.2.0
+    , pretty ==1.1.*
     , pretty-show >= 1.6.12 && < 2.0
     , proto3-suite
     , proto3-wire >= 1.2 && < 1.5

@@ -19,6 +19,8 @@ import           Data.String                    (IsString)
 import           Data.Swagger                   (ToSchema)
 import qualified Data.Swagger
 import qualified Data.Text                      as T
+import           Data.Typeable                  (Typeable, splitTyConApp,
+                                                 tyConName, typeRep)
 import           Google.Protobuf.Timestamp      (Timestamp(..))
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate
@@ -32,11 +34,12 @@ import           Test.Tasty.HUnit               (testCase, (@?=))
 import           Turtle                         (FilePath)
 import qualified Turtle
 import qualified Turtle.Format                  as F
-import qualified TestProtoWrappers              ()
+import qualified TestProtoWrappers
 
 codeGenTests :: TestTree
 codeGenTests = testGroup "Code generator unit tests"
-  [ pascalCaseMessageNames
+  [ swaggerWrapperFormat
+  , pascalCaseMessageNames
   , camelCaseMessageFieldNames
   , don'tAlterEnumFieldNames
   , knownTypeMessages
@@ -49,6 +52,54 @@ pythonInteroperation = testGroup "Python interoperation" $ do
   format <- ["Binary", "Jsonpb"]
   direction <- [simpleEncodeDotProto, simpleDecodeDotProto]
   [direction tt format]
+
+swaggerWrapperFormat :: TestTree
+swaggerWrapperFormat = testGroup "Swagger Wrapper Format"
+    [ expectSchema @TestProtoWrappers.TestDoubleValue
+           "{\"properties\":{\"wrapper\":{\"format\":\"DoubleValue\",\"type\":\"number\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"double\",\"type\":\"number\"}},\"type\":\"object\"}"
+    , expectSchema @TestProtoWrappers.TestFloatValue
+           "{\"properties\":{\"wrapper\":{\"format\":\"FloatValue\",\"type\":\"number\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"float\",\"type\":\"number\"}},\"type\":\"object\"}"
+    , expectSchema @TestProtoWrappers.TestInt64Value
+           "{\"properties\":{\"wrapper\":{\"maximum\":9223372036854775807,\"format\":\"Int64Value\",\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"maximum\":9223372036854775807,\"format\":\"int64\",\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
+    , expectSchema @TestProtoWrappers.TestUInt64Value
+           "{\"properties\":{\"wrapper\":{\"maximum\":18446744073709551615,\"format\":\"UInt64Value\",\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+    , expectSchema @TestProtoWrappers.TestInt32Value
+           "{\"properties\":{\"wrapper\":{\"maximum\":2147483647,\"format\":\"Int32Value\",\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"maximum\":2147483647,\"format\":\"int32\",\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
+    , expectSchema @TestProtoWrappers.TestUInt32Value
+           "{\"properties\":{\"wrapper\":{\"maximum\":4294967295,\"format\":\"UInt32Value\",\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+    , expectSchema @TestProtoWrappers.TestBoolValue
+           "{\"properties\":{\"wrapper\":{\"format\":\"BoolValue\",\"type\":\"boolean\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"type\":\"boolean\"}},\"type\":\"object\"}"
+    , expectSchema @TestProtoWrappers.TestStringValue
+           "{\"properties\":{\"wrapper\":{\"format\":\"StringValue\",\"type\":\"string\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"type\":\"string\"}},\"type\":\"object\"}"
+    , expectSchema @TestProtoWrappers.TestBytesValue
+           "{\"properties\":{\"wrapper\":{\"format\":\"BytesValue\",\"type\":\"string\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"byte\",\"type\":\"string\"}},\"type\":\"object\"}"
+    ]
+  where
+    expectSchema ::
+      forall a .
+      (ToSchema a, Typeable a) =>
+      LBS.ByteString ->
+      LBS.ByteString ->
+      TestTree
+    expectSchema wrapperFormat noWrapperFormat =
+        testCase (tyConName (fst (splitTyConApp (typeRep (Proxy @a))))) $ do
+          lbsSchemaOf @a @?= (if wf then wrapperFormat else noWrapperFormat)
+      where
+        wf :: Bool
+#ifdef SWAGGER_WRAPPER_FORMAT
+        wf = True
+#else
+        wf = False
+#endif
 
 knownTypeMessages :: TestTree
 knownTypeMessages =
@@ -302,18 +353,6 @@ compileTestDotProtos decodedStringType = do
 -- >>> schemaOf @(Enumerated DummyEnum)
 -- {"type":"string","enum":["DUMMY0","DUMMY1"]}
 --
-#ifdef SWAGGER_WRAPPER_FORMAT
--- >>> schemaOf @TestInt32Value
--- {"properties":{"wrapper":{"maximum":2147483647,"format":"Int32Value","minimum":-2147483648,"type":"integer"}},"type":"object"}
-#else
--- >>> schemaOf @TestInt32Value
--- {"properties":{"wrapper":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"}},"type":"object"}
-#endif
--- >>> schemaOf @TestStringValue
--- {"properties":{"wrapper":{"type":"string"}},"type":"object"}
--- >>> schemaOf @TestBytesValue
--- {"properties":{"wrapper":{"format":"byte","type":"string"}},"type":"object"}
---
 -- Generic HasDefault
 --
 -- >>> def :: MultipleFields
@@ -345,4 +384,7 @@ decodesAs :: (Eq a, FromJSONPB a)
 decodesAs bs x = eitherDecode bs == Right x
 
 schemaOf :: forall a . ToSchema a => IO ()
-schemaOf = LBS8.putStrLn (Data.Aeson.encode (Data.Swagger.toSchema (Proxy @a)))
+schemaOf = LBS8.putStrLn (lbsSchemaOf @a)
+
+lbsSchemaOf :: forall a . ToSchema a => LBS.ByteString
+lbsSchemaOf = Data.Aeson.encode (Data.Swagger.toSchema (Proxy @a))
