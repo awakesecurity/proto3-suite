@@ -22,6 +22,10 @@ module Proto3.Suite.DotProto.Parsing
   , pFieldOptionStmt
   , pOptionId
   , pOptionKw
+
+    -- * Extension Parsers
+  , pExtendStmt
+  , pExtendKw
   ) where
 
 import Prelude hiding (fail)
@@ -195,19 +199,24 @@ sortStatements modulePath statements
     adapt _     = DotProtoNoPackage
 
 topLevel :: Path -> ProtoParser DotProto
-topLevel modulePath = do whiteSpace
-                         syntaxSpec
-                         sortStatements modulePath <$> many topStatement
+topLevel modulePath = do
+  whiteSpace
+  syntaxSpec
+  sortStatements modulePath <$> many topStatement
 
 --------------------------------------------------------------------------------
 -- top-level statements
 
 topStatement :: ProtoParser DotProtoStatement
-topStatement = DPSImport     <$> import_
-           <|> DPSPackage    <$> package
-           <|> DPSOption     <$> pOptionStmt
-           <|> DPSDefinition <$> definition
-           <|> DPSEmpty      <$  empty
+topStatement = 
+  choice 
+    [ DPSImport <$> import_
+    , DPSPackage <$> package
+    , DPSOption <$> pOptionStmt
+    , DPSEmpty <$ try pExtendStmt
+    , DPSDefinition <$> definition
+    , DPSEmpty <$ empty
+    ]
 
 import_ :: ProtoParser DotProtoImport
 import_ = do symbol "import"
@@ -225,9 +234,12 @@ package = do symbol "package"
              return $ DotProtoPackageSpec p
 
 definition :: ProtoParser DotProtoDefinition
-definition = message
-         <|> enum
-         <|> service
+definition = 
+  choice 
+    [ try message
+    , try enum
+    , service
+    ]
 
 --------------------------------------------------------------------------------
 -- options
@@ -413,3 +425,21 @@ reservedField = do symbol "reserved"
                    v <- ranges <|> commaSep1 (ReservedIdentifier <$> stringLit)
                    semi
                    return v
+
+-- Message Extensions ----------------------------------------------------------
+
+pExtendStmt :: ProtoParser (DotProtoIdentifier, [DotProtoMessagePart])
+pExtendStmt = do 
+  pExtendKw
+  idt <- singleIdentifier
+  fxs <- braces (many messagePart)
+  pure (idt, fxs)
+
+-- | Parses a single keyword token "option".
+--
+-- @since 0.5.2
+pExtendKw :: ProtoParser ()
+pExtendKw = do
+  spaces 
+  token (string "extend" >> notFollowedBy alphaNum) 
+    <?> "keyword 'extend'"
