@@ -10,7 +10,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-10.15
+          - macos-12
         compiler:
           - ghc8104
     runs-on: ${{ matrix.os }}
