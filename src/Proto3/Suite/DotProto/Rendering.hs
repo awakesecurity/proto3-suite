@@ -74,7 +74,7 @@ instance Pretty DotProtoPackageSpec where
 
 instance Pretty DotProtoImport where
   pPrint (DotProtoImport q i) =
-    PP.text "import" <+> pPrint q <+> PP.text "\"" <+> PP.text fp <+> PP.text "\"" <> PP.text ";"
+    PP.text "import" <+> pPrint q <+> PP.text "\"" <> PP.text fp <> PP.text "\"" <> PP.text ";"
     where
       fp = case T.unpack . either id id . toText $ i of
              [] -> show ("" :: String)
