@@ -143,7 +143,7 @@ strLit = doubleQuotedLiteral <|> singleQuotedLiteral
 
     escape = do
         char '\\'
-        (hexEscape <|> octEscape <|> charEscape)
+        hexEscape <|> octEscape <|> charEscape
 
     hexEscape = do
         (char 'x' <|> char 'X')
