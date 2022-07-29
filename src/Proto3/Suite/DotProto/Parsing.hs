@@ -26,8 +26,6 @@ module Proto3.Suite.DotProto.Parsing
     -- * Extension Parsers
   , pExtendStmt
   , pExtendKw
-
-  , strLit
   ) where
 
 import Prelude hiding (fail)
