@@ -505,7 +505,7 @@ pExtendStmt = do
   fxs <- braces (many messagePart)
   pure (idt, fxs)
 
--- | Parses a single keyword token "option".
+-- | Parses a single keyword token "extend".
 --
 -- @since 0.5.2
 pExtendKw :: ProtoParser ()

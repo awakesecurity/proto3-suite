@@ -1663,7 +1663,7 @@ dotProtoServiceD stringType pkgIdent ctxt serviceIdent service = do
 --
 
 dotProtoFieldC, primC, repeatedC, nestedRepeatedC, namedC, mapC,
-  fieldNumberC, singleC, dotsC, pathC, nestedC, anonymousC, dotProtoOptionC,
+  fieldNumberC, singleC, dotsC, pathC, qualifiedC, anonymousC, dotProtoOptionC,
   identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC,
   unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
   methodNameC, nothingC, justC, forceEmitC, mconcatE, encodeMessageFieldE,
@@ -1682,7 +1682,7 @@ fieldNumberC         = HsVar (protobufName "FieldNumber")
 singleC              = HsVar (protobufName "Single")
 pathC                = HsVar (protobufName "Path")
 dotsC                = HsVar (protobufName "Dots")
-nestedC              = HsVar (protobufName "Nested")
+qualifiedC           = HsVar (protobufName "Qualified")
 anonymousC           = HsVar (protobufName "Anonymous")
 dotProtoOptionC      = HsVar (protobufName "DotProtoOption")
 identifierC          = HsVar (protobufName "Identifier")
@@ -1780,7 +1780,7 @@ dpIdentE :: DotProtoIdentifier -> HsExp
 dpIdentE (Single n)       = apply singleC [ str_ n ]
 dpIdentE (Dots (Path (n NE.:| ns)))
   = apply dotsC [ apply pathC [ HsParen (HsInfixApp (str_ n) neConsOp (HsList (map str_ ns))) ] ]
-dpIdentE (Qualified a b)  = apply nestedC [ dpIdentE a, dpIdentE b ]
+dpIdentE (Qualified a b)  = apply qualifiedC [ dpIdentE a, dpIdentE b ]
 dpIdentE Anonymous        = anonymousC
 
 dpValueE :: DotProtoValue -> HsExp
