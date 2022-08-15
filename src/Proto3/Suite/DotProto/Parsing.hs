@@ -501,7 +501,7 @@ strFieldName =
 pExtendStmt :: ProtoParser (DotProtoIdentifier, [DotProtoMessagePart])
 pExtendStmt = do 
   pExtendKw
-  idt <- singleIdentifier
+  idt <- identifier
   fxs <- braces (many messagePart)
   pure (idt, fxs)
 
