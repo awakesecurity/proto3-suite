@@ -21,7 +21,6 @@ module Proto3.Suite.DotProto.Rendering
 
 import           Data.Char
 import qualified Data.List.NonEmpty              as NE
-import qualified Data.Text                       as T
 #if (MIN_VERSION_base(4,11,0))
 import           Prelude                         hiding ((<>))
 #endif
@@ -30,7 +29,7 @@ import           Proto3.Wire.Types               (FieldNumber (..))
 import           Text.PrettyPrint                (($$), (<+>), (<>))
 import qualified Text.PrettyPrint                as PP
 import           Text.PrettyPrint.HughesPJClass  (Pretty(..))
-import           Turtle.Compat                   (toText)
+import           Turtle.Compat                   (encodeString)
 
 -- | Options for rendering a @.proto@ file.
 data RenderingOptions = RenderingOptions
@@ -68,17 +67,24 @@ renderDotProto opts DotProto{..}
  $$ (PP.vcat $ topOption <$> protoOptions)
  $$ (PP.vcat $ prettyPrintProtoDefinition opts <$> protoDefinitions)
 
+strLit :: String -> PP.Doc
+strLit string = PP.text "\"" <> foldMap escape string <> PP.text "\""
+  where
+    escape '\n' = PP.text "\\n"
+    escape '\\' = PP.text "\\\\"
+    escape '\0' = PP.text "\\x00"
+    escape '"'  = PP.text "\\\""
+    escape  c   = PP.text [ c ]
+
 instance Pretty DotProtoPackageSpec where
   pPrint (DotProtoPackageSpec p) = PP.text "package" <+> pPrint p <> PP.text ";"
   pPrint (DotProtoNoPackage)     = PP.empty
 
 instance Pretty DotProtoImport where
   pPrint (DotProtoImport q i) =
-    PP.text "import" <+> pPrint q <+> PP.text fp <> PP.text ";"
+    PP.text "import" <+> pPrint q <+> strLit fp <> PP.text ";"
     where
-      fp = case T.unpack . either id id . toText $ i of
-             [] -> show ("" :: String)
-             x  -> x
+      fp = encodeString i
 
 instance Pretty DotProtoImportQualifier where
   pPrint DotProtoImportDefault = PP.empty
@@ -180,7 +186,7 @@ instance Pretty DotProtoIdentifier where
 
 instance Pretty DotProtoValue where
   pPrint (Identifier value) = pPrint value
-  pPrint (StringLit  value) = PP.text $ show value
+  pPrint (StringLit  value) = strLit value
   pPrint (IntLit     value) = PP.text $ show value
   pPrint (FloatLit   value) = PP.text $ show value
   pPrint (BoolLit    value) = PP.text $ toLower <$> show value

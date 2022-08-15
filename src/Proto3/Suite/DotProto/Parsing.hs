@@ -37,6 +37,7 @@ import Control.Monad (fail)
 #if !MIN_VERSION_base(4,13,0)
 import Control.Monad.Fail
 #endif
+import qualified Data.Char as Char
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NE
 import Data.Functor
@@ -45,7 +46,7 @@ import Proto3.Suite.DotProto.AST
 import Proto3.Wire.Types (FieldNumber(..))
 import Text.Parsec (parse, ParseError)
 import Text.Parsec.String (Parser)
-import Text.Parser.Char
+import Text.Parser.Char hiding (digit, hexDigit)
 import Text.Parser.Combinators
 import Text.Parser.LookAhead
 import Text.Parser.Token
@@ -125,9 +126,71 @@ globalIdentifier = token $ string "." >> _identifier
 ----------------------------------------
 -- values
 
--- [issue] these string parsers are weak to \" and \000 octal codes
-stringLit :: ProtoParser String
-stringLit = stringLiteral <|> stringLiteral'
+strLit :: ProtoParser String
+strLit = doubleQuotedLiteral <|> singleQuotedLiteral
+  where
+    doubleQuotedLiteral =
+        between (char '"') (char '"') (many character)
+      where
+        character =
+            escape <|> satisfy (\c -> c `notElem` [ '\0', '\n', '\\', '"' ])
+
+    singleQuotedLiteral =
+        between (char '\'') (char '\'') (many character)
+      where
+        character =
+            escape <|> satisfy (\c -> c `notElem` [ '\0', '\n', '\\', '\'' ])
+
+    escape = do
+        char '\\'
+        hexEscape <|> octEscape <|> charEscape
+
+    hexEscape = do
+        (char 'x' <|> char 'X')
+        digit0 <- hexDigit
+        digit1 <- hexDigit
+        let number = 16 * digit0 + digit1
+        return (Char.chr number)
+
+    octEscape = do
+        digit0 <- octalDigit
+        digit1 <- octalDigit
+        digit2 <- octalDigit
+        let number = 64 * digit0 + 8 * digit1 + digit2
+        return (Char.chr number)
+
+    charEscape =
+            '\a' <$ char 'a'
+        <|> '\b' <$ char 'b'
+        <|> '\f' <$ char 'f'
+        <|> '\n' <$ char 'n'
+        <|> '\r' <$ char 'r'
+        <|> '\t' <$ char 't'
+        <|> '\v' <$ char 'v'
+        <|> '\\' <$ char '\\'
+        <|> '\'' <$ char '\''
+        <|> '"'  <$ char '"'
+
+digit :: ProtoParser Int
+digit = do
+    c <- satisfy (\c -> '0' <= c && c <= '9')
+    return (Char.ord c - Char.ord '0')
+
+hexDigit :: ProtoParser Int
+hexDigit = digit <|> lowercase <|> uppercase
+  where
+    lowercase = do
+        c <- satisfy (\c -> 'a' <= c && c <= 'f')
+        return (Char.ord c - Char.ord 'a')
+
+    uppercase = do
+        c <- satisfy (\c -> 'A' <= c && c <= 'F')
+        return (Char.ord c - Char.ord 'A')
+
+octalDigit :: ProtoParser Int
+octalDigit = do
+    c <- satisfy (\c -> '0' <= c && c <= '7')
+    return (Char.ord c - Char.ord '0')
 
 bool :: ProtoParser Bool
 bool = token $ lit "true" True <|> lit "false" False
@@ -142,7 +205,7 @@ floatLit = do sign <- char '-' $> negate <|> char '+' $> id <|> pure id
 
 value :: ProtoParser DotProtoValue
 value = try (BoolLit              <$> bool)
-    <|> try (StringLit            <$> stringLit)
+    <|> try (StringLit            <$> strLit)
     <|> try (FloatLit             <$> floatLit)
     <|> try (IntLit . fromInteger <$> integer)
     <|> try (Identifier           <$> identifier)
@@ -202,7 +265,9 @@ topLevel :: Path -> ProtoParser DotProto
 topLevel modulePath = do
   whiteSpace
   syntaxSpec
-  sortStatements modulePath <$> many topStatement
+  dotProto <- sortStatements modulePath <$> many topStatement
+  eof
+  return dotProto
 
 --------------------------------------------------------------------------------
 -- top-level statements
@@ -223,7 +288,7 @@ import_ = do symbol "import"
              qualifier <- option DotProtoImportDefault $
                                  symbol "weak" $> DotProtoImportWeak
                              <|> symbol "public" $> DotProtoImportPublic
-             target <- Turtle.fromText . T.pack <$> stringLit
+             target <- Turtle.fromText . T.pack <$> strLit
              semi
              return $ DotProtoImport qualifier target
 
@@ -422,16 +487,21 @@ ranges = commaSep1 (try range <|> (SingleField . fromInteger <$> integer))
 
 reservedField :: ProtoParser [DotProtoReservedField]
 reservedField = do symbol "reserved"
-                   v <- ranges <|> commaSep1 (ReservedIdentifier <$> stringLit)
+                   v <- ranges <|> commaSep1 (ReservedIdentifier <$> strFieldName)
                    semi
                    return v
+
+strFieldName :: ProtoParser String
+strFieldName =
+        between (char '"') (char '"') identifierName
+    <|> between (char '\'') (char '\'') identifierName
 
 -- Message Extensions ----------------------------------------------------------
 
 pExtendStmt :: ProtoParser (DotProtoIdentifier, [DotProtoMessagePart])
 pExtendStmt = do 
   pExtendKw
-  idt <- singleIdentifier
+  idt <- identifier
   fxs <- braces (many messagePart)
   pure (idt, fxs)
 
