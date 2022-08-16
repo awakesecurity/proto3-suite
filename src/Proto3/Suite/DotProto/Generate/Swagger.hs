@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE MagicHash            #-}
+{-# LANGUAGE MonoLocalBinds       #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE StandaloneDeriving   #-}
@@ -76,6 +77,7 @@ instance ToSchema (Proto3.Suite.Types.Bytes a) where
 -- This design keeps this instance from bypassing overlapping
 -- instances such as @ToSchema (Maybe (Wrapped Bool))@ that
 -- are included by cabal flag @-fswagger-wrapper-format@.
+-- We use MonoLocalBinds to avoid the resultant compiler warning.
 deriving via (Maybe a) instance ToSchema (Maybe a) => ToSchema (Nested a)
 
 {-| This is a convenience function that uses type inference to select the

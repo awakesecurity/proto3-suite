@@ -90,7 +90,7 @@ data DotProtoImport = DotProtoImport
 instance Arbitrary DotProtoImport where
     arbitrary = do
       dotProtoImportQualifier <- arbitrary
-      let dotProtoImportPath = mempty
+      dotProtoImportPath <- arbitrary
       return (DotProtoImport {..})
 
 data DotProtoImportQualifier
@@ -369,7 +369,8 @@ instance Arbitrary DotProtoMessagePart where
         return (DotProtoMessageReserved fields)
 
       arbitraryReservedLabels :: Gen [DotProtoReservedField]
-      arbitraryReservedLabels = smallListOf1 (ReservedIdentifier <$> return "")
+      arbitraryReservedLabels =
+          smallListOf1 (ReservedIdentifier <$> arbitraryIdentifierName)
 
 data DotProtoField = DotProtoField
   { dotProtoFieldNumber  :: FieldNumber
