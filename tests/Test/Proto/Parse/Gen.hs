@@ -3,6 +3,7 @@ module Test.Proto.Parse.Gen
   ( optionId,
     optionName,
     optionQName,
+    extendKw,
     optionKw,
   )
 where
@@ -38,6 +39,12 @@ optionName =
         chr <- Gen.alpha
         chrs <- Gen.list range Gen.alphaNum
         pure (chr : chrs)
+
+extendKw :: Gen String
+extendKw = do
+  lspace <- whitespace
+  rspace <- whitespace
+  pure (lspace ++ "extend" ++ rspace)
 
 optionKw :: Gen String
 optionKw = do
