@@ -36,7 +36,7 @@ import           Control.Applicative
 import           Control.Monad
 import           Data.Int                  (Int32)
 import qualified Data.List.NonEmpty        as NE
-import           Data.String               (IsString)
+import           Data.String               (IsString(..))
 import           Numeric.Natural
 import           Prelude                   hiding (FilePath)
 import           Proto3.Wire.Types         (FieldNumber (..))
