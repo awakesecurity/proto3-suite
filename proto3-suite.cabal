@@ -156,6 +156,7 @@ test-suite tests
     --TestProtoProtocPlugin
     Test.Proto.Generate.Name
     Test.Proto.Generate.Name.Gen
+    Test.Proto.Parse.Core
     Test.Proto.Parse.Gen
     Test.Proto.Parse.Option
 

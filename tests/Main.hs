@@ -35,7 +35,7 @@ import           TestDhall
 #endif
 
 import qualified Test.Proto.Generate.Name
-import qualified Test.Proto.Parse.Option
+import qualified Test.Proto.Parse
 
 -- -----------------------------------------------------------------------------
 
@@ -52,7 +52,7 @@ tests = testGroup "Tests"
   , dotProtoUnitTests
   , codeGenTests
   , Test.Proto.Generate.Name.tests
-  , Test.Proto.Parse.Option.tests
+  , Test.Proto.Parse.testTree
 
 #ifdef DHALL
   , dhallTests
