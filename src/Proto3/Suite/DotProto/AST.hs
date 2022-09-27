@@ -90,7 +90,7 @@ data DotProtoImport = DotProtoImport
 instance Arbitrary DotProtoImport where
     arbitrary = do
       dotProtoImportQualifier <- arbitrary
-      dotProtoImportPath <- arbitrary
+      dotProtoImportPath <- fmap fromString arbitrary
       return (DotProtoImport {..})
 
 data DotProtoImportQualifier
