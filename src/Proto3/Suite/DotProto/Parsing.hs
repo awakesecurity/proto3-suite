@@ -3,6 +3,7 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -80,8 +81,7 @@ parseProtoFile modulePath (Turtle.encodeString -> fp) =
 
 -- | Wrapper around @Text.Parsec.String.Parser@, overriding whitespace lexing.
 newtype ProtoParser a = ProtoParser { runProtoParser :: Parser a }
-  deriving ( Functor, Applicative, Alternative, Monad, MonadFail, MonadPlus
-           , Parsing, CharParsing, LookAheadParsing)
+  deriving newtype (Functor, Applicative, Alternative, Monad, MonadFail, MonadPlus, Parsing, CharParsing, LookAheadParsing)
 
 instance TokenParsing ProtoParser where
   someSpace = TokenStyle.buildSomeSpaceParser
@@ -247,7 +247,7 @@ data DotProtoStatement
   | DPSImport     DotProtoImport
   | DPSDefinition DotProtoDefinition
   | DPSEmpty
-  deriving Show
+  deriving stock Show
 
 sortStatements :: Path -> [DotProtoStatement] -> DotProto
 sortStatements modulePath statements

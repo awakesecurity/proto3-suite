@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -52,7 +53,8 @@ data Timestamp = Timestamp
   { timestampSeconds :: Hs.Int64,
     timestampNanos :: Hs.Int32
   }
-  deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic, Hs.NFData)
+  deriving stock (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic)
+  deriving anyclass (Hs.NFData)
 
 instance HsProtobuf.Named Timestamp where
   nameOf _ = Hs.fromString "Timestamp"

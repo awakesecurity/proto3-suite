@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE DerivingStrategies         #-}
 
 module Proto3.Suite.DotProto.AST
   ( -- * Types
@@ -47,7 +48,7 @@ import           Turtle                    (FilePath)
 -- | The name of a message
 newtype MessageName = MessageName
   { getMessageName :: String
-  } deriving (Eq, Ord, IsString)
+  } deriving newtype (Eq, Ord, IsString)
 
 instance Show MessageName where
   show = show . getMessageName
@@ -55,7 +56,7 @@ instance Show MessageName where
 -- | The name of some field
 newtype FieldName = FieldName
   { getFieldName :: String
-  } deriving (Eq, Ord, IsString)
+  } deriving newtype (Eq, Ord, IsString)
 
 instance Show FieldName where
   show = show . getFieldName
@@ -63,12 +64,14 @@ instance Show FieldName where
 -- | The name of the package
 newtype PackageName = PackageName
   { getPackageName :: String
-  } deriving (Eq, Ord, IsString)
+  } deriving newtype (Eq, Ord, IsString)
 
 instance Show PackageName where
   show = show . getPackageName
 
-newtype Path = Path { components :: NE.NonEmpty String } deriving (Show, Eq, Ord)
+newtype Path = Path { components :: NE.NonEmpty String }
+  deriving stock (Show)
+  deriving newtype (Eq, Ord)
 
 -- Used for testing
 fakePath :: Path
@@ -79,13 +82,14 @@ data DotProtoIdentifier
   | Dots   Path
   | Qualified DotProtoIdentifier DotProtoIdentifier
   | Anonymous -- [recheck] is there a better way to represent unnamed things
-  deriving (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord)
 
 -- | Top-level import declaration
 data DotProtoImport = DotProtoImport
   { dotProtoImportQualifier :: DotProtoImportQualifier
   , dotProtoImportPath      :: FilePath
-  } deriving (Show, Eq, Ord)
+  }
+  deriving stock (Show, Eq, Ord)
 
 instance Arbitrary DotProtoImport where
     arbitrary = do
@@ -97,7 +101,7 @@ data DotProtoImportQualifier
   = DotProtoImportPublic
   | DotProtoImportWeak
   | DotProtoImportDefault
-  deriving (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord)
 
 instance Arbitrary DotProtoImportQualifier where
   arbitrary = elements
@@ -110,7 +114,7 @@ instance Arbitrary DotProtoImportQualifier where
 data DotProtoPackageSpec
   = DotProtoPackageSpec DotProtoIdentifier
   | DotProtoNoPackage
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 instance Arbitrary DotProtoPackageSpec where
   arbitrary = oneof
@@ -123,7 +127,8 @@ instance Arbitrary DotProtoPackageSpec where
 data DotProtoOption = DotProtoOption
   { dotProtoOptionIdentifier :: DotProtoIdentifier
   , dotProtoOptionValue      :: DotProtoValue
-  } deriving (Show, Eq, Ord)
+  }
+  deriving stock (Show, Eq, Ord)
 
 instance Arbitrary DotProtoOption where
     arbitrary = do
@@ -139,7 +144,7 @@ data DotProtoDefinition
   = DotProtoMessage String DotProtoIdentifier [DotProtoMessagePart]
   | DotProtoEnum    String DotProtoIdentifier [DotProtoEnumPart]
   | DotProtoService String DotProtoIdentifier [DotProtoServicePart]
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 
 instance Arbitrary DotProtoDefinition where
@@ -167,7 +172,7 @@ data DotProtoMeta = DotProtoMeta
     -- path values are constructed. See
     -- 'Proto3.Suite.DotProto.Generate.modulePathModName' to see how it is used
     -- during code generation.
-  } deriving (Show, Eq)
+  } deriving stock (Show, Eq)
 
 instance Arbitrary DotProtoMeta where
   arbitrary = pure (DotProtoMeta fakePath)
@@ -182,7 +187,7 @@ data DotProto = DotProto
   , protoPackage     :: DotProtoPackageSpec
   , protoDefinitions :: [DotProtoDefinition]
   , protoMeta        :: DotProtoMeta
-  } deriving (Show, Eq)
+  } deriving stock (Show, Eq)
 
 instance Arbitrary DotProto where
   arbitrary = do
@@ -201,7 +206,7 @@ data DotProtoValue
   | IntLit     Int
   | FloatLit   Double
   | BoolLit    Bool
-  deriving (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord)
 
 instance Arbitrary DotProtoValue where
   arbitrary = oneof
@@ -230,7 +235,7 @@ data DotProtoPrimType
   | Double
   | Named DotProtoIdentifier
   -- ^ A named type, referring to another message or enum defined in the same file
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 instance Arbitrary DotProtoPrimType where
   arbitrary = oneof
@@ -257,7 +262,7 @@ instance Arbitrary DotProtoPrimType where
 data Packing
   = PackedField
   | UnpackedField
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 instance Arbitrary Packing where
   arbitrary = elements [PackedField, UnpackedField]
@@ -270,7 +275,7 @@ data DotProtoType
   | Repeated       DotProtoPrimType
   | NestedRepeated DotProtoPrimType
   | Map            DotProtoPrimType DotProtoPrimType
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 instance Arbitrary DotProtoType where
   arbitrary = oneof [fmap Prim arbitrary]
@@ -281,7 +286,7 @@ data DotProtoEnumPart
   = DotProtoEnumField DotProtoIdentifier DotProtoEnumValue [DotProtoOption]
   | DotProtoEnumOption DotProtoOption
   | DotProtoEnumEmpty
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 instance Arbitrary DotProtoEnumPart where
   arbitrary = oneof [arbitraryField, arbitraryOption]
@@ -299,7 +304,7 @@ instance Arbitrary DotProtoEnumPart where
 data Streaming
   = Streaming
   | NonStreaming
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 instance Arbitrary Streaming where
   arbitrary = elements [Streaming, NonStreaming]
@@ -308,7 +313,7 @@ data DotProtoServicePart
   = DotProtoServiceRPCMethod RPCMethod
   | DotProtoServiceOption DotProtoOption
   | DotProtoServiceEmpty
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 instance Arbitrary DotProtoServicePart where
   arbitrary = oneof
@@ -323,7 +328,7 @@ data RPCMethod = RPCMethod
   , rpcMethodResponseType :: DotProtoIdentifier
   , rpcMethodResponseStreaming :: Streaming
   , rpcMethodOptions :: [DotProtoOption]
-  } deriving (Show, Eq)
+  } deriving stock (Show, Eq)
 
 instance Arbitrary RPCMethod where
   arbitrary = do
@@ -341,7 +346,7 @@ data DotProtoMessagePart
   | DotProtoMessageDefinition DotProtoDefinition
   | DotProtoMessageReserved   [DotProtoReservedField]
   | DotProtoMessageOption DotProtoOption
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 instance Arbitrary DotProtoMessagePart where
   arbitrary = oneof
@@ -380,7 +385,7 @@ data DotProtoField = DotProtoField
   , dotProtoFieldComment :: String
   }
   | DotProtoEmptyField
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 instance Arbitrary DotProtoField where
   arbitrary = do
@@ -396,7 +401,7 @@ data DotProtoReservedField
   = SingleField Int
   | FieldRange  Int Int
   | ReservedIdentifier String
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 instance Arbitrary DotProtoReservedField where
   arbitrary =

@@ -21,6 +21,7 @@
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MagicHash #-}
@@ -70,7 +71,7 @@ import Proto3.Wire.Class (ProtoEnum)
 data Foo = Foo
   { fooX :: Word32
   , fooY :: PackedVec Int32
-  } deriving (Show, Eq, Generic)
+  } deriving stock (Show, Eq, Generic)
 
 instance Message Foo
 instance Named Foo
@@ -85,7 +86,7 @@ data Bar = Bar
   , barFoo   :: Nested Foo
   , foos     :: NestedVec Foo
   }
-  deriving (Eq, Generic)
+  deriving stock (Eq, Generic)
 
 instance Message Bar
 instance Named Bar
@@ -106,7 +107,8 @@ data Shape
   = Circle
   | Square
   | Triangle
-  deriving (Bounded, Eq, Enum, Finite, Generic, Named, Ord, ProtoEnum)
+  deriving stock (Bounded, Eq, Enum, Generic, Ord)
+  deriving anyclass (ProtoEnum, Finite, Named)
 
 -- |
 -- == Generating a .proto file

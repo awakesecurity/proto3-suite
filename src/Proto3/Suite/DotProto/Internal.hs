@@ -2,6 +2,7 @@
 
 {-# LANGUAGE CPP               #-}
 {-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE NamedFieldPuns    #-}
@@ -276,7 +277,7 @@ data DotProtoTypeInfo = DotProtoTypeInfo
     -- ^ Whether this type is an enumeration or message
   , dotProtoTypeInfoModulePath :: Path
     -- ^ The include-relative module path used when importing this module
-  } deriving Show
+  } deriving stock Show
 
 tiParent :: Lens' DotProtoTypeInfo DotProtoIdentifier
 tiParent = lens dotProtoTypeInfoParent (\d p -> d{ dotProtoTypeInfoParent = p })
@@ -284,7 +285,7 @@ tiParent = lens dotProtoTypeInfoParent (\d p -> d{ dotProtoTypeInfoParent = p })
 -- | Whether a definition is an enumeration or a message
 data DotProtoKind = DotProtoKindEnum
                   | DotProtoKindMessage
-                  deriving (Show, Eq, Ord, Enum, Bounded)
+                  deriving stock (Show, Eq, Ord, Enum, Bounded)
 
 -- ** Generating type contexts from ASTs
 
@@ -569,19 +570,19 @@ qualifiedMessageTypeName ctxt parentIdent msgIdent = do
 data QualifiedField = QualifiedField
   { recordFieldName :: FieldName
   , fieldInfo       :: FieldInfo
-  } deriving Show
+  } deriving stock Show
 
 -- | Bookkeeping for fields
 data FieldInfo
   = FieldOneOf OneofField
   | FieldNormal FieldName FieldNumber DotProtoType [DotProtoOption]
-  deriving Show
+  deriving stock Show
 
 -- | Bookkeeping for oneof fields
 data OneofField = OneofField
   { oneofType :: String
   , subfields :: [OneofSubfield]
-  } deriving Show
+  } deriving stock Show
 
 -- | Bookkeeping for oneof subfields
 data OneofSubfield = OneofSubfield
@@ -590,7 +591,7 @@ data OneofSubfield = OneofSubfield
   , subfieldName     :: FieldName
   , subfieldType     :: DotProtoType
   , subfieldOptions  :: [DotProtoOption]
-  } deriving Show
+  } deriving stock Show
 
 getQualifiedFields :: MonadError CompileError m
                    => String -> [DotProtoMessagePart] -> m [QualifiedField]
@@ -662,7 +663,7 @@ data CompileError
   | NonzeroFirstEnumeration String DotProtoIdentifier Int32
   | EmptyEnumeration String
   | Unimplemented String
-  deriving (Show, Eq)
+  deriving stock (Show, Eq)
 
 
 internalError :: MonadError CompileError m => String -> m a

@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DefaultSignatures   #-}
 {-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE DerivingStrategies  #-}
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -241,7 +242,7 @@ data Options = Options
   --
   -- > MyMessage (Animal (Cat "Simba")) => { "animal": { "cat": "Simba" } }
   --
-  } deriving (Eq, Generic, Show)
+  } deriving stock (Eq, Generic, Show)
 
 instance Arbitrary Options where
   arbitrary = Options <$> arbitrary <*> arbitrary

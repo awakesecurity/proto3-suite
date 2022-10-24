@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE DerivingStrategies  #-}
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE GADTs               #-}
@@ -36,7 +37,8 @@ import qualified Proto3.Wire as HsProtobuf
 -- and/or `Proto3.Suite.Types.Fixed`.  Because the latter two types
 -- are themselves newtypes, the corresponding coercions should work.
 newtype Wrapped a = Wrapped a
-  deriving (Show, Eq, Ord, Generic, NFData)
+  deriving stock (Show, Eq, Ord, Generic)
+  deriving anyclass (NFData)
 
 instance NameOfWrapperFor a => HsProtobuf.Named (Wrapped a) where
   nameOf _ = nameOfWrapperFor (proxy# :: Proxy# a)

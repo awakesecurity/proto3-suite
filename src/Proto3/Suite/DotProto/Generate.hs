@@ -177,12 +177,13 @@ renderHsModuleForDotProto stringType extraInstanceFiles dotProto importCtxt = do
     return (T.unpack header ++ "\n" ++ prettyPrint haskellModule)
   where
     header = [Neat.text|
-      {-# LANGUAGE DeriveGeneric     #-}
-      {-# LANGUAGE DeriveAnyClass    #-}
-      {-# LANGUAGE DataKinds         #-}
-      {-# LANGUAGE GADTs             #-}
-      {-# LANGUAGE TypeApplications  #-}
-      {-# LANGUAGE OverloadedStrings #-}
+      {-# LANGUAGE DeriveGeneric      #-}
+      {-# LANGUAGE DeriveAnyClass     #-}
+      {-# LANGUAGE DerivingStrategies #-}
+      {-# LANGUAGE DataKinds          #-}
+      {-# LANGUAGE GADTs              #-}
+      {-# LANGUAGE TypeApplications   #-}
+      {-# LANGUAGE OverloadedStrings  #-}
       {-# OPTIONS_GHC -fno-warn-unused-imports       #-}
       {-# OPTIONS_GHC -fno-warn-name-shadowing       #-}
       {-# OPTIONS_GHC -fno-warn-unused-matches       #-}
