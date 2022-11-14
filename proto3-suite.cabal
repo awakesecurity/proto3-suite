@@ -38,6 +38,11 @@ flag swagger-wrapper-format
   Default:       False
   Manual:        True
 
+flag large-records
+  Description:   Generate records with smaller core code size using the large-records library
+  Default:       False
+  Manual:        True
+
 library
 
   if flag(dhall)
@@ -55,6 +60,11 @@ library
       hs-source-dirs:  src/swagger-wrapper-format
     else
       hs-source-dirs:  src/no-swagger-wrapper-format
+
+  if flag(large-records)
+    build-depends:     large-generics,
+                       large-records
+    cpp-options:       -DLARGE_RECORDS
 
   exposed-modules:     Proto3.Suite
                        Proto3.Suite.Class
