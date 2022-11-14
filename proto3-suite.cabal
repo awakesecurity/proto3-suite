@@ -146,6 +146,11 @@ test-suite tests
     if flag(swagger-wrapper-format)
       cpp-options:       -DSWAGGER_WRAPPER_FORMAT
 
+  if flag(large-records)
+    build-depends:     large-generics,
+                       large-records
+    cpp-options:       -DLARGE_RECORDS
+
   autogen-modules:
     TestProto
     TestProtoImport
