@@ -62,7 +62,9 @@ library
       hs-source-dirs:  src/no-swagger-wrapper-format
 
   if flag(large-records)
-    build-depends:     large-generics,
+    -- large-records support uses newer Dhall APIs. So we need at least 1.34.
+    build-depends:     dhall >=1.34 && < 1.39,
+                       large-generics,
                        large-records
     cpp-options:       -DLARGE_RECORDS
     exposed-modules:   Proto3.Suite.DotProto.Generate.LargeRecord
