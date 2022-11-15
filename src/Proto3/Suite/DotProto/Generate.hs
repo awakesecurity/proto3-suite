@@ -58,6 +58,7 @@ import qualified NeatInterpolation              as Neat
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.AST.Lens
+import           Proto3.Suite.DotProto.Generate.Syntax
 import           Proto3.Suite.DotProto.Internal
 import           Proto3.Wire.Types              (FieldNumber (..))
 import Text.Parsec (Parsec, alphaNum, eof, parse, satisfy, try)
@@ -65,6 +66,12 @@ import qualified Text.Parsec as Parsec
 import qualified Turtle hiding (encodeString)
 import qualified Turtle.Compat as Turtle (encodeString)
 import           Turtle                         (FilePath, (</>), (<.>))
+
+#ifdef LARGE_RECORDS
+import Proto3.Suite.DotProto.Generate.LargeRecord
+#else
+import Proto3.Suite.DotProto.Generate.Record
+#endif
 
 --------------------------------------------------------------------------------
 
@@ -428,13 +435,6 @@ msgTypeFromDpTypeInfo ctxt DotProtoTypeInfo{..} ident = do
     identName <- qualifiedMessageTypeName ctxt dotProtoTypeInfoParent ident
     pure $ HsTyCon (Qual modName (HsIdent identName))
 
-haskellName, jsonpbName, grpcName, protobufName, proxyName :: String -> HsQName
-haskellName  name = Qual (Module "Hs")         (HsIdent name)
-jsonpbName   name = Qual (Module "HsJSONPB")   (HsIdent name)
-grpcName     name = Qual (Module "HsGRPC")     (HsIdent name)
-protobufName name = Qual (Module "HsProtobuf") (HsIdent name)
-proxyName    name = Qual (Module "Proxy")      (HsIdent name)
-
 modulePathModName :: MonadError CompileError m => Path -> m Module
 modulePathModName (Path comps) = Module . intercalate "." <$> traverse typeLikeName (NE.toList comps)
 
@@ -730,6 +730,7 @@ dotProtoMessageD stringType ctxt parentIdent messageIdent messageParts = do
     foldMapM id
       [ sequence
           [ mkDataDecl <$> foldMapM (messagePartFieldD messageName) messageParts
+          , pure (nfDataInstD messageName)
           , pure (namedInstD messageName)
           , pure (hasDefaultInstD messageName)
           , messageInstD stringType ctxt' parentIdent messageIdent messageParts
@@ -806,6 +807,7 @@ dotProtoMessageD stringType ctxt parentIdent messageIdent messageParts = do
 #endif
 
       pure [ dataDecl_ fullName cons defaultMessageDeriving
+           , nfDataInstD fullName
            , namedInstD fullName
 #ifdef SWAGGER
            , toSchemaInstance
@@ -1698,51 +1700,10 @@ dotProtoServiceD stringType pkgIdent ctxt serviceIdent service = do
 -- * Common Haskell expressions, constructors, and operators
 --
 
-dotProtoFieldC, primC, repeatedC, nestedRepeatedC, namedC, mapC,
-  fieldNumberC, singleC, dotsC, pathC, qualifiedC, anonymousC, dotProtoOptionC,
-  identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC,
-  unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
-  methodNameC, nothingC, justC, forceEmitC, mconcatE, encodeMessageFieldE,
-  fromStringE, decodeMessageFieldE, pureE, returnE, memptyE, msumE, atE, oneofE,
-  fmapE, defaultOptionsE, serverLoopE, convertServerHandlerE,
+unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
+  methodNameC, defaultOptionsE, serverLoopE, convertServerHandlerE,
   convertServerReaderHandlerE, convertServerWriterHandlerE,
   convertServerRWHandlerE, clientRegisterMethodE, clientRequestE :: HsExp
-
-dotProtoFieldC       = HsVar (protobufName "DotProtoField")
-primC                = HsVar (protobufName "Prim")
-repeatedC            = HsVar (protobufName "Repeated")
-nestedRepeatedC      = HsVar (protobufName "NestedRepeated")
-namedC               = HsVar (protobufName "Named")
-mapC                 = HsVar (protobufName "Map")
-fieldNumberC         = HsVar (protobufName "FieldNumber")
-singleC              = HsVar (protobufName "Single")
-pathC                = HsVar (protobufName "Path")
-dotsC                = HsVar (protobufName "Dots")
-qualifiedC           = HsVar (protobufName "Qualified")
-anonymousC           = HsVar (protobufName "Anonymous")
-dotProtoOptionC      = HsVar (protobufName "DotProtoOption")
-identifierC          = HsVar (protobufName "Identifier")
-stringLitC           = HsVar (protobufName "StringLit")
-intLitC              = HsVar (protobufName "IntLit")
-floatLitC            = HsVar (protobufName "FloatLit")
-boolLitC             = HsVar (protobufName "BoolLit")
-forceEmitC           = HsVar (protobufName "ForceEmit")
-encodeMessageFieldE  = HsVar (protobufName "encodeMessageField")
-decodeMessageFieldE  = HsVar (protobufName "decodeMessageField")
-atE                  = HsVar (protobufName "at")
-oneofE               = HsVar (protobufName "oneof")
-
-trueC                       = HsVar (haskellName "True")
-falseC                      = HsVar (haskellName "False")
-nothingC                    = HsVar (haskellName "Nothing")
-justC                       = HsVar (haskellName "Just")
-mconcatE                    = HsVar (haskellName "mconcat")
-fromStringE                 = HsVar (haskellName "fromString")
-pureE                       = HsVar (haskellName "pure")
-returnE                     = HsVar (haskellName "return")
-memptyE                     = HsVar (haskellName "mempty")
-msumE                       = HsVar (haskellName "msum")
-fmapE                       = HsVar (haskellName "fmap")
 
 unaryHandlerC               = HsVar (grpcName "UnaryHandler")
 clientStreamHandlerC        = HsVar (grpcName "ClientStreamHandler")
@@ -1773,36 +1734,6 @@ clientResultT    = HsTyCon (grpcName "ClientResult")
 grpcClientT      = HsTyCon (grpcName "Client")
 ioActionT        = tyApp ioT [ HsTyTuple [] ]
 ioT              = HsTyCon (haskellName "IO")
-
-apOp :: HsQOp
-apOp  = HsQVarOp (UnQual (HsSymbol "<*>"))
-
-fmapOp :: HsQOp
-fmapOp  = HsQVarOp (UnQual (HsSymbol "<$>"))
-
-composeOp :: HsQOp
-composeOp = HsQVarOp (Qual haskellNS (HsSymbol "."))
-
-bindOp :: HsQOp
-bindOp = HsQVarOp (Qual haskellNS (HsSymbol ">>="))
-
-altOp :: HsQOp
-altOp = HsQVarOp (UnQual (HsSymbol "<|>"))
-
-toJSONPBOp :: HsQOp
-toJSONPBOp = HsQVarOp (UnQual (HsSymbol ".="))
-
-parseJSONPBOp :: HsQOp
-parseJSONPBOp = HsQVarOp (UnQual (HsSymbol ".:"))
-
-neConsOp :: HsQOp
-neConsOp = HsQVarOp (Qual haskellNS (HsSymbol ":|"))
-
-intE :: Integral a => a -> HsExp
-intE x = (if x < 0 then HsParen else id) . HsLit . HsInt . fromIntegral $ x
-
-intP :: Integral a => a -> HsPat
-intP x = (if x < 0 then HsPParen else id) . HsPLit . HsInt . fromIntegral $ x
 
 -- ** Expressions for protobuf-wire types
 
@@ -1943,89 +1874,11 @@ defaultImports ImportCustomisation{ icUsesGrpc, icStringType = StringType string
     everything :: (Maybe (Bool, [HsImportSpec]) -> a) -> a
     everything f = f Nothing
 
-haskellNS :: Module
-haskellNS = Module "Hs"
-
 defaultMessageDeriving :: [HsQName]
-defaultMessageDeriving = map haskellName [ "Show", "Eq", "Ord", "Generic", "NFData" ]
+defaultMessageDeriving = map haskellName [ "Show", "Eq", "Ord", "Generic" ]
 
 defaultEnumDeriving :: [HsQName]
 defaultEnumDeriving = map haskellName [ "Show", "Eq", "Generic", "NFData" ]
 
 defaultServiceDeriving :: [HsQName]
 defaultServiceDeriving = map haskellName [ "Generic" ]
-
---------------------------------------------------------------------------------
---
--- * Wrappers around haskell-src-exts constructors
---
-
-apply :: HsExp -> [HsExp] -> HsExp
-apply f = HsParen . foldl HsApp f
-
-applicativeApply :: HsExp -> [HsExp] -> HsExp
-applicativeApply f = foldl snoc nil
-  where
-    nil = HsApp pureE f
-
-    snoc g x = HsInfixApp g apOp x
-
-tyApp :: HsType -> [HsType] -> HsType
-tyApp = foldl HsTyApp
-
-module_ :: Module -> Maybe [HsExportSpec] -> [HsImportDecl] -> [HsDecl] -> HsModule
-module_ = HsModule defaultSrcLoc
-
-importDecl_ :: Module -> Bool -> Maybe Module -> Maybe (Bool, [HsImportSpec]) -> HsImportDecl
-importDecl_ = HsImportDecl defaultSrcLoc
-
-dataDecl_ :: String -> [HsConDecl] -> [HsQName] -> HsDecl
-dataDecl_ messageName [constructor@(HsRecDecl _ _ [_])] =
-  HsNewTypeDecl defaultSrcLoc [] (HsIdent messageName) [] constructor
-dataDecl_ messageName constructors =
-  HsDataDecl defaultSrcLoc [] (HsIdent messageName) [] constructors
-
-recDecl_ :: HsName -> [([HsName], HsBangType)] -> HsConDecl
-recDecl_ = HsRecDecl defaultSrcLoc
-
-conDecl_ :: HsName -> [HsBangType] -> HsConDecl
-conDecl_ = HsConDecl defaultSrcLoc
-
-instDecl_ :: HsQName -> [HsType] -> [HsDecl] -> HsDecl
-instDecl_ = HsInstDecl defaultSrcLoc []
-
-match_ :: HsName -> [HsPat] -> HsRhs -> [HsDecl] -> HsMatch
-match_ = HsMatch defaultSrcLoc
-
-unqual_ :: String -> HsQName
-unqual_ = UnQual . HsIdent
-
-uvar_ :: String -> HsExp
-uvar_ = HsVar . unqual_
-
-protobufType_, primType_, protobufWrapperType_ :: String -> HsType
-protobufType_ = HsTyCon . protobufName
-primType_ = HsTyCon . haskellName
-protobufWrapperType_ =
-  HsTyApp (HsTyCon (protobufName "Wrapped")) . HsTyCon .  haskellName
-
-type_ :: String -> HsType
-type_ = HsTyCon . unqual_
-
-patVar :: String -> HsPat
-patVar =  HsPVar . HsIdent
-
-alt_ :: HsPat -> HsGuardedAlts -> [HsDecl] -> HsAlt
-alt_ = HsAlt defaultSrcLoc
-
-str_ :: String -> HsExp
-str_ = HsLit . HsString
-
--- | For some reason, haskell-src-exts needs this 'SrcLoc' parameter
---   for some data constructors. Its value does not affect
---   pretty-printed output
-defaultSrcLoc :: SrcLoc
-defaultSrcLoc = SrcLoc "<generated>" 0 0
-
-__nowarn_unused :: a
-__nowarn_unused = subfieldType `undefined` subfieldOptions `undefined` oneofType
