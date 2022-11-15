@@ -2,6 +2,7 @@
 , enableDhall
 , enableSwagger
 , swaggerWrapperFormat
+, enableLargeRecords
 }:
 
 pkgsNew: pkgsOld:
@@ -49,6 +50,7 @@ in {
                 (if enableDhall then "-fdhall" else "")
                 (if enableSwagger then "" else "-f-swagger")
                 (if swaggerWrapperFormat then "-fswagger-wrapper-format" else "")
+                (if enableLargeRecords then "-flarge-records" else "")
               ];
             in
             (haskellPackagesNew.callCabal2nixWithOptions
@@ -62,7 +64,8 @@ in {
               configureFlags = (old.configureFlags or [ ])
                 ++ (if enableDhall then [ "-fdhall" ] else [ ])
                 ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ])
-                ++ (if swaggerWrapperFormat then [ "-fswagger-wrapper-format" ] else [ "" ]);
+                ++ (if swaggerWrapperFormat then [ "-fswagger-wrapper-format" ] else [ "" ])
+                ++ (if enableLargeRecords then [ "-flarge-records" ] else [ ]);
             });
 
           proto3-suite-boot =
