@@ -1888,6 +1888,12 @@ defaultImports ImportCustomisation{ icUsesGrpc, icStringType = StringType string
     , importDecl_ (m "Data.List.NonEmpty")    & qualified haskellNS  & selecting  [HsIThingAll (HsIdent "NonEmpty")]
     , importDecl_ (m "Data.Map")              & qualified haskellNS  & selecting  [i"Map", i"mapKeysMonotonic"]
     , importDecl_ (m "Data.Proxy")            & qualified proxyNS    & everything
+#ifdef LARGE_RECORDS
+    , importDecl_ (m "Data.Record.Generic")              & qualified lrNS  & everything
+    , importDecl_ (m "Data.Record.Generic.Rep")          & qualified lrNS  & everything
+    , importDecl_ (m "Data.Record.Generic.Rep.Internal") & qualified lrNS  & everything
+    , importDecl_ (m "Data.Record.Plugin.Runtime")       & qualified lrNS  & everything
+#endif
     , importDecl_ (m "Data.String")           & qualified haskellNS  & selecting  [i"fromString"]
     , importDecl_ (m stringModule)            & qualified haskellNS  & selecting  [i stringType]
     , importDecl_ (m "Data.Vector")           & qualified haskellNS  & selecting  [i"Vector"]
@@ -1911,6 +1917,9 @@ defaultImports ImportCustomisation{ icUsesGrpc, icStringType = StringType string
 
     grpcNS                    = m "HsGRPC"
     jsonpbNS                  = m "HsJSONPB"
+#ifdef LARGE_RECORDS
+    lrNS                      = m "LR"
+#endif
     protobufNS                = m "HsProtobuf"
     proxyNS                   = m "Proxy"
 
