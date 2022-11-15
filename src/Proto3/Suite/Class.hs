@@ -56,6 +56,7 @@
 -- >                  Left e -> error e
 -- >                  Right msg -> msg
 
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DefaultSignatures          #-}
 {-# LANGUAGE FlexibleContexts           #-}
@@ -120,6 +121,12 @@ import           Proto3.Wire.Decode     (ParseError, Parser (..), RawField,
                                          RawMessage, RawPrimitive, runParser)
 import qualified Proto3.Wire.Decode     as Decode
 import qualified Proto3.Wire.Encode     as Encode
+
+#ifdef LARGE_RECORDS
+import qualified Data.Record.Generic as LG
+import qualified Data.Record.Generic.GHC as LG
+import qualified Data.Record.Generic.Rep as LG
+#endif
 
 -- | Pass through those values that are outside the enum range;
 -- this is for forward compatibility as enumerations are extended.
@@ -250,6 +257,13 @@ instance (Datatype i, GenericHasDefault f) => GenericHasDefault (D1 i f) where
   genericDef = M1 (genericDef @f)
 instance (Selector i, GenericHasDefault f) => GenericHasDefault (S1 i f) where
   genericDef = M1 (genericDef @f)
+
+#ifdef LARGE_RECORDS
+
+instance (LG.Generic a, LG.Constraints a HasDefault) => GenericHasDefault (LG.ThroughLRGenerics a) where
+  genericDef = LG.WrapThroughLRGenerics $ LG.to $ LG.cpure (Proxy @HasDefault) (pure def)
+
+#endif
 
 -- | This class captures those types whose names need to appear in .proto files.
 --
