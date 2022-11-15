@@ -727,10 +727,12 @@ dotProtoMessageD stringType ctxt parentIdent messageIdent messageParts = do
           DotProtoMessageOneOf ident _ -> [ident]
           _                            -> []
 
+    messageDataDecl <- mkDataDecl <$> foldMapM (messagePartFieldD messageName) messageParts
+
     foldMapM id
       [ sequence
-          [ mkDataDecl <$> foldMapM (messagePartFieldD messageName) messageParts
-          , pure (nfDataInstD messageName)
+          [ pure messageDataDecl
+          , pure (nfDataInstD messageDataDecl messageName)
           , pure (namedInstD messageName)
           , pure (hasDefaultInstD messageName)
           , messageInstD stringType ctxt' parentIdent messageIdent messageParts
@@ -806,8 +808,9 @@ dotProtoMessageD stringType ctxt parentIdent messageIdent messageParts = do
                             =<< mapM (dpIdentUnqualName . dotProtoFieldName) fields
 #endif
 
-      pure [ dataDecl_ fullName cons defaultMessageDeriving
-           , nfDataInstD fullName
+      let nestedDecl = dataDecl_ fullName cons defaultMessageDeriving
+      pure [ nestedDecl
+           , nfDataInstD nestedDecl fullName
            , namedInstD fullName
 #ifdef SWAGGER
            , toSchemaInstance

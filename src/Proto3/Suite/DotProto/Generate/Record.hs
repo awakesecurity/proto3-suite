@@ -7,8 +7,8 @@ import Language.Haskell.Syntax
 import Proto3.Suite.DotProto.Generate.Syntax
 
 -- | Generate 'NFData' instance for a type using GHC generics
-nfDataInstD :: String -> HsDecl
-nfDataInstD typeName =
+nfDataInstD :: HsDecl -> String -> HsDecl
+nfDataInstD _ typeName =
   instDecl_ (haskellName "NFData")
       [ type_ typeName ]
       []
