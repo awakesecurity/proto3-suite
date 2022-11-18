@@ -10,7 +10,6 @@ module TestCodeGen where
 import           ArbitraryGeneratedTestTypes    ()
 import           Control.Applicative
 import           Control.Monad
-import           Control.Monad.Except
 import qualified Data.Aeson
 import qualified Data.ByteString.Lazy           as LBS
 import qualified Data.ByteString.Lazy.Char8     as LBS8
@@ -31,7 +30,6 @@ import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
 import           System.Exit
 import           Test.Tasty
 import           Test.Tasty.HUnit               (testCase, (@?=))
-import           Turtle                         (FilePath)
 import qualified Turtle
 import qualified Turtle.Format                  as F
 import qualified TestProtoWrappers
@@ -43,10 +41,14 @@ codeGenTests = testGroup "Code generator unit tests"
   , camelCaseMessageFieldNames
   , don'tAlterEnumFieldNames
   , knownTypeMessages
-  , simpleEncodeDotProto "Binary"
-  , simpleDecodeDotProto "Binary"
-  , simpleEncodeDotProto "Jsonpb"
-  , simpleDecodeDotProto "Jsonpb"
+  , simpleEncodeDotProto RegularRecords "Binary"
+  , simpleDecodeDotProto RegularRecords "Binary"
+  , simpleEncodeDotProto RegularRecords "Jsonpb"
+  , simpleDecodeDotProto RegularRecords "Jsonpb"
+  , simpleEncodeDotProto LargeRecords "Binary"
+  , simpleDecodeDotProto LargeRecords "Binary"
+  , simpleEncodeDotProto LargeRecords "Jsonpb"
+  , simpleDecodeDotProto LargeRecords "Jsonpb"
   ]
 
 swaggerWrapperFormat :: TestTree
@@ -157,11 +159,11 @@ setPythonPath :: IO ()
 setPythonPath = Turtle.export "PYTHONPATH" .
   maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) =<< Turtle.need "PYTHONPATH"
 
-simpleEncodeDotProto :: T.Text -> TestTree
-simpleEncodeDotProto format =
-    testCase ("generate code for a simple .proto and then use it to encode messages in format " ++ show format)
+simpleEncodeDotProto :: RecordStyle -> T.Text -> TestTree
+simpleEncodeDotProto recStyle format =
+    testCase ("generate code for a simple .proto and then use it to encode messages in format " ++ show format ++ ", record style " ++ show recStyle)
     $ do
-         compileTestDotProtos
+         compileTestDotProtos recStyle
          -- Compile our generated encoder
          Turtle.proc "tests/encode.sh" [hsTmpDir] empty >>= (@?= ExitSuccess)
 
@@ -175,11 +177,11 @@ simpleEncodeDotProto format =
          Turtle.rmtree hsTmpDir
          Turtle.rmtree pyTmpDir
 
-simpleDecodeDotProto :: T.Text -> TestTree
-simpleDecodeDotProto format =
-    testCase ("generate code for a simple .proto and then use it to decode messages in format " ++ show format)
+simpleDecodeDotProto :: RecordStyle -> T.Text -> TestTree
+simpleDecodeDotProto recStyle format =
+    testCase ("generate code for a simple .proto and then use it to decode messages in format " ++ show format ++ ", record style " ++ show recStyle)
     $ do
-         compileTestDotProtos
+         compileTestDotProtos recStyle
          -- Compile our generated decoder
          Turtle.proc "tests/decode.sh" [hsTmpDir] empty >>= (@?= ExitSuccess)
 
@@ -193,12 +195,6 @@ simpleDecodeDotProto format =
 
 -- * Helpers
 
--- E.g. dumpAST ["test-files"] "test_proto.proto"
-dumpAST :: [FilePath] -> FilePath -> IO ()
-dumpAST incs fp = either (error . show) putStrLn <=< runExceptT $ do
-  (dp, tc) <- readDotProtoWithContext incs fp
-  renderHsModuleForDotProto theStringType mempty dp tc
-
 hsTmpDir, pyTmpDir :: IsString a => a
 hsTmpDir = "test-files/hs-tmp"
 pyTmpDir = "test-files/py-tmp"
@@ -206,8 +202,8 @@ pyTmpDir = "test-files/py-tmp"
 theStringType :: StringType
 theStringType = StringType "Data.Text.Lazy" "Text"
 
-compileTestDotProtos :: IO ()
-compileTestDotProtos = do
+compileTestDotProtos :: RecordStyle -> IO ()
+compileTestDotProtos recStyle = do
   Turtle.mktree hsTmpDir
   Turtle.mktree pyTmpDir
   let protoFiles =
@@ -230,6 +226,7 @@ compileTestDotProtos = do
                    , outputDir = hsTmpDir
                    , inputProto = protoFile
                    , stringType = theStringType
+                   , recordStyle = recStyle
                    }
 
     let cmd = T.concat [ "protoc --python_out="

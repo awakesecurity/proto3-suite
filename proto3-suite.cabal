@@ -67,14 +67,13 @@ library
                        large-generics,
                        large-records
     cpp-options:       -DLARGE_RECORDS
-    exposed-modules:   Proto3.Suite.DotProto.Generate.LargeRecord
-  else
-    exposed-modules:   Proto3.Suite.DotProto.Generate.Record
 
   exposed-modules:     Proto3.Suite
                        Proto3.Suite.Class
                        Proto3.Suite.DotProto
                        Proto3.Suite.DotProto.Generate
+                       Proto3.Suite.DotProto.Generate.LargeRecord
+                       Proto3.Suite.DotProto.Generate.Record
                        Proto3.Suite.DotProto.Generate.Syntax
                        Proto3.Suite.DotProto.AST
                        Proto3.Suite.DotProto.AST.Lens
