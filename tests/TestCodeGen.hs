@@ -41,14 +41,17 @@ codeGenTests = testGroup "Code generator unit tests"
   , camelCaseMessageFieldNames
   , don'tAlterEnumFieldNames
   , knownTypeMessages
-  , simpleEncodeDotProto RegularRecords "Binary"
-  , simpleDecodeDotProto RegularRecords "Binary"
-  , simpleEncodeDotProto RegularRecords "Jsonpb"
-  , simpleDecodeDotProto RegularRecords "Jsonpb"
+#ifdef LARGE_RECORDS
   , simpleEncodeDotProto LargeRecords "Binary"
   , simpleDecodeDotProto LargeRecords "Binary"
   , simpleEncodeDotProto LargeRecords "Jsonpb"
   , simpleDecodeDotProto LargeRecords "Jsonpb"
+#else
+  , simpleEncodeDotProto RegularRecords "Binary"
+  , simpleDecodeDotProto RegularRecords "Binary"
+  , simpleEncodeDotProto RegularRecords "Jsonpb"
+  , simpleDecodeDotProto RegularRecords "Jsonpb"
+#endif
   ]
 
 swaggerWrapperFormat :: TestTree

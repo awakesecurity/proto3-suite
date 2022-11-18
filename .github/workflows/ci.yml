@@ -25,3 +25,4 @@ jobs:
           name: awakesecurity
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       - run: nix-build --attr proto3-suite --argstr compiler "${{ matrix.compiler }}" --arg enableDhall true
+      - run: nix-build --attr proto3-suite --argstr compiler "${{ matrix.compiler }}" --arg enableDhall true --arg enableLargeRecords true
