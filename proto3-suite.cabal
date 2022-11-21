@@ -40,7 +40,7 @@ flag swagger-wrapper-format
 
 flag large-records
   Description:   Generate records with smaller core code size using the large-records library
-  Default:       False
+  Default:       True
   Manual:        True
 
 library
