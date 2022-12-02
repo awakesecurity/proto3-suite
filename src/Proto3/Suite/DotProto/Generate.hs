@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE DataKinds                 #-}
+{-# LANGUAGE DerivingStrategies        #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
@@ -23,6 +24,7 @@
 module Proto3.Suite.DotProto.Generate
   ( CompileError(..)
   , StringType(..)
+  , RecordStyle (..)
   , parseStringType
   , TypeContext
   , CompileArgs(..)
@@ -40,12 +42,12 @@ import           Control.Monad.Except
 import           Data.Char
 import           Data.Coerce
 import           Data.Either                    (partitionEithers)
-import           Data.List                      (find, intercalate, nub, sortBy, stripPrefix)
+import           Data.List                      (find, intercalate, nub, sort, sortBy, stripPrefix)
 import qualified Data.List.NonEmpty             as NE
 import           Data.List.Split                (splitOn)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map                       as M
-import           Data.Maybe                     (fromMaybe)
+import           Data.Maybe
 import           Data.Monoid
 import           Data.Ord                       (comparing)
 import qualified Data.Set                       as S
@@ -58,6 +60,9 @@ import qualified NeatInterpolation              as Neat
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.AST.Lens
+import qualified Proto3.Suite.DotProto.Generate.LargeRecord as LargeRecord
+import qualified Proto3.Suite.DotProto.Generate.Record as RegularRecord
+import           Proto3.Suite.DotProto.Generate.Syntax
 import           Proto3.Suite.DotProto.Internal
 import           Proto3.Wire.Types              (FieldNumber (..))
 import Text.Parsec (Parsec, alphaNum, eof, parse, satisfy, try)
@@ -77,9 +82,13 @@ data CompileArgs = CompileArgs
   , inputProto         :: FilePath
   , outputDir          :: FilePath
   , stringType         :: StringType
+  , recordStyle        :: RecordStyle
   }
 
 data StringType = StringType String String
+
+data RecordStyle = RegularRecords | LargeRecords
+  deriving stock (Eq, Show, Read)
 
 parseStringType :: String -> Either String StringType
 parseStringType str = case splitOn "." str of
@@ -100,7 +109,7 @@ compileDotProtoFile CompileArgs{..} = runExceptT $ do
   Turtle.mktree (Turtle.directory modulePath)
 
   extraInstances <- foldMapM getExtraInstances extraInstanceFiles
-  haskellModule <- renderHsModuleForDotProto stringType extraInstances dotProto importTypeContext
+  haskellModule <- renderHsModuleForDotProto stringType recordStyle extraInstances dotProto importTypeContext
 
   liftIO (writeFile (Turtle.encodeString modulePath) haskellModule)
   where
@@ -171,24 +180,69 @@ renameProtoFile filename =
 renderHsModuleForDotProto
     :: MonadError CompileError m
     => StringType
+    -> RecordStyle
     -> ([HsImportDecl],[HsDecl]) -> DotProto -> TypeContext -> m String
-renderHsModuleForDotProto stringType extraInstanceFiles dotProto importCtxt = do
-    haskellModule <- hsModuleForDotProto stringType extraInstanceFiles dotProto importCtxt
-    return (T.unpack header ++ "\n" ++ prettyPrint haskellModule)
-  where
-    header = [Neat.text|
-      {-# LANGUAGE DeriveGeneric     #-}
-      {-# LANGUAGE DeriveAnyClass    #-}
-      {-# LANGUAGE DataKinds         #-}
-      {-# LANGUAGE GADTs             #-}
-      {-# LANGUAGE TypeApplications  #-}
-      {-# LANGUAGE OverloadedStrings #-}
-      {-# OPTIONS_GHC -fno-warn-unused-imports       #-}
-      {-# OPTIONS_GHC -fno-warn-name-shadowing       #-}
-      {-# OPTIONS_GHC -fno-warn-unused-matches       #-}
-      {-# OPTIONS_GHC -fno-warn-missing-export-lists #-}
+renderHsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto importCtxt = do
+    haskellModule <- hsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto importCtxt
+
+    let languagePragmas = textUnlines $ map (\extn -> "{-# LANGUAGE " <> extn <> " #-}") $ sort extensions
+        ghcOptionPragmas = textUnlines $ map (\opt -> "{-# OPTIONS_GHC " <> opt <> " #-}") $ sort options
+
+        extensions :: [T.Text]
+        extensions =
+          [ "DataKinds"
+          , "DeriveAnyClass"
+          , "DeriveGeneric"
+          , "GADTs"
+          , "OverloadedStrings"
+          , "TypeApplications"
+          ] ++
+          case recordStyle of
+            RegularRecords -> []
+            LargeRecords -> [ "ConstraintKinds"
+                           , "FlexibleInstances"
+                           , "MultiParamTypeClasses"
+                           , "ScopedTypeVariables"
+                           , "TypeFamilies"
+                           , "UndecidableInstances"
+                           ]
+
+        options :: [T.Text]
+        options = [ "-fno-warn-unused-imports"
+                  , "-fno-warn-name-shadowing"
+                  , "-fno-warn-unused-matches"
+                  , "-fno-warn-missing-export-lists"
+                  ] ++
+                  case recordStyle of
+                    RegularRecords -> []
+                    LargeRecords -> [ "-fplugin=Data.Record.Plugin" ]
+
+        mkLRAnnotation :: HsDecl -> Maybe T.Text
+        mkLRAnnotation (HsDataDecl _ _ (HsIdent recName) _ [HsRecDecl _ _ (_fld1:_fld2:_)] _) =
+          Just ("{-# ANN type " <> T.pack recName <> " largeRecord #-}")
+        mkLRAnnotation _ = Nothing
+
+        lrAnnotations :: T.Text
+        lrAnnotations =
+          case (recordStyle, haskellModule) of
+            (RegularRecords, _) -> ""
+            (LargeRecords, HsModule _ _ _ _ moduleDecls) ->
+              textUnlines (mapMaybe mkLRAnnotation moduleDecls)
+
+        moduleContent :: T.Text
+        moduleContent = T.pack (prettyPrint haskellModule)
+
+        textUnlines :: [T.Text] -> T.Text
+        textUnlines = T.intercalate "\n"
+
+    pure $ T.unpack $ [Neat.text|
+      $languagePragmas
+      $ghcOptionPragmas
 
       -- | Generated by Haskell protocol buffer compiler. DO NOT EDIT!
+      $moduleContent
+
+      $lrAnnotations
     |]
 
 -- | Compile a Haskell module AST given a 'DotProto' package AST.
@@ -197,6 +251,8 @@ hsModuleForDotProto
     :: MonadError CompileError m
     => StringType
     -- ^ the module and the type for string
+    -> RecordStyle
+    -- ^ kind of records to generate
     -> ([HsImportDecl], [HsDecl])
     -- ^ Extra user-define instances that override default generated instances
     -> DotProto
@@ -206,6 +262,7 @@ hsModuleForDotProto
     -> m HsModule
 hsModuleForDotProto
     stringType
+    recordStyle
     (extraImports, extraInstances)
     dotProto@DotProto{ protoMeta = DotProtoMeta { metaModulePath = modulePath }
                      , protoPackage
@@ -221,18 +278,18 @@ hsModuleForDotProto
        let hasService = has (traverse._DotProtoService) protoDefinitions
 
        let importDeclarations = concat
-              [ defaultImports
-                ImportCustomisation
-                  { icUsesGrpc = hasService
-                  , icStringType = stringType
-                  }
+              [ defaultImports recordStyle
+                               ImportCustomisation
+                               { icUsesGrpc = hasService
+                               , icStringType = stringType
+                               }
               , extraImports
               , typeContextImports ]
 
        typeContext <- dotProtoTypeContext dotProto
 
        let toDotProtoDeclaration =
-             dotProtoDefinitionD stringType packageIdentifier (typeContext <> importTypeContext)
+             dotProtoDefinitionD stringType recordStyle packageIdentifier (typeContext <> importTypeContext)
 
        let extraInstances' = instancesForModule moduleName extraInstances
 
@@ -391,13 +448,6 @@ msgTypeFromDpTypeInfo ctxt DotProtoTypeInfo{..} ident = do
     modName   <- modulePathModName dotProtoTypeInfoModulePath
     identName <- qualifiedMessageTypeName ctxt dotProtoTypeInfoParent ident
     pure $ HsTyCon (Qual modName (HsIdent identName))
-
-haskellName, jsonpbName, grpcName, protobufName, proxyName :: String -> HsQName
-haskellName  name = Qual (Module "Hs")         (HsIdent name)
-jsonpbName   name = Qual (Module "HsJSONPB")   (HsIdent name)
-grpcName     name = Qual (Module "HsGRPC")     (HsIdent name)
-protobufName name = Qual (Module "HsProtobuf") (HsIdent name)
-proxyName    name = Qual (Module "Proxy")      (HsIdent name)
 
 modulePathModName :: MonadError CompileError m => Path -> m Module
 modulePathModName (Path comps) = Module . intercalate "." <$> traverse typeLikeName (NE.toList comps)
@@ -636,10 +686,11 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
 
 dotProtoDefinitionD :: MonadError CompileError m
                     => StringType
+                    -> RecordStyle
                     -> DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
-dotProtoDefinitionD stringType pkgIdent ctxt = \case
+dotProtoDefinitionD stringType recordStyle pkgIdent ctxt = \case
   DotProtoMessage _ messageName messageParts ->
-    dotProtoMessageD stringType ctxt Anonymous messageName messageParts
+    dotProtoMessageD stringType recordStyle ctxt Anonymous messageName messageParts
 
   DotProtoEnum _ enumName enumParts ->
     dotProtoEnumD Anonymous enumName enumParts
@@ -673,12 +724,13 @@ dotProtoMessageD
     :: forall m
      . MonadError CompileError m
     => StringType
+    -> RecordStyle
     -> TypeContext
     -> DotProtoIdentifier
     -> DotProtoIdentifier
     -> [DotProtoMessagePart]
     -> m [HsDecl]
-dotProtoMessageD stringType ctxt parentIdent messageIdent messageParts = do
+dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messageParts = do
     messageName <- qualifiedMessageName parentIdent messageIdent
 
     let mkDataDecl flds =
@@ -691,9 +743,12 @@ dotProtoMessageD stringType ctxt parentIdent messageIdent messageParts = do
           DotProtoMessageOneOf ident _ -> [ident]
           _                            -> []
 
+    messageDataDecl <- mkDataDecl <$> foldMapM (messagePartFieldD messageName) messageParts
+
     foldMapM id
       [ sequence
-          [ mkDataDecl <$> foldMapM (messagePartFieldD messageName) messageParts
+          [ pure messageDataDecl
+          , pure (nfDataInstD messageDataDecl messageName)
           , pure (namedInstD messageName)
           , pure (hasDefaultInstD messageName)
           , messageInstD stringType ctxt' parentIdent messageIdent messageParts
@@ -733,6 +788,10 @@ dotProtoMessageD stringType ctxt parentIdent messageIdent messageParts = do
     ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup messageIdent ctxt)
                 <> ctxt
 
+    nfDataInstD = case recordStyle of
+                    RegularRecords -> RegularRecord.nfDataInstD
+                    LargeRecords -> LargeRecord.nfDataInstD
+
     messagePartFieldD :: String -> DotProtoMessagePart -> m [([HsName], HsBangType)]
     messagePartFieldD messageName (DotProtoMessageField DotProtoField{..}) = do
       fullName <- prefixedFieldName messageName =<< dpIdentUnqualName dotProtoFieldName
@@ -750,7 +809,7 @@ dotProtoMessageD stringType ctxt parentIdent messageIdent messageParts = do
     nestedDecls :: DotProtoDefinition -> m [HsDecl]
     nestedDecls (DotProtoMessage _ subMsgName subMessageDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoMessageD stringType ctxt' parentIdent' subMsgName subMessageDef
+      dotProtoMessageD stringType recordStyle ctxt' parentIdent' subMsgName subMessageDef
 
     nestedDecls (DotProtoEnum _ subEnumName subEnumDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
@@ -769,7 +828,9 @@ dotProtoMessageD stringType ctxt parentIdent messageIdent messageParts = do
                             =<< mapM (dpIdentUnqualName . dotProtoFieldName) fields
 #endif
 
-      pure [ dataDecl_ fullName cons defaultMessageDeriving
+      let nestedDecl = dataDecl_ fullName cons defaultMessageDeriving
+      pure [ nestedDecl
+           , nfDataInstD nestedDecl fullName
            , namedInstD fullName
 #ifdef SWAGGER
            , toSchemaInstance
@@ -1662,51 +1723,10 @@ dotProtoServiceD stringType pkgIdent ctxt serviceIdent service = do
 -- * Common Haskell expressions, constructors, and operators
 --
 
-dotProtoFieldC, primC, repeatedC, nestedRepeatedC, namedC, mapC,
-  fieldNumberC, singleC, dotsC, pathC, qualifiedC, anonymousC, dotProtoOptionC,
-  identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC,
-  unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
-  methodNameC, nothingC, justC, forceEmitC, mconcatE, encodeMessageFieldE,
-  fromStringE, decodeMessageFieldE, pureE, returnE, memptyE, msumE, atE, oneofE,
-  fmapE, defaultOptionsE, serverLoopE, convertServerHandlerE,
+unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
+  methodNameC, defaultOptionsE, serverLoopE, convertServerHandlerE,
   convertServerReaderHandlerE, convertServerWriterHandlerE,
   convertServerRWHandlerE, clientRegisterMethodE, clientRequestE :: HsExp
-
-dotProtoFieldC       = HsVar (protobufName "DotProtoField")
-primC                = HsVar (protobufName "Prim")
-repeatedC            = HsVar (protobufName "Repeated")
-nestedRepeatedC      = HsVar (protobufName "NestedRepeated")
-namedC               = HsVar (protobufName "Named")
-mapC                 = HsVar (protobufName "Map")
-fieldNumberC         = HsVar (protobufName "FieldNumber")
-singleC              = HsVar (protobufName "Single")
-pathC                = HsVar (protobufName "Path")
-dotsC                = HsVar (protobufName "Dots")
-qualifiedC           = HsVar (protobufName "Qualified")
-anonymousC           = HsVar (protobufName "Anonymous")
-dotProtoOptionC      = HsVar (protobufName "DotProtoOption")
-identifierC          = HsVar (protobufName "Identifier")
-stringLitC           = HsVar (protobufName "StringLit")
-intLitC              = HsVar (protobufName "IntLit")
-floatLitC            = HsVar (protobufName "FloatLit")
-boolLitC             = HsVar (protobufName "BoolLit")
-forceEmitC           = HsVar (protobufName "ForceEmit")
-encodeMessageFieldE  = HsVar (protobufName "encodeMessageField")
-decodeMessageFieldE  = HsVar (protobufName "decodeMessageField")
-atE                  = HsVar (protobufName "at")
-oneofE               = HsVar (protobufName "oneof")
-
-trueC                       = HsVar (haskellName "True")
-falseC                      = HsVar (haskellName "False")
-nothingC                    = HsVar (haskellName "Nothing")
-justC                       = HsVar (haskellName "Just")
-mconcatE                    = HsVar (haskellName "mconcat")
-fromStringE                 = HsVar (haskellName "fromString")
-pureE                       = HsVar (haskellName "pure")
-returnE                     = HsVar (haskellName "return")
-memptyE                     = HsVar (haskellName "mempty")
-msumE                       = HsVar (haskellName "msum")
-fmapE                       = HsVar (haskellName "fmap")
 
 unaryHandlerC               = HsVar (grpcName "UnaryHandler")
 clientStreamHandlerC        = HsVar (grpcName "ClientStreamHandler")
@@ -1737,36 +1757,6 @@ clientResultT    = HsTyCon (grpcName "ClientResult")
 grpcClientT      = HsTyCon (grpcName "Client")
 ioActionT        = tyApp ioT [ HsTyTuple [] ]
 ioT              = HsTyCon (haskellName "IO")
-
-apOp :: HsQOp
-apOp  = HsQVarOp (UnQual (HsSymbol "<*>"))
-
-fmapOp :: HsQOp
-fmapOp  = HsQVarOp (UnQual (HsSymbol "<$>"))
-
-composeOp :: HsQOp
-composeOp = HsQVarOp (Qual haskellNS (HsSymbol "."))
-
-bindOp :: HsQOp
-bindOp = HsQVarOp (Qual haskellNS (HsSymbol ">>="))
-
-altOp :: HsQOp
-altOp = HsQVarOp (UnQual (HsSymbol "<|>"))
-
-toJSONPBOp :: HsQOp
-toJSONPBOp = HsQVarOp (UnQual (HsSymbol ".="))
-
-parseJSONPBOp :: HsQOp
-parseJSONPBOp = HsQVarOp (UnQual (HsSymbol ".:"))
-
-neConsOp :: HsQOp
-neConsOp = HsQVarOp (Qual haskellNS (HsSymbol ":|"))
-
-intE :: Integral a => a -> HsExp
-intE x = (if x < 0 then HsParen else id) . HsLit . HsInt . fromIntegral $ x
-
-intP :: Integral a => a -> HsPat
-intP x = (if x < 0 then HsPParen else id) . HsPLit . HsInt . fromIntegral $ x
 
 -- ** Expressions for protobuf-wire types
 
@@ -1830,8 +1820,8 @@ data ImportCustomisation = ImportCustomisation
   , icUsesGrpc :: Bool
   }
 
-defaultImports :: ImportCustomisation -> [HsImportDecl]
-defaultImports ImportCustomisation{ icUsesGrpc, icStringType = StringType stringModule stringType} =
+defaultImports :: RecordStyle -> ImportCustomisation -> [HsImportDecl]
+defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = StringType stringModule stringType} =
     [ importDecl_ (m "Prelude")               & qualified haskellNS  & everything
     , importDecl_ (m "Proto3.Suite.Class")    & qualified protobufNS & everything
 #ifdef DHALL
@@ -1868,6 +1858,15 @@ defaultImports ImportCustomisation{ icUsesGrpc, icStringType = StringType string
     , importDecl_ (m "Network.GRPC.HighLevel.Server")              & alias grpcNS & hiding    [i"serverLoop"]
     , importDecl_ (m "Network.GRPC.HighLevel.Server.Unregistered") & alias grpcNS & selecting [i"serverLoop"]
     ])
+    <>
+    case recordStyle of
+      RegularRecords -> []
+      LargeRecords ->
+        [ importDecl_ (m "Data.Record.Generic")              & qualified lrNS  & everything
+        , importDecl_ (m "Data.Record.Generic.Rep")          & qualified lrNS  & everything
+        , importDecl_ (m "Data.Record.Generic.Rep.Internal") & qualified lrNS  & everything
+        , importDecl_ (m "Data.Record.Plugin.Runtime")       & qualified lrNS  & everything
+        ]
   where
     m = Module
     i = HsIVar . HsIdent
@@ -1875,6 +1874,7 @@ defaultImports ImportCustomisation{ icUsesGrpc, icStringType = StringType string
 
     grpcNS                    = m "HsGRPC"
     jsonpbNS                  = m "HsJSONPB"
+    lrNS                      = m "LR"
     protobufNS                = m "HsProtobuf"
     proxyNS                   = m "Proxy"
 
@@ -1898,89 +1898,11 @@ defaultImports ImportCustomisation{ icUsesGrpc, icStringType = StringType string
     everything :: (Maybe (Bool, [HsImportSpec]) -> a) -> a
     everything f = f Nothing
 
-haskellNS :: Module
-haskellNS = Module "Hs"
-
 defaultMessageDeriving :: [HsQName]
-defaultMessageDeriving = map haskellName [ "Show", "Eq", "Ord", "Generic", "NFData" ]
+defaultMessageDeriving = map haskellName [ "Show", "Eq", "Ord", "Generic" ]
 
 defaultEnumDeriving :: [HsQName]
 defaultEnumDeriving = map haskellName [ "Show", "Eq", "Generic", "NFData" ]
 
 defaultServiceDeriving :: [HsQName]
 defaultServiceDeriving = map haskellName [ "Generic" ]
-
---------------------------------------------------------------------------------
---
--- * Wrappers around haskell-src-exts constructors
---
-
-apply :: HsExp -> [HsExp] -> HsExp
-apply f = HsParen . foldl HsApp f
-
-applicativeApply :: HsExp -> [HsExp] -> HsExp
-applicativeApply f = foldl snoc nil
-  where
-    nil = HsApp pureE f
-
-    snoc g x = HsInfixApp g apOp x
-
-tyApp :: HsType -> [HsType] -> HsType
-tyApp = foldl HsTyApp
-
-module_ :: Module -> Maybe [HsExportSpec] -> [HsImportDecl] -> [HsDecl] -> HsModule
-module_ = HsModule defaultSrcLoc
-
-importDecl_ :: Module -> Bool -> Maybe Module -> Maybe (Bool, [HsImportSpec]) -> HsImportDecl
-importDecl_ = HsImportDecl defaultSrcLoc
-
-dataDecl_ :: String -> [HsConDecl] -> [HsQName] -> HsDecl
-dataDecl_ messageName [constructor@(HsRecDecl _ _ [_])] =
-  HsNewTypeDecl defaultSrcLoc [] (HsIdent messageName) [] constructor
-dataDecl_ messageName constructors =
-  HsDataDecl defaultSrcLoc [] (HsIdent messageName) [] constructors
-
-recDecl_ :: HsName -> [([HsName], HsBangType)] -> HsConDecl
-recDecl_ = HsRecDecl defaultSrcLoc
-
-conDecl_ :: HsName -> [HsBangType] -> HsConDecl
-conDecl_ = HsConDecl defaultSrcLoc
-
-instDecl_ :: HsQName -> [HsType] -> [HsDecl] -> HsDecl
-instDecl_ = HsInstDecl defaultSrcLoc []
-
-match_ :: HsName -> [HsPat] -> HsRhs -> [HsDecl] -> HsMatch
-match_ = HsMatch defaultSrcLoc
-
-unqual_ :: String -> HsQName
-unqual_ = UnQual . HsIdent
-
-uvar_ :: String -> HsExp
-uvar_ = HsVar . unqual_
-
-protobufType_, primType_, protobufWrapperType_ :: String -> HsType
-protobufType_ = HsTyCon . protobufName
-primType_ = HsTyCon . haskellName
-protobufWrapperType_ =
-  HsTyApp (HsTyCon (protobufName "Wrapped")) . HsTyCon .  haskellName
-
-type_ :: String -> HsType
-type_ = HsTyCon . unqual_
-
-patVar :: String -> HsPat
-patVar =  HsPVar . HsIdent
-
-alt_ :: HsPat -> HsGuardedAlts -> [HsDecl] -> HsAlt
-alt_ = HsAlt defaultSrcLoc
-
-str_ :: String -> HsExp
-str_ = HsLit . HsString
-
--- | For some reason, haskell-src-exts needs this 'SrcLoc' parameter
---   for some data constructors. Its value does not affect
---   pretty-printed output
-defaultSrcLoc :: SrcLoc
-defaultSrcLoc = SrcLoc "<generated>" 0 0
-
-__nowarn_unused :: a
-__nowarn_unused = subfieldType `undefined` subfieldOptions `undefined` oneofType
