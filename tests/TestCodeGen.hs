@@ -10,7 +10,6 @@ module TestCodeGen where
 import           ArbitraryGeneratedTestTypes    ()
 import           Control.Applicative
 import           Control.Monad
-import           Control.Monad.Except
 import qualified Data.Aeson
 import qualified Data.ByteString.Lazy           as LBS
 import qualified Data.ByteString.Lazy.Char8     as LBS8
@@ -31,7 +30,6 @@ import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
 import           System.Exit
 import           Test.Tasty
 import           Test.Tasty.HUnit               (testCase, (@?=))
-import           Turtle                         (FilePath)
 import qualified Turtle
 import qualified Turtle.Format                  as F
 import qualified TestProtoWrappers
@@ -48,10 +46,15 @@ codeGenTests = testGroup "Code generator unit tests"
 
 pythonInteroperation :: TestTree
 pythonInteroperation = testGroup "Python interoperation" $ do
+#ifdef LARGE_RECORDS
+  recStyle <- [RegularRecords, LargeRecords]
+#else
+  recStyle <- [RegularRecords]
+#endif
   tt <- ["Data.Text.Lazy.Text", "Data.Text.Text", "Data.Text.Short.ShortText"]
   format <- ["Binary", "Jsonpb"]
   direction <- [simpleEncodeDotProto, simpleDecodeDotProto]
-  [direction tt format]
+  [direction recStyle tt format]
 
 swaggerWrapperFormat :: TestTree
 swaggerWrapperFormat = testGroup "Swagger Wrapper Format"
@@ -161,15 +164,15 @@ setPythonPath :: IO ()
 setPythonPath = Turtle.export "PYTHONPATH" .
   maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) =<< Turtle.need "PYTHONPATH"
 
-simpleEncodeDotProto :: String -> T.Text -> TestTree
-simpleEncodeDotProto chosenStringType format =
-    testCase
-    ("generate code for a simple .proto and then use it to encode messages" ++
-     " with string type " ++ chosenStringType ++ " in format " ++ show format)
+simpleEncodeDotProto :: RecordStyle -> String -> T.Text -> TestTree
+simpleEncodeDotProto recStyle chosenStringType format =
+    testCase ("generate code for a simple .proto and then use it to encode messages" ++
+              " with string type " ++ chosenStringType ++ " in format " ++ show format ++
+              ", record style " ++ show recStyle)
     $ do
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
-         compileTestDotProtos decodedStringType
+         compileTestDotProtos recStyle decodedStringType
          -- Compile our generated encoder
          let args = [hsTmpDir]
 #if DHALL
@@ -187,15 +190,15 @@ simpleEncodeDotProto chosenStringType format =
          Turtle.rmtree hsTmpDir
          Turtle.rmtree pyTmpDir
 
-simpleDecodeDotProto :: String -> T.Text -> TestTree
-simpleDecodeDotProto chosenStringType format =
-    testCase
-    ("generate code for a simple .proto and then use it to decode messages" ++
-     " with string type " ++ chosenStringType ++ " in format " ++ show format)
+simpleDecodeDotProto :: RecordStyle -> String -> T.Text -> TestTree
+simpleDecodeDotProto recStyle chosenStringType format =
+    testCase ("generate code for a simple .proto and then use it to decode messages" ++
+              " with string type " ++ chosenStringType ++ " in format " ++ show format ++
+              ", record style " ++ show recStyle)
     $ do
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
-         compileTestDotProtos decodedStringType
+         compileTestDotProtos recStyle decodedStringType
          -- Compile our generated decoder
          let args = [hsTmpDir]
 #if DHALL
@@ -213,12 +216,6 @@ simpleDecodeDotProto chosenStringType format =
 
 -- * Helpers
 
--- E.g. dumpAST ["test-files"] "test_proto.proto"
-dumpAST :: [FilePath] -> FilePath -> IO ()
-dumpAST incs fp = either (error . show) putStrLn <=< runExceptT $ do
-  (dp, tc) <- readDotProtoWithContext incs fp
-  renderHsModuleForDotProto defaultStringType mempty dp tc
-
 hsTmpDir, pyTmpDir :: IsString a => a
 hsTmpDir = "test-files/hs-tmp"
 pyTmpDir = "test-files/py-tmp"
@@ -226,8 +223,8 @@ pyTmpDir = "test-files/py-tmp"
 defaultStringType :: StringType
 defaultStringType = StringType "Data.Text.Lazy" "Text"
 
-compileTestDotProtos :: StringType -> IO ()
-compileTestDotProtos decodedStringType = do
+compileTestDotProtos :: RecordStyle -> StringType -> IO ()
+compileTestDotProtos recStyle decodedStringType = do
   Turtle.mktree hsTmpDir
   Turtle.mktree pyTmpDir
   let protoFiles =
@@ -250,6 +247,7 @@ compileTestDotProtos decodedStringType = do
                    , outputDir = hsTmpDir
                    , inputProto = protoFile
                    , stringType = decodedStringType
+                   , recordStyle = recStyle
                    }
 
     let cmd = T.concat [ "protoc --python_out="

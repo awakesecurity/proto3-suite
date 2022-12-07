@@ -38,6 +38,11 @@ flag swagger-wrapper-format
   Default:       False
   Manual:        True
 
+flag large-records
+  Description:   Generate records with smaller core code size using the large-records library
+  Default:       True
+  Manual:        True
+
 library
 
   if flag(dhall)
@@ -55,10 +60,20 @@ library
     else
       hs-source-dirs:  src/no-swagger-wrapper-format
 
+  if flag(large-records)
+    -- large-records support uses newer Dhall APIs. So we need at least 1.34.
+    build-depends:     dhall >=1.34 && < 1.39,
+                       large-generics,
+                       large-records
+    cpp-options:       -DLARGE_RECORDS
+
   exposed-modules:     Proto3.Suite
                        Proto3.Suite.Class
                        Proto3.Suite.DotProto
                        Proto3.Suite.DotProto.Generate
+                       Proto3.Suite.DotProto.Generate.LargeRecord
+                       Proto3.Suite.DotProto.Generate.Record
+                       Proto3.Suite.DotProto.Generate.Syntax
                        Proto3.Suite.DotProto.AST
                        Proto3.Suite.DotProto.AST.Lens
                        Proto3.Suite.DotProto.Parsing
@@ -135,6 +150,11 @@ test-suite tests
     cpp-options:       -DSWAGGER
     if flag(swagger-wrapper-format)
       cpp-options:       -DSWAGGER_WRAPPER_FORMAT
+
+  if flag(large-records)
+    build-depends:     large-generics,
+                       large-records
+    cpp-options:       -DLARGE_RECORDS
 
   autogen-modules:
     TestProto

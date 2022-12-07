@@ -81,6 +81,9 @@ docTests = testCase "doctests" $ do
 #ifdef DHALL
     , "-DDHALL"
 #endif
+#ifdef LARGE_RECORDS
+    , "-DLARGE_RECORDS"
+#endif
     , "src/Proto3/Suite/DotProto/Internal.hs"
     , "src/Proto3/Suite/JSONPB/Class.hs"
     , "tests/TestCodeGen.hs"
