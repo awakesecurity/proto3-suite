@@ -9,7 +9,7 @@ import qualified Data.Vector           as V
 import qualified Proto3.Suite.Types as DotProto
 import           Test.QuickCheck       (listOf)
 import qualified Test.QuickCheck       as QC
-import           Test.QuickCheck.Arbitrary.Generic (genericArbitrary, Arbitrary (..), genericShrink)
+import           Test.QuickCheck.Arbitrary.Generic (genericArbitrary, Arbitrary (..))
 import           TestProto
 import qualified TestProtoImport
 import qualified TestProtoOneof
@@ -112,7 +112,6 @@ instance Arbitrary TestProtoImport.WithNesting where
     TestProtoImport.WithNesting
     <$> arbitrary
     <*> arbitrary
-  shrink = genericShrink
 
 instance Arbitrary TestProtoImport.WithNesting_Nested where
   arbitrary =
