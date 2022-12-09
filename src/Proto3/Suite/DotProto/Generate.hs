@@ -94,7 +94,7 @@ data RecordStyle = RegularRecords | LargeRecords
 parseStringType :: String -> Either String StringType
 parseStringType str = case splitOn "." str of
   xs@(_ : _ : _) -> Right $ StringType (intercalate "." $ init xs) (last xs)
-  _ -> Left "--string-type must be in the form of Module.Type"
+  _ -> Left "must be in the form Module.Type"
 
 -- | Generate a Haskell module corresponding to a @.proto@ file
 compileDotProtoFile :: CompileArgs -> IO (Either CompileError ())
