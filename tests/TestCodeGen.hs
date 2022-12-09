@@ -54,7 +54,7 @@ pythonInteroperation = testGroup "Python interoperation" $ do
   tt <- ["Data.Text.Lazy.Text", "Data.Text.Text", "Data.Text.Short.ShortText"]
   format <- ["Binary", "Jsonpb"]
   direction <- [simpleEncodeDotProto, simpleDecodeDotProto]
-  [direction recStyle tt format]
+  pure @[] (direction recStyle tt format)
 
 swaggerWrapperFormat :: TestTree
 swaggerWrapperFormat = testGroup "Swagger Wrapper Format"

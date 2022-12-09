@@ -23,8 +23,9 @@ haskellNS = Module "Hs"
 apply :: HsExp -> [HsExp] -> HsExp
 apply f = paren . foldl HsApp f
 
-applyMaybe :: Maybe HsExp -> HsExp -> HsExp
-applyMaybe = maybe id (\f x -> paren (HsApp f (paren x)))
+maybeModify :: HsExp -> Maybe HsExp -> HsExp
+maybeModify x Nothing = x
+maybeModify x (Just f) = paren (HsApp f (paren x))
 
 paren :: HsExp -> HsExp
 paren e@(HsParen _) = e

@@ -520,7 +520,7 @@ wrapFunE overTyCon fc stringType ctxt opts dpt =
 
 wrapE :: MonadError CompileError m => FieldContext -> StringType -> TypeContext -> [DotProtoOption] -> DotProtoType -> HsExp -> m HsExp
 wrapE fc stringType ctxt opts dpt e =
-  flip applyMaybe e <$> wrapFunE False fc stringType ctxt opts dpt
+  maybeModify e <$> wrapFunE False fc stringType ctxt opts dpt
 
 unwrapFunE :: MonadError CompileError m => Bool -> FieldContext -> StringType -> TypeContext -> [DotProtoOption] -> DotProtoType -> m (Maybe HsExp)
 unwrapFunE overTyCon fc stringType ctxt opts dpt =
@@ -530,7 +530,7 @@ unwrapFunE overTyCon fc stringType ctxt opts dpt =
 
 unwrapE :: MonadError CompileError m => FieldContext -> StringType -> TypeContext -> [DotProtoOption] -> DotProtoType -> HsExp -> m HsExp
 unwrapE fc stringType ctxt opts dpt e = do
-  flip applyMaybe e <$> unwrapFunE True fc stringType ctxt opts dpt
+  maybeModify e <$> unwrapFunE True fc stringType ctxt opts dpt
 
 --------------------------------------------------------------------------------
 --
