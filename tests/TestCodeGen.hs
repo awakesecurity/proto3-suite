@@ -41,18 +41,20 @@ codeGenTests = testGroup "Code generator unit tests"
   , camelCaseMessageFieldNames
   , don'tAlterEnumFieldNames
   , knownTypeMessages
-#ifdef LARGE_RECORDS
-  , simpleEncodeDotProto LargeRecords "Binary"
-  , simpleDecodeDotProto LargeRecords "Binary"
-  , simpleEncodeDotProto LargeRecords "Jsonpb"
-  , simpleDecodeDotProto LargeRecords "Jsonpb"
-#else
-  , simpleEncodeDotProto RegularRecords "Binary"
-  , simpleDecodeDotProto RegularRecords "Binary"
-  , simpleEncodeDotProto RegularRecords "Jsonpb"
-  , simpleDecodeDotProto RegularRecords "Jsonpb"
-#endif
+  , pythonInteroperation
   ]
+
+pythonInteroperation :: TestTree
+pythonInteroperation = testGroup "Python interoperation" $ do
+#ifdef LARGE_RECORDS
+  recStyle <- [RegularRecords, LargeRecords]
+#else
+  recStyle <- [RegularRecords]
+#endif
+  tt <- ["Data.Text.Lazy.Text", "Data.Text.Text", "Data.Text.Short.ShortText"]
+  format <- ["Binary", "Jsonpb"]
+  direction <- [simpleEncodeDotProto, simpleDecodeDotProto]
+  pure @[] (direction recStyle tt format)
 
 swaggerWrapperFormat :: TestTree
 swaggerWrapperFormat = testGroup "Swagger Wrapper Format"
@@ -162,13 +164,21 @@ setPythonPath :: IO ()
 setPythonPath = Turtle.export "PYTHONPATH" .
   maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) =<< Turtle.need "PYTHONPATH"
 
-simpleEncodeDotProto :: RecordStyle -> T.Text -> TestTree
-simpleEncodeDotProto recStyle format =
-    testCase ("generate code for a simple .proto and then use it to encode messages in format " ++ show format ++ ", record style " ++ show recStyle)
+simpleEncodeDotProto :: RecordStyle -> String -> T.Text -> TestTree
+simpleEncodeDotProto recStyle chosenStringType format =
+    testCase ("generate code for a simple .proto and then use it to encode messages" ++
+              " with string type " ++ chosenStringType ++ " in format " ++ show format ++
+              ", record style " ++ show recStyle)
     $ do
-         compileTestDotProtos recStyle
+         decodedStringType <- either die pure (parseStringType chosenStringType)
+
+         compileTestDotProtos recStyle decodedStringType
          -- Compile our generated encoder
-         Turtle.proc "tests/encode.sh" [hsTmpDir] empty >>= (@?= ExitSuccess)
+         let args = [hsTmpDir]
+#if DHALL
+                    ++ ["-DDHALL"]
+#endif
+         Turtle.proc "tests/encode.sh" args empty >>= (@?= ExitSuccess)
 
          -- The python encoder test exits with a special error code to indicate
          -- all tests were successful
@@ -180,13 +190,21 @@ simpleEncodeDotProto recStyle format =
          Turtle.rmtree hsTmpDir
          Turtle.rmtree pyTmpDir
 
-simpleDecodeDotProto :: RecordStyle -> T.Text -> TestTree
-simpleDecodeDotProto recStyle format =
-    testCase ("generate code for a simple .proto and then use it to decode messages in format " ++ show format ++ ", record style " ++ show recStyle)
+simpleDecodeDotProto :: RecordStyle -> String -> T.Text -> TestTree
+simpleDecodeDotProto recStyle chosenStringType format =
+    testCase ("generate code for a simple .proto and then use it to decode messages" ++
+              " with string type " ++ chosenStringType ++ " in format " ++ show format ++
+              ", record style " ++ show recStyle)
     $ do
-         compileTestDotProtos recStyle
+         decodedStringType <- either die pure (parseStringType chosenStringType)
+
+         compileTestDotProtos recStyle decodedStringType
          -- Compile our generated decoder
-         Turtle.proc "tests/decode.sh" [hsTmpDir] empty >>= (@?= ExitSuccess)
+         let args = [hsTmpDir]
+#if DHALL
+                    ++ ["-DDHALL"]
+#endif
+         Turtle.proc "tests/decode.sh" args empty >>= (@?= ExitSuccess)
 
          setPythonPath
          let cmd = "python tests/send_simple_dot_proto.py " <> format <> " | FORMAT=" <> format <> " " <> hsTmpDir <> "/simpleDecodeDotProto "
@@ -202,11 +220,11 @@ hsTmpDir, pyTmpDir :: IsString a => a
 hsTmpDir = "test-files/hs-tmp"
 pyTmpDir = "test-files/py-tmp"
 
-theStringType :: StringType
-theStringType = StringType "Data.Text.Lazy" "Text"
+defaultStringType :: StringType
+defaultStringType = StringType "Data.Text.Lazy" "Text"
 
-compileTestDotProtos :: RecordStyle -> IO ()
-compileTestDotProtos recStyle = do
+compileTestDotProtos :: RecordStyle -> StringType -> IO ()
+compileTestDotProtos recStyle decodedStringType = do
   Turtle.mktree hsTmpDir
   Turtle.mktree pyTmpDir
   let protoFiles =
@@ -225,10 +243,10 @@ compileTestDotProtos recStyle = do
   forM_ protoFiles $ \protoFile -> do
     compileDotProtoFileOrDie
         CompileArgs{ includeDir = ["test-files"]
-                   , extraInstanceFiles = []
+                   , extraInstanceFiles = ["test-files" Turtle.</> "Orphan.hs"]
                    , outputDir = hsTmpDir
                    , inputProto = protoFile
-                   , stringType = theStringType
+                   , stringType = decodedStringType
                    , recordStyle = recStyle
                    }
 

@@ -1,13 +1,15 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DefaultSignatures   #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE OverloadedLists     #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE MagicHash           #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE CPP                  #-}
+{-# LANGUAGE DefaultSignatures    #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE DerivingVia          #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE OverloadedLists      #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE MagicHash            #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE ViewPatterns         #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Support for the "JSONPB" canonical JSON encoding described at
@@ -80,14 +82,14 @@ import qualified Data.Aeson.Types                 as A (Object, Pair, Parser,
                                                         Series,
                                                         explicitParseField,
                                                         explicitParseFieldMaybe,
-                                                        object, typeMismatch)
+                                                        object, toJSONKeyText,
+                                                        typeMismatch,)
 import qualified Data.Attoparsec.ByteString       as Atto (skipWhile)
 import qualified Data.Attoparsec.ByteString.Char8 as Atto (Parser, endOfInput)
 import qualified Data.Binary.Builder              as Builder
 import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Base64           as B64
 import qualified Data.ByteString.Lazy             as LBS
-import           Data.Coerce
 import           Data.Maybe
 import qualified Data.Map                         as M
 import           Data.Text                        (Text)
@@ -95,14 +97,20 @@ import qualified Data.Text                        as T
 import qualified Data.Text.Encoding               as T
 import qualified Data.Text.Lazy                   as TL
 import qualified Data.Text.Lazy.Encoding          as TL
+import qualified Data.Text.Short                  as TS
 import qualified Data.Vector                      as V
 import           GHC.Exts                         (Proxy#, proxy#)
 import           GHC.Generics                     (Generic)
 import           GHC.Int                          (Int32, Int64)
 import           GHC.Word                         (Word32, Word64)
+import           Google.Protobuf.Wrappers.Polymorphic (Wrapped(..))
 import           Proto3.Suite.Class               (HasDefault (def, isDefault),
                                                    Named (nameOf))
-import           Proto3.Suite.Types               (Enumerated (..), Fixed (..))
+import           Proto3.Suite.Types               (Enumerated(..), Fixed(..),
+                                                   Nested(..), NestedVec(..),
+                                                   PackedVec(..), Signed(..),
+                                                   UnpackedVec(..))
+import qualified Proto3.Suite.Types
 import           Proto3.Wire.Class                (ProtoEnum(..))
 import           Test.QuickCheck.Arbitrary        (Arbitrary(..))
 
@@ -144,6 +152,12 @@ class FromJSONPB a where
 
 instance FromJSONPB A.Value where
   parseJSONPB = pure
+
+-- | JSONPB format shortcuts Google wrappers types.
+deriving via a instance FromJSONPB a => FromJSONPB (Wrapped a)
+
+-- | JSONPB format shortcuts Google wrappers types.
+deriving via a instance ToJSONPB a => ToJSONPB (Wrapped a)
 
 -- * JSONPB codec entry points
 
@@ -353,7 +367,7 @@ instance FromJSONPB Bool where
 --     or strings are accepted.
 --
 
--- int32 / sint32
+-- int32 / sint32 / sfixed32
 instance ToJSONPB Int32 where
   toJSONPB     = const . A.toJSON
   toEncodingPB = const . A.toEncoding
@@ -361,7 +375,7 @@ instance ToJSONPB Int32 where
 instance FromJSONPB Int32 where
   parseJSONPB = parseNumOrDecimalString "int32 / sint32"
 
--- uint32
+-- uint32 / fixed32
 instance ToJSONPB Word32 where
   toJSONPB     = const . A.toJSON
   toEncodingPB = const . A.toEncoding
@@ -369,47 +383,27 @@ instance ToJSONPB Word32 where
 instance FromJSONPB Word32 where
   parseJSONPB = parseNumOrDecimalString "uint32"
 
--- int64 / sint64
+-- int64 / sint64 / sfixed64
 instance ToJSONPB Int64 where
   toJSONPB x _     = A.String . T.pack . show $ x
   toEncodingPB x _ = E.string (show x)
 instance FromJSONPB Int64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
--- unit64
+-- unit64 / fixed64
 instance ToJSONPB Word64 where
   toJSONPB x _     = A.String . T.pack . show $ x
   toEncodingPB x _ = E.string (show x)
 instance FromJSONPB Word64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
--- fixed32
-instance ToJSONPB (Fixed Word32) where
-  toJSONPB     = coerce (toJSONPB @Word32)
-  toEncodingPB = coerce (toEncodingPB @Word32)
-instance FromJSONPB (Fixed Word32) where
-  parseJSONPB = coerce (parseJSONPB @Word32)
+-- Distinctions between varint and fixed-width formats do not matter to JSONPB.
+deriving via a instance FromJSONPB a => FromJSONPB (Fixed a)
+deriving via a instance ToJSONPB a => ToJSONPB (Fixed a)
 
--- fixed64
-instance ToJSONPB (Fixed Word64) where
-  toJSONPB = coerce (toJSONPB @Word64)
-  toEncodingPB = coerce (toEncodingPB @Word64)
-instance FromJSONPB (Fixed Word64) where
-  parseJSONPB = coerce (parseJSONPB @Word64)
-
--- sfixed32
-instance ToJSONPB (Fixed Int32) where
-  toJSONPB = coerce (toJSONPB @Int32)
-  toEncodingPB = coerce (toEncodingPB @Int32)
-instance FromJSONPB (Fixed Int32) where
-  parseJSONPB = coerce (parseJSONPB @Int32)
-
--- sfixed64
-instance ToJSONPB (Fixed Int64) where
-  toJSONPB = coerce (toJSONPB @Int64)
-  toEncodingPB = coerce (toEncodingPB @Int64)
-instance FromJSONPB (Fixed Int64) where
-  parseJSONPB = coerce (parseJSONPB @Int64)
+-- Zig-zag encoding issues do not matter to JSONPB.
+deriving via a instance FromJSONPB a => FromJSONPB (Signed a)
+deriving via a instance ToJSONPB a => ToJSONPB (Signed a)
 
 --------------------------------------------------------------------------------
 -- Floating point scalar types
@@ -449,6 +443,15 @@ instance ToJSONPB TL.Text where
 instance FromJSONPB TL.Text where
   parseJSONPB = A.parseJSON
 
+instance ToJSONPB TS.ShortText where
+  toJSONPB     = toJSONPB     . TS.toText
+  toEncodingPB = toEncodingPB . TS.toText
+instance FromJSONPB TS.ShortText where
+  parseJSONPB = fmap TS.fromText . A.parseJSON
+
+deriving via a instance ToJSONPB a => ToJSONPB (Proto3.Suite.Types.String a)
+deriving via a instance FromJSONPB a => FromJSONPB (Proto3.Suite.Types.String a)
+
 -- bytes
 
 bsToJSONPB :: BS.ByteString -> A.Value
@@ -465,6 +468,9 @@ instance ToJSONPB BS.ByteString where
 instance FromJSONPB BS.ByteString where
   parseJSONPB (A.String b64enc) = pure . B64.decodeLenient . T.encodeUtf8 $ b64enc
   parseJSONPB v                 = A.typeMismatch "bytes" v
+
+deriving via a instance ToJSONPB a => ToJSONPB (Proto3.Suite.Types.Bytes a)
+deriving via a instance FromJSONPB a => FromJSONPB (Proto3.Suite.Types.Bytes a)
 
 --------------------------------------------------------------------------------
 -- Enumerated types
@@ -513,6 +519,14 @@ instance FromJSONPB a => FromJSONPB (V.Vector a) where
   parseJSONPB A.Null       = pure []
   parseJSONPB v            = A.typeMismatch "repeated" v
 
+-- Packed/unpacked distinctions do not matter to JSONPB.
+deriving via (V.Vector a) instance FromJSONPB a => FromJSONPB (NestedVec a)
+deriving via (V.Vector a) instance ToJSONPB a => ToJSONPB (NestedVec a)
+deriving via (V.Vector a) instance FromJSONPB a => FromJSONPB (PackedVec a)
+deriving via (V.Vector a) instance ToJSONPB a => ToJSONPB (PackedVec a)
+deriving via (V.Vector a) instance FromJSONPB a => FromJSONPB (UnpackedVec a)
+deriving via (V.Vector a) instance ToJSONPB a => ToJSONPB (UnpackedVec a)
+
 --------------------------------------------------------------------------------
 -- Instances for nested messages
 
@@ -523,8 +537,45 @@ instance FromJSONPB a => FromJSONPB (Maybe a) where
   parseJSONPB A.Null = pure Nothing
   parseJSONPB v      = fmap Just (parseJSONPB v)
 
+deriving via (Maybe a) instance FromJSONPB a => FromJSONPB (Nested a)
+deriving via (Maybe a) instance ToJSONPB a => ToJSONPB (Nested a)
+
 --------------------------------------------------------------------------------
 -- Instances for map
+
+deriving via a instance A.FromJSONKey a => A.FromJSONKey (Fixed a)
+deriving via a instance A.ToJSONKey a => A.ToJSONKey (Fixed a)
+
+deriving via a instance A.FromJSONKey a => A.FromJSONKey (Signed a)
+deriving via a instance A.ToJSONKey a => A.ToJSONKey (Signed a)
+
+deriving via T.Text instance A.FromJSONKey (Proto3.Suite.Types.String T.Text)
+deriving via T.Text instance A.ToJSONKey (Proto3.Suite.Types.String T.Text)
+
+deriving via TL.Text instance A.FromJSONKey (Proto3.Suite.Types.String TL.Text)
+deriving via TL.Text instance A.ToJSONKey (Proto3.Suite.Types.String TL.Text)
+
+#if MIN_VERSION_aeson(2,0,2)
+
+deriving via TS.ShortText instance A.FromJSONKey (Proto3.Suite.Types.String TS.ShortText)
+deriving via TS.ShortText instance A.ToJSONKey (Proto3.Suite.Types.String TS.ShortText)
+
+#else
+
+instance A.FromJSON (Proto3.Suite.Types.String TS.ShortText) where
+  parseJSON = fmap (Proto3.Suite.Types.String . TS.fromText) . A.parseJSON
+
+instance A.FromJSONKey (Proto3.Suite.Types.String TS.ShortText) where
+  fromJSONKey = A.FromJSONKeyText (Proto3.Suite.Types.String . TS.fromText)
+
+instance A.ToJSON (Proto3.Suite.Types.String TS.ShortText) where
+  toJSON = A.toJSON . TS.toText . Proto3.Suite.Types.string
+  toEncoding = A.toEncoding . TS.toText . Proto3.Suite.Types.string
+
+instance A.ToJSONKey (Proto3.Suite.Types.String TS.ShortText) where
+  toJSONKey = A.toJSONKeyText (TS.toText . Proto3.Suite.Types.string)
+
+#endif
 
 instance (A.ToJSONKey k, ToJSONPB k, ToJSONPB v) => ToJSONPB (M.Map k v) where
   toJSONPB m opts = A.liftToJSON @(M.Map k) (`toJSONPB` opts) (A.Array . V.fromList . map (`toJSONPB` opts)) m

@@ -11,8 +11,8 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module Proto3.Suite.DotProto.Parsing
-  ( ProtoParser 
-  , runProtoParser 
+  ( ProtoParser
+  , runProtoParser
   , parseProto
   , parseProtoFile
 

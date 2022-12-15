@@ -1,4 +1,12 @@
 
+# 0.6.0
+* Support use of ShortText as the Haskell type of a protobuf string.
+* Replace OverrideToSchema with String and Bytes in order to clarify which
+  instances of various type classes are selected, expecially ToSchema.
+* To disambiguate "String" in generated code, rename
+  the qualified import of AST-related identifiers.
+* Improve test coverage.
+
 # 0.5.2
 * Support numeric enumerator codes in JSONPB,
   as required by the protobuf standard.

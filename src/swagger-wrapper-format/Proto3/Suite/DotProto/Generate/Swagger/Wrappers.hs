@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -27,12 +29,10 @@ import Data.Swagger
   )
 import Data.Swagger.Declare (Declare)
 import Data.Word (Word32, Word64)
-import Proto3.Suite.DotProto.Generate.Swagger.OverrideToSchema (OverrideToSchema(..))
+import Google.Protobuf.Wrappers.Polymorphic (Wrapped(..))
 
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
+import qualified Proto3.Suite.Types
 
 -- | Wrapped Type Schemas
 
@@ -52,42 +52,36 @@ declareWrapperNamedSchema
   :: forall a
    . ToSchema a
   => T.Text
-  -> Proxy (OverrideToSchema a)
+  -> Proxy (Maybe (Wrapped a))
   -> Declare (Definitions Schema) NamedSchema
 declareWrapperNamedSchema formatValue _ =
   setFormat formatValue (declareNamedSchema (Proxy :: Proxy a))
 
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Double)) where
+instance {-# OVERLAPPING #-} ToSchema (Maybe (Wrapped Double)) where
   declareNamedSchema = declareWrapperNamedSchema "DoubleValue"
 
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Float)) where
+instance {-# OVERLAPPING #-} ToSchema (Maybe (Wrapped Float)) where
   declareNamedSchema = declareWrapperNamedSchema "FloatValue"
 
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Int64)) where
+instance {-# OVERLAPPING #-} ToSchema (Maybe (Wrapped Int64)) where
   declareNamedSchema = declareWrapperNamedSchema "Int64Value"
 
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Word64)) where
+instance {-# OVERLAPPING #-} ToSchema (Maybe (Wrapped Word64)) where
   declareNamedSchema = declareWrapperNamedSchema "UInt64Value"
 
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Int32)) where
+instance {-# OVERLAPPING #-} ToSchema (Maybe (Wrapped Int32)) where
   declareNamedSchema = declareWrapperNamedSchema "Int32Value"
 
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Word32)) where
+instance {-# OVERLAPPING #-} ToSchema (Maybe (Wrapped Word32)) where
   declareNamedSchema = declareWrapperNamedSchema "UInt32Value"
 
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe Bool)) where
+instance {-# OVERLAPPING #-} ToSchema (Maybe (Wrapped Bool)) where
   declareNamedSchema = declareWrapperNamedSchema "BoolValue"
 
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe T.Text)) where
-  declareNamedSchema = declareWrapperNamedSchema "StringValue"
-
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe TL.Text)) where
-  declareNamedSchema = declareWrapperNamedSchema "StringValue"
-
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe B.ByteString)) where
+instance {-# OVERLAPPING #-} ToSchema (Maybe (Wrapped (Proto3.Suite.Types.String a))) where
   declareNamedSchema _ =
-    setFormat "BytesValue" (pure (NamedSchema Nothing byteSchema))
+    setFormat "StringValue" (declareNamedSchema (Proxy :: Proxy String))
 
-instance {-# OVERLAPPING #-} ToSchema (OverrideToSchema (Maybe BL.ByteString)) where
+instance {-# OVERLAPPING #-} ToSchema (Maybe (Wrapped (Proto3.Suite.Types.Bytes a))) where
   declareNamedSchema _ =
     setFormat "BytesValue" (pure (NamedSchema Nothing byteSchema))

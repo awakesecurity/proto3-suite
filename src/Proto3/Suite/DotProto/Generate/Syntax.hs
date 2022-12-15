@@ -3,12 +3,13 @@ module Proto3.Suite.DotProto.Generate.Syntax where
 
 import Language.Haskell.Syntax
 
-haskellName, jsonpbName, grpcName, lrName, protobufName, proxyName :: String -> HsQName
+haskellName, jsonpbName, grpcName, lrName, protobufName, protobufASTName, proxyName :: String -> HsQName
 haskellName  name = Qual (Module "Hs")         (HsIdent name)
 jsonpbName   name = Qual (Module "HsJSONPB")   (HsIdent name)
 grpcName     name = Qual (Module "HsGRPC")     (HsIdent name)
 lrName       name = Qual (Module "LR")         (HsIdent name)
 protobufName name = Qual (Module "HsProtobuf") (HsIdent name)
+protobufASTName name = Qual (Module "HsProtobufAST") (HsIdent name)
 proxyName    name = Qual (Module "Proxy")      (HsIdent name)
 
 haskellNS :: Module
@@ -20,7 +21,15 @@ haskellNS = Module "Hs"
 --
 
 apply :: HsExp -> [HsExp] -> HsExp
-apply f = HsParen . foldl HsApp f
+apply f = paren . foldl HsApp f
+
+maybeModify :: HsExp -> Maybe HsExp -> HsExp
+maybeModify x Nothing = x
+maybeModify x (Just f) = paren (HsApp f (paren x))
+
+paren :: HsExp -> HsExp
+paren e@(HsParen _) = e
+paren e = HsParen e
 
 applicativeApply :: HsExp -> [HsExp] -> HsExp
 applicativeApply f = foldl snoc nil
@@ -62,11 +71,16 @@ unqual_ = UnQual . HsIdent
 uvar_ :: String -> HsExp
 uvar_ = HsVar . unqual_
 
-protobufType_, primType_, protobufWrapperType_ :: String -> HsType
+protobufType_, primType_, protobufStringType_, protobufBytesType_ :: String -> HsType
 protobufType_ = HsTyCon . protobufName
 primType_ = HsTyCon . haskellName
-protobufWrapperType_ =
-  HsTyApp (HsTyCon (protobufName "Wrapped")) . HsTyCon .  haskellName
+protobufStringType_ = HsTyApp (protobufType_ "String") . HsTyCon . haskellName
+protobufBytesType_ = HsTyApp (protobufType_ "Bytes") . HsTyCon . haskellName
+
+protobufFixedType_, protobufSignedType_, protobufWrappedType_ :: HsType -> HsType
+protobufFixedType_ = HsTyApp (protobufType_ "Fixed")
+protobufSignedType_ = HsTyApp (protobufType_ "Signed")
+protobufWrappedType_ = HsTyApp (HsTyCon (protobufName "Wrapped"))
 
 type_ :: String -> HsType
 type_ = HsTyCon . unqual_
@@ -98,24 +112,24 @@ dotProtoFieldC, primC, repeatedC, nestedRepeatedC, namedC, mapC,
   fromStringE, decodeMessageFieldE, pureE, returnE, memptyE, msumE, atE, oneofE,
   fmapE :: HsExp
 
-dotProtoFieldC       = HsVar (protobufName "DotProtoField")
-primC                = HsVar (protobufName "Prim")
-repeatedC            = HsVar (protobufName "Repeated")
-nestedRepeatedC      = HsVar (protobufName "NestedRepeated")
-namedC               = HsVar (protobufName "Named")
-mapC                 = HsVar (protobufName "Map")
+dotProtoFieldC       = HsVar (protobufASTName "DotProtoField")
+primC                = HsVar (protobufASTName "Prim")
+repeatedC            = HsVar (protobufASTName "Repeated")
+nestedRepeatedC      = HsVar (protobufASTName "NestedRepeated")
+namedC               = HsVar (protobufASTName "Named")
+mapC                 = HsVar (protobufASTName "Map")
 fieldNumberC         = HsVar (protobufName "FieldNumber")
-singleC              = HsVar (protobufName "Single")
-pathC                = HsVar (protobufName "Path")
-dotsC                = HsVar (protobufName "Dots")
-qualifiedC           = HsVar (protobufName "Qualified")
-anonymousC           = HsVar (protobufName "Anonymous")
-dotProtoOptionC      = HsVar (protobufName "DotProtoOption")
-identifierC          = HsVar (protobufName "Identifier")
-stringLitC           = HsVar (protobufName "StringLit")
-intLitC              = HsVar (protobufName "IntLit")
-floatLitC            = HsVar (protobufName "FloatLit")
-boolLitC             = HsVar (protobufName "BoolLit")
+singleC              = HsVar (protobufASTName "Single")
+pathC                = HsVar (protobufASTName "Path")
+dotsC                = HsVar (protobufASTName "Dots")
+qualifiedC           = HsVar (protobufASTName "Qualified")
+anonymousC           = HsVar (protobufASTName "Anonymous")
+dotProtoOptionC      = HsVar (protobufASTName "DotProtoOption")
+identifierC          = HsVar (protobufASTName "Identifier")
+stringLitC           = HsVar (protobufASTName "StringLit")
+intLitC              = HsVar (protobufASTName "IntLit")
+floatLitC            = HsVar (protobufASTName "FloatLit")
+boolLitC             = HsVar (protobufASTName "BoolLit")
 forceEmitC           = HsVar (protobufName "ForceEmit")
 encodeMessageFieldE  = HsVar (protobufName "encodeMessageField")
 decodeMessageFieldE  = HsVar (protobufName "decodeMessageField")

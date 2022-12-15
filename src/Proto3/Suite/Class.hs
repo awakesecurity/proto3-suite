@@ -56,14 +56,18 @@
 -- >                  Left e -> error e
 -- >                  Right msg -> msg
 
+{-# LANGUAGE AllowAmbiguousTypes        #-}
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DefaultSignatures          #-}
+{-# LANGUAGE DerivingVia                #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE MagicHash                  #-}
+{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
@@ -81,6 +85,8 @@ module Proto3.Suite.Class
   , HasDefault(..)
   , fromByteString
   , fromB64
+  , coerceOver
+  , unsafeCoerceOver
 
   -- * Documentation
   , Named(..)
@@ -97,7 +103,7 @@ import           Control.Monad
 import qualified Data.ByteString        as B
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy   as BL
-import           Data.Coerce            (coerce)
+import           Data.Coerce            (Coercible, coerce)
 import qualified Data.Foldable          as Foldable
 import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
@@ -107,6 +113,7 @@ import           Data.Proxy             (Proxy (..))
 import           Data.String            (IsString (..))
 import qualified Data.Text              as T
 import qualified Data.Text.Lazy         as TL
+import qualified Data.Text.Short        as TS
 import qualified Data.Traversable       as TR
 import qualified Data.Vector            as Vector
 import           Data.Vector            (Vector)
@@ -114,13 +121,16 @@ import           Data.Word              (Word32, Word64)
 import           GHC.Exts               (fromList, Proxy#, proxy#)
 import           GHC.Generics
 import           GHC.TypeLits
-import           Proto3.Suite.DotProto  as DotProto
-import           Proto3.Suite.Types     as Wire
+import           Google.Protobuf.Wrappers.Polymorphic (Wrapped(..))
+import           Proto3.Suite.DotProto
+import qualified Proto3.Suite.Types
+import           Proto3.Suite.Types     hiding (Bytes, String)
 import           Proto3.Wire
 import           Proto3.Wire.Decode     (ParseError, Parser (..), RawField,
                                          RawMessage, RawPrimitive, runParser)
 import qualified Proto3.Wire.Decode     as Decode
 import qualified Proto3.Wire.Encode     as Encode
+import           Unsafe.Coerce          (unsafeCoerce)
 
 #ifdef LARGE_RECORDS
 import qualified Data.Record.Generic as LG
@@ -193,18 +203,33 @@ instance HasDefault Bool where
 instance HasDefault T.Text where
   def = mempty
 
+deriving via T.Text instance HasDefault (Proto3.Suite.Types.String T.Text)
+
 instance HasDefault TL.Text where
   def = mempty
+
+deriving via TL.Text instance HasDefault (Proto3.Suite.Types.String TL.Text)
+
+instance HasDefault TS.ShortText where
+  def = mempty
+
+deriving via TS.ShortText instance HasDefault (Proto3.Suite.Types.String TS.ShortText)
 
 instance HasDefault B.ByteString where
   def = mempty
 
+deriving via B.ByteString instance HasDefault (Proto3.Suite.Types.Bytes B.ByteString)
+
 instance HasDefault BL.ByteString where
   def = mempty
+
+deriving via BL.ByteString instance HasDefault (Proto3.Suite.Types.Bytes BL.ByteString)
 
 instance ProtoEnum e => HasDefault (Enumerated e) where
   def = codeToEnumerated 0
   isDefault = (== 0) . codeFromEnumerated
+
+deriving via (a :: *) instance HasDefault a => HasDefault (Wrapped a)
 
 instance HasDefault (UnpackedVec a) where
   def = mempty
@@ -282,6 +307,41 @@ class GenericNamed (f :: * -> *) where
 instance Datatype d => GenericNamed (M1 D d f) where
   genericNameOf _ = fromString (datatypeName (undefined :: M1 D d f ()))
 
+instance NameOfWrapperFor a => Named (Wrapped a) where
+  nameOf _ = nameOfWrapperFor @a
+  {-# INLINE nameOf #-}
+
+-- | Defines the name to be returned by @`HsProtobuf.Named` (`Wrapped` a)@.
+class NameOfWrapperFor a where
+  nameOfWrapperFor :: forall string . IsString string => string
+
+instance NameOfWrapperFor Double where
+  nameOfWrapperFor = "DoubleValue"
+
+instance NameOfWrapperFor Float where
+  nameOfWrapperFor = "FloatValue"
+
+instance NameOfWrapperFor Int64 where
+  nameOfWrapperFor = "Int64Value"
+
+instance NameOfWrapperFor Word64 where
+  nameOfWrapperFor = "UInt64Value"
+
+instance NameOfWrapperFor Int32 where
+  nameOfWrapperFor = "Int32Value"
+
+instance NameOfWrapperFor Word32 where
+  nameOfWrapperFor = "UInt32Value"
+
+instance NameOfWrapperFor Bool where
+  nameOfWrapperFor = "BoolValue"
+
+instance NameOfWrapperFor (Proto3.Suite.Types.String a) where
+  nameOfWrapperFor = "StringValue"
+
+instance NameOfWrapperFor (Proto3.Suite.Types.Bytes a) where
+  nameOfWrapperFor = "BytesValue"
+
 -- | Enumerable types with finitely many values.
 --
 -- This class can be derived whenever a sum type is an instance of 'Generic',
@@ -355,6 +415,16 @@ fromByteString = Decode.parse (decodeMessage (fieldNumber 1))
 fromB64 :: Message a => B.ByteString -> Either ParseError a
 fromB64 = fromByteString . B64.decodeLenient
 
+-- | Like `coerce` but lets you avoid specifying a type constructor
+-- (such a as parser) that is common to both the input and output types.
+coerceOver :: forall a b f . Coercible (f a) (f b) => f a -> f b
+coerceOver = coerce
+
+-- | Like `unsafeCoerce` but lets you avoid specifying a type constructor
+-- (such a as parser) that is common to both the input and output types.
+unsafeCoerceOver :: forall a b f . f a -> f b
+unsafeCoerceOver = unsafeCoerce
+
 instance Primitive Int32 where
   encodePrimitive = Encode.int32
   decodePrimitive = Decode.int32
@@ -388,12 +458,12 @@ instance Primitive (Signed Int64) where
 instance Primitive (Fixed Word32) where
   encodePrimitive num = Encode.fixed32 num . coerce
   decodePrimitive = coerce Decode.fixed32
-  primType _ = DotProto.Fixed32
+  primType _ = Fixed32
 
 instance Primitive (Fixed Word64) where
   encodePrimitive num = Encode.fixed64 num . coerce
   decodePrimitive = coerce Decode.fixed64
-  primType _ = DotProto.Fixed64
+  primType _ = Fixed64
 
 instance Primitive (Signed (Fixed Int32)) where
   encodePrimitive num = Encode.sfixed32 num . coerce
@@ -425,20 +495,35 @@ instance Primitive T.Text where
   decodePrimitive = fmap TL.toStrict Decode.text
   primType _ = String
 
+deriving via T.Text instance Primitive (Proto3.Suite.Types.String T.Text)
+
 instance Primitive TL.Text where
   encodePrimitive = Encode.text
   decodePrimitive = Decode.text
   primType _ = String
+
+deriving via TL.Text instance Primitive (Proto3.Suite.Types.String TL.Text)
+
+instance Primitive TS.ShortText where
+  encodePrimitive = Encode.shortText
+  decodePrimitive = Decode.shortText
+  primType _ = String
+
+deriving via TS.ShortText instance Primitive (Proto3.Suite.Types.String TS.ShortText)
 
 instance Primitive B.ByteString where
   encodePrimitive = Encode.byteString
   decodePrimitive = Decode.byteString
   primType _ = Bytes
 
+deriving via B.ByteString instance Primitive (Proto3.Suite.Types.Bytes B.ByteString)
+
 instance Primitive BL.ByteString where
   encodePrimitive = Encode.lazyByteString
   decodePrimitive = Decode.lazyByteString
   primType _ = Bytes
+
+deriving via BL.ByteString instance Primitive (Proto3.Suite.Types.Bytes BL.ByteString)
 
 instance forall e. (Named e, ProtoEnum e) => Primitive (Enumerated e) where
   encodePrimitive num = either (Encode.int32 num) (Encode.enum num) . enumerated
@@ -476,7 +561,7 @@ class MessageField a where
   default protoType :: Primitive a => Proxy# a -> DotProtoField
   protoType p = messageField (Prim $ primType p) Nothing
 
-messageField :: DotProtoType -> Maybe DotProto.Packing -> DotProtoField
+messageField :: DotProtoType -> Maybe Packing -> DotProtoField
 messageField ty packing = DotProtoField
     { dotProtoFieldNumber = fieldNumber 1
     , dotProtoFieldType = ty
@@ -489,8 +574,8 @@ messageField ty packing = DotProtoField
 
     toDotProtoOption b = [DotProtoOption (Single "packed") (BoolLit b)]
 
-    isPacked DotProto.PackedField   = True
-    isPacked DotProto.UnpackedField = False
+    isPacked PackedField   = True
+    isPacked UnpackedField = False
 
 instance MessageField Int32
 instance MessageField Int64
@@ -506,9 +591,15 @@ instance MessageField Bool
 instance MessageField Float
 instance MessageField Double
 instance MessageField T.Text
+deriving via T.Text instance MessageField (Proto3.Suite.Types.String T.Text)
 instance MessageField TL.Text
+deriving via TL.Text instance MessageField (Proto3.Suite.Types.String TL.Text)
+instance MessageField TS.ShortText
+deriving via TS.ShortText instance MessageField (Proto3.Suite.Types.String TS.ShortText)
 instance MessageField B.ByteString
+deriving via B.ByteString instance MessageField (Proto3.Suite.Types.Bytes B.ByteString)
 instance MessageField BL.ByteString
+deriving via BL.ByteString instance MessageField (Proto3.Suite.Types.Bytes BL.ByteString)
 instance (Named e, ProtoEnum e) => MessageField (Enumerated e)
 
 instance (Ord k, Primitive k, MessageField k, Primitive v, MessageField v) => MessageField (M.Map k v) where
@@ -547,7 +638,7 @@ instance Primitive a => MessageField (UnpackedVec a) where
   encodeMessageField fn = Encode.vectorMessageBuilder (encodePrimitive fn) . unpackedvec
   decodeMessageField =
     UnpackedVec . fromList . Foldable.toList <$> repeated decodePrimitive
-  protoType _ = messageField (Repeated $ primType (proxy# :: Proxy# a)) (Just DotProto.UnpackedField)
+  protoType _ = messageField (Repeated $ primType (proxy# :: Proxy# a)) (Just UnpackedField)
 
 instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
   encodeMessageField fn = Encode.vectorMessageBuilder (Encode.embedded fn . encodeMessage (fieldNumber 1)) . nestedvec
@@ -562,7 +653,7 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
 instance (Named e, ProtoEnum e) => MessageField (PackedVec (Enumerated e)) where
   encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . Vector.map codeFromEnumerated . packedvec
   decodeMessageField = decodePacked (map (codeToEnumerated . fromIntegral) <$> Decode.packedVarints @Word64)
-  protoType _ = messageField (Repeated . Named . Single $ nameOf (proxy# :: Proxy# e)) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated . Named . Single $ nameOf (proxy# :: Proxy# e)) (Just PackedField)
 
 instance MessageField (PackedVec Bool) where
   encodeMessageField fn = omittingDefault (Encode.packedBoolsV id fn) . packedvec
@@ -571,27 +662,27 @@ instance MessageField (PackedVec Bool) where
       toBool :: Word64 -> Bool
       toBool 1 = True
       toBool _ = False
-  protoType _ = messageField (Repeated Bool) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated Bool) (Just PackedField)
 
 instance MessageField (PackedVec Word32) where
   encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
   decodeMessageField = decodePacked Decode.packedVarints
-  protoType _ = messageField (Repeated UInt32) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated UInt32) (Just PackedField)
 
 instance MessageField (PackedVec Word64) where
   encodeMessageField fn = omittingDefault (Encode.packedVarintsV id fn) . packedvec
   decodeMessageField = decodePacked Decode.packedVarints
-  protoType _ = messageField (Repeated UInt64) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated UInt64) (Just PackedField)
 
 instance MessageField (PackedVec Int32) where
   encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
   decodeMessageField = decodePacked Decode.packedVarints
-  protoType _ = messageField (Repeated Int32) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated Int32) (Just PackedField)
 
 instance MessageField (PackedVec Int64) where
   encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
   decodeMessageField = decodePacked Decode.packedVarints
-  protoType _ = messageField (Repeated Int64) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated Int64) (Just PackedField)
 
 instance MessageField (PackedVec (Signed Int32)) where
   encodeMessageField fn = omittingDefault (Encode.packedVarintsV zigZag fn) . coerce @_ @(Vector Int32)
@@ -606,7 +697,7 @@ instance MessageField (PackedVec (Signed Int32)) where
       zagZig :: Word32 -> Signed Int32
       zagZig = Signed . fromIntegral . Decode.zigZagDecode
 
-  protoType _ = messageField (Repeated SInt32) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated SInt32) (Just PackedField)
 
 instance MessageField (PackedVec (Signed Int64)) where
   encodeMessageField fn = omittingDefault (Encode.packedVarintsV zigZag fn) . coerce @_ @(Vector Int64)
@@ -621,7 +712,7 @@ instance MessageField (PackedVec (Signed Int64)) where
       zagZig :: Word64 -> Signed Int64
       zagZig = Signed . fromIntegral . Decode.zigZagDecode
 
-  protoType _ = messageField (Repeated SInt64) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated SInt64) (Just PackedField)
 
 
 instance MessageField (PackedVec (Fixed Word32)) where
@@ -629,38 +720,38 @@ instance MessageField (PackedVec (Fixed Word32)) where
   decodeMessageField = coerce @(Parser RawField (PackedVec Word32))
                               @(Parser RawField (PackedVec (Fixed Word32)))
                               (decodePacked Decode.packedFixed32)
-  protoType _ = messageField (Repeated DotProto.Fixed32) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated Fixed32) (Just PackedField)
 
 instance MessageField (PackedVec (Fixed Word64)) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed64V id fn) . coerce @_ @(Vector Word64)
   decodeMessageField = coerce @(Parser RawField (PackedVec Word64))
                               @(Parser RawField (PackedVec (Fixed Word64)))
                               (decodePacked Decode.packedFixed64)
-  protoType _ = messageField (Repeated DotProto.Fixed64) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated Fixed64) (Just PackedField)
 
 instance MessageField (PackedVec (Signed (Fixed Int32))) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed32V fromIntegral fn) . coerce @_ @(Vector Int32)
   decodeMessageField = coerce @(Parser RawField (PackedVec Int32))
                               @(Parser RawField (PackedVec (Signed (Fixed Int32))))
                              (decodePacked Decode.packedFixed32)
-  protoType _ = messageField (Repeated SFixed32) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated SFixed32) (Just PackedField)
 
 instance MessageField (PackedVec (Signed (Fixed Int64))) where
   encodeMessageField fn = omittingDefault (Encode.packedFixed64V fromIntegral fn) . coerce @_ @(Vector Int64)
   decodeMessageField = coerce @(Parser RawField (PackedVec Int64))
                               @(Parser RawField (PackedVec (Signed (Fixed Int64))))
                               (decodePacked Decode.packedFixed64)
-  protoType _ = messageField (Repeated SFixed64) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated SFixed64) (Just PackedField)
 
 instance MessageField (PackedVec Float) where
   encodeMessageField fn = omittingDefault (Encode.packedFloatsV id fn) . packedvec
   decodeMessageField = decodePacked Decode.packedFloats
-  protoType _ = messageField (Repeated Float) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated Float) (Just PackedField)
 
 instance MessageField (PackedVec Double) where
   encodeMessageField fn = omittingDefault (Encode.packedDoublesV id fn) . packedvec
   decodeMessageField = decodePacked Decode.packedDoubles
-  protoType _ = messageField (Repeated Double) (Just DotProto.PackedField)
+  protoType _ = messageField (Repeated Double) (Just PackedField)
 
 instance (MessageField e, KnownSymbol comments) => MessageField (e // comments) where
   encodeMessageField fn = encodeMessageField fn . unCommented
@@ -710,6 +801,20 @@ class Message a where
   dotProto _ = genericDotProto (proxy# :: Proxy# (Rep a))
 
 instance (MessageField k, MessageField v) => Message (k, v)
+
+instance (MessageField a, Primitive a) => Message (Wrapped a) where
+  encodeMessage _ (Wrapped v) = encodeMessageField (FieldNumber 1) v
+  {-# INLINABLE encodeMessage #-}
+  decodeMessage _ = Wrapped <$> at decodeMessageField (FieldNumber 1)
+  {-# INLINABLE decodeMessage #-}
+  dotProto _ =
+    [ DotProtoField
+        (FieldNumber 1)
+        (Prim (primType (proxy# :: Proxy# a)))
+        (Single "value")
+        []
+        ""
+    ]
 
 -- | Generate metadata for a message type.
 message :: (Message a, Named a) => Proxy# a -> DotProtoDefinition
@@ -782,10 +887,21 @@ instance Message T.Text where
   decodeMessage = decodeWrapperMessage
   dotProto = dotProtoWrapper
 
+deriving via T.Text instance Message (Proto3.Suite.Types.String T.Text)
+
 instance Message TL.Text where
   encodeMessage = encodeWrapperMessage
   decodeMessage = decodeWrapperMessage
   dotProto = dotProtoWrapper
+
+deriving via TL.Text instance Message (Proto3.Suite.Types.String TL.Text)
+
+instance Message TS.ShortText where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
+deriving via TS.ShortText instance Message (Proto3.Suite.Types.String TS.ShortText)
 
 instance Message B.ByteString where
   encodeMessage = encodeWrapperMessage

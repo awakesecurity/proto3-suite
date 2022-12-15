@@ -18,6 +18,10 @@ module Proto3.Suite.Types
   -- * Enumerable Types
   , Enumerated(..)
 
+  -- * String and Bytes Types
+  , String(..)
+  , Bytes(..)
+
   , ForceEmit(..)
   , Nested(..)
   , UnpackedVec(..)
@@ -34,6 +38,7 @@ import           GHC.Generics
 import           Data.Int (Int32)
 import qualified Data.Vector as V
 import           GHC.TypeLits (Symbol)
+import           Prelude hiding (String)
 import           Proto3.Wire.Class (ProtoEnum(..))
 import           Test.QuickCheck (Arbitrary(..))
 
@@ -57,6 +62,20 @@ instance ProtoEnum a => Arbitrary (Enumerated a) where
   arbitrary = do
     i <- arbitrary
     return . Enumerated $ maybe (Left i) Right (toProtoEnumMay i)
+
+-- | 'String' provides a way to indicate that the given type expresses
+-- a Protobuf string scalar.  @'String' a@ may have type class instances
+-- that are more specific to Protobuf uses than those of @a@.
+newtype String a = String { string :: a }
+  deriving (Show, Eq, Ord, Generic, Monoid, NFData, Arbitrary,
+            Functor, Foldable, Semigroup, Traversable)
+
+-- | 'Bytes' provides a way to indicate that the given type expresses
+-- a Protobuf bytes scalar.  @'Bytes' a@ may have type class instances
+-- that are more specific to Protobuf uses than those of @a@.
+newtype Bytes a = Bytes { bytes :: a }
+  deriving (Show, Eq, Ord, Generic, Monoid, NFData, Arbitrary,
+            Functor, Foldable, Semigroup, Traversable)
 
 -- | 'PackedVec' provides a way to encode packed lists of basic protobuf types into
 -- the wire format.
