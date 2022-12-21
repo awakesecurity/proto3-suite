@@ -39,8 +39,8 @@ in {
               source = pkgsNew.fetchFromGitHub {
                 owner = "awakesecurity";
                 repo = "proto3-wire";
-                rev = "1299d8ef5fee72dbc228c5b5eae896cfaf613360";
-                sha256 = "sha256-dV2HcaoD7FmEczbrOfjY+5mmVhJhFqjFeS+aRs0BrLM=";
+                rev = "7680044316ccde15a0fa20be1f39cd4c14fab51a";
+                sha256 = "sha256-NNlBQOJYoZYbYh/frXMTEfxkMzhXjRd+K+C1ZIy8S4g=";
               };
             in haskellPackagesNew.callCabal2nix "proto3-wire" source { };
 

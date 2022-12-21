@@ -44,6 +44,7 @@ flag large-records
   Manual:        True
 
 library
+  default-extensions: DeriveDataTypeable DeriveGeneric
 
   if flag(dhall)
     exposed-modules:   Proto3.Suite.DhallPB
