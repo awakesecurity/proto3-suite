@@ -23,10 +23,6 @@ test-files/test_files/
 
 # Ignore code generation artifacts
 gen/*.hs
-gen/protos/*.bin
-gen/protos/*.hs
-gen/protos/*.proto
-gen/protos/*.py
-gen/protos/google/protobuf/*.proto
-gen/protos/leading_dot/*.proto
-gen/protos/protoc_plugin/*.proto
+gen/protos/*
+test-files/hs-tmp/*
+test-files/py-tmp/*
