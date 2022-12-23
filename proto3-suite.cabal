@@ -44,7 +44,8 @@ flag large-records
   Manual:        True
 
 common common 
-  default-extensions: DeriveDataTypeable DeriveGeneric
+  default-extensions: 
+    DeriveDataTypeable DeriveGeneric
 
 library
   import: common
@@ -136,6 +137,7 @@ library
   ghc-options:         -O2 -Wall
 
 test-suite tests
+  import:           common
   default-language: Haskell2010
   type:             exitcode-stdio-1.0
   main-is:          Main.hs
