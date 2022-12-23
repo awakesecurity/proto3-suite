@@ -1,4 +1,4 @@
-cabal-version:       2.0
+cabal-version:       2.2
 name:                proto3-suite
 version:             0.6.0
 synopsis:            A higher-level API to the proto3-wire library
@@ -43,8 +43,11 @@ flag large-records
   Default:       True
   Manual:        True
 
-library
+common common 
   default-extensions: DeriveDataTypeable DeriveGeneric
+
+library
+  import: common
 
   if flag(dhall)
     exposed-modules:   Proto3.Suite.DhallPB
