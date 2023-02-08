@@ -2,7 +2,6 @@
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Main where
 
@@ -98,18 +97,25 @@ testCaseInFormat :: (?format :: Format) => String -> Assertion -> TestTree
 testCaseInFormat = testCase . (++ ": format " ++ show ?format)
 
 testCase1 = testCaseInFormat "Trivial message" $
-    do Trivial { .. } <- readProto
-       trivialTrivialField @?= 0x7BADBEEF
+    do Trivial trivialField <- readProto
+       trivialField @?= 0x7BADBEEF
 
 testCase2 = testCaseInFormat "Multi-field message" $
-    do MultipleFields { .. } <- readProto
+    do MultipleFields
+         multiFieldDouble
+         multiFieldFloat
+         multiFieldInt32
+         multiFieldInt64
+         multiFieldString
+         multiFieldBool
+         <- readProto
 
-       multipleFieldsMultiFieldDouble @?= 1.125
-       multipleFieldsMultiFieldFloat  @?= 1e9
-       multipleFieldsMultiFieldInt32  @?= 0x1135
-       multipleFieldsMultiFieldInt64  @?= 0x7FFAFABADDEAFFA0
-       multipleFieldsMultiFieldString @?= "Goodnight moon"
-       multipleFieldsMultiFieldBool   @?= False
+       multiFieldDouble @?= 1.125
+       multiFieldFloat  @?= 1e9
+       multiFieldInt32  @?= 0x1135
+       multiFieldInt64  @?= 0x7FFAFABADDEAFFA0
+       multiFieldString @?= "Goodnight moon"
+       multiFieldBool   @?= False
 
 testCaseSignedInts = testCaseInFormat "Signed integer types" $
     do expect (SignedInts 0 0)
@@ -119,27 +125,27 @@ testCaseSignedInts = testCaseInFormat "Signed integer types" $
        expect (SignedInts maxBound maxBound)
 
 testCase3 = testCaseInFormat "Nested enumeration" $
-    do WithEnum { withEnumEnumField = Enumerated a } <- readProto
+    do WithEnum (Enumerated a) <- readProto
        a @?= Right WithEnum_TestEnumENUM1
 
-       WithEnum { withEnumEnumField = Enumerated b } <- readProto
+       WithEnum (Enumerated b) <- readProto
        b @?= Right WithEnum_TestEnumENUM2
 
-       WithEnum { withEnumEnumField = Enumerated c } <- readProto
+       WithEnum (Enumerated c) <- readProto
        c @?= Right WithEnum_TestEnumENUM3
 
-       WithEnum { withEnumEnumField = Enumerated d } <- readProto
+       WithEnum (Enumerated d) <- readProto
        d @?= Left 0xBEEF
 
 testCase4 = testCaseInFormat "Nested message" $
-    do WithNesting { withNestingNestedMessage = a } <- readProto
+    do WithNesting a <- readProto
        a @?= Just (WithNesting_Nested "testCase4 nestedField1" 0xABCD [] [])
 
-       WithNesting { withNestingNestedMessage = b } <- readProto
+       WithNesting b <- readProto
        b @?= Nothing
 
 testCase5 = testCaseInFormat "Nested repeated message" $
-    do WithNestingRepeated { withNestingRepeatedNestedMessages = a } <- readProto
+    do WithNestingRepeated a <- readProto
        length a @?= 3
        let [a1, a2, a3] = a
 
@@ -147,81 +153,81 @@ testCase5 = testCaseInFormat "Nested repeated message" $
        a2 @?= WithNestingRepeated_Nested "Hello world" 0x7FFFFFFF [0, 0, 0] []
        a3 @?= WithNestingRepeated_Nested "" 0 [] []
 
-       WithNestingRepeated { withNestingRepeatedNestedMessages = b } <- readProto
+       WithNestingRepeated b <- readProto
        b @?= []
 
 testCase6 = testCaseInFormat "Nested repeated int message" $
-    do WithNestingRepeatedInts { withNestingRepeatedIntsNestedInts = a } <- readProto
+    do WithNestingRepeatedInts a <- readProto
        a @?= [ NestedInts 636513 619021 ]
 
-       WithNestingRepeatedInts { withNestingRepeatedIntsNestedInts = b } <- readProto
+       WithNestingRepeatedInts b <- readProto
        b @?= []
 
-       WithNestingRepeatedInts { withNestingRepeatedIntsNestedInts = c } <- readProto
+       WithNestingRepeatedInts c <- readProto
        c @?= [ NestedInts 636513 619021
              , NestedInts 423549 687069
              , NestedInts 545506 143731
              , NestedInts 193605 385360 ]
 
 testCase7 = testCaseInFormat "Repeated int32 field" $
-    do WithRepetition { withRepetitionRepeatedField1 = a } <- readProto
+    do WithRepetition a <- readProto
        a @?= []
 
-       WithRepetition { withRepetitionRepeatedField1 = b } <- readProto
+       WithRepetition b <- readProto
        b @?= [1..10000]
 
 testCase8 = testCaseInFormat "Fixed-width integer types" $
-    do WithFixed { .. } <- readProto
-       withFixedFixed1 @?= 0
-       withFixedFixed2 @?= 0
-       withFixedFixed3 @?= 0
-       withFixedFixed4 @?= 0
+    do WithFixed fixed1 fixed2 fixed3 fixed4 <- readProto
+       fixed1 @?= 0
+       fixed2 @?= 0
+       fixed3 @?= 0
+       fixed4 @?= 0
 
-       WithFixed { .. } <- readProto
-       withFixedFixed1 @?= maxBound
-       withFixedFixed2 @?= maxBound
-       withFixedFixed3 @?= maxBound
-       withFixedFixed4 @?= maxBound
+       WithFixed fixed1 fixed2 fixed3 fixed4 <- readProto
+       fixed1 @?= maxBound
+       fixed2 @?= maxBound
+       fixed3 @?= maxBound
+       fixed4 @?= maxBound
 
-       WithFixed { .. } <- readProto
-       withFixedFixed1 @?= minBound
-       withFixedFixed2 @?= minBound
-       withFixedFixed3 @?= minBound
-       withFixedFixed4 @?= minBound
+       WithFixed fixed1 fixed2 fixed3 fixed4 <- readProto
+       fixed1 @?= minBound
+       fixed2 @?= minBound
+       fixed3 @?= minBound
+       fixed4 @?= minBound
 
 testCase9 = testCaseInFormat "Bytes fields" $
-    do WithBytes { .. } <- readProto
-       withBytesBytes1 @?= "\x00\x00\x00\x01\x02\x03\xFF\xFF\x00\x01"
-       withBytesBytes2 @?= ["", "\x01", "\xAB\xBAhello", "\xBB"]
+    do WithBytes bytes1 bytes2 <- readProto
+       bytes1 @?= "\x00\x00\x00\x01\x02\x03\xFF\xFF\x00\x01"
+       bytes2 @?= ["", "\x01", "\xAB\xBAhello", "\xBB"]
 
-       WithBytes { .. } <- readProto
-       withBytesBytes1 @?= "Hello world"
-       withBytesBytes2 @?= []
+       WithBytes bytes1 bytes2 <- readProto
+       bytes1 @?= "Hello world"
+       bytes2 @?= []
 
-       WithBytes { .. } <- readProto
-       withBytesBytes1 @?= ""
-       withBytesBytes2 @?= ["Hello", "\x00world", "\x00\x00"]
+       WithBytes bytes1 bytes2 <- readProto
+       bytes1 @?= ""
+       bytes2 @?= ["Hello", "\x00world", "\x00\x00"]
 
-       WithBytes { .. } <- readProto
-       withBytesBytes1 @?= ""
-       withBytesBytes2 @?= []
+       WithBytes bytes1 bytes2 <- readProto
+       bytes1 @?= ""
+       bytes2 @?= []
 
 testCase10 = testCaseInFormat "Packed and unpacked repeated types" $
-    do WithPacking { .. } <- readProto
-       withPackingPacking1 @?= []
-       withPackingPacking2 @?= []
+    do WithPacking packing1 packing2 <- readProto
+       packing1 @?= []
+       packing2 @?= []
 
-       WithPacking { .. } <- readProto
-       withPackingPacking1 @?= [100, 2000, 300, 4000, 500, 60000, 7000]
-       withPackingPacking2 @?= []
+       WithPacking packing1 packing2 <- readProto
+       packing1 @?= [100, 2000, 300, 4000, 500, 60000, 7000]
+       packing2 @?= []
 
-       WithPacking { .. } <- readProto
-       withPackingPacking1 @?= []
-       withPackingPacking2 @?= [100, 2000, 300, 4000, 500, 60000, 7000]
+       WithPacking packing1 packing2 <- readProto
+       packing1 @?= []
+       packing2 @?= [100, 2000, 300, 4000, 500, 60000, 7000]
 
-       WithPacking { .. } <- readProto
-       withPackingPacking1 @?= [1, 2, 3, 4, 5]
-       withPackingPacking2 @?= [5, 4, 3, 2, 1]
+       WithPacking packing1 packing2 <- readProto
+       packing1 @?= [1, 2, 3, 4, 5]
+       packing2 @?= [5, 4, 3, 2, 1]
 
 testCase11 = testCaseInFormat "All possible packed types" $
     do a <- readProto
@@ -249,149 +255,149 @@ testCase11 = testCaseInFormat "All possible packed types" $
 
 
 testCase12 = testCaseInFormat "Message with out of order field numbers" $
-    do OutOfOrderFields { .. } <- readProto
-       outOfOrderFieldsField1 @?= []
-       outOfOrderFieldsField2 @?= ""
-       outOfOrderFieldsField3 @?= maxBound
-       outOfOrderFieldsField4 @?= []
+    do OutOfOrderFields field1 field2 field3 field4 <- readProto
+       field1 @?= []
+       field2 @?= ""
+       field3 @?= maxBound
+       field4 @?= []
 
-       OutOfOrderFields { .. } <- readProto
-       outOfOrderFieldsField1 @?= [1,7..100]
-       outOfOrderFieldsField2 @?= "This is a test"
-       outOfOrderFieldsField3 @?= minBound
-       outOfOrderFieldsField4 @?= ["This", "is", "a", "test"]
+       OutOfOrderFields field1 field2 field3 field4 <- readProto
+       field1 @?= [1,7..100]
+       field2 @?= "This is a test"
+       field3 @?= minBound
+       field4 @?= ["This", "is", "a", "test"]
 
 testCase13 = testCaseInFormat "Nested message with the same name as another package-level message" $
-    do ShadowedMessage { .. } <- readProto
-       shadowedMessageName  @?= "name"
-       shadowedMessageValue @?= 0x7DADBEEF
+    do ShadowedMessage name value <- readProto
+       name  @?= "name"
+       value @?= 0x7DADBEEF
 
-       MessageShadower { .. } <- readProto
-       messageShadowerName @?= "another name"
+       MessageShadower shadowedMessage name <- readProto
+       name @?= "another name"
        -- Until <https://github.com/awakesecurity/proto3-suite/issues/206>
        -- is fixed, the Haskell JSONPB parser will fail to find the this
        -- field under its lowerCamelCase name.  Once the fix is available
        -- we can make the following verification unconditional:
        when (?format /= Jsonpb) $
-         messageShadowerShadowedMessage @?= Just (MessageShadower_ShadowedMessage "name" "string value")
+         shadowedMessage @?= Just (MessageShadower_ShadowedMessage "name" "string value")
 
-       MessageShadower_ShadowedMessage { .. } <- readProto
-       messageShadower_ShadowedMessageName  @?= "another name"
-       messageShadower_ShadowedMessageValue @?= "another string"
+       MessageShadower_ShadowedMessage name value <- readProto
+       name  @?= "another name"
+       value @?= "another string"
 
 testCase14 = testCaseInFormat "Qualified name resolution" $
-    do WithQualifiedName { .. } <- readProto
-       withQualifiedNameQname1 @?= Just (ShadowedMessage "int value" 42)
-       withQualifiedNameQname2 @?= Just (MessageShadower_ShadowedMessage "string value" "hello world")
+    do WithQualifiedName qname1 qname2 <- readProto
+       qname1 @?= Just (ShadowedMessage "int value" 42)
+       qname2 @?= Just (MessageShadower_ShadowedMessage "string value" "hello world")
 
 testCase15 = testCaseInFormat "Imported message resolution" $
-    do TestProtoImport.WithNesting { .. } <- readProto
-       withNestingNestedMessage1 @?= Just (TestProtoImport.WithNesting_Nested 1 2)
-       withNestingNestedMessage2 @?= Nothing
+    do TestProtoImport.WithNesting message1 message2 <- readProto
+       message1 @?= Just (TestProtoImport.WithNesting_Nested 1 2)
+       message2 @?= Nothing
 
 testCase16 = testCaseInFormat "Proper resolution of shadowed message names" $
-    do UsingImported { .. } <- readProto
-       usingImportedImportedNesting @?=
+    do UsingImported importedNesting localNesting <- readProto
+       importedNesting @?=
          Just (TestProtoImport.WithNesting
                  (Just (TestProtoImport.WithNesting_Nested 1 2))
                  (Just (TestProtoImport.WithNesting_Nested 3 4)))
-       usingImportedLocalNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] [])))
+       localNesting @?= Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] [])))
 
 testCase17 = testCaseInFormat "Oneof" $ do
     -- Read default values for oneof subfields
-    do TestProtoOneof.Something{ .. } <- readProto
-       somethingValue   @?= 1
-       somethingAnother @?= 2
-       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneName "")
-    do TestProtoOneof.Something { .. } <- readProto
-       somethingValue   @?= 3
-       somethingAnother @?= 4
-       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneSomeid 0)
-    do TestProtoOneof.Something { .. } <- readProto
-       somethingValue   @?= 5
-       somethingAnother @?= 6
-       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneDummyMsg1
+    do TestProtoOneof.Something value another pickOne <- readProto
+       value   @?= 1
+       another @?= 2
+       pickOne @?= Just (TestProtoOneof.SomethingPickOneName "")
+    do TestProtoOneof.Something value another pickOne <- readProto
+       value   @?= 3
+       another @?= 4
+       pickOne @?= Just (TestProtoOneof.SomethingPickOneSomeid 0)
+    do TestProtoOneof.Something value another pickOne <- readProto
+       value   @?= 5
+       another @?= 6
+       pickOne @?= Just (TestProtoOneof.SomethingPickOneDummyMsg1
                                     (TestProtoOneof.DummyMsg 0))
 
-    do TestProtoOneof.Something { .. } <- readProto
-       somethingValue   @?= 7
-       somethingAnother @?= 8
-       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneDummyMsg2
+    do TestProtoOneof.Something value another pickOne <- readProto
+       value   @?= 7
+       another @?= 8
+       pickOne @?= Just (TestProtoOneof.SomethingPickOneDummyMsg2
                                     (TestProtoOneof.DummyMsg 0))
 
-    do TestProtoOneof.Something { .. } <- readProto
-       somethingValue   @?= 9
-       somethingAnother @?= 10
-       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneDummyEnum
+    do TestProtoOneof.Something value another pickOne <- readProto
+       value   @?= 9
+       another @?= 10
+       pickOne @?= Just (TestProtoOneof.SomethingPickOneDummyEnum
                                     (Enumerated (Right TestProtoOneof.DummyEnumDUMMY0)))
     -- Read non-default values for oneof subfields
-    do TestProtoOneof.Something{ .. } <- readProto
-       somethingValue   @?= 1
-       somethingAnother @?= 2
-       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneName "hello world")
-    do TestProtoOneof.Something { .. } <- readProto
-       somethingValue   @?= 3
-       somethingAnother @?= 4
-       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneSomeid 42)
-    do TestProtoOneof.Something { .. } <- readProto
-       somethingValue   @?= 5
-       somethingAnother @?= 6
-       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneDummyMsg1
+    do TestProtoOneof.Something value another pickOne <- readProto
+       value   @?= 1
+       another @?= 2
+       pickOne @?= Just (TestProtoOneof.SomethingPickOneName "hello world")
+    do TestProtoOneof.Something value another pickOne <- readProto
+       value   @?= 3
+       another @?= 4
+       pickOne @?= Just (TestProtoOneof.SomethingPickOneSomeid 42)
+    do TestProtoOneof.Something value another pickOne <- readProto
+       value   @?= 5
+       another @?= 6
+       pickOne @?= Just (TestProtoOneof.SomethingPickOneDummyMsg1
                                     (TestProtoOneof.DummyMsg 66))
-    do TestProtoOneof.Something { .. } <- readProto
-       somethingValue   @?= 7
-       somethingAnother @?= 8
-       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneDummyMsg2
+    do TestProtoOneof.Something value another pickOne <- readProto
+       value   @?= 7
+       another @?= 8
+       pickOne @?= Just (TestProtoOneof.SomethingPickOneDummyMsg2
                                     (TestProtoOneof.DummyMsg 67))
-    do TestProtoOneof.Something { .. } <- readProto
-       somethingValue   @?= 9
-       somethingAnother @?= 10
-       somethingPickOne @?= Just (TestProtoOneof.SomethingPickOneDummyEnum
+    do TestProtoOneof.Something value another pickOne <- readProto
+       value   @?= 9
+       another @?= 10
+       pickOne @?= Just (TestProtoOneof.SomethingPickOneDummyEnum
                                     (Enumerated (Right TestProtoOneof.DummyEnumDUMMY1)))
     -- Read with oneof not set
-    do TestProtoOneof.Something { .. } <- readProto
-       somethingValue   @?= 11
-       somethingAnother @?= 12
-       somethingPickOne @?= Nothing
+    do TestProtoOneof.Something value another pickOne <- readProto
+       value   @?= 11
+       another @?= 12
+       pickOne @?= Nothing
 
 testCase18 = testCaseInFormat "Imported Oneof" $ do
-  do TestProtoOneof.WithImported{ .. } <- readProto
-     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneDummyMsg1
+  do TestProtoOneof.WithImported pickOne <- readProto
+     pickOne @?= Just (TestProtoOneof.WithImportedPickOneDummyMsg1
                                      (TestProtoOneof.DummyMsg 0))
-  do TestProtoOneof.WithImported{ .. } <- readProto
-     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneDummyMsg1
+  do TestProtoOneof.WithImported pickOne <- readProto
+     pickOne @?= Just (TestProtoOneof.WithImportedPickOneDummyMsg1
                                      (TestProtoOneof.DummyMsg 68))
-  do TestProtoOneof.WithImported{ .. } <- readProto
-     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+  do TestProtoOneof.WithImported pickOne <- readProto
+     pickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
                                      (TestProtoOneofImport.WithOneof Nothing))
-  do TestProtoOneof.WithImported{ .. } <- readProto
-     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+  do TestProtoOneof.WithImported pickOne <- readProto
+     pickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
                                      (TestProtoOneofImport.WithOneof
                                         (Just (TestProtoOneofImport.WithOneofPickOneA ""))))
-  do TestProtoOneof.WithImported{ .. } <- readProto
-     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+  do TestProtoOneof.WithImported pickOne <- readProto
+     pickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
                                      (TestProtoOneofImport.WithOneof
                                         (Just (TestProtoOneofImport.WithOneofPickOneB 0))))
-  do TestProtoOneof.WithImported{ .. } <- readProto
-     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+  do TestProtoOneof.WithImported pickOne <- readProto
+     pickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
                                      (TestProtoOneofImport.WithOneof
                                         (Just (TestProtoOneofImport.WithOneofPickOneA "foo"))))
-  do TestProtoOneof.WithImported{ .. } <- readProto
-     withImportedPickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
+  do TestProtoOneof.WithImported pickOne <- readProto
+     pickOne @?= Just (TestProtoOneof.WithImportedPickOneWithOneof
                                      (TestProtoOneofImport.WithOneof
                                         (Just (TestProtoOneofImport.WithOneofPickOneB 19))))
-  do TestProtoOneof.WithImported{ .. } <- readProto
-     withImportedPickOne @?= Nothing
+  do TestProtoOneof.WithImported pickOne <- readProto
+     pickOne @?= Nothing
 
 testCase19 = testCaseInFormat "Maps" $ do
   result <- readProto
   let wt = Just . WrappedTrivial . Just . Trivial
-  let expected = MapTest{ mapTestPrim = M.fromList [("foo", 1),("bar", 42),("baz", 1234567)]
-                        -- The python implementation forbids serialising map entries
-                        -- with 'None' as the value (dynamic type error).
-                        , mapTestTrivial = M.fromList [(1, wt 1),(2, wt 42),(101, wt 1234567), (79, Just (WrappedTrivial Nothing))]
-                        , mapTestSigned = M.fromList [(1,2),(3,4),(5,6)]
-                        }
+  -- The python implementation forbids serialising map entries
+  -- with 'None' as the value (dynamic type error).
+  let prim = M.fromList [("foo", 1),("bar", 42),("baz", 1234567)]
+      trivial = M.fromList [(1, wt 1),(2, wt 42),(101, wt 1234567), (79, Just (WrappedTrivial Nothing))]
+      signed = M.fromList [(1,2),(3,4),(5,6)]
+  let expected = MapTest prim trivial signed
   result @?= expected
 
 testCase_DoubleValue = testCaseInFormat "DoubleValue" $ do
@@ -452,5 +458,5 @@ testCase_BytesValue = testCaseInFormat "BytesValue" $ do
 
 
 allTestsDone = testCaseInFormat "Receive end of test suite sentinel message" $
-   do MultipleFields{..} <- readProto
-      multipleFieldsMultiFieldString @?= "All tests complete"
+   do MultipleFields _ _ _ _ multiFieldString _  <- readProto
+      multiFieldString @?= "All tests complete"

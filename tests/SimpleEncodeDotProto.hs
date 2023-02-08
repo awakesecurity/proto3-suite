@@ -142,33 +142,29 @@ testCase14 =
 
 testCase15 :: (?format :: Format) => IO ()
 testCase15 =
-  outputMessage
+  outputMessage $
     TestProtoImport.WithNesting
-      { TestProtoImport.withNestingNestedMessage1 =
-          Just TestProtoImport.WithNesting_Nested
-            { TestProtoImport.withNesting_NestedNestedField1 = 1
-            , TestProtoImport.withNesting_NestedNestedField2 = 2
-            }
-      , TestProtoImport.withNestingNestedMessage2 = Nothing
-      }
+      (Just $ TestProtoImport.WithNesting_Nested nestedField1 nestedField2)
+      nestedMessage2
+  where
+    nestedField1 = 1
+    nestedField2 = 2
+    nestedMessage2 = Nothing
 
 testCase16 :: (?format :: Format) => IO ()
 testCase16 =
-  outputMessage (UsingImported { usingImportedImportedNesting =
-                                   Just (TestProtoImport.WithNesting
-                                          (Just (TestProtoImport.WithNesting_Nested 1 2))
-                                          (Just (TestProtoImport.WithNesting_Nested 3 4)))
-                               , usingImportedLocalNesting =
-                                   Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] []))) })
+  outputMessage (UsingImported importedNesting localNesting)
+  where
+    importedNesting = Just (TestProtoImport.WithNesting
+                              (Just (TestProtoImport.WithNesting_Nested 1 2))
+                              (Just (TestProtoImport.WithNesting_Nested 3 4)))
+    localNesting = Just (WithNesting (Just (WithNesting_Nested "field" 0xBEEF [] [])))
 
 testCase17 :: (?format :: Format) => IO ()
 testCase17 = do
-  let emit v a p = outputMessage
-                     TestProtoOneof.Something
-                       { TestProtoOneof.somethingValue   = v
-                       , TestProtoOneof.somethingAnother = a
-                       , TestProtoOneof.somethingPickOne = p
-                       }
+  let emit v a p = outputMessage $
+                     TestProtoOneof.Something v a p
+
   -- Send default values for oneof subfields
   emit 1 2  $ Just $ TestProtoOneof.SomethingPickOneName ""
   emit 3 4  $ Just $ TestProtoOneof.SomethingPickOneSomeid 0
@@ -204,10 +200,10 @@ testCase18 = do
 testCase19 :: (?format :: Format) => IO ()
 testCase19 = do
   let wt = Just . WrappedTrivial . Just . Trivial
-  outputMessage MapTest{ mapTestPrim = M.fromList [("foo", 1),("bar", 42),("baz", 1234567)]
-                       , mapTestTrivial = M.fromList $ [(1, wt 1),(2, wt 42),(101, wt 1234567)] ++ (if ?format == Jsonpb then [] else [(79, Nothing)])
-                       , mapTestSigned = M.fromList [(1,2),(3,4),(5,6)]
-                       }
+  let prim = M.fromList [("foo", 1),("bar", 42),("baz", 1234567)]
+      trivial = M.fromList $ [(1, wt 1),(2, wt 42),(101, wt 1234567)] ++ (if ?format == Jsonpb then [] else [(79, Nothing)])
+      signed = M.fromList [(1,2),(3,4),(5,6)]
+  outputMessage $ MapTest prim trivial signed
 
 testCase_DoubleValue :: (?format :: Format) => IO ()
 testCase_DoubleValue = do
