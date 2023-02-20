@@ -498,6 +498,10 @@ prefixedConName msgName conName = do
   constructor <- typeLikeName conName
   return (msgName ++ constructor)
 
+newtype IsPrefixed = IsPrefixed Bool
+instance Show IsPrefixed where
+  show (IsPrefixed b) = show b
+
 -- | @'prefixedMethodName' service method@ produces a Haskell record selector name for the service method @method@ by
 -- joining the names @service@, @method@ under concatenation on a camel-casing transformation.
 prefixedMethodName :: MonadError CompileError m => String -> String -> m String
@@ -508,12 +512,33 @@ prefixedMethodName serviceName (x : xs)
       method <- typeLikeName (x : xs)
       return (fieldLikeName serviceName ++ method)
 
+prefixedMethodNameWithFlag :: MonadError CompileError m => IsPrefixed -> String -> String -> m String
+prefixedMethodNameWithFlag _ _ "" = invalidTypeNameError "<empty name>"
+prefixedMethodNameWithFlag (IsPrefixed flag) serviceName (x : xs)
+  | flag = prefixedMethodName serviceName (x : xs)
+  | isLower x = return (fieldLikeName (x : xs))
+  | otherwise = fieldLikeName <$> typeLikeName (x : xs)
+
 -- | @'prefixedFieldName' prefix field@ constructs a Haskell record selector name by prepending @prefix@ in camel-case
 -- to the message field/service method name @field@.
 prefixedFieldName :: MonadError CompileError m => String -> String -> m String
 prefixedFieldName msgName fieldName = do
   field <- typeLikeName fieldName
   return (fieldLikeName msgName ++ field)
+
+prefixedFieldNameWithFlag :: MonadError CompileError m => IsPrefixed -> String -> String -> m String
+prefixedFieldNameWithFlag (IsPrefixed flag) msgName fieldName = do
+  if flag then prefixedFieldName msgName fieldName else return $ if name `elem` keywords then name ++ "_" else toCamelCase fieldName
+  where
+    name = fieldLikeName fieldName
+    -- copy from https://hackage.haskell.org/package/hscolour-1.20.3/docs/src/Language-Haskell-HsColour-Classify.html#keywords
+    -- and remove "forall", "qualified", "ccall", "as", "safe", "unsafe"
+    keywords =
+      ["case","class","data","default","deriving","do","else"
+      ,"if","import","in","infix","infixl","infixr","instance","let","module"
+      ,"newtype","of","then","type","where","_"
+      ,"foreign"
+      ]
 
 dpIdentUnqualName :: MonadError CompileError m => DotProtoIdentifier -> m String
 dpIdentUnqualName (Single name)       = pure name
@@ -593,11 +618,11 @@ data OneofSubfield = OneofSubfield
   } deriving Show
 
 getQualifiedFields :: MonadError CompileError m
-                   => String -> [DotProtoMessagePart] -> m [QualifiedField]
-getQualifiedFields msgName msgParts = flip foldMapM msgParts $ \case
+                   => IsPrefixed -> String -> [DotProtoMessagePart] -> m [QualifiedField]
+getQualifiedFields isPrefixed msgName msgParts = flip foldMapM msgParts $ \case
   DotProtoMessageField DotProtoField{..} -> do
     fieldName <- dpIdentUnqualName dotProtoFieldName
-    qualName <- prefixedFieldName msgName fieldName
+    qualName <- prefixedFieldNameWithFlag isPrefixed msgName fieldName
     pure . (:[]) $ QualifiedField { recordFieldName = coerce qualName
                                   , fieldInfo = FieldNormal (coerce fieldName)
                                                             dotProtoFieldNumber
@@ -610,7 +635,7 @@ getQualifiedFields msgName msgParts = flip foldMapM msgParts $ \case
 
   DotProtoMessageOneOf oneofIdent fields -> do
     ident <- dpIdentUnqualName oneofIdent
-    oneofName <- prefixedFieldName msgName ident
+    oneofName <- prefixedFieldNameWithFlag isPrefixed msgName ident
     oneofTypeName <- prefixedConName msgName ident
 
     let mkSubfield DotProtoField{..} = do

@@ -15,7 +15,7 @@ import           Proto3.Suite.DotProto.Generate
 parseArgs :: ParserInfo CompileArgs
 parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto file to a Haskell module")
   where
-    parser = CompileArgs <$> includes <*> extraInstances <*> proto <*> out <*> stringType <*> recordStyle
+    parser = CompileArgs <$> includes <*> extraInstances <*> proto <*> out <*> stringType <*> recordStyle <*> isPrefixed
 
     includes = many $ strOption $
       long "includeDir"
@@ -46,6 +46,11 @@ parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto fi
     recordStyle = flag RegularRecords LargeRecords
       $ long "largeRecords"
       <> help "Use large-records library to optimize the core code size of generated records"
+
+    isPrefixed = IsPrefixed . not <$> switch (
+      long "no-field-prefix"
+      <> help "Remove prefix for record field names"
+      )
 
 main :: IO ()
 main = execParser parseArgs >>= compileDotProtoFileOrDie
