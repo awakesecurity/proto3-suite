@@ -2,6 +2,7 @@
 , enableDhall
 , enableSwagger
 , swaggerWrapperFormat
+, enableLargeRecords
 }:
 
 pkgsNew: pkgsOld:
@@ -38,8 +39,8 @@ in {
               source = pkgsNew.fetchFromGitHub {
                 owner = "awakesecurity";
                 repo = "proto3-wire";
-                rev = "ae24c00c83cbce29750005b1fa6506c1e62e4822";
-                sha256 = "1pr078k7j5yvsixh7g76bfb3w5a5nxsjl9lgvc5ji4nm0ngx5i61";
+                rev = "8096a1e19431af603655e5c1f2488b5db907836c";
+                sha256 = "sha256-NNlBQOJYoZYbYh/frXMTEfxkMzhXjRd+K+C1ZIy8S4g=";
               };
             in haskellPackagesNew.callCabal2nix "proto3-wire" source { };
 
@@ -49,6 +50,7 @@ in {
                 (if enableDhall then "-fdhall" else "")
                 (if enableSwagger then "" else "-f-swagger")
                 (if swaggerWrapperFormat then "-fswagger-wrapper-format" else "")
+                (if enableLargeRecords then "-flarge-records" else "")
               ];
             in
             (haskellPackagesNew.callCabal2nixWithOptions
@@ -62,7 +64,8 @@ in {
               configureFlags = (old.configureFlags or [ ])
                 ++ (if enableDhall then [ "-fdhall" ] else [ ])
                 ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ])
-                ++ (if swaggerWrapperFormat then [ "-fswagger-wrapper-format" ] else [ "" ]);
+                ++ (if swaggerWrapperFormat then [ "-fswagger-wrapper-format" ] else [ "" ])
+                ++ (if enableLargeRecords then [ "-flarge-records" ] else [ ]);
             });
 
           proto3-suite-boot =
@@ -101,6 +104,7 @@ in {
 
                   test-files = (gitignoreSource ../../test-files);
 
+                  compile-proto-flags = if enableLargeRecords then "--largeRecords" else "";
                   cg-artifacts = pkgsNew.runCommand "proto3-suite-test-cg-artifacts" { } ''
                     mkdir -p $out/protos
 
@@ -111,6 +115,7 @@ in {
                     build () {
                       echo "[proto3-suite-test-cg-artifacts] Compiling proto-file/$1"
                       ${haskellPackagesNew.proto3-suite-boot}/bin/compile-proto-file \
+                        ${compile-proto-flags} \
                         --out $out \
                         --includeDir "$2" \
                         --proto "$1"

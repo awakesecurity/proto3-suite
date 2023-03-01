@@ -1,6 +1,16 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 
+#ifdef LARGE_RECORDS
+{-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
+#endif
+
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 #if !(MIN_VERSION_dhall(1,27,0))
@@ -30,6 +40,20 @@ import qualified Dhall
 
 #if !(MIN_VERSION_dhall(1,27,0))
 import qualified Data.Map
+#endif
+
+#ifdef LARGE_RECORDS
+import Data.Coerce (coerce)
+import Data.Proxy (Proxy (..))
+import Data.Void (Void)
+import qualified Data.Text as Text
+import qualified Dhall.Core as Dhall
+import qualified Dhall.Map as Dhall
+import qualified Dhall.Parser as Dhall
+import Data.Record.Generic ((:.:)(Comp), I (..), K (..))
+import qualified Data.Record.Generic as LG
+import qualified Data.Record.Generic.GHC as LG
+import qualified Data.Record.Generic.Rep as LG
 #endif
 
 --------------------------------------------------------------------------------
@@ -189,4 +213,65 @@ instance Dhall.ToDhall Data.ByteString.ByteString where
 instance (Dhall.Inject k, Dhall.Inject v) =>
          Dhall.Inject (Data.Map.Map k v) where
   injectWith = fmap (contramap Data.Map.toAscList) Dhall.injectWith
+#endif
+
+#ifdef LARGE_RECORDS
+
+instance (LG.Generic a, LG.Constraints a Dhall.FromDhall) => Dhall.GenericFromDhall a (LG.ThroughLRGenerics a) where
+  genericAutoWithNormalizer _ normalizer _ = pure $ coerce $ Dhall.Decoder extract expected
+    where
+      makeCompRep :: (forall x. Dhall.FromDhall x => K String x -> f (g x)) -> LG.Rep (f :.: g) a
+      makeCompRep f = LG.cmap
+                        (Proxy @Dhall.FromDhall)
+                        (Comp . f)
+                        (LG.recordFieldNames $ LG.metadata (Proxy @a))
+
+      extract :: Dhall.Expr Dhall.Src Void -> Dhall.Extractor Dhall.Src Void a
+      extract expr =
+        case expr of
+          Dhall.RecordLit flds -> do
+            let getField :: forall x. Dhall.FromDhall x => K String x -> Dhall.Extractor Dhall.Src Void x
+                getField (K fld) =
+                  let decoder = Dhall.autoWith @x normalizer
+                  in maybe
+                       (Dhall.typeError expected expr)
+                       (Dhall.extract decoder)
+                       (Dhall.recordFieldValue <$> Dhall.lookup (Text.pack fld) flds)
+            LG.to <$> LG.sequenceA (makeCompRep (fmap I . getField))
+          _ -> Dhall.typeError expected expr
+
+      expected :: Dhall.Expector (Dhall.Expr Dhall.Src Void)
+      expected = do
+        let getField :: forall x. Dhall.FromDhall x => K String x -> Dhall.Expector (Dhall.Text, Dhall.RecordField Dhall.Src Void)
+            getField (K fld) = do
+              let decoder = Dhall.autoWith @x normalizer
+              f <- Dhall.makeRecordField <$> Dhall.expected decoder
+              pure (Text.pack fld, f)
+        Dhall.Record . Dhall.fromList . LG.collapse <$> LG.sequenceA (makeCompRep (fmap K . getField))
+
+instance (LG.Generic a, LG.Constraints a Dhall.ToDhall) => Dhall.GenericToDhall (LG.ThroughLRGenerics a) where
+  genericToDhallWithNormalizer normalizer _ = pure $ coerce $ Dhall.Encoder embed declared
+    where
+      md = LG.metadata (Proxy @a)
+      fieldNames = LG.recordFieldNames md
+
+      embed :: a -> Dhall.Expr Dhall.Src Void
+      embed = Dhall.RecordLit
+              . Dhall.fromList
+              . LG.collapse
+              . LG.zipWith (LG.mapKKK $ \n x -> (Text.pack n, Dhall.makeRecordField x)) fieldNames
+              . LG.cmap (Proxy @Dhall.ToDhall) (K . Dhall.embed (injectWith normalizer) . LG.unI)
+              . LG.from
+
+      declared :: Dhall.Expr Dhall.Src Void
+      declared = Dhall.Record
+                 $ Dhall.fromList
+                 $ LG.collapse
+                 $ LG.cmap
+                     (Proxy @Dhall.ToDhall)
+                     (\(K n :: K String x) ->
+                         let typ = Dhall.declared (injectWith @x normalizer)
+                         in K (Text.pack n, Dhall.makeRecordField typ))
+                     fieldNames
+
 #endif

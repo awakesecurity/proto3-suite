@@ -23,7 +23,7 @@ optionQName :: Gen DotProtoIdentifier
 optionQName = liftA2 Qualified optionName optionName
 
 optionName :: Gen DotProtoIdentifier
-optionName = 
+optionName =
   Gen.sized $ \s -> do
     let range = Range.linear 1 (fromIntegral s)
     nms <- Gen.nonEmpty range gNameString
@@ -32,7 +32,7 @@ optionName =
       else Dots (Path nms)
   where
     gNameString :: Gen String
-    gNameString = 
+    gNameString =
       Gen.sized $ \s -> do
         let range = Range.linear 1 (fromIntegral s)
         chr <- Gen.alpha
@@ -46,7 +46,7 @@ optionKw = do
   pure (lspace ++ "option" ++ rspace)
 
 whitespace :: Gen String
-whitespace = 
+whitespace =
   Gen.sized $ \s -> do
     len <- Gen.int (Range.linear 0 (fromIntegral s))
     pure (replicate len ' ')
