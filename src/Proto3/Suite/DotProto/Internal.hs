@@ -662,8 +662,29 @@ data CompileError
   | NonzeroFirstEnumeration String DotProtoIdentifier Int32
   | EmptyEnumeration String
   | Unimplemented String
-  deriving (Show, Eq)
+  deriving (Eq)
 
+instance Show CompileError where
+  show = \case 
+    (CircularImport fp) -> "Circular import found in" <> fp
+    (CompileParseError pe) -> "Parse error:" <> show pe
+    (InternalError ie) -> "Internal error:" <> ie
+    (InvalidPackageName ipn) -> "Package named " <> show ipn <> " is invalid."
+    (InvalidModuleName imon) -> "Module named " <> imon <> " is invalid.\n" <>
+      "Protobuf files should be named in lower snake case."
+    (InvalidMethodName imdn) -> "Method named " <> show imdn <> " is invalid."
+    (InvalidTypeName itn) -> "Type " <> show itn <> " is invalid."
+    (InvalidMapKeyType imkt) -> "Map key type " <> imkt <> " is invalid.\n" <>
+      "Map keys can only be of the following types:\n" <>
+      "Int32, Int64, SInt32, SInt64, UInt32, UInt64, Fixed32, Fixed64, \
+       SFixed32, SFixed64, String, Bool."
+    NoPackageDeclaration -> "No package declaration found."
+    (NoSuchType nst) -> "Type" <> show nst <> " could not be found or does not exist."
+    (NonzeroFirstEnumeration en dpi i) -> 
+      en <> " starts with non-zero index " <> show i <> " in " <> show dpi
+    (EmptyEnumeration ee) -> "Found empty enumeration named " <> ee
+    (Unimplemented u) -> "Unimplemeneted or unknown error: " <> u
+    
 
 internalError :: MonadError CompileError m => String -> m a
 internalError = throwError . InternalError
