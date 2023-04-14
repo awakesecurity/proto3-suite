@@ -66,16 +66,16 @@ swaggerWrapperFormat = testGroup "Swagger Wrapper Format"
            "{\"properties\":{\"wrapper\":{\"format\":\"float\",\"type\":\"number\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestInt64Value
            "{\"properties\":{\"wrapper\":{\"maximum\":9223372036854775807,\"format\":\"Int64Value\",\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"maximum\":9223372036854775807,\"format\":\"int64\",\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int64\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestUInt64Value
            "{\"properties\":{\"wrapper\":{\"maximum\":18446744073709551615,\"format\":\"UInt64Value\",\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int64\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestInt32Value
            "{\"properties\":{\"wrapper\":{\"maximum\":2147483647,\"format\":\"Int32Value\",\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"maximum\":2147483647,\"format\":\"int32\",\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestUInt32Value
            "{\"properties\":{\"wrapper\":{\"maximum\":4294967295,\"format\":\"UInt32Value\",\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int32\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestBoolValue
            "{\"properties\":{\"wrapper\":{\"format\":\"BoolValue\",\"type\":\"boolean\"}},\"type\":\"object\"}"
            "{\"properties\":{\"wrapper\":{\"type\":\"boolean\"}},\"type\":\"object\"}"

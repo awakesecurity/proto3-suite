@@ -52,13 +52,13 @@ library
 
   if flag(dhall)
     exposed-modules:   Proto3.Suite.DhallPB
-    build-depends:     dhall >=1.13 && < 1.39
+    build-depends:     dhall >=1.13 && < 1.41.2
     cpp-options:       -DDHALL
 
   if flag(swagger)
     exposed-modules:   Proto3.Suite.DotProto.Generate.Swagger
                        Proto3.Suite.DotProto.Generate.Swagger.Wrappers
-    build-depends:     swagger2 >=2.1.6 && <2.8
+    build-depends:     swagger2 ==2.8.6
     cpp-options:       -DSWAGGER
     if flag(swagger-wrapper-format)
       hs-source-dirs:  src/swagger-wrapper-format
@@ -67,7 +67,7 @@ library
 
   if flag(large-records)
     -- large-records support uses newer Dhall APIs. So we need at least 1.34.
-    build-depends:     dhall >=1.34 && < 1.39,
+    build-depends:     dhall >=1.34 && < 1.41.2,
                        large-generics,
                        large-records
     cpp-options:       -DLARGE_RECORDS
@@ -118,9 +118,9 @@ library
                        parsers >= 0.12 && <0.13,
                        pretty ==1.1.*,
                        pretty-show >= 1.6.12 && < 2.0,
-                       proto3-wire >= 1.2.2 && < 1.5,
+                       proto3-wire,
                        QuickCheck >=2.10 && <2.15,
-                       quickcheck-instances < 0.4,
+                       quickcheck-instances >=0.3.29 && < 0.4,
                        safe ==0.3.*,
                        split,
                        system-filepath,
@@ -148,7 +148,7 @@ test-suite tests
 
   if flag(dhall)
     other-modules:     TestDhall
-    build-depends:     dhall >=1.13 && < 1.39
+    build-depends:     dhall >=1.13 && < 1.41.2
     cpp-options:       -DDHALL
 
   if flag(swagger)
