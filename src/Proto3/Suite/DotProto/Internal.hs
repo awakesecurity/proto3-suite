@@ -32,6 +32,7 @@ import           Data.List                 (intercalate)
 import qualified Data.List.NonEmpty        as NE
 import qualified Data.Map                  as M
 import           Data.Maybe                (fromMaybe)
+import qualified Data.Set                  as S
 import qualified Data.Text                 as T
 import           Data.Tuple                (swap)
 import qualified NeatInterpolation         as Neat
@@ -528,17 +529,19 @@ prefixedFieldName msgName fieldName = do
 
 prefixedFieldNameWithFlag :: MonadError CompileError m => IsPrefixed -> String -> String -> m String
 prefixedFieldNameWithFlag (IsPrefixed flag) msgName fieldName = do
-  if flag then prefixedFieldName msgName fieldName else return $ if name `elem` keywords then name ++ "_" else toCamelCase fieldName
+  if flag then prefixedFieldName msgName fieldName else return $
+    -- Avoid parse error occurring when the field name matches any of Haskell keywords
+    if name `S.member` haskellKeywords then name ++ "_" else name
   where
-    name = fieldLikeName fieldName
-    -- copy from https://hackage.haskell.org/package/hscolour-1.20.3/docs/src/Language-Haskell-HsColour-Classify.html#keywords
-    -- and remove "forall", "qualified", "ccall", "as", "safe", "unsafe"
-    keywords =
-      ["case","class","data","default","deriving","do","else"
-      ,"if","import","in","infix","infixl","infixr","instance","let","module"
-      ,"newtype","of","then","type","where","_"
-      ,"foreign"
-      ]
+    name = (toCamelCase . fieldLikeName) fieldName
+
+haskellKeywords :: S.Set String
+haskellKeywords = S.fromList
+  ["case","class","data","default","deriving","do","else"
+  ,"if","import","in","infix","infixl","infixr","instance","let","module"
+  ,"newtype","of","then","type","where","_"
+  ,"foreign"
+  ]
 
 dpIdentUnqualName :: MonadError CompileError m => DotProtoIdentifier -> m String
 dpIdentUnqualName (Single name)       = pure name
