@@ -20,6 +20,7 @@ import qualified Control.Foldl             as FL
 import           Control.Lens              (Lens', lens, over)
 import           Control.Lens.Cons         (_head)
 import           Control.Monad
+import           Control.Monad.IO.Class
 import           Control.Monad.Except
 import           Data.Bifunctor            (first)
 import           Data.Char
