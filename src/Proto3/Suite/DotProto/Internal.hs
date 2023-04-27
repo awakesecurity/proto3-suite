@@ -517,8 +517,10 @@ prefixedMethodNameWithFlag :: MonadError CompileError m => IsPrefixed -> String 
 prefixedMethodNameWithFlag _ _ "" = invalidTypeNameError "<empty name>"
 prefixedMethodNameWithFlag (IsPrefixed flag) serviceName (x : xs)
   | flag = prefixedMethodName serviceName (x : xs)
-  | isLower x = return (fieldLikeName (x : xs))
-  | otherwise = fieldLikeName <$> typeLikeName (x : xs)
+  | name `S.member` haskellKeywords = return (name ++ "_")
+  | otherwise = return name
+  where
+    name = (toCamelCase . fieldLikeName) (x : xs)
 
 -- | @'prefixedFieldName' prefix field@ constructs a Haskell record selector name by prepending @prefix@ in camel-case
 -- to the message field/service method name @field@.
