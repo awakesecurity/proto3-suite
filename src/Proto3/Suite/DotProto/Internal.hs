@@ -680,7 +680,3 @@ invalidMethodNameError = throwError . InvalidMethodName
 
 noSuchTypeError :: MonadError CompileError m => DotProtoIdentifier -> m a
 noSuchTypeError = throwError . NoSuchType
-
-protoPackageName :: MonadError CompileError m => DotProtoPackageSpec -> m DotProtoIdentifier
-protoPackageName (DotProtoPackageSpec name) = pure name
-protoPackageName DotProtoNoPackage = throwError NoPackageDeclaration
