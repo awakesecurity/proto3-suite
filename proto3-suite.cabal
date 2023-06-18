@@ -43,8 +43,12 @@ flag large-records
   Default:       True
   Manual:        True
 
-common common 
-  default-extensions: 
+source-repository head
+  type:     git
+  location: https://github.com/awakesecurity/proto3-suite
+
+common common
+  default-extensions:
     DeriveDataTypeable DeriveGeneric
 
 library
