@@ -39,7 +39,6 @@ module Proto3.Suite.DotProto.Generate
 import           Control.Applicative
 import           Control.Lens                   ((&), ix, over, has, filtered)
 import           Control.Monad.Except
-import           Control.Monad.IO.Class
 import           Data.Char
 import           Data.Coerce
 import           Data.Either                    (partitionEithers)
@@ -272,7 +271,6 @@ hsModuleForDotProto
                      }
     importTypeContext
   = do
-       packageIdentifier <- protoPackageName protoPackage
        moduleName <- modulePathModName modulePath
 
        typeContextImports <- ctxtImports importTypeContext
@@ -291,7 +289,7 @@ hsModuleForDotProto
        typeContext <- dotProtoTypeContext dotProto
 
        let toDotProtoDeclaration =
-             dotProtoDefinitionD stringType recordStyle packageIdentifier (typeContext <> importTypeContext)
+             dotProtoDefinitionD stringType recordStyle protoPackage (typeContext <> importTypeContext)
 
        let extraInstances' = instancesForModule moduleName extraInstances
 
@@ -402,15 +400,20 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
   | path `S.member` alreadyRead = throwError (CircularImport path)
   | otherwise = do
       import_ <- importProto searchPaths toplevelFP path
-      importPkg <- protoPackageName (protoPackage import_)
+      let importPkgSpec = protoPackage import_
 
       let fixImportTyInfo tyInfo =
-             tyInfo { dotProtoTypeInfoPackage    = DotProtoPackageSpec importPkg
+             tyInfo { dotProtoTypeInfoPackage    = importPkgSpec
                     , dotProtoTypeInfoModulePath = metaModulePath . protoMeta $ import_
                     }
       importTypeContext <- fmap fixImportTyInfo <$> dotProtoTypeContext import_
 
-      qualifiedTypeContext <- mapKeysM (concatDotProtoIdentifier importPkg) importTypeContext
+      let prefixWithPackageName =
+            case importPkgSpec of
+              DotProtoPackageSpec packageName -> concatDotProtoIdentifier packageName
+              DotProtoNoPackage -> pure
+
+      qualifiedTypeContext <- mapKeysM prefixWithPackageName importTypeContext
 
       let isPublic (DotProtoImport q _) = q == DotProtoImportPublic
       transitiveImportsTC <-
@@ -730,8 +733,11 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
 dotProtoDefinitionD :: MonadError CompileError m
                     => StringType
                     -> RecordStyle
-                    -> DotProtoIdentifier -> TypeContext -> DotProtoDefinition -> m [HsDecl]
-dotProtoDefinitionD stringType recordStyle pkgIdent ctxt = \case
+                    -> DotProtoPackageSpec
+                    -> TypeContext
+                    -> DotProtoDefinition
+                    -> m [HsDecl]
+dotProtoDefinitionD stringType recordStyle pkgSpec ctxt = \case
   DotProtoMessage _ messageName messageParts ->
     dotProtoMessageD stringType recordStyle ctxt Anonymous messageName messageParts
 
@@ -739,7 +745,7 @@ dotProtoDefinitionD stringType recordStyle pkgIdent ctxt = \case
     dotProtoEnumD Anonymous enumName enumParts
 
   DotProtoService _ serviceName serviceParts ->
-    dotProtoServiceD stringType pkgIdent ctxt serviceName serviceParts
+    dotProtoServiceD stringType pkgSpec ctxt serviceName serviceParts
 
 -- | Generate 'Named' instance for a type in this package
 namedInstD :: String -> HsDecl
@@ -1645,16 +1651,20 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
 dotProtoServiceD
     :: MonadError CompileError m
     => StringType
-    -> DotProtoIdentifier
+    -> DotProtoPackageSpec
     -> TypeContext
     -> DotProtoIdentifier
     -> [DotProtoServicePart]
     -> m [HsDecl]
-dotProtoServiceD stringType pkgIdent ctxt serviceIdent service = do
+dotProtoServiceD stringType pkgSpec ctxt serviceIdent service = do
      serviceName <- typeLikeName =<< dpIdentUnqualName serviceIdent
-     packageName <- dpIdentQualName pkgIdent
 
-     let endpointPrefix = "/" ++ packageName ++ "." ++ serviceName ++ "/"
+     endpointPrefix <-
+       case pkgSpec of
+         DotProtoPackageSpec pkgIdent -> do
+           packageName <- dpIdentQualName pkgIdent
+           pure $ "/" ++ packageName ++ "." ++ serviceName ++ "/"
+         DotProtoNoPackage -> pure $ "/" ++ serviceName ++ "/"
 
      let serviceFieldD (DotProtoServiceRPCMethod RPCMethod{..}) = do
            fullName <- prefixedMethodName serviceName =<< dpIdentUnqualName rpcMethodName
