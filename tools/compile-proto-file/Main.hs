@@ -49,7 +49,7 @@ parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto fi
 
     isPrefixed = IsPrefixed . not <$> switch (
       long "no-field-prefix"
-      <> help "Remove prefix for record field names"
+      <> help "Do not prefix type names to record field names"
       )
 
 main :: IO ()
