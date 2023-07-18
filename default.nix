@@ -1,4 +1,4 @@
-{ compiler ? "ghc8104"
+{ compiler ? "ghc8107"
 , enableDhall ? false
 , enableSwagger ? true
 , swaggerWrapperFormat ? false
