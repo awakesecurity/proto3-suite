@@ -13,8 +13,8 @@ let
       source = pkgsNew.fetchFromGitHub {
         owner = "hercules-ci";
         repo = "gitignore.nix";
-        rev = "211907489e9f198594c0eb0ca9256a1949c9d412";
-        sha256 = "06j7wpvj54khw0z10fjyi31kpafkr6hi1k0di13k1xp8kywvfyx8";
+        rev = "a20de23b925fd8264fd7fad6454652e142fd7f73";
+        sha256 = "sha256-8DFJjXG8zqoONA1vXtgeKXy68KdJL5UaXR8NtVMUbx8=";
       };
     in (import source { inherit (pkgsNew) lib; }).gitignoreSource;
 
@@ -39,8 +39,8 @@ in {
               source = pkgsNew.fetchFromGitHub {
                 owner = "awakesecurity";
                 repo = "proto3-wire";
-                rev = "8096a1e19431af603655e5c1f2488b5db907836c";
-                sha256 = "sha256-NNlBQOJYoZYbYh/frXMTEfxkMzhXjRd+K+C1ZIy8S4g=";
+                rev = "ee6ca644eef86cc5f31da85fb48e10b20ab0e1a1";
+                sha256 = "sha256-g15oAYmhfv8DVgmQTZkcCgOYRFkxl2PQi30qXXXhBLs=";
               };
             in haskellPackagesNew.callCabal2nix "proto3-wire" source { };
 
