@@ -94,7 +94,7 @@ in {
                   inherit (pkgsNew) protobuf;
 
                   python =
-                    pkgsNew.python.withPackages (pkgs: [ pkgs.protobuf ]);
+                    pkgsNew.python3.withPackages (pkgs: [ pkgs.protobuf ]);
 
                   ghc =
                     haskellPackagesNew.ghcWithPackages
