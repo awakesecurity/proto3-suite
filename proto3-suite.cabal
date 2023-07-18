@@ -124,7 +124,7 @@ library
                        pretty-show >= 1.6.12 && < 2.0,
                        proto3-wire >= 1.2.2 && < 1.5,
                        QuickCheck >=2.10 && <2.15,
-                       quickcheck-instances < 0.4,
+                       quickcheck-instances >=0.3.26 && < 0.4,
                        safe ==0.3.*,
                        split,
                        system-filepath,
