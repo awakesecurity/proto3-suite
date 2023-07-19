@@ -174,11 +174,11 @@ simpleEncodeDotProto recStyle chosenStringType format =
 
          compileTestDotProtos recStyle decodedStringType
          -- Compile our generated encoder
-         let args = [hsTmpDir]
+         let encodeCmd = "tests/encode.sh " <> hsTmpDir
 #if DHALL
-                    ++ ["-DDHALL"]
+                           <> " -DDHALL"
 #endif
-         Turtle.proc "tests/encode.sh" args empty >>= (@?= ExitSuccess)
+         Turtle.shell encodeCmd empty >>= (@?= ExitSuccess)
 
          -- The python encoder test exits with a special error code to indicate
          -- all tests were successful
@@ -200,11 +200,11 @@ simpleDecodeDotProto recStyle chosenStringType format =
 
          compileTestDotProtos recStyle decodedStringType
          -- Compile our generated decoder
-         let args = [hsTmpDir]
+         let decodeCmd = "tests/decode.sh " <> hsTmpDir
 #if DHALL
-                    ++ ["-DDHALL"]
+                           <> " -DDHALL"
 #endif
-         Turtle.proc "tests/decode.sh" args empty >>= (@?= ExitSuccess)
+         Turtle.shell decodeCmd empty >>= (@?= ExitSuccess)
 
          setPythonPath
          let cmd = "python tests/send_simple_dot_proto.py " <> format <> " | FORMAT=" <> format <> " " <> hsTmpDir <> "/simpleDecodeDotProto "
