@@ -1,15 +1,16 @@
-{-# LANGUAGE CPP                  #-}
-{-# LANGUAGE DefaultSignatures    #-}
-{-# LANGUAGE DeriveGeneric        #-}
-{-# LANGUAGE DerivingVia          #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE OverloadedLists      #-}
-{-# LANGUAGE RecordWildCards      #-}
-{-# LANGUAGE MagicHash            #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE StandaloneDeriving   #-}
-{-# LANGUAGE TypeApplications     #-}
-{-# LANGUAGE ViewPatterns         #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Support for the "JSONPB" canonical JSON encoding described at
@@ -157,10 +158,10 @@ instance FromJSONPB A.Value where
   parseJSONPB = pure
 
 -- | JSONPB format shortcuts Google wrappers types.
-deriving via a instance FromJSONPB a => FromJSONPB (Wrapped a)
+deriving newtype instance FromJSONPB a => FromJSONPB (Wrapped a)
 
 -- | JSONPB format shortcuts Google wrappers types.
-deriving via a instance ToJSONPB a => ToJSONPB (Wrapped a)
+deriving newtype instance ToJSONPB a => ToJSONPB (Wrapped a)
 
 -- * JSONPB codec entry points
 
@@ -401,12 +402,12 @@ instance FromJSONPB Word64 where
   parseJSONPB = parseNumOrDecimalString "int64 / sint64"
 
 -- Distinctions between varint and fixed-width formats do not matter to JSONPB.
-deriving via a instance FromJSONPB a => FromJSONPB (Fixed a)
-deriving via a instance ToJSONPB a => ToJSONPB (Fixed a)
+deriving newtype instance FromJSONPB a => FromJSONPB (Fixed a)
+deriving newtype instance ToJSONPB a => ToJSONPB (Fixed a)
 
 -- Zig-zag encoding issues do not matter to JSONPB.
-deriving via a instance FromJSONPB a => FromJSONPB (Signed a)
-deriving via a instance ToJSONPB a => ToJSONPB (Signed a)
+deriving newtype instance FromJSONPB a => FromJSONPB (Signed a)
+deriving newtype instance ToJSONPB a => ToJSONPB (Signed a)
 
 --------------------------------------------------------------------------------
 -- Floating point scalar types
@@ -452,8 +453,8 @@ instance ToJSONPB TS.ShortText where
 instance FromJSONPB TS.ShortText where
   parseJSONPB = fmap TS.fromText . A.parseJSON
 
-deriving via a instance ToJSONPB a => ToJSONPB (Proto3.Suite.Types.String a)
-deriving via a instance FromJSONPB a => FromJSONPB (Proto3.Suite.Types.String a)
+deriving newtype instance ToJSONPB a => ToJSONPB (Proto3.Suite.Types.String a)
+deriving newtype instance FromJSONPB a => FromJSONPB (Proto3.Suite.Types.String a)
 
 -- bytes
 
@@ -472,8 +473,8 @@ instance FromJSONPB BS.ByteString where
   parseJSONPB (A.String b64enc) = pure . B64.decodeLenient . T.encodeUtf8 $ b64enc
   parseJSONPB v                 = A.typeMismatch "bytes" v
 
-deriving via a instance ToJSONPB a => ToJSONPB (Proto3.Suite.Types.Bytes a)
-deriving via a instance FromJSONPB a => FromJSONPB (Proto3.Suite.Types.Bytes a)
+deriving newtype instance ToJSONPB a => ToJSONPB (Proto3.Suite.Types.Bytes a)
+deriving newtype instance FromJSONPB a => FromJSONPB (Proto3.Suite.Types.Bytes a)
 
 --------------------------------------------------------------------------------
 -- Enumerated types
@@ -546,11 +547,11 @@ deriving via (Maybe a) instance ToJSONPB a => ToJSONPB (Nested a)
 --------------------------------------------------------------------------------
 -- Instances for map
 
-deriving via a instance A.FromJSONKey a => A.FromJSONKey (Fixed a)
-deriving via a instance A.ToJSONKey a => A.ToJSONKey (Fixed a)
+deriving newtype instance A.FromJSONKey a => A.FromJSONKey (Fixed a)
+deriving newtype instance A.ToJSONKey a => A.ToJSONKey (Fixed a)
 
-deriving via a instance A.FromJSONKey a => A.FromJSONKey (Signed a)
-deriving via a instance A.ToJSONKey a => A.ToJSONKey (Signed a)
+deriving newtype instance A.FromJSONKey a => A.FromJSONKey (Signed a)
+deriving newtype instance A.ToJSONKey a => A.ToJSONKey (Signed a)
 
 deriving via T.Text instance A.FromJSONKey (Proto3.Suite.Types.String T.Text)
 deriving via T.Text instance A.ToJSONKey (Proto3.Suite.Types.String T.Text)

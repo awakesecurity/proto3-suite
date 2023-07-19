@@ -1,14 +1,15 @@
-{-# LANGUAGE CPP                  #-}
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE DerivingVia          #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE MagicHash            #-}
-{-# LANGUAGE MonoLocalBinds       #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE StandaloneDeriving   #-}
-{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE MonoLocalBinds #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -53,10 +54,10 @@ insOrdFromList :: (Eq k, Hashable k) => [(k, v)] -> InsOrdHashMap k v
 insOrdFromList = Data.HashMap.Strict.InsOrd.fromList
 
 -- Distinctions between varint and fixed-width formats do not matter to JSONPB.
-deriving via a instance ToSchema a => ToSchema (Fixed a)
+deriving newtype instance ToSchema a => ToSchema (Fixed a)
 
 -- Zig-zag encoding issues do not matter to JSONPB.
-deriving via a instance ToSchema a => ToSchema (Signed a)
+deriving newtype instance ToSchema a => ToSchema (Signed a)
 
 -- Packed/unpacked distinctions do not matter to JSONPB.
 deriving via (V.Vector a) instance ToSchema a => ToSchema (NestedVec a)
@@ -65,7 +66,7 @@ deriving via (V.Vector a) instance ToSchema a => ToSchema (UnpackedVec a)
 
 -- Unless and until the overlapping instances for @Maybe (Wrapped _)@
 -- are selected, the schema is unaffected by 'Wrapped'.
-deriving via a instance ToSchema a => ToSchema (Wrapped a)
+deriving newtype instance ToSchema a => ToSchema (Wrapped a)
 
 instance ToSchema (Proto3.Suite.Types.String a) where
   declareNamedSchema _ = declareNamedSchema (Proxy :: Proxy String)
