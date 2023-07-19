@@ -8,7 +8,7 @@ packages:
 
 extra-deps:
   - github: awakesecurity/proto3-wire
-    commit: 9b1c178f8a23a5f03237cb77cce403bc386da523
+    commit: 8096a1e19431af603655e5c1f2488b5db907836c
 
 nix:
   packages:

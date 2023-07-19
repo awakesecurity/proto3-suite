@@ -5,20 +5,20 @@
 
 packages:
 - completed:
-    size: 45006
-    url: https://github.com/awakesecurity/proto3-wire/archive/9b1c178f8a23a5f03237cb77cce403bc386da523.tar.gz
     name: proto3-wire
-    version: 1.2.2
-    sha256: df812fdfe6c7df641d310c6273c16de4fda8f4d61635f084e24937ca0b91944c
     pantry-tree:
-      size: 1325
-      sha256: bf3471cb92d5c273bf1163594380e836b48917a076b08827286a32f3d2320dee
+      sha256: fb014dc4be245b77a8f0cec3729164f213954a207b21a4dfe51bf1f96d26747f
+      size: 1608
+    sha256: 9a76c581dab0709560c5e6cd824b2c95be98cea76f8380f11f64974b399dc650
+    size: 48185
+    url: https://github.com/awakesecurity/proto3-wire/archive/8096a1e19431af603655e5c1f2488b5db907836c.tar.gz
+    version: 1.4.1
   original:
-    url: https://github.com/awakesecurity/proto3-wire/archive/9b1c178f8a23a5f03237cb77cce403bc386da523.tar.gz
+    url: https://github.com/awakesecurity/proto3-wire/archive/8096a1e19431af603655e5c1f2488b5db907836c.tar.gz
 snapshots:
 - completed:
+    sha256: c632012da648385b9fa3c29f4e0afd56ead299f1c5528ee789058be410e883c0
     size: 585393
     url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/0.yaml
-    sha256: c632012da648385b9fa3c29f4e0afd56ead299f1c5528ee789058be410e883c0
   original:
     url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/0.yaml

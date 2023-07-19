@@ -4,7 +4,6 @@
 module ArbitraryGeneratedTestTypes where
 
 import           Data.String           (fromString)
-import qualified Data.Text.Short       as TS
 import qualified Data.Vector           as V
 import qualified Proto3.Suite.Types as DotProto
 import           Test.QuickCheck       (listOf)
@@ -14,10 +13,6 @@ import           TestProto
 import qualified TestProtoImport
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
-
-instance Arbitrary TS.ShortText where
-  arbitrary = fmap TS.fromText arbitrary
-  shrink = map TS.fromText . shrink . TS.toText
 
 instance Arbitrary Trivial where
   arbitrary = Trivial <$> arbitrary
