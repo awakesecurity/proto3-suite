@@ -38,7 +38,8 @@ module Proto3.Suite.DotProto.Generate
 
 import           Control.Applicative
 import           Control.Lens                   ((&), ix, over, has, filtered)
-import           Control.Monad.Except
+import           Control.Monad.Except           (MonadError(..), runExceptT)
+import           Control.Monad.IO.Class         (MonadIO(..))
 import           Data.Char
 import           Data.Coerce
 import           Data.Either                    (partitionEithers)

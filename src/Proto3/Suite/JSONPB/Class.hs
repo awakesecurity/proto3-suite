@@ -82,7 +82,10 @@ import qualified Data.Aeson.Types                 as A (Object, Pair, Parser,
                                                         Series,
                                                         explicitParseField,
                                                         explicitParseFieldMaybe,
-                                                        object, toJSONKeyText,
+                                                        object,
+#if !(MIN_VERSION_aeson(2,0,2))
+                                                        toJSONKeyText,
+#endif
                                                         typeMismatch,)
 import qualified Data.Attoparsec.ByteString       as Atto (skipWhile)
 import qualified Data.Attoparsec.ByteString.Char8 as Atto (Parser, endOfInput)

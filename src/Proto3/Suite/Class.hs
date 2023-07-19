@@ -107,6 +107,7 @@ import           Data.Coerce            (Coercible, coerce)
 import qualified Data.Foldable          as Foldable
 import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
+import           Data.Kind              (Type)
 import qualified Data.Map               as M
 import           Data.Maybe             (fromMaybe, isNothing)
 import           Data.Proxy             (Proxy (..))
@@ -229,7 +230,7 @@ instance ProtoEnum e => HasDefault (Enumerated e) where
   def = codeToEnumerated 0
   isDefault = (== 0) . codeFromEnumerated
 
-deriving via (a :: *) instance HasDefault a => HasDefault (Wrapped a)
+deriving via (a :: Type) instance HasDefault a => HasDefault (Wrapped a)
 
 instance HasDefault (UnpackedVec a) where
   def = mempty
@@ -266,7 +267,7 @@ instance HasDefault (M.Map k v) where
   def = M.empty
   isDefault = M.null
 
-class GenericHasDefault (f :: * -> *) where
+class GenericHasDefault (f :: Type -> Type) where
   genericDef :: f x
 instance HasDefault f => GenericHasDefault (K1 i f) where
   genericDef = K1 (def @f)
@@ -301,7 +302,7 @@ class Named a where
   default nameOf :: (IsString string, GenericNamed (Rep a)) => Proxy# a -> string
   nameOf _ = genericNameOf (proxy# :: Proxy# (Rep a))
 
-class GenericNamed (f :: * -> *) where
+class GenericNamed (f :: Type -> Type) where
   genericNameOf :: IsString string => Proxy# f -> string
 
 instance Datatype d => GenericNamed (M1 D d f) where
@@ -367,7 +368,7 @@ enum pr = DotProtoEnum "" (Single $ nameOf pr) (map enumField $ enumerate pr)
   where
     enumField (name, value) = DotProtoEnumField (Single name) value []
 
-class GenericFinite (f :: * -> *) where
+class GenericFinite (f :: Type -> Type) where
   genericEnumerate :: IsString string => [(string, f p)]
 
 instance ( GenericFinite f
@@ -915,7 +916,7 @@ instance Message BL.ByteString where
 
 -- * Generic Instances
 
-class GenericMessage (f :: * -> *) where
+class GenericMessage (f :: Type -> Type) where
   type GenericFieldCount f :: Nat
 
   genericEncodeMessage :: FieldNumber -> f a -> Encode.MessageBuilder
