@@ -138,11 +138,16 @@ in {
                     chmod -R u+w gen
                   '';
 
+                  patchTestScripts = ''
+                    echo "Patching test scripts"
+                    patchShebangs tests/endode.sh
+                    patchShebangs tests/decode.sh
+                  '';
                 in
                 {
                   pname = "proto3-suite";
 
-                  postPatch = (oldArgs.postPatch or "") + copyGeneratedCode;
+                  postPatch = (oldArgs.postPatch or "") + copyGeneratedCode + patchTestScripts;
 
                   testHaskellDepends =
                     (oldArgs.testHaskellDepends or [ ]) ++ [
