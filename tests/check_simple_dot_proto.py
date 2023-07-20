@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import io
 import sys
 # Import protoc generated {de,}serializers (generated from test_proto{,_import}.proto)
 from google.protobuf             import json_format
@@ -7,6 +8,9 @@ from test_proto_import_pb2       import WithNesting as ImportedWithNesting
 from test_proto_oneof_pb2        import Something, WithImported, DUMMY0, DUMMY1
 from test_proto_oneof_import_pb2 import WithOneof
 from test_proto_wrappers_pb2     import *
+
+# Python 3.7 or newer requires this
+sys.stdin.reconfigure(encoding='iso-8859-1', newline='')
 
 binary = 'Binary'
 jsonpb = 'Jsonpb'
@@ -19,8 +23,8 @@ if format != binary and format != jsonpb:
 
 def read_proto(cls, skip_if_json=False):
     global format
-    length = int(raw_input())
-    data = sys.stdin.read(length)
+    length = int(input())
+    data = sys.stdin.read(length).encode('iso-8859-1')
     if format == binary:
         return cls.FromString(data)
     else:
@@ -57,8 +61,8 @@ assert caseSignedMinBound.signed32 == -(2**31)
 assert caseSignedMinBound.signed64 == -(2**63)
 
 caseSignedMaxBound = read_proto(SignedInts)
-assert caseSignedMaxBound.signed32 == (2**32 - 1) / 2
-assert caseSignedMaxBound.signed64 == (2**64 - 1) / 2
+assert caseSignedMaxBound.signed32 == (2**32 - 1) // 2
+assert caseSignedMaxBound.signed64 == (2**64 - 1) // 2
 
 # Test case 3: Nested enumeration
 case3a = read_proto(WithEnum)
@@ -126,7 +130,7 @@ case7a = read_proto(WithRepetition)
 assert len(case7a.repeatedField1) == 0
 
 case7b = read_proto(WithRepetition)
-assert list(case7b.repeatedField1) == range(1,10001)
+assert list(case7b.repeatedField1) == list(range(1,10001))
 
 # Test case 8: Fixed-width integer types
 case8a = read_proto(WithFixed)
@@ -137,9 +141,9 @@ assert case8a.fixed4 == 0
 
 case8b = read_proto(WithFixed)
 assert case8b.fixed1 == 2**32 - 1
-assert case8b.fixed2 == (2**32 - 1) / 2
+assert case8b.fixed2 == (2**32 - 1) // 2
 assert case8b.fixed3 == 2**64 - 1
-assert case8b.fixed4 == (2**64 - 1) / 2
+assert case8b.fixed4 == (2**64 - 1) // 2
 
 case8c = read_proto(WithFixed)
 assert case8c.fixed1 == 0
@@ -149,19 +153,19 @@ assert case8c.fixed4 == -(2**63)
 
 # Test case 9: bytes fields
 case9a = read_proto(WithBytes)
-assert case9a.bytes1 == "\x00\x00\x00\x01\x02\x03\xFF\xFF\x00\x01"
-assert list(case9a.bytes2) == ["", "\x01", "\xAB\xBAhello", "\xBB"]
+assert case9a.bytes1 == b"\x00\x00\x00\x01\x02\x03\xFF\xFF\x00\x01"
+assert list(case9a.bytes2) == [b"", b"\x01", b"\xAB\xBAhello", b"\xBB"]
 
 case9b = read_proto(WithBytes)
-assert case9b.bytes1 == "Hello world"
+assert case9b.bytes1 == b"Hello world"
 assert len(case9b.bytes2) == 0
 
 case9c = read_proto(WithBytes)
-assert case9c.bytes1 == ""
-assert list(case9c.bytes2) == ["Hello", "\x00world", "\x00\x00"]
+assert case9c.bytes1 == b""
+assert list(case9c.bytes2) == [b"Hello", b"\x00world", b"\x00\x00"]
 
 case9d = read_proto(WithBytes)
-assert case9d.bytes1 == ""
+assert case9d.bytes1 == b""
 assert len(case9d.bytes2) == 0
 
 # Test case 10: packed v unpacked repeated types
@@ -213,11 +217,11 @@ assert list(case11c.packedWord32) == [1] and list(case11c.packedWord64) == [2] a
 
 case11d = read_proto(AllPackedTypes)
 expected_fp = [x / 8.0 for x in range(8, 80001)]
-assert list(case11d.packedWord32) == range(1,10001) and list(case11d.packedWord64) == range(1,10001) and \
-    list(case11d.packedInt32) == range(1,10001) and list(case11d.packedInt64) == range(1,10001) and \
-    list(case11d.packedFixed32) == range(1,10001) and list(case11d.packedFixed64) == range(1,10001) and \
+assert list(case11d.packedWord32) == list(range(1,10001)) and list(case11d.packedWord64) == list(range(1,10001)) and \
+    list(case11d.packedInt32) == list(range(1,10001)) and list(case11d.packedInt64) == list(range(1,10001)) and \
+    list(case11d.packedFixed32) == list(range(1,10001)) and list(case11d.packedFixed64) == list(range(1,10001)) and \
     list(case11d.packedFloat) == expected_fp and list(case11d.packedDouble) == expected_fp and \
-    list(case11d.packedSFixed32) == range(1,10001) and list(case11d.packedSFixed64) == range(1,10001) and \
+    list(case11d.packedSFixed32) == list(range(1,10001)) and list(case11d.packedSFixed64) == list(range(1,10001)) and \
     list(case11d.packedBool) == [False,True] and \
     list(case11d.packedEnum) == [FLD0,FLD1,2] and \
     list(case11d.unpackedEnum) == [FLD0,FLD1,2]
@@ -230,7 +234,7 @@ assert case12a.field3 == 2 ** 63 - 1
 assert len(case12a.field4) == 0
 
 case12b = read_proto(OutOfOrderFields)
-assert list(case12b.field1) == range(1, 101, 6)
+assert list(case12b.field1) == list(range(1, 101, 6))
 assert case12b.field2 == "This is a test"
 assert case12b.field3 == -(2 ** 63)
 assert list(case12b.field4) == ["This", "is", "a", "test"]
@@ -485,11 +489,11 @@ assert not case_BytesValue_A.HasField('wrapper')
 
 case_BytesValue_B = read_proto(TestBytesValue)
 assert case_BytesValue_B.HasField('wrapper')
-assert case_BytesValue_B.wrapper.value == ""
+assert case_BytesValue_B.wrapper.value == b""
 
 case_BytesValue_C = read_proto(TestBytesValue)
 assert case_BytesValue_C.HasField('wrapper')
-assert case_BytesValue_C.wrapper.value == "012"
+assert case_BytesValue_C.wrapper.value == b"012"
 
 # Wait for the special 'done' messsage
 done_msg = read_proto(MultipleFields)

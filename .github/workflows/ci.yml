@@ -12,10 +12,12 @@ jobs:
           - ubuntu-latest
           - macos-latest
         compiler:
-          - ghc8104
+          - ghc8107
+          - ghc902
+          - ghc924
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3.5.3
         name: Checkout
       - uses: cachix/install-nix-action@v22
         name: Install Nix

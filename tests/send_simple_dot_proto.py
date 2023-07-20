@@ -10,6 +10,9 @@ import test_proto_oneof_pb2        as test_proto_oneof
 import test_proto_oneof_import_pb2 as test_proto_oneof_import
 import test_proto_wrappers_pb2     as test_proto_wrappers
 
+# Python 3.7 or newer requires this
+sys.stdout.reconfigure(encoding='iso-8859-1')
+
 binary = 'Binary'
 jsonpb = 'Jsonpb'
 if len(sys.argv) != 2:
@@ -21,10 +24,10 @@ if format != binary and format != jsonpb:
 
 def write_proto(msg):
     if format == binary:
-        out = msg.SerializeToString()
+        out = str(msg.SerializeToString(), encoding='iso-8859-1')
     else:
         out = json_format.MessageToJson(msg)
-    print len(out)
+    print(len(out))
     sys.stdout.write(out)
 
 # Test case 1: Trivial message
@@ -45,7 +48,7 @@ write_proto(SignedInts(signed32 = 0, signed64 = 0))
 write_proto(SignedInts(signed32 = 42, signed64 = 84))
 write_proto(SignedInts(signed32 = (-42), signed64 = (-84)))
 write_proto(SignedInts(signed32 = -(2**31), signed64 = -(2**63)))
-write_proto(SignedInts(signed32 = (2**32 - 1) / 2, signed64 = (2**64 - 1) / 2))
+write_proto(SignedInts(signed32 = (2**32 - 1) // 2, signed64 = (2**64 - 1) // 2))
 
 # Test case 3: Nested enumeration
 write_proto(WithEnum(enumField = WithEnum.ENUM1))
@@ -93,20 +96,20 @@ write_proto(WithRepetition(repeatedField1 = range(1, 10001)))
 # Test case 8: Fixed-width integer types
 write_proto(WithFixed(fixed1 = 0, fixed2 = 0, fixed3 = 0, fixed4 = 0))
 write_proto(WithFixed(fixed1 = 2**32 - 1,
-                      fixed2 = (2**32 - 1) / 2,
+                      fixed2 = (2**32 - 1) // 2,
                       fixed3 = 2**64 - 1,
-                      fixed4 = (2**64 - 1) / 2))
+                      fixed4 = (2**64 - 1) // 2))
 write_proto(WithFixed(fixed1 = 0,
                       fixed2 = -(2**31),
                       fixed3 = 0,
                       fixed4 = -(2**63)))
 
 # Test case 9: bytes fields
-write_proto(WithBytes(bytes1 = "\x00\x00\x00\x01\x02\x03\xFF\xFF\x00\x01",
-                      bytes2 = ["", "\x01", "\xAB\xBAhello", "\xBB"]))
-write_proto(WithBytes(bytes1 = "Hello world", bytes2 = []))
-write_proto(WithBytes(bytes1 = "", bytes2 = ["Hello", "\x00world", "\x00\x00"]))
-write_proto(WithBytes(bytes1 = "", bytes2 = []))
+write_proto(WithBytes(bytes1 = b"\x00\x00\x00\x01\x02\x03\xFF\xFF\x00\x01",
+                      bytes2 = [b"", b"\x01", b"\xAB\xBAhello", b"\xBB"]))
+write_proto(WithBytes(bytes1 = b"Hello world", bytes2 = []))
+write_proto(WithBytes(bytes1 = b"", bytes2 = [b"Hello", b"\x00world", b"\x00\x00"]))
+write_proto(WithBytes(bytes1 = b"", bytes2 = []))
 
 # Test case 10: packed v unpacked repeated types
 write_proto(WithPacking(packing1 = [], packing2 = []))
@@ -279,8 +282,8 @@ write_proto(test_proto_wrappers.TestStringValue(wrapper=StringValue(value="abc")
 
 # Test BytesValue
 write_proto(test_proto_wrappers.TestBytesValue())
-write_proto(test_proto_wrappers.TestBytesValue(wrapper=BytesValue(value="")))
-write_proto(test_proto_wrappers.TestBytesValue(wrapper=BytesValue(value="012")))
+write_proto(test_proto_wrappers.TestBytesValue(wrapper=BytesValue(value=b"")))
+write_proto(test_proto_wrappers.TestBytesValue(wrapper=BytesValue(value=b"012")))
 
 # Send the special 'done' message
 write_proto(MultipleFields(multiFieldString = "All tests complete"))

@@ -3,10 +3,8 @@
 }:
 mkDerivation {
   pname = "record-dot-preprocessor";
-  version = "0.2.14";
-  sha256 = "9788c5b21a6f981141924a2a9c148738b08c2b64dc0430b124e182312f48181e";
-  revision = "1";
-  editedCabalFile = "03sp3wkvl1x68pcjdrkxf4ys73x4ka4sz7x75icy4xd285zrzqb0";
+  version = "0.2.16";
+  sha256 = "2c067163a6308a61e65f88e168558ac5062e41b86cad9346898bdd77e72b1a80";
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [ base extra ghc uniplate ];

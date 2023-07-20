@@ -156,11 +156,13 @@ instance Dhall.ToDhall a => Dhall.ToDhall (Either Int32 a)
 --------------------------------------------------------------------------------
 -- Inject integer scalar types
 
+#if !(MIN_VERSION_dhall(1,41,0))
 instance Dhall.ToDhall Int32 where
   injectWith = fmap (contramap toInteger) Dhall.injectWith
 
 instance Dhall.ToDhall Int64 where
   injectWith = fmap (contramap toInteger) Dhall.injectWith
+#endif
 
 instance Dhall.ToDhall (Fixed Int32) where
   injectWith = fmap (contramap fixed) Dhall.injectWith

@@ -1,3 +1,4 @@
+* Support GHC 9.2
 
 # 0.6.0
 * Support use of ShortText as the Haskell type of a protobuf string.

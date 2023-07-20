@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -eu
 hsTmpDir=$1
 shift

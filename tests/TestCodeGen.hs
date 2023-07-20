@@ -65,17 +65,17 @@ swaggerWrapperFormat = testGroup "Swagger Wrapper Format"
            "{\"properties\":{\"wrapper\":{\"format\":\"FloatValue\",\"type\":\"number\"}},\"type\":\"object\"}"
            "{\"properties\":{\"wrapper\":{\"format\":\"float\",\"type\":\"number\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestInt64Value
-           "{\"properties\":{\"wrapper\":{\"maximum\":9223372036854775807,\"format\":\"Int64Value\",\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"maximum\":9223372036854775807,\"format\":\"int64\",\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"Int64Value\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int64\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestUInt64Value
-           "{\"properties\":{\"wrapper\":{\"maximum\":18446744073709551615,\"format\":\"UInt64Value\",\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"UInt64Value\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int64\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestInt32Value
-           "{\"properties\":{\"wrapper\":{\"maximum\":2147483647,\"format\":\"Int32Value\",\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"maximum\":2147483647,\"format\":\"int32\",\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"Int32Value\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestUInt32Value
-           "{\"properties\":{\"wrapper\":{\"maximum\":4294967295,\"format\":\"UInt32Value\",\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"UInt32Value\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int32\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestBoolValue
            "{\"properties\":{\"wrapper\":{\"format\":\"BoolValue\",\"type\":\"boolean\"}},\"type\":\"object\"}"
            "{\"properties\":{\"wrapper\":{\"type\":\"boolean\"}},\"type\":\"object\"}"
@@ -174,11 +174,11 @@ simpleEncodeDotProto recStyle chosenStringType format =
 
          compileTestDotProtos recStyle decodedStringType
          -- Compile our generated encoder
-         let args = [hsTmpDir]
+         let encodeCmd = "tests/encode.sh " <> hsTmpDir
 #if DHALL
-                    ++ ["-DDHALL"]
+                           <> " -DDHALL"
 #endif
-         Turtle.proc "tests/encode.sh" args empty >>= (@?= ExitSuccess)
+         Turtle.shell encodeCmd empty >>= (@?= ExitSuccess)
 
          -- The python encoder test exits with a special error code to indicate
          -- all tests were successful
@@ -200,11 +200,11 @@ simpleDecodeDotProto recStyle chosenStringType format =
 
          compileTestDotProtos recStyle decodedStringType
          -- Compile our generated decoder
-         let args = [hsTmpDir]
+         let decodeCmd = "tests/decode.sh " <> hsTmpDir
 #if DHALL
-                    ++ ["-DDHALL"]
+                           <> " -DDHALL"
 #endif
-         Turtle.proc "tests/decode.sh" args empty >>= (@?= ExitSuccess)
+         Turtle.shell decodeCmd empty >>= (@?= ExitSuccess)
 
          setPythonPath
          let cmd = "python tests/send_simple_dot_proto.py " <> format <> " | FORMAT=" <> format <> " " <> hsTmpDir <> "/simpleDecodeDotProto "
@@ -343,13 +343,13 @@ compileTestDotProtos recStyle decodedStringType = do
 -- Swagger
 --
 -- >>> schemaOf @Something
--- {"properties":{"value":{"maximum":9223372036854775807,"format":"int64","minimum":-9223372036854775808,"type":"integer"},"another":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"},"pickOne":{"$ref":"#/definitions/SomethingPickOne"}},"type":"object"}
+-- {"properties":{"value":{"format":"int64","maximum":9223372036854775807,"minimum":-9223372036854775808,"type":"integer"},"another":{"format":"int32","maximum":2147483647,"minimum":-2147483648,"type":"integer"},"pickOne":{"$ref":"#/definitions/SomethingPickOne"}},"type":"object"}
 -- >>> schemaOf @SomethingPickOne
--- {"properties":{"name":{"type":"string"},"someid":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"},"dummyMsg1":{"$ref":"#/definitions/DummyMsg"},"dummyMsg2":{"$ref":"#/definitions/DummyMsg"},"dummyEnum":{"$ref":"#/definitions/DummyEnum"}},"maxProperties":1,"minProperties":1,"type":"object"}
+-- {"properties":{"name":{"type":"string"},"someid":{"format":"int32","maximum":2147483647,"minimum":-2147483648,"type":"integer"},"dummyMsg1":{"$ref":"#/definitions/DummyMsg"},"dummyMsg2":{"$ref":"#/definitions/DummyMsg"},"dummyEnum":{"$ref":"#/definitions/DummyEnum"}},"maxProperties":1,"minProperties":1,"type":"object"}
 -- >>> schemaOf @DummyMsg
--- {"properties":{"dummy":{"maximum":2147483647,"format":"int32","minimum":-2147483648,"type":"integer"}},"type":"object"}
+-- {"properties":{"dummy":{"format":"int32","maximum":2147483647,"minimum":-2147483648,"type":"integer"}},"type":"object"}
 -- >>> schemaOf @(Enumerated DummyEnum)
--- {"type":"string","enum":["DUMMY0","DUMMY1"]}
+-- {"enum":["DUMMY0","DUMMY1"],"type":"string"}
 --
 -- Generic HasDefault
 --
