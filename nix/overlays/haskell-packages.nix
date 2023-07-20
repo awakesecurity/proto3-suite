@@ -140,7 +140,7 @@ in {
 
                   patchTestScripts = ''
                     echo "Patching test scripts"
-                    patchShebangs tests/endode.sh
+                    patchShebangs tests/encode.sh
                     patchShebangs tests/decode.sh
                   '';
                 in
