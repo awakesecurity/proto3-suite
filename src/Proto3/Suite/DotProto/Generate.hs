@@ -788,10 +788,12 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
             [ recDecl_ (HsIdent messageName) flds ]
             defaultMessageDeriving
 
+#ifdef SWAGGER
     let getName = \case
           DotProtoMessageField fld -> (: []) <$> getFieldNameForSchemaInstanceDeclaration fld
           DotProtoMessageOneOf ident _ -> (: []) . (Nothing, ) <$> dpIdentUnqualName ident
           _ -> pure []
+#endif
 
     messageDataDecl <- mkDataDecl <$> foldMapM (messagePartFieldD messageName) messageParts
 
