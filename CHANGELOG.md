@@ -1,4 +1,11 @@
-* Support GHC 9.2
+# 0.7.0
+* Support GHC 9.2.
+* Support proto files without a package declaration.
+* Modify "Eq (Enumerated a)" to identify "Enumerated (Right e)"
+  with "Enumerated (Left (fromProtoEnum e))" because those two
+  values encode to the same octet sequence.  They are already
+  equivalent as arguments to "isDefault @(Enumerated e)".
+* Derive Data and Generic instances for Protobuf AST types.
 
 # 0.6.0
 * Support use of ShortText as the Haskell type of a protobuf string.
