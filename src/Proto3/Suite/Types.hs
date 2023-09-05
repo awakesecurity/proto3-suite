@@ -35,6 +35,7 @@ import           Control.Applicative
 import           Control.DeepSeq (NFData)
 import           GHC.Exts (IsList(..))
 import           GHC.Generics
+import           Data.Function (on)
 import           Data.Int (Int32)
 import qualified Data.Vector as V
 import           GHC.TypeLits (Symbol)
@@ -55,8 +56,17 @@ newtype Signed a = Signed { signed :: a }
 -- | 'Enumerated' lifts any type with an 'IsEnum' instance so that it can be encoded
 -- with 'HasEncoding'.
 newtype Enumerated a = Enumerated { enumerated :: Either Int32 a }
-  deriving (Show, Eq, Ord, Generic, NFData
-           , Functor, Foldable, Traversable)
+  deriving (Show, Generic, NFData, Functor, Foldable, Traversable)
+
+-- | We consider two enumerated values to be equal if they serialize to the same code.
+instance ProtoEnum a => Eq (Enumerated a) where
+  (==) = (==) `on` either id fromProtoEnum . enumerated
+  {-# INLINABLE (==) #-}
+
+-- | We compare two enumerated values by comparing the code to which they serialize.
+instance ProtoEnum a => Ord (Enumerated a) where
+  compare = compare `on` either id fromProtoEnum . enumerated
+  {-# INLINABLE compare #-}
 
 instance ProtoEnum a => Arbitrary (Enumerated a) where
   arbitrary = do

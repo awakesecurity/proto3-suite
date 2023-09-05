@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                proto3-suite
-version:             0.6.0
+version:             0.7.0
 synopsis:            A higher-level API to the proto3-wire library
 description:
   This library provides a higher-level API to <https://github.com/awakesecurity/proto3-wire the `proto3-wire` library>
