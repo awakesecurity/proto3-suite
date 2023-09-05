@@ -66,7 +66,7 @@ instance ProtoEnum a => Eq (Enumerated a) where
 -- | We compare two enumerated values by comparing the code to which they serialize.
 instance ProtoEnum a => Ord (Enumerated a) where
   compare = compare `on` either id fromProtoEnum . enumerated
-  {-# INLINABLE (==) #-}
+  {-# INLINABLE compare #-}
 
 instance ProtoEnum a => Arbitrary (Enumerated a) where
   arbitrary = do
