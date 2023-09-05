@@ -56,11 +56,16 @@ newtype Signed a = Signed { signed :: a }
 -- | 'Enumerated' lifts any type with an 'IsEnum' instance so that it can be encoded
 -- with 'HasEncoding'.
 newtype Enumerated a = Enumerated { enumerated :: Either Int32 a }
-  deriving (Show, Ord, Generic, NFData, Functor, Foldable, Traversable)
+  deriving (Show, Generic, NFData, Functor, Foldable, Traversable)
 
 -- | We consider two enumerated values to be equal if they serialize to the same code.
 instance ProtoEnum a => Eq (Enumerated a) where
   (==) = (==) `on` either id fromProtoEnum . enumerated
+  {-# INLINABLE (==) #-}
+
+-- | We compare two enumerated values by comparing the code to which they serialize.
+instance ProtoEnum a => Ord (Enumerated a) where
+  compare = compare `on` either id fromProtoEnum . enumerated
   {-# INLINABLE (==) #-}
 
 instance ProtoEnum a => Arbitrary (Enumerated a) where
