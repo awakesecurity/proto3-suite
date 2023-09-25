@@ -1969,9 +1969,31 @@ defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = Strin
       RegularRecords -> []
       LargeRecords ->
         [ importDecl_ (m "Data.Record.Generic")              & qualified lrNS  & everything
+        -- "large-records" stopped exporting "grnf"; we try
+        -- to get it directly from "large-generics" if we can.
+        --
+        -- Ideally we would generate CPP conditionals so that
+        -- the version check happens when the generated code
+        -- is built, but as yet it is unclear how to do that.
+#if MIN_VERSION_large_generics(0,2,1)
+        , importDecl_ (m "Data.Record.Generic.NFData")       & qualified lrNS  & everything
+#endif
         , importDecl_ (m "Data.Record.Generic.Rep")          & qualified lrNS  & everything
         , importDecl_ (m "Data.Record.Generic.Rep.Internal") & qualified lrNS  & everything
         , importDecl_ (m "Data.Record.Plugin.Runtime")       & qualified lrNS  & everything
+        -- <https://hackage.haskell.org/package/large-records-0.4/changelog>
+        -- says that as of large-records-0.4 the plugin does not generate
+        -- imports, and that "code must now import Data.Record.Plugin to
+        -- bring largeRecord into scope (necessary for ANN annotations)."
+        -- We also seem to need to import some Prelude identifiers.
+        --
+        -- Ideally we would generate CPP conditionals so that
+        -- the version check happens when the generated code
+        -- is built, but as yet it is unclear how to do that.
+#if MIN_VERSION_large_records(0,4,0)
+        , importDecl_ (m "Data.Record.Plugin")               & unqualified     & selecting [i"largeRecord"]
+        , importDecl_ (m "Prelude")                          & unqualified     & selecting [i"Eq", i"Int", i"Ord", i"Show", i"error"]
+#endif
         ]
   where
     m = Module

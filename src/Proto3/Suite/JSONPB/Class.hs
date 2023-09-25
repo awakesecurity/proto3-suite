@@ -74,7 +74,9 @@ import qualified Data.Aeson                       as A (Encoding, FromJSON (..),
                                                         (.!=))
 import qualified Data.Aeson.Encoding              as E
 import qualified Data.Aeson.Encoding.Internal     as E
+#if !MIN_VERSION_aeson(2,1,0)
 import qualified Data.Aeson.Internal              as A (formatError, iparse)
+#endif
 #if MIN_VERSION_aeson(2,0,0)
 import qualified Data.Aeson.Key                   as A
 #endif
@@ -83,6 +85,10 @@ import qualified Data.Aeson.Types                 as A (Object, Pair, Parser,
                                                         Series,
                                                         explicitParseField,
                                                         explicitParseFieldMaybe,
+#if MIN_VERSION_aeson(2,1,0)
+                                                        formatError,
+                                                        iparse,
+#endif
                                                         object,
 #if !(MIN_VERSION_aeson(2,0,2))
                                                         toJSONKeyText,

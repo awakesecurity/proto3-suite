@@ -1,21 +1,16 @@
-{ mkDerivation, base, containers, fetchgit, generic-deriving, ghc
+{ mkDerivation, base, containers, generic-deriving, ghc
 , large-generics, lib, mtl, newtype, primitive
 , record-dot-preprocessor, record-hasfield, syb, tasty, tasty-hunit
 , template-haskell, transformers
 }:
 mkDerivation {
   pname = "large-records";
-  version = "0.2.2.0";
-  src = fetchgit {
-    url = "https://github.com/well-typed/large-records";
-    sha256 = "0rzssshn6jjdp2l0gx2k60wca17ha62gxq51xyd4rl3vgh2ql7n0";
-    rev = "f13dd4514a247dca4a24a7668d702695748f8105";
-    fetchSubmodules = true;
-  };
-  postUnpack = "sourceRoot+=/large-records; echo source root reset to $sourceRoot";
+  version = "0.4";
+  sha256 = "de51d5f473ca9e57b818221e9bf776e6f68ca90e5cbca1171dc14ce690a7093c";
   libraryHaskellDepends = [
-    base containers ghc large-generics mtl primitive record-hasfield
-    syb template-haskell transformers
+    base containers ghc large-generics mtl primitive
+    record-dot-preprocessor record-hasfield syb template-haskell
+    transformers
   ];
   testHaskellDepends = [
     base generic-deriving large-generics mtl newtype
