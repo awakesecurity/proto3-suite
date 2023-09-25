@@ -72,6 +72,9 @@ import qualified Turtle hiding (encodeString)
 import qualified Turtle.Compat as Turtle (encodeString)
 import           Turtle                         (FilePath, (</>), (<.>))
 
+-- $setup
+-- >>> :set -XTypeApplications
+
 --------------------------------------------------------------------------------
 
 --

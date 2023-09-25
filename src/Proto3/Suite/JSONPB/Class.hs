@@ -223,13 +223,13 @@ parseField :: FromJSONPB a
            => A.Object -> Key -> A.Parser a
 parseField = A.explicitParseField parseJSONPB
 
--- | >>> isDefault (def @E.Encoding)
+-- | >>> isDefault (def :: E.Encoding)
 -- True
 instance HasDefault E.Encoding where
   def       = E.empty
   isDefault = E.nullEncoding
 
--- | >>> isDefault (def @A.Value)
+-- | >>> isDefault (def :: A.Value)
 -- True
 instance HasDefault A.Value where
   def       = A.Null

@@ -66,9 +66,8 @@ docTests :: TestTree
 docTests = testCase "doctests" $ do
   putStrLn "Running all doctests..."
   Test.DocTest.doctest
-    [ "-isrc"
-    , "-itests"
-    , "-igen"
+    [ "--verbose"
+    , "-isrc"
 #ifdef SWAGGER
 #ifdef SWAGGER_WRAPPER_FORMAT
     , "-isrc/swagger-wrapper-format"
@@ -85,8 +84,9 @@ docTests = testCase "doctests" $ do
     , "-DLARGE_RECORDS"
 #endif
     , "src/Proto3/Suite/DotProto/Internal.hs"
+    , "src/Proto3/Suite/DotProto/Generate.hs"
     , "src/Proto3/Suite/JSONPB/Class.hs"
-    , "tests/TestCodeGen.hs"
+    , "src/Proto3/Suite/Tutorial.hs"
     ]
 
 --------------------------------------------------------------------------------
@@ -327,11 +327,11 @@ qcDotProtoRoundtrip = testProperty
                                   ++ "\n\nInitial AST:\n\n"
 
 dotProtoRoundtripExtend :: TestTree
-dotProtoRoundtripExtend = 
+dotProtoRoundtripExtend =
   let expected :: DotProto
       expected = DotProto [] [] DotProtoNoPackage [] (DotProtoMeta (Path ("test-files" NE.:| ["test_proto_extend"])))
    in testCase
-        "Round-trip for a message extension" 
+        "Round-trip for a message extension"
         (testDotProtoRoundtrip expected)
 
 --------------------------------------------------------------------------------

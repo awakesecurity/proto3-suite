@@ -1,6 +1,8 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE CPP                 #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
@@ -12,7 +14,6 @@ import           Control.Applicative
 import           Control.Monad
 import qualified Data.Aeson
 import qualified Data.ByteString.Lazy           as LBS
-import qualified Data.ByteString.Lazy.Char8     as LBS8
 import           Data.Proxy                     (Proxy(..))
 import           Data.String                    (IsString)
 import           Data.Swagger                   (ToSchema)
@@ -22,21 +23,30 @@ import           Data.Typeable                  (Typeable, splitTyConApp,
                                                  tyConName, typeRep)
 import           Google.Protobuf.Timestamp      (Timestamp(..))
 import           Prelude                        hiding (FilePath)
+import           Proto3.Suite.Class             (def)
 import           Proto3.Suite.DotProto.Generate
 import           Proto3.Suite.DotProto          (fieldLikeName, prefixedEnumFieldName, typeLikeName)
 import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
-                                                 ToJSONPB (..), eitherDecode,
-                                                 encode, defaultOptions)
+                                                 ToJSONPB (..), defaultOptions,
+                                                 eitherDecode, encode,
+                                                 jsonPBOptions)
+import           Proto3.Suite.Types             (Enumerated(..))
 import           System.Exit
 import           Test.Tasty
 import           Test.Tasty.HUnit               (testCase, (@?=))
+import           Test.Tasty.QuickCheck          (Arbitrary, (===), testProperty)
 import qualified Turtle
 import qualified Turtle.Format                  as F
+import qualified TestProto
+import qualified TestProtoOneof
 import qualified TestProtoWrappers
 
 codeGenTests :: TestTree
 codeGenTests = testGroup "Code generator unit tests"
-  [ swaggerWrapperFormat
+  [ jsonpbTests
+  , swaggerTests
+  , hasDefaultTests
+  , swaggerWrapperFormat
   , pascalCaseMessageNames
   , camelCaseMessageFieldNames
   , don'tAlterEnumFieldNames
@@ -227,7 +237,8 @@ compileTestDotProtos :: RecordStyle -> StringType -> IO ()
 compileTestDotProtos recStyle decodedStringType = do
   Turtle.mktree hsTmpDir
   Turtle.mktree pyTmpDir
-  let protoFiles =
+  let protoFiles :: [Turtle.FilePath]
+      protoFiles =
         [ "test_proto.proto"
         , "test_proto_import.proto"
         , "test_proto_oneof.proto"
@@ -259,110 +270,150 @@ compileTestDotProtos recStyle decodedStringType = do
 
   Turtle.touch (pyTmpDir Turtle.</> "__init__.py")
 
--- * Doctests for JSONPB
+jsonpbTests :: TestTree
+jsonpbTests = testGroup "JSONPB tests"
+  [ testGroup "Round-trip tests"
+      [ roundTripTest @TestProto.Trivial
+      , roundTripTest @TestProto.MultipleFields
+      , roundTripTest @TestProto.SignedInts
+      , testProperty "roundTrip (SignedInts minBound minBound)" $
+          roundTrip (TestProto.SignedInts minBound minBound)
+      , testProperty "roundTrip (SignedInts maxBound maxBound)" $
+          roundTrip (TestProto.SignedInts maxBound maxBound)
+      , testProperty "roundTrip . WithEnum . Enumerated . Right" $
+          roundTrip . TestProto.WithEnum . Enumerated . Right
+      , roundTripTest @TestProto.WithNesting
+      , roundTripTest @TestProto.WithNestingRepeated
+      , roundTripTest @TestProto.WithNestingRepeatedInts
+      , roundTripTest @TestProto.WithBytes
+      , roundTripTest @TestProto.OutOfOrderFields
+      , roundTripTest @TestProto.UsingImported
+      , roundTripTest @TestProto.Wrapped
+      , roundTripTest @TestProtoOneof.Something
+      , roundTripTest @TestProtoOneof.WithImported
+      ]
+  , testGroup "Specific encoding tests" $
+      let jsonPB = jsonPBOptions
+          json = defaultOptions
+      in
+      [ encodesAs jsonPB (TestProto.MultipleFields 0 0 0 0 "" False)                                "{}"
+      , encodesAs json   (TestProto.MultipleFields 0 2.0 0 0 "" True)                               "{\"multiFieldDouble\":0.0,\"multiFieldFloat\":2.0,\"multiFieldInt32\":0,\"multiFieldInt64\":\"0\",\"multiFieldString\":\"\",\"multiFieldBool\":true}"
+      , encodesAs jsonPB (TestProto.SignedInts minBound minBound)
+          "{\"signed32\":-2147483648,\"signed64\":\"-9223372036854775808\"}"
+      , encodesAs jsonPB (TestProto.SignedInts maxBound maxBound)
+          "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}"
+      , encodesAs jsonPB (TestProto.WithEnum (Enumerated (Right TestProto.WithEnum_TestEnumENUM1)))
+          "{}"
+      , encodesAs json   (TestProto.WithEnum (Enumerated (Right TestProto.WithEnum_TestEnumENUM1)))
+          "{\"enumField\":\"ENUM1\"}"
+      , encodesAs jsonPB (TestProto.WithEnum (Enumerated (Right TestProto.WithEnum_TestEnumENUM3)))
+          "{\"enumField\":\"ENUM3\"}"
+      , encodesAs jsonPB (TestProto.WithNesting $ Just $ TestProto.WithNesting_Nested "" 0 [1,2] [66,99])
+          "{\"nestedMessage\":{\"nestedPacked\":[1,2],\"nestedUnpacked\":[66,99]}}"
+      , encodesAs jsonPB (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneName "")))
+          "{\"value\":\"42\",\"another\":99,\"name\":\"\"}"
+      , encodesAs jsonPB (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneSomeid 0)))
+          "{\"value\":\"42\",\"another\":99,\"someid\":0}"
+      , encodesAs jsonPB (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneDummyMsg1 (TestProtoOneof.DummyMsg 66))))
+          "{\"value\":\"42\",\"another\":99,\"dummyMsg1\":{\"dummy\":66}}"
+      , encodesAs jsonPB (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneDummyMsg2 (TestProtoOneof.DummyMsg 67))))
+          "{\"value\":\"42\",\"another\":99,\"dummyMsg2\":{\"dummy\":67}}"
+      , encodesAs jsonPB (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneDummyEnum (Enumerated (Right TestProtoOneof.DummyEnumDUMMY0)))))
+          "{\"value\":\"42\",\"another\":99,\"dummyEnum\":\"DUMMY0\"}"
+      , encodesAs jsonPB (TestProtoOneof.Something 42 99 Nothing)
+          "{\"value\":\"42\",\"another\":99}"
+      , encodesAs json   (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneName "")))
+          "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"name\":\"\"}}"
+      , encodesAs json   (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneSomeid 0)))
+          "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"someid\":0}}"
+      , encodesAs json   (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneDummyMsg1 (TestProtoOneof.DummyMsg 66))))
+          "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyMsg1\":{\"dummy\":66}}}"
+      , encodesAs json   (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneDummyMsg2 (TestProtoOneof.DummyMsg 67))))
+          "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyMsg2\":{\"dummy\":67}}}"
+      , encodesAs json   (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneDummyEnum (Enumerated (Right TestProtoOneof.DummyEnumDUMMY0)))))
+          "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyEnum\":\"DUMMY0\"}}"
+      , encodesAs json   (TestProtoOneof.Something 42 99 Nothing)
+          "{\"value\":\"42\",\"another\":99,\"pickOne\":null}"
+      ]
+  , testGroup "Specific decoding tests" $
+      [ decodesAs "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}"
+          (TestProto.SignedInts 2147483647 9223372036854775807)
+      , decodesAs "{\"enumField\":\"ENUM3\"}"                                             (TestProto.WithEnum (Enumerated (Right TestProto.WithEnum_TestEnumENUM3)))
+      , decodesAs "{\"enumField\":null}"
+          (TestProto.WithEnum (Enumerated (Right TestProto.WithEnum_TestEnumENUM1)))
+      , decodesAs "{}"
+          (TestProto.WithEnum (Enumerated (Right TestProto.WithEnum_TestEnumENUM1)))
+      , decodesAs "{\"nestedMessage\":{}}"
+          (TestProto.WithNesting $ Just $ TestProto.WithNesting_Nested "" 0 [] [])
+      , testGroup "JSONPB"
+          [ decodesAs "{\"value\":\"42\",\"another\":99,\"someid\":66}"
+              (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneSomeid 66)))
+          , decodesAs "{\"value\":\"42\",\"another\":99,\"name\":\"foo\"}"
+              (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneName "foo")))
+          , decodesAs "{\"value\":\"42\",\"another\":99,\"dummyMsg1\":{\"dummy\":41}}"
+              (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneDummyMsg1 (TestProtoOneof.DummyMsg 41))))
+          , decodesAs "{\"value\":\"42\",\"another\":99,\"dummyMsg2\":{\"dummy\":43}}"
+              (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneDummyMsg2 (TestProtoOneof.DummyMsg 43))))
+          , decodesAs "{\"value\":\"42\",\"another\":99,\"dummyEnum\":\"DUMMY0\"}"
+              (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneDummyEnum (Enumerated (Right TestProtoOneof.DummyEnumDUMMY0)))))
+          , decodesAs "{\"value\":\"42\",\"another\":99}"
+              (TestProtoOneof.Something 42 99 Nothing)
+          ]
+      , testGroup "JSON"
+          [ decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"name\":\"\"}}"
+              (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneName "")))
+          , decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"someid\":0}}"
+              (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneSomeid 0)))
+          , decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyMsg1\":{\"dummy\":66}}}"
+              (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneDummyMsg1 (TestProtoOneof.DummyMsg 66))))
+          , decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyMsg2\":{\"dummy\":67}}}"
+              (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneDummyMsg2 (TestProtoOneof.DummyMsg 67))))
+          , decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyEnum\":\"DUMMY0\"}}"
+              (TestProtoOneof.Something 42 99 (Just (TestProtoOneof.SomethingPickOneDummyEnum (Enumerated (Right TestProtoOneof.DummyEnumDUMMY0)))))
+          , decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{}}"                      (TestProtoOneof.Something 42 99 Nothing)
+          , decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":null}"                    (TestProtoOneof.Something 42 99 Nothing)
+          ]
+      ]
+  ]
 
--- $setup
--- >>> import qualified Data.Text.Lazy as TL
--- >>> import qualified Data.Vector    as V
--- >>> import Proto3.Suite
--- >>> import Proto3.Suite.JSONPB
--- >>> import TestProto
--- >>> import TestProtoOneof
--- >>> import TestProtoWrappers
--- >>> :set -XOverloadedStrings
--- >>> :set -XOverloadedLists
--- >>> :set -XTypeApplications
--- >>> let jsonPB = jsonPBOptions
--- >>> let json = defaultOptions
+swaggerTests :: TestTree
+swaggerTests = testGroup "Swagger tests"
+  [ schemaOf @TestProtoOneof.Something
+      "{\"properties\":{\"value\":{\"format\":\"int64\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"},\"another\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"},\"pickOne\":{\"$ref\":\"#/definitions/SomethingPickOne\"}},\"type\":\"object\"}"
+  , schemaOf @TestProtoOneof.SomethingPickOne
+      "{\"properties\":{\"name\":{\"type\":\"string\"},\"someid\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"},\"dummyMsg1\":{\"$ref\":\"#/definitions/DummyMsg\"},\"dummyMsg2\":{\"$ref\":\"#/definitions/DummyMsg\"},\"dummyEnum\":{\"$ref\":\"#/definitions/DummyEnum\"}},\"maxProperties\":1,\"minProperties\":1,\"type\":\"object\"}"
+  , schemaOf @TestProtoOneof.DummyMsg
+      "{\"properties\":{\"dummy\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
+  , schemaOf @(Enumerated TestProtoOneof.DummyEnum)
+      "{\"enum\":[\"DUMMY0\",\"DUMMY1\"],\"type\":\"string\"}"
 
--- | Round-trip tests
--- prop> roundTrip (x :: Trivial)
--- prop> roundTrip (x :: MultipleFields)
--- prop> roundTrip (x :: SignedInts)
--- prop> roundTrip (SignedInts minBound minBound)
--- prop> roundTrip (SignedInts maxBound maxBound)
--- prop> roundTrip (WithEnum (Enumerated (Right x)))
--- prop> roundTrip (x :: WithNesting)
--- prop> roundTrip (x :: WithNestingRepeated)
--- prop> roundTrip (x :: WithNestingRepeatedInts)
--- prop> roundTrip (x :: WithBytes)
--- prop> roundTrip (x :: OutOfOrderFields)
--- prop> roundTrip (x :: UsingImported)
--- prop> roundTrip (x :: Wrapped)
--- prop> roundTrip (x :: Something)
--- prop> roundTrip (x :: WithImported)
+  ]
 
--- | Specific encoding tests
--- prop> encodesAs jsonPB (MultipleFields 0 0 0 0 "" False)                                                         "{}"
--- prop> encodesAs json   (MultipleFields 0 2.0 0 0 "" True)                                                        "{\"multiFieldDouble\":0.0,\"multiFieldFloat\":2.0,\"multiFieldInt32\":0,\"multiFieldInt64\":\"0\",\"multiFieldString\":\"\",\"multiFieldBool\":true}"
--- prop> encodesAs jsonPB (SignedInts minBound minBound)                                                            "{\"signed32\":-2147483648,\"signed64\":\"-9223372036854775808\"}"
--- prop> encodesAs jsonPB (SignedInts maxBound maxBound)                                                            "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}"
--- prop> encodesAs jsonPB (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))                                    "{}"
--- prop> encodesAs json   (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))                                    "{\"enumField\":\"ENUM1\"}"
--- prop> encodesAs jsonPB (WithEnum (Enumerated (Right WithEnum_TestEnumENUM3)))                                    "{\"enumField\":\"ENUM3\"}"
--- prop> encodesAs jsonPB (WithNesting $ Just $ WithNesting_Nested "" 0 [1,2] [66,99])                              "{\"nestedMessage\":{\"nestedPacked\":[1,2],\"nestedUnpacked\":[66,99]}}"
--- prop> encodesAs jsonPB (Something 42 99 (Just (SomethingPickOneName "")))                                        "{\"value\":\"42\",\"another\":99,\"name\":\"\"}"
--- prop> encodesAs jsonPB (Something 42 99 (Just (SomethingPickOneSomeid 0)))                                       "{\"value\":\"42\",\"another\":99,\"someid\":0}"
--- prop> encodesAs jsonPB (Something 42 99 (Just (SomethingPickOneDummyMsg1 (DummyMsg 66))))                        "{\"value\":\"42\",\"another\":99,\"dummyMsg1\":{\"dummy\":66}}"
--- prop> encodesAs jsonPB (Something 42 99 (Just (SomethingPickOneDummyMsg2 (DummyMsg 67))))                        "{\"value\":\"42\",\"another\":99,\"dummyMsg2\":{\"dummy\":67}}"
--- prop> encodesAs jsonPB (Something 42 99 (Just (SomethingPickOneDummyEnum (Enumerated (Right DummyEnumDUMMY0))))) "{\"value\":\"42\",\"another\":99,\"dummyEnum\":\"DUMMY0\"}"
--- prop> encodesAs jsonPB (Something 42 99 Nothing)                                                                 "{\"value\":\"42\",\"another\":99}"
--- prop> encodesAs json   (Something 42 99 (Just (SomethingPickOneName "")))                                        "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"name\":\"\"}}"
--- prop> encodesAs json   (Something 42 99 (Just (SomethingPickOneSomeid 0)))                                       "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"someid\":0}}"
--- prop> encodesAs json   (Something 42 99 (Just (SomethingPickOneDummyMsg1 (DummyMsg 66))))                        "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyMsg1\":{\"dummy\":66}}}"
--- prop> encodesAs json   (Something 42 99 (Just (SomethingPickOneDummyMsg2 (DummyMsg 67))))                        "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyMsg2\":{\"dummy\":67}}}"
--- prop> encodesAs json   (Something 42 99 (Just (SomethingPickOneDummyEnum (Enumerated (Right DummyEnumDUMMY0))))) "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyEnum\":\"DUMMY0\"}}"
--- prop> encodesAs json   (Something 42 99 Nothing)                                                                 "{\"value\":\"42\",\"another\":99,\"pickOne\":null}"
-
--- | Specific decoding tests
--- prop> decodesAs "{\"signed32\":2147483647,\"signed64\":\"9223372036854775807\"}"   (SignedInts 2147483647 9223372036854775807)
--- prop> decodesAs "{\"enumField\":\"ENUM3\"}"                                        (WithEnum (Enumerated (Right WithEnum_TestEnumENUM3)))
--- prop> decodesAs "{\"enumField\":null}"                                             (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))
--- prop> decodesAs "{}"                                                               (WithEnum (Enumerated (Right WithEnum_TestEnumENUM1)))
--- prop> decodesAs "{\"nestedMessage\":{}}"                                           (WithNesting $ Just $ WithNesting_Nested "" 0 [] [])
---
--- JSONPB
---
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"someid\":66}"                  (Something 42 99 (Just (SomethingPickOneSomeid 66)))
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"name\":\"foo\"}"               (Something 42 99 (Just (SomethingPickOneName "foo")))
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"dummyMsg1\":{\"dummy\":41}}"   (Something 42 99 (Just (SomethingPickOneDummyMsg1 (DummyMsg 41))))
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"dummyMsg2\":{\"dummy\":43}}"   (Something 42 99 (Just (SomethingPickOneDummyMsg2 (DummyMsg 43))))
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"dummyEnum\":\"DUMMY0\"}"       (Something 42 99 (Just (SomethingPickOneDummyEnum (Enumerated (Right DummyEnumDUMMY0)))))
--- prop> decodesAs "{\"value\":\"42\",\"another\":99}"                                (Something 42 99 Nothing)
---
--- JSON
---
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"name\":\"\"}}"                 (Something 42 99 (Just (SomethingPickOneName "")))
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"someid\":0}}"                  (Something 42 99 (Just (SomethingPickOneSomeid 0)))
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyMsg1\":{\"dummy\":66}}}"  (Something 42 99 (Just (SomethingPickOneDummyMsg1 (DummyMsg 66))))
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyMsg2\":{\"dummy\":67}}}"  (Something 42 99 (Just (SomethingPickOneDummyMsg2 (DummyMsg 67))))
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{\"dummyEnum\":\"DUMMY0\"}}"      (Something 42 99 (Just (SomethingPickOneDummyEnum (Enumerated (Right DummyEnumDUMMY0)))))
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":{}}"                              (Something 42 99 Nothing)
--- prop> decodesAs "{\"value\":\"42\",\"another\":99,\"pickOne\":null}"                            (Something 42 99 Nothing)
---
--- Swagger
---
--- >>> schemaOf @Something
--- {"properties":{"value":{"format":"int64","maximum":9223372036854775807,"minimum":-9223372036854775808,"type":"integer"},"another":{"format":"int32","maximum":2147483647,"minimum":-2147483648,"type":"integer"},"pickOne":{"$ref":"#/definitions/SomethingPickOne"}},"type":"object"}
--- >>> schemaOf @SomethingPickOne
--- {"properties":{"name":{"type":"string"},"someid":{"format":"int32","maximum":2147483647,"minimum":-2147483648,"type":"integer"},"dummyMsg1":{"$ref":"#/definitions/DummyMsg"},"dummyMsg2":{"$ref":"#/definitions/DummyMsg"},"dummyEnum":{"$ref":"#/definitions/DummyEnum"}},"maxProperties":1,"minProperties":1,"type":"object"}
--- >>> schemaOf @DummyMsg
--- {"properties":{"dummy":{"format":"int32","maximum":2147483647,"minimum":-2147483648,"type":"integer"}},"type":"object"}
--- >>> schemaOf @(Enumerated DummyEnum)
--- {"enum":["DUMMY0","DUMMY1"],"type":"string"}
---
--- Generic HasDefault
---
--- >>> def :: MultipleFields
--- MultipleFields {multipleFieldsMultiFieldDouble = 0.0, multipleFieldsMultiFieldFloat = 0.0, multipleFieldsMultiFieldInt32 = 0, multipleFieldsMultiFieldInt64 = 0, multipleFieldsMultiFieldString = "", multipleFieldsMultiFieldBool = False}
--- >>> def :: WithNesting
--- WithNesting {withNestingNestedMessage = Nothing}
--- >>> def :: WithNestingRepeated
--- WithNestingRepeated {withNestingRepeatedNestedMessages = []}
--- >>> def :: WithEnum
--- WithEnum {withEnumEnumField = Enumerated {enumerated = Right WithEnum_TestEnumENUM1}}
+hasDefaultTests :: TestTree
+hasDefaultTests = testGroup "Generic HasDefault"
+  [ testProperty "MultipleFields" $
+      (def :: TestProto.MultipleFields) ===
+        TestProto.MultipleFields {multipleFieldsMultiFieldDouble = 0.0, multipleFieldsMultiFieldFloat = 0.0, multipleFieldsMultiFieldInt32 = 0, multipleFieldsMultiFieldInt64 = 0, multipleFieldsMultiFieldString = "", multipleFieldsMultiFieldBool = False}
+  , testProperty "WithNesting" $
+      (def :: TestProto.WithNesting) ===
+        TestProto.WithNesting {withNestingNestedMessage = Nothing}
+  , testProperty "WithNestingRepeated" $
+      (def :: TestProto.WithNestingRepeated) ===
+        TestProto.WithNestingRepeated {withNestingRepeatedNestedMessages = []}
+  , testProperty "WithEnum" $
+      (def :: TestProto.WithEnum) ===
+        TestProto.WithEnum {withEnumEnumField = Enumerated {enumerated = Right TestProto.WithEnum_TestEnumENUM1}}
+  ]
 
 -- * Helper quickcheck props
+
+roundTripTest ::
+  forall a .
+  (ToJSONPB a, FromJSONPB a, Eq a, Arbitrary a, Show a, Typeable a) =>
+  TestTree
+roundTripTest =
+  testProperty ("roundTripTest @" ++ show (typeRep (Proxy :: Proxy a))) $
+    roundTrip @a
 
 roundTrip :: (ToJSONPB a, FromJSONPB a, Eq a)
           => a -> Bool
@@ -373,16 +424,47 @@ roundTrip x = roundTrip' False && roundTrip' True
       ==
       Right x
 
-encodesAs :: (ToJSONPB a)
-          => Options -> a -> LBS.ByteString -> Bool
-encodesAs opts x bs = encode opts x == bs
+encodesAs ::
+  forall a .
+  (ToJSONPB a, Eq a, Show a, Typeable a) =>
+  Options -> a -> LBS.ByteString -> TestTree
+encodesAs opts x bs = testProperty (testName "") (encode opts x === bs)
+  where
+    testName =
+      showString "encode @" .
+      showsPrec 11 (typeRep (Proxy :: Proxy a)) .
+      showChar ' ' .
+      showsPrec 11 opts .
+      showChar ' ' .
+      showsPrec 11 x .
+      showString " == " .
+      showsPrec 5 bs
 
-decodesAs :: (Eq a, FromJSONPB a)
-          => LBS.ByteString -> a -> Bool
-decodesAs bs x = eitherDecode bs == Right x
+decodesAs ::
+  forall a .
+  (FromJSONPB a, Eq a, Show a, Typeable a) =>
+  LBS.ByteString -> a -> TestTree
+decodesAs bs x = testProperty (testName "")  (eitherDecode bs === Right x)
+  where
+    testName =
+      showString "eitherDecode @" .
+      showsPrec 11 (typeRep (Proxy :: Proxy a)) .
+      showChar ' ' .
+      showsPrec 11 bs .
+      showString " == Right " .
+      showsPrec 11 x
 
-schemaOf :: forall a . ToSchema a => IO ()
-schemaOf = LBS8.putStrLn (lbsSchemaOf @a)
+schemaOf ::
+  forall a .
+  (ToSchema a, Eq a, Show a, Typeable a) =>
+  LBS.ByteString -> TestTree
+schemaOf bs = testProperty (testName "") (lbsSchemaOf @a === bs)
+  where
+    testName =
+      showString "lbsSchemaOf @" .
+      showsPrec 11 (typeRep (Proxy :: Proxy a)) .
+      showString " == " .
+      showsPrec 5 bs
 
 lbsSchemaOf :: forall a . ToSchema a => LBS.ByteString
 lbsSchemaOf = Data.Aeson.encode (Data.Swagger.toSchema (Proxy @a))
