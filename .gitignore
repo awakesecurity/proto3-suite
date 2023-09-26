@@ -2,7 +2,7 @@
 .cabal-sandbox/
 Setup.hs
 cabal.sandbox.config
-cabal.project.local
+cabal.project.local*
 dist/
 dist-newstyle/
 .stack-work/
