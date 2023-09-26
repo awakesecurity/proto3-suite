@@ -1,8 +1,6 @@
 -- |
 -- = Tutorial
 --
--- >>> :set -XOverloadedStrings
---
 -- This module contains a worked example of encoding and decoding messages,
 -- and exporting a corresponding .proto file from Haskell types.
 --
@@ -41,6 +39,9 @@ import Proto3.Suite (Enumerated, Nested, NestedVec, PackedVec,
                      enum, message, packageFromDefs, toProtoFileDef)
 import Proto3.Wire.Class (ProtoEnum)
 
+-- $setup
+-- >>> :set -XOverloadedStrings
+
 -- |
 -- == Defining Message Types
 --
@@ -65,7 +66,7 @@ import Proto3.Wire.Class (ProtoEnum)
 --
 -- We can also decode messages using `fromByteString`:
 --
--- >>> Proto3.Suite.fromByteString "\b*\DC2\SOH{" :: Either [Proto3.Suite..Decode.Parser.ParseError] Foo
+-- >>> Proto3.Suite.fromByteString "\b*\DC2\SOH{" :: Either Proto3.Wire.Decode.ParseError Foo
 -- Right (Foo {fooX = 42, fooY = PackedVec {packedvec = [123]}})
 data Foo = Foo
   { fooX :: Word32
@@ -125,12 +126,12 @@ data Shape
 -- }
 -- message Foo {
 --   uint32 fooX = 1;
---   repeated int32 fooY = 2 [packed=true];
+--   repeated int32 fooY = 2 [packed = true];
 -- }
 -- message Bar {
 --   Shape barShape = 1;
 --   Foo barFoo = 2;
---   repeated Foo foos = 3 [packed=false];
+--   repeated Foo foos = 3;
 -- }
 
 protoFile :: String
