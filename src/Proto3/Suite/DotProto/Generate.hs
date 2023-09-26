@@ -1990,6 +1990,9 @@ defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = Strin
         -- Ideally we would generate CPP conditionals so that
         -- the version check happens when the generated code
         -- is built, but as yet it is unclear how to do that.
+#if !defined(MIN_VERSION_large_records)
+#error Undefined: MIN_VERSION_large_records
+#endif
 #if MIN_VERSION_large_records(0,4,0)
         , importDecl_ (m "Data.Record.Plugin")               & unqualified     & selecting [i"largeRecord"]
         , importDecl_ (m "Prelude")                          & unqualified     & selecting [i"Eq", i"Int", i"Ord", i"Show", i"error"]
