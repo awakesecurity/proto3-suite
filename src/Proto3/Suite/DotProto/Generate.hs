@@ -1975,8 +1975,15 @@ defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = Strin
         -- Ideally we would generate CPP conditionals so that
         -- the version check happens when the generated code
         -- is built, but as yet it is unclear how to do that.
+        --
+        -- As a result, we have to enable the version check
+        -- based on the package version available when building
+        -- compile-proto-file, and only if large record support
+        -- is enabled in the library code.
+#ifdef LARGE_RECORDS
 #if MIN_VERSION_large_generics(0,2,1)
         , importDecl_ (m "Data.Record.Generic.NFData")       & qualified lrNS  & everything
+#endif
 #endif
         , importDecl_ (m "Data.Record.Generic.Rep")          & qualified lrNS  & everything
         , importDecl_ (m "Data.Record.Generic.Rep.Internal") & qualified lrNS  & everything
@@ -1990,9 +1997,16 @@ defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = Strin
         -- Ideally we would generate CPP conditionals so that
         -- the version check happens when the generated code
         -- is built, but as yet it is unclear how to do that.
+        --
+        -- As a result, we have to enable the version check
+        -- based on the package version available when building
+        -- compile-proto-file, and only if large record support
+        -- is enabled in the library code.
+#ifdef LARGE_RECORDS
 #if MIN_VERSION_large_records(0,4,0)
         , importDecl_ (m "Data.Record.Plugin")               & unqualified     & selecting [i"largeRecord"]
         , importDecl_ (m "Prelude")                          & unqualified     & selecting [i"Eq", i"Int", i"Ord", i"Show", i"error"]
+#endif
 #endif
         ]
   where
