@@ -1,5 +1,5 @@
 # 0.7.0
-* Support GHC 9.2.
+* Support GHC 9.2, 9.4.
 * Support proto files without a package declaration.
 * Modify "Eq (Enumerated a)" to identify "Enumerated (Right e)"
   with "Enumerated (Left (fromProtoEnum e))" because those two
