@@ -1,12 +1,10 @@
 args:
 
 let
-  # nixos-22.05 as on 2023-07-17
-  rev = "380be19fbd2d9079f677978361792cb25e8a3635";
-  sha256 = "154x9swf494mqwi4z8nbq2f0sp8pwp4fvx51lqzindjfbb9yxxv5";
-
   nixpkgs = builtins.fetchTarball {
-    url = "https://github.com/NixOS/nixpkgs/archive/${rev}.tar.gz";
-    inherit sha256;
+    # release: nixpkgs-23.05pre491123.261abe8a44a7
+    # commit: 261abe8a44a7e8392598d038d2e01f7b33cf26d0
+    url = "https://hydra.nixos.org/build/236149912/download/2/nixpkgs-23.05pre491123.261abe8a44a7.tar.xz";
+    sha256 = "0yhf6zbnkj3a7wfas5clli5qk4xl0cw5zq5w4fzvd724za5nb04f";
   };
 in import nixpkgs ({ config = { }; } // args)
