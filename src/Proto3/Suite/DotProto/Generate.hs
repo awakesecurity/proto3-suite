@@ -928,7 +928,13 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
                                     [HsPWildCard, HsPRec (unqual_ msgName) punnedFieldsP]
                                     (HsUnGuardedRhs encodeMessageE) []
 
-         encodeMessageE = apply mconcatE [HsList encodedFields]
+         encodeMessageE = case encodedFields of
+           [] -> memptyE
+           (field : fields) -> foldl op field fields
+             where op fs f = apply (apply mappendE [fs]) [f]
+             -- NOTE: We use a left fold because this way the leftmost field
+             -- is the most nested and the rightmost field--the one to be written
+             -- first by the right-to-left builder--is the one that is least nested.
 
          punnedFieldsP = map (fp . coerce . recordFieldName) qualifiedFields
            where fp nm = HsPFieldPat (unqual_ nm) (HsPVar (HsIdent nm))
