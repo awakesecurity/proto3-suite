@@ -107,10 +107,9 @@ defaultSrcLoc = SrcLoc "<generated>" 0 0
 
 dotProtoFieldC, primC, repeatedC, nestedRepeatedC, namedC, mapC,
   fieldNumberC, singleC, dotsC, pathC, qualifiedC, anonymousC, dotProtoOptionC,
-  identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC,
-  nothingC, justC, forceEmitC, mconcatE, encodeMessageFieldE,
-  fromStringE, decodeMessageFieldE, pureE, returnE, memptyE, msumE, atE, oneofE,
-  fmapE :: HsExp
+  identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC, nothingC,
+  justC, forceEmitC,  encodeMessageFieldE, fromStringE, decodeMessageFieldE,
+  pureE, returnE, mappendE, memptyE, msumE, atE, oneofE, fmapE :: HsExp
 
 dotProtoFieldC       = HsVar (protobufASTName "DotProtoField")
 primC                = HsVar (protobufASTName "Prim")
@@ -140,10 +139,10 @@ trueC                = HsVar (haskellName "True")
 falseC               = HsVar (haskellName "False")
 nothingC             = HsVar (haskellName "Nothing")
 justC                = HsVar (haskellName "Just")
-mconcatE             = HsVar (haskellName "mconcat")
 fromStringE          = HsVar (haskellName "fromString")
 pureE                = HsVar (haskellName "pure")
 returnE              = HsVar (haskellName "return")
+mappendE             = HsVar (haskellName "mappend")
 memptyE              = HsVar (haskellName "mempty")
 msumE                = HsVar (haskellName "msum")
 fmapE                = HsVar (haskellName "fmap")
