@@ -930,8 +930,8 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
 
          encodeMessageE = case encodedFields of
            [] -> memptyE
-           (field : fields) -> foldl op field fields
-             where op fs f = apply (apply mappendE [fs]) [f]
+           (field : fields) -> foldl op (paren field) fields
+             where op fs f = apply (apply mappendE [fs]) [paren f]
              -- NOTE: We use a left fold because this way the leftmost field
              -- is the most nested and the rightmost field--the one to be written
              -- first by the right-to-left builder--is the one that is least nested.
