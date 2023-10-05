@@ -57,6 +57,7 @@
 -- >                  Right msg -> msg
 
 {-# LANGUAGE AllowAmbiguousTypes        #-}
+{-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DefaultSignatures          #-}
@@ -427,107 +428,126 @@ unsafeCoerceOver :: forall a b f . f a -> f b
 unsafeCoerceOver = unsafeCoerce
 
 instance Primitive Int32 where
-  encodePrimitive = Encode.int32
+  encodePrimitive !num = Encode.int32 num
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = Decode.int32
   primType _ = Int32
 
 instance Primitive Int64 where
-  encodePrimitive = Encode.int64
+  encodePrimitive !num = Encode.int64 num
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = Decode.int64
   primType _ = Int64
 
 instance Primitive Word32 where
-  encodePrimitive = Encode.uint32
+  encodePrimitive !num = Encode.uint32 num
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = Decode.uint32
   primType _ = UInt32
 
 instance Primitive Word64 where
-  encodePrimitive = Encode.uint64
+  encodePrimitive !num = Encode.uint64 num
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = Decode.uint64
   primType _ = UInt64
 
 instance Primitive (Signed Int32) where
-  encodePrimitive num = Encode.sint32 num . coerce
+  encodePrimitive !num = Encode.sint32 num . coerce
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = coerce Decode.sint32
   primType _ = SInt32
 
 instance Primitive (Signed Int64) where
-  encodePrimitive num = Encode.sint64 num . coerce
+  encodePrimitive !num = Encode.sint64 num . coerce
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = coerce Decode.sint64
   primType _ = SInt64
 
 instance Primitive (Fixed Word32) where
-  encodePrimitive num = Encode.fixed32 num . coerce
+  encodePrimitive !num = Encode.fixed32 num . coerce
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = coerce Decode.fixed32
   primType _ = Fixed32
 
 instance Primitive (Fixed Word64) where
-  encodePrimitive num = Encode.fixed64 num . coerce
+  encodePrimitive !num = Encode.fixed64 num . coerce
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = coerce Decode.fixed64
   primType _ = Fixed64
 
 instance Primitive (Signed (Fixed Int32)) where
-  encodePrimitive num = Encode.sfixed32 num . coerce
+  encodePrimitive !num = Encode.sfixed32 num . coerce
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = coerce Decode.sfixed32
   primType _ = SFixed32
 
 instance Primitive (Signed (Fixed Int64)) where
-  encodePrimitive num = Encode.sfixed64 num . coerce
+  encodePrimitive !num = Encode.sfixed64 num . coerce
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = coerce Decode.sfixed64
   primType _ = SFixed64
 
 instance Primitive Bool where
-  encodePrimitive = Encode.bool
+  encodePrimitive !num = Encode.bool num
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = Decode.bool
   primType _ = Bool
 
 instance Primitive Float where
-  encodePrimitive = Encode.float
+  encodePrimitive !num = Encode.float num
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = Decode.float
   primType _ = Float
 
 instance Primitive Double where
-  encodePrimitive = Encode.double
+  encodePrimitive !num = Encode.double num
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = Decode.double
   primType _ = Double
 
 instance Primitive T.Text where
-  encodePrimitive fn = Encode.text fn . TL.fromStrict
+  encodePrimitive !fn = Encode.text fn . TL.fromStrict
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = fmap TL.toStrict Decode.text
   primType _ = String
 
 deriving via T.Text instance Primitive (Proto3.Suite.Types.String T.Text)
 
 instance Primitive TL.Text where
-  encodePrimitive = Encode.text
+  encodePrimitive !num = Encode.text num
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = Decode.text
   primType _ = String
 
 deriving via TL.Text instance Primitive (Proto3.Suite.Types.String TL.Text)
 
 instance Primitive TS.ShortText where
-  encodePrimitive = Encode.shortText
+  encodePrimitive !num = Encode.shortText num
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = Decode.shortText
   primType _ = String
 
 deriving via TS.ShortText instance Primitive (Proto3.Suite.Types.String TS.ShortText)
 
 instance Primitive B.ByteString where
-  encodePrimitive = Encode.byteString
+  encodePrimitive !num = Encode.byteString num
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = Decode.byteString
   primType _ = Bytes
 
 deriving via B.ByteString instance Primitive (Proto3.Suite.Types.Bytes B.ByteString)
 
 instance Primitive BL.ByteString where
-  encodePrimitive = Encode.lazyByteString
+  encodePrimitive !num = Encode.lazyByteString num
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = Decode.lazyByteString
   primType _ = Bytes
 
 deriving via BL.ByteString instance Primitive (Proto3.Suite.Types.Bytes BL.ByteString)
 
 instance forall e. (Named e, ProtoEnum e) => Primitive (Enumerated e) where
-  encodePrimitive num = either (Encode.int32 num) (Encode.enum num) . enumerated
+  encodePrimitive !num = either (Encode.int32 num) (Encode.enum num) . enumerated
+  {-# INLINE encodePrimitive #-}
   decodePrimitive = coerce
     @(Parser RawPrimitive (Either Int32 e))
     @(Parser RawPrimitive (Enumerated e))
@@ -535,7 +555,8 @@ instance forall e. (Named e, ProtoEnum e) => Primitive (Enumerated e) where
   primType _ = Named (Single (nameOf (proxy# :: Proxy# e)))
 
 instance (Primitive a) => Primitive (ForceEmit a) where
-  encodePrimitive num = encodePrimitive num . forceEmit
+  encodePrimitive !num = encodePrimitive num . forceEmit
+  {-# INLINE encodePrimitive #-}
   decodePrimitive     = coerce @(Parser RawPrimitive a) @(Parser RawPrimitive (ForceEmit a)) decodePrimitive
   primType _          = primType (proxy# :: Proxy# a)
 
@@ -550,9 +571,10 @@ class MessageField a where
 
   default encodeMessageField :: (HasDefault a, Primitive a)
                              => FieldNumber -> a -> Encode.MessageBuilder
-  encodeMessageField num x
+  encodeMessageField !num x
     | isDefault x = mempty
     | otherwise = encodePrimitive num x
+  {-# INLINE encodeMessageField #-}
 
   default decodeMessageField :: (HasDefault a, Primitive a) => Parser RawField a
   decodeMessageField = one decodePrimitive def
@@ -604,7 +626,8 @@ deriving via BL.ByteString instance MessageField (Proto3.Suite.Types.Bytes BL.By
 instance (Named e, ProtoEnum e) => MessageField (Enumerated e)
 
 instance (Ord k, Primitive k, MessageField k, Primitive v, MessageField v) => MessageField (M.Map k v) where
-  encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . M.toList
+  encodeMessageField !num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . M.toList
+  {-# INLINE encodeMessageField #-}
 
   -- Data.Map.fromList will retain the last key/value mapping. From the spec:
   --
@@ -615,7 +638,8 @@ instance (Ord k, Primitive k, MessageField k, Primitive v, MessageField v) => Me
   protoType _ = messageField (Map (primType (proxy# :: Proxy# k)) (primType (proxy# :: Proxy# v))) Nothing
 
 instance {-# OVERLAPS #-} (Ord k, Primitive k, Named v, Message v, MessageField k) => MessageField (M.Map k (Nested v)) where
-  encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . M.toList
+  encodeMessageField !num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . M.toList
+  {-# INLINE encodeMessageField #-}
 
   -- Data.Map.fromList will retain the last key/value mapping. From the spec:
   --
@@ -626,23 +650,28 @@ instance {-# OVERLAPS #-} (Ord k, Primitive k, Named v, Message v, MessageField 
   protoType _ = messageField (Map (primType (proxy# :: Proxy# k)) (Named . Single $ nameOf (proxy# :: Proxy# v))) Nothing
 
 instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
-  encodeMessageField = encodePrimitive
+  encodeMessageField !num = encodePrimitive num
+  {-# INLINE encodeMessageField #-}
 
 instance (Named a, Message a) => MessageField (Nested a) where
-  encodeMessageField num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1))
-                           . coerce @(Nested a) @(Maybe a)
+  encodeMessageField !num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1))
+                          . coerce @(Nested a) @(Maybe a)
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = coerce @(Parser RawField (Maybe a)) @(Parser RawField (Nested a))
                        (Decode.embedded (decodeMessage (fieldNumber 1)))
   protoType _ = messageField (Prim . Named . Single $ nameOf (proxy# :: Proxy# a)) Nothing
 
 instance Primitive a => MessageField (UnpackedVec a) where
-  encodeMessageField fn = Encode.vectorMessageBuilder (encodePrimitive fn) . unpackedvec
+  encodeMessageField !fn = Encode.vectorMessageBuilder (encodePrimitive fn) . unpackedvec
+  {-# INLINE encodeMessageField #-}
   decodeMessageField =
     UnpackedVec . fromList . Foldable.toList <$> repeated decodePrimitive
   protoType _ = messageField (Repeated $ primType (proxy# :: Proxy# a)) (Just UnpackedField)
 
 instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
-  encodeMessageField fn = Encode.vectorMessageBuilder (Encode.embedded fn . encodeMessage (fieldNumber 1)) . nestedvec
+  encodeMessageField !fn =
+    Encode.vectorMessageBuilder (Encode.embedded fn . encodeMessage (fieldNumber 1)) . nestedvec
+  {-# INLINE encodeMessageField #-}
   decodeMessageField =
       fmap (coerce @(Vector a) @(NestedVec a) . fromList . Foldable.toList)
            (repeated (Decode.embedded' oneMsg))
@@ -652,12 +681,16 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
   protoType _ = messageField (NestedRepeated . Named . Single $ nameOf (proxy# :: Proxy# a)) Nothing
 
 instance (Named e, ProtoEnum e) => MessageField (PackedVec (Enumerated e)) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . Vector.map codeFromEnumerated . packedvec
+  encodeMessageField !fn =
+    omittingDefault (Encode.packedVarintsV fromIntegral fn) . Vector.map codeFromEnumerated
+    . packedvec
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = decodePacked (map (codeToEnumerated . fromIntegral) <$> Decode.packedVarints @Word64)
   protoType _ = messageField (Repeated . Named . Single $ nameOf (proxy# :: Proxy# e)) (Just PackedField)
 
 instance MessageField (PackedVec Bool) where
-  encodeMessageField fn = omittingDefault (Encode.packedBoolsV id fn) . packedvec
+  encodeMessageField !fn = omittingDefault (Encode.packedBoolsV id fn) . packedvec
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = fmap (fmap toBool) (decodePacked Decode.packedVarints)
     where
       toBool :: Word64 -> Bool
@@ -666,29 +699,35 @@ instance MessageField (PackedVec Bool) where
   protoType _ = messageField (Repeated Bool) (Just PackedField)
 
 instance MessageField (PackedVec Word32) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
+  encodeMessageField !fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated UInt32) (Just PackedField)
 
 instance MessageField (PackedVec Word64) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarintsV id fn) . packedvec
+  encodeMessageField !fn = omittingDefault (Encode.packedVarintsV id fn) . packedvec
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated UInt64) (Just PackedField)
 
 instance MessageField (PackedVec Int32) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
+  encodeMessageField !fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated Int32) (Just PackedField)
 
 instance MessageField (PackedVec Int64) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
+  encodeMessageField !fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated Int64) (Just PackedField)
 
 instance MessageField (PackedVec (Signed Int32)) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarintsV zigZag fn) . coerce @_ @(Vector Int32)
+  encodeMessageField !fn =
+      omittingDefault (Encode.packedVarintsV zigZag fn) . coerce @_ @(Vector Int32)
     where
       zigZag = fromIntegral . Encode.zigZagEncode
+  {-# INLINE encodeMessageField #-}
 
   decodeMessageField = decodePacked (fmap (fmap zagZig) Decode.packedVarints)
     where
@@ -701,9 +740,10 @@ instance MessageField (PackedVec (Signed Int32)) where
   protoType _ = messageField (Repeated SInt32) (Just PackedField)
 
 instance MessageField (PackedVec (Signed Int64)) where
-  encodeMessageField fn = omittingDefault (Encode.packedVarintsV zigZag fn) . coerce @_ @(Vector Int64)
+  encodeMessageField !fn = omittingDefault (Encode.packedVarintsV zigZag fn) . coerce @_ @(Vector Int64)
     where
       zigZag = fromIntegral . Encode.zigZagEncode
+  {-# INLINE encodeMessageField #-}
 
   decodeMessageField = decodePacked (fmap (fmap zagZig) Decode.packedVarints)
     where
@@ -717,45 +757,56 @@ instance MessageField (PackedVec (Signed Int64)) where
 
 
 instance MessageField (PackedVec (Fixed Word32)) where
-  encodeMessageField fn = omittingDefault (Encode.packedFixed32V id fn) . coerce @_ @(Vector Word32)
+  encodeMessageField !fn =
+    omittingDefault (Encode.packedFixed32V id fn) . coerce @_ @(Vector Word32)
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = coerce @(Parser RawField (PackedVec Word32))
                               @(Parser RawField (PackedVec (Fixed Word32)))
                               (decodePacked Decode.packedFixed32)
   protoType _ = messageField (Repeated Fixed32) (Just PackedField)
 
 instance MessageField (PackedVec (Fixed Word64)) where
-  encodeMessageField fn = omittingDefault (Encode.packedFixed64V id fn) . coerce @_ @(Vector Word64)
+  encodeMessageField !fn =
+    omittingDefault (Encode.packedFixed64V id fn) . coerce @_ @(Vector Word64)
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = coerce @(Parser RawField (PackedVec Word64))
                               @(Parser RawField (PackedVec (Fixed Word64)))
                               (decodePacked Decode.packedFixed64)
   protoType _ = messageField (Repeated Fixed64) (Just PackedField)
 
 instance MessageField (PackedVec (Signed (Fixed Int32))) where
-  encodeMessageField fn = omittingDefault (Encode.packedFixed32V fromIntegral fn) . coerce @_ @(Vector Int32)
+  encodeMessageField !fn =
+    omittingDefault (Encode.packedFixed32V fromIntegral fn) . coerce @_ @(Vector Int32)
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = coerce @(Parser RawField (PackedVec Int32))
                               @(Parser RawField (PackedVec (Signed (Fixed Int32))))
                              (decodePacked Decode.packedFixed32)
   protoType _ = messageField (Repeated SFixed32) (Just PackedField)
 
 instance MessageField (PackedVec (Signed (Fixed Int64))) where
-  encodeMessageField fn = omittingDefault (Encode.packedFixed64V fromIntegral fn) . coerce @_ @(Vector Int64)
+  encodeMessageField !fn =
+    omittingDefault (Encode.packedFixed64V fromIntegral fn) . coerce @_ @(Vector Int64)
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = coerce @(Parser RawField (PackedVec Int64))
                               @(Parser RawField (PackedVec (Signed (Fixed Int64))))
                               (decodePacked Decode.packedFixed64)
   protoType _ = messageField (Repeated SFixed64) (Just PackedField)
 
 instance MessageField (PackedVec Float) where
-  encodeMessageField fn = omittingDefault (Encode.packedFloatsV id fn) . packedvec
+  encodeMessageField !fn = omittingDefault (Encode.packedFloatsV id fn) . packedvec
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = decodePacked Decode.packedFloats
   protoType _ = messageField (Repeated Float) (Just PackedField)
 
 instance MessageField (PackedVec Double) where
-  encodeMessageField fn = omittingDefault (Encode.packedDoublesV id fn) . packedvec
+  encodeMessageField !fn = omittingDefault (Encode.packedDoublesV id fn) . packedvec
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = decodePacked Decode.packedDoubles
   protoType _ = messageField (Repeated Double) (Just PackedField)
 
 instance (MessageField e, KnownSymbol comments) => MessageField (e // comments) where
-  encodeMessageField fn = encodeMessageField fn . unCommented
+  encodeMessageField !fn = encodeMessageField fn . unCommented
+  {-# INLINE encodeMessageField #-}
   decodeMessageField = coerce @(Parser RawField e)
                               @(Parser RawField (Commented comments e))
                               decodeMessageField
