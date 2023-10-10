@@ -117,7 +117,6 @@ import qualified Data.Text              as T
 import qualified Data.Text.Lazy         as TL
 import qualified Data.Text.Short        as TS
 import qualified Data.Traversable       as TR
-import qualified Data.Vector            as Vector
 import           Data.Vector            (Vector)
 import           Data.Word              (Word32, Word64)
 import           GHC.Exts               (fromList, Proxy#, proxy#)
@@ -626,7 +625,11 @@ deriving via BL.ByteString instance MessageField (Proto3.Suite.Types.Bytes BL.By
 instance (Named e, ProtoEnum e) => MessageField (Enumerated e)
 
 instance (Ord k, Primitive k, MessageField k, Primitive v, MessageField v) => MessageField (M.Map k v) where
-  encodeMessageField !num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . M.toList
+  encodeMessageField !num = go op
+    where
+      go f = foldMap f . M.toList
+      op = Encode.embedded num . encodeMessage (fieldNumber 1)
+      {-# INLINABLE op #-}  -- To allow specialization to a particular type class or field number.
   {-# INLINE encodeMessageField #-}
 
   -- Data.Map.fromList will retain the last key/value mapping. From the spec:
@@ -638,7 +641,11 @@ instance (Ord k, Primitive k, MessageField k, Primitive v, MessageField v) => Me
   protoType _ = messageField (Map (primType (proxy# :: Proxy# k)) (primType (proxy# :: Proxy# v))) Nothing
 
 instance {-# OVERLAPS #-} (Ord k, Primitive k, Named v, Message v, MessageField k) => MessageField (M.Map k (Nested v)) where
-  encodeMessageField !num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1)) . M.toList
+  encodeMessageField !num = go op
+    where
+      go f = foldMap f . M.toList
+      op = Encode.embedded num . encodeMessage (fieldNumber 1)
+      {-# INLINABLE op #-}  -- To allow specialization to a particular type class or field number.
   {-# INLINE encodeMessageField #-}
 
   -- Data.Map.fromList will retain the last key/value mapping. From the spec:
@@ -654,23 +661,33 @@ instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
   {-# INLINE encodeMessageField #-}
 
 instance (Named a, Message a) => MessageField (Nested a) where
-  encodeMessageField !num = foldMap (Encode.embedded num . encodeMessage (fieldNumber 1))
-                          . coerce @(Nested a) @(Maybe a)
+  encodeMessageField !num = go op
+    where
+      go f = foldMap f . coerce @(Nested a) @(Maybe a)
+      op = Encode.embedded num . encodeMessage (fieldNumber 1)
+      {-# INLINABLE op #-}  -- To allow specialization to a particular type class or field number.
   {-# INLINE encodeMessageField #-}
   decodeMessageField = coerce @(Parser RawField (Maybe a)) @(Parser RawField (Nested a))
                        (Decode.embedded (decodeMessage (fieldNumber 1)))
   protoType _ = messageField (Prim . Named . Single $ nameOf (proxy# :: Proxy# a)) Nothing
 
 instance Primitive a => MessageField (UnpackedVec a) where
-  encodeMessageField !fn = Encode.vectorMessageBuilder (encodePrimitive fn) . unpackedvec
+  encodeMessageField !fn = go op
+    where
+      go f = Encode.vectorMessageBuilder f . unpackedvec
+      op = encodePrimitive fn
+      {-# INLINABLE op #-}  -- To allow specialization to a particular type class or field number.
   {-# INLINE encodeMessageField #-}
   decodeMessageField =
     UnpackedVec . fromList . Foldable.toList <$> repeated decodePrimitive
   protoType _ = messageField (Repeated $ primType (proxy# :: Proxy# a)) (Just UnpackedField)
 
 instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
-  encodeMessageField !fn =
-    Encode.vectorMessageBuilder (Encode.embedded fn . encodeMessage (fieldNumber 1)) . nestedvec
+  encodeMessageField !fn = go op
+    where
+      go f = Encode.vectorMessageBuilder f . nestedvec
+      op = Encode.embedded fn . encodeMessage (fieldNumber 1)
+      {-# INLINABLE op #-}  -- To allow specialization to a particular type class or field number.
   {-# INLINE encodeMessageField #-}
   decodeMessageField =
       fmap (coerce @(Vector a) @(NestedVec a) . fromList . Foldable.toList)
@@ -682,15 +699,15 @@ instance forall a. (Named a, Message a) => MessageField (NestedVec a) where
 
 instance (Named e, ProtoEnum e) => MessageField (PackedVec (Enumerated e)) where
   encodeMessageField !fn =
-    omittingDefault (Encode.packedVarintsV fromIntegral fn) . Vector.map codeFromEnumerated
+    omittingDefault (Encode.packedVarintsV (fromIntegral . codeFromEnumerated) fn)
     . packedvec
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedVarintsV' figure out how much to inline.
   decodeMessageField = decodePacked (map (codeToEnumerated . fromIntegral) <$> Decode.packedVarints @Word64)
   protoType _ = messageField (Repeated . Named . Single $ nameOf (proxy# :: Proxy# e)) (Just PackedField)
 
 instance MessageField (PackedVec Bool) where
   encodeMessageField !fn = omittingDefault (Encode.packedBoolsV id fn) . packedvec
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedBoolsV' figure out how much to inline.
   decodeMessageField = fmap (fmap toBool) (decodePacked Decode.packedVarints)
     where
       toBool :: Word64 -> Bool
@@ -700,25 +717,25 @@ instance MessageField (PackedVec Bool) where
 
 instance MessageField (PackedVec Word32) where
   encodeMessageField !fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedVarintsV' figure out how much to inline.
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated UInt32) (Just PackedField)
 
 instance MessageField (PackedVec Word64) where
   encodeMessageField !fn = omittingDefault (Encode.packedVarintsV id fn) . packedvec
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedVarintsV' figure out how much to inline.
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated UInt64) (Just PackedField)
 
 instance MessageField (PackedVec Int32) where
   encodeMessageField !fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedVarintsV' figure out how much to inline.
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated Int32) (Just PackedField)
 
 instance MessageField (PackedVec Int64) where
   encodeMessageField !fn = omittingDefault (Encode.packedVarintsV fromIntegral fn) . packedvec
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedVarintsV' figure out how much to inline.
   decodeMessageField = decodePacked Decode.packedVarints
   protoType _ = messageField (Repeated Int64) (Just PackedField)
 
@@ -727,7 +744,7 @@ instance MessageField (PackedVec (Signed Int32)) where
       omittingDefault (Encode.packedVarintsV zigZag fn) . coerce @_ @(Vector Int32)
     where
       zigZag = fromIntegral . Encode.zigZagEncode
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedVarintsV' figure out how much to inline.
 
   decodeMessageField = decodePacked (fmap (fmap zagZig) Decode.packedVarints)
     where
@@ -740,10 +757,11 @@ instance MessageField (PackedVec (Signed Int32)) where
   protoType _ = messageField (Repeated SInt32) (Just PackedField)
 
 instance MessageField (PackedVec (Signed Int64)) where
-  encodeMessageField !fn = omittingDefault (Encode.packedVarintsV zigZag fn) . coerce @_ @(Vector Int64)
+  encodeMessageField !fn =
+      omittingDefault (Encode.packedVarintsV zigZag fn) . coerce @_ @(Vector Int64)
     where
       zigZag = fromIntegral . Encode.zigZagEncode
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedVarintsV' figure out how much to inline.
 
   decodeMessageField = decodePacked (fmap (fmap zagZig) Decode.packedVarints)
     where
@@ -759,7 +777,7 @@ instance MessageField (PackedVec (Signed Int64)) where
 instance MessageField (PackedVec (Fixed Word32)) where
   encodeMessageField !fn =
     omittingDefault (Encode.packedFixed32V id fn) . coerce @_ @(Vector Word32)
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedFixed32V' figure out how much to inline.
   decodeMessageField = coerce @(Parser RawField (PackedVec Word32))
                               @(Parser RawField (PackedVec (Fixed Word32)))
                               (decodePacked Decode.packedFixed32)
@@ -768,7 +786,7 @@ instance MessageField (PackedVec (Fixed Word32)) where
 instance MessageField (PackedVec (Fixed Word64)) where
   encodeMessageField !fn =
     omittingDefault (Encode.packedFixed64V id fn) . coerce @_ @(Vector Word64)
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedFixed64V' figure out how much to inline.
   decodeMessageField = coerce @(Parser RawField (PackedVec Word64))
                               @(Parser RawField (PackedVec (Fixed Word64)))
                               (decodePacked Decode.packedFixed64)
@@ -777,7 +795,7 @@ instance MessageField (PackedVec (Fixed Word64)) where
 instance MessageField (PackedVec (Signed (Fixed Int32))) where
   encodeMessageField !fn =
     omittingDefault (Encode.packedFixed32V fromIntegral fn) . coerce @_ @(Vector Int32)
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedFixed32V' figure out how much to inline.
   decodeMessageField = coerce @(Parser RawField (PackedVec Int32))
                               @(Parser RawField (PackedVec (Signed (Fixed Int32))))
                              (decodePacked Decode.packedFixed32)
@@ -786,7 +804,7 @@ instance MessageField (PackedVec (Signed (Fixed Int32))) where
 instance MessageField (PackedVec (Signed (Fixed Int64))) where
   encodeMessageField !fn =
     omittingDefault (Encode.packedFixed64V fromIntegral fn) . coerce @_ @(Vector Int64)
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedFixed64V' figure out how much to inline.
   decodeMessageField = coerce @(Parser RawField (PackedVec Int64))
                               @(Parser RawField (PackedVec (Signed (Fixed Int64))))
                               (decodePacked Decode.packedFixed64)
@@ -794,13 +812,13 @@ instance MessageField (PackedVec (Signed (Fixed Int64))) where
 
 instance MessageField (PackedVec Float) where
   encodeMessageField !fn = omittingDefault (Encode.packedFloatsV id fn) . packedvec
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedFloatsV' figure out how much to inline.
   decodeMessageField = decodePacked Decode.packedFloats
   protoType _ = messageField (Repeated Float) (Just PackedField)
 
 instance MessageField (PackedVec Double) where
   encodeMessageField !fn = omittingDefault (Encode.packedDoublesV id fn) . packedvec
-  {-# INLINE encodeMessageField #-}
+  {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedDoublesV' figure out how much to inline.
   decodeMessageField = decodePacked Decode.packedDoubles
   protoType _ = messageField (Repeated Double) (Just PackedField)
 
