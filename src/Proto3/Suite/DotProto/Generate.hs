@@ -25,6 +25,7 @@ module Proto3.Suite.DotProto.Generate
   ( CompileError(..)
   , StringType(..)
   , RecordStyle (..)
+  , IsPrefixed(..)
   , parseStringType
   , TypeContext
   , CompileArgs(..)
@@ -87,6 +88,7 @@ data CompileArgs = CompileArgs
   , outputDir          :: FilePath
   , stringType         :: StringType
   , recordStyle        :: RecordStyle
+  , isPrefixed         :: IsPrefixed
   }
 
 data StringType = StringType String String
@@ -114,7 +116,7 @@ compileDotProtoFile CompileArgs{..} = runExceptT $ do
   Turtle.mktree (Turtle.directory modulePath)
 
   extraInstances <- foldMapM getExtraInstances extraInstanceFiles
-  haskellModule <- renderHsModuleForDotProto stringType recordStyle extraInstances dotProto importTypeContext
+  haskellModule <- renderHsModuleForDotProto stringType recordStyle isPrefixed extraInstances dotProto importTypeContext
 
   liftIO (writeFile (Turtle.encodeString modulePath) haskellModule)
   where
@@ -186,9 +188,10 @@ renderHsModuleForDotProto
     :: MonadError CompileError m
     => StringType
     -> RecordStyle
+    -> IsPrefixed
     -> ([HsImportDecl],[HsDecl]) -> DotProto -> TypeContext -> m String
-renderHsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto importCtxt = do
-    haskellModule <- hsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto importCtxt
+renderHsModuleForDotProto stringType recordStyle isPrefixed extraInstanceFiles dotProto importCtxt = do
+    haskellModule <- hsModuleForDotProto stringType recordStyle isPrefixed extraInstanceFiles dotProto importCtxt
 
     let languagePragmas = textUnlines $ map (\extn -> "{-# LANGUAGE " <> extn <> " #-}") $ sort extensions
         ghcOptionPragmas = textUnlines $ map (\opt -> "{-# OPTIONS_GHC " <> opt <> " #-}") $ sort options
@@ -211,6 +214,9 @@ renderHsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto imp
                            , "TypeFamilies"
                            , "UndecidableInstances"
                            ]
+          ++ case isPrefixed of
+            IsPrefixed True -> []
+            IsPrefixed False -> ["DuplicateRecordFields"]
 
         options :: [T.Text]
         options = [ "-fno-warn-unused-imports"
@@ -258,6 +264,8 @@ hsModuleForDotProto
     -- ^ the module and the type for string
     -> RecordStyle
     -- ^ kind of records to generate
+    -> IsPrefixed
+    -- ^ flag for prefix of field names
     -> ([HsImportDecl], [HsDecl])
     -- ^ Extra user-define instances that override default generated instances
     -> DotProto
@@ -268,6 +276,7 @@ hsModuleForDotProto
 hsModuleForDotProto
     stringType
     recordStyle
+    isPrefixed
     (extraImports, extraInstances)
     dotProto@DotProto{ protoMeta = DotProtoMeta { metaModulePath = modulePath }
                      , protoPackage
@@ -293,7 +302,7 @@ hsModuleForDotProto
        typeContext <- dotProtoTypeContext dotProto
 
        let toDotProtoDeclaration =
-             dotProtoDefinitionD stringType recordStyle protoPackage (typeContext <> importTypeContext)
+             dotProtoDefinitionD stringType recordStyle isPrefixed protoPackage (typeContext <> importTypeContext)
 
        let extraInstances' = instancesForModule moduleName extraInstances
 
@@ -737,19 +746,20 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
 dotProtoDefinitionD :: MonadError CompileError m
                     => StringType
                     -> RecordStyle
+                    -> IsPrefixed
                     -> DotProtoPackageSpec
                     -> TypeContext
                     -> DotProtoDefinition
                     -> m [HsDecl]
-dotProtoDefinitionD stringType recordStyle pkgSpec ctxt = \case
+dotProtoDefinitionD stringType recordStyle isPrefixed pkgSpec ctxt = \case
   DotProtoMessage _ messageName messageParts ->
-    dotProtoMessageD stringType recordStyle ctxt Anonymous messageName messageParts
+    dotProtoMessageD stringType recordStyle isPrefixed ctxt Anonymous messageName messageParts
 
   DotProtoEnum _ enumName enumParts ->
     dotProtoEnumD Anonymous enumName enumParts
 
   DotProtoService _ serviceName serviceParts ->
-    dotProtoServiceD stringType pkgSpec ctxt serviceName serviceParts
+    dotProtoServiceD stringType isPrefixed pkgSpec ctxt serviceName serviceParts
 
 -- | Generate 'Named' instance for a type in this package
 namedInstD :: String -> HsDecl
@@ -778,12 +788,13 @@ dotProtoMessageD
      . MonadError CompileError m
     => StringType
     -> RecordStyle
+    -> IsPrefixed
     -> TypeContext
     -> DotProtoIdentifier
     -> DotProtoIdentifier
     -> [DotProtoMessagePart]
     -> m [HsDecl]
-dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messageParts = do
+dotProtoMessageD stringType recordStyle isPrefixed ctxt parentIdent messageIdent messageParts = do
     messageName <- qualifiedMessageName parentIdent messageIdent
 
     let mkDataDecl flds =
@@ -806,10 +817,10 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
           , pure (nfDataInstD messageDataDecl messageName)
           , pure (namedInstD messageName)
           , pure (hasDefaultInstD messageName)
-          , messageInstD stringType ctxt' parentIdent messageIdent messageParts
+          , messageInstD stringType isPrefixed ctxt' parentIdent messageIdent messageParts
 
-          , toJSONPBMessageInstD stringType ctxt' parentIdent messageIdent messageParts
-          , fromJSONPBMessageInstD stringType ctxt' parentIdent messageIdent messageParts
+          , toJSONPBMessageInstD stringType isPrefixed ctxt' parentIdent messageIdent messageParts
+          , fromJSONPBMessageInstD stringType isPrefixed ctxt' parentIdent messageIdent messageParts
 
             -- Generate Aeson instances in terms of JSONPB instances
           , pure (toJSONInstDecl messageName)
@@ -817,7 +828,7 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
 
 #ifdef SWAGGER
           -- And the Swagger ToSchema instance corresponding to JSONPB encodings
-          , toSchemaInstanceDeclaration stringType ctxt' messageName Nothing
+          , toSchemaInstanceDeclaration stringType isPrefixed ctxt' messageName Nothing
               =<< foldMapM getName messageParts
 #endif
 
@@ -849,12 +860,12 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
 
     messagePartFieldD :: String -> DotProtoMessagePart -> m [([HsName], HsBangType)]
     messagePartFieldD messageName (DotProtoMessageField DotProtoField{..}) = do
-      fullName <- prefixedFieldName messageName =<< dpIdentUnqualName dotProtoFieldName
+      fullName <- prefixedFieldNameWithFlag isPrefixed messageName =<< dpIdentUnqualName dotProtoFieldName
       fullTy <- dptToHsType WithinMessage stringType ctxt' dotProtoFieldType
       pure [ ([HsIdent fullName], HsUnBangedTy fullTy ) ]
 
     messagePartFieldD messageName (DotProtoMessageOneOf fieldName _) = do
-      fullName <- prefixedFieldName messageName =<< dpIdentUnqualName fieldName
+      fullName <- prefixedFieldNameWithFlag isPrefixed messageName =<< dpIdentUnqualName fieldName
       qualTyName <- prefixedConName messageName =<< dpIdentUnqualName fieldName
       let fullTy = HsTyApp (HsTyCon (haskellName "Maybe")) . type_ $ qualTyName
       pure [ ([HsIdent fullName], HsUnBangedTy fullTy) ]
@@ -864,7 +875,7 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
     nestedDecls :: DotProtoDefinition -> m [HsDecl]
     nestedDecls (DotProtoMessage _ subMsgName subMessageDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoMessageD stringType recordStyle ctxt' parentIdent' subMsgName subMessageDef
+      dotProtoMessageD stringType recordStyle isPrefixed ctxt' parentIdent' subMsgName subMessageDef
 
     nestedDecls (DotProtoEnum _ subEnumName subEnumDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
@@ -879,7 +890,7 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
       (cons, idents) <- fmap unzip (mapM (oneOfCons fullName) fields)
 
 #ifdef SWAGGER
-      toSchemaInstance <- toSchemaInstanceDeclaration stringType ctxt' fullName (Just idents)
+      toSchemaInstance <- toSchemaInstanceDeclaration stringType isPrefixed ctxt' fullName (Just idents)
                             =<< mapM getFieldNameForSchemaInstanceDeclaration fields
 #endif
 
@@ -912,14 +923,15 @@ messageInstD
     :: forall m
      . MonadError CompileError m
     => StringType
+    -> IsPrefixed
     -> TypeContext
     -> DotProtoIdentifier
     -> DotProtoIdentifier
     -> [DotProtoMessagePart]
     -> m HsDecl
-messageInstD stringType ctxt parentIdent msgIdent messageParts = do
+messageInstD stringType isPrefixed ctxt parentIdent msgIdent messageParts = do
      msgName         <- qualifiedMessageName parentIdent msgIdent
-     qualifiedFields <- getQualifiedFields msgName messageParts
+     qualifiedFields <- getQualifiedFields isPrefixed msgName messageParts
 
      encodedFields   <- mapM encodeMessageField qualifiedFields
      decodedFields   <- mapM decodeMessageField qualifiedFields
@@ -1053,14 +1065,15 @@ toJSONPBMessageInstD
     :: forall m
      . MonadError CompileError m
     => StringType
+    -> IsPrefixed
     -> TypeContext
     -> DotProtoIdentifier
     -> DotProtoIdentifier
     -> [DotProtoMessagePart]
     -> m HsDecl
-toJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
+toJSONPBMessageInstD stringType isPrefixed ctxt parentIdent msgIdent messageParts = do
     msgName    <- qualifiedMessageName parentIdent msgIdent
-    qualFields <- getQualifiedFields msgName messageParts
+    qualFields <- getQualifiedFields isPrefixed msgName messageParts
 
     let applyE nm oneofNm = do
           fs <- traverse (encodeMessageField oneofNm) qualFields
@@ -1174,14 +1187,15 @@ fromJSONPBMessageInstD
     :: forall m
      . MonadError CompileError m
     => StringType
+    -> IsPrefixed
     -> TypeContext
     -> DotProtoIdentifier
     -> DotProtoIdentifier
     -> [DotProtoMessagePart]
     -> m HsDecl
-fromJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
+fromJSONPBMessageInstD stringType isPrefixed ctxt parentIdent msgIdent messageParts = do
     msgName    <- qualifiedMessageName parentIdent msgIdent
-    qualFields <- getQualifiedFields msgName messageParts
+    qualFields <- getQualifiedFields isPrefixed msgName messageParts
 
     fieldParsers <- traverse parseField qualFields
 
@@ -1318,6 +1332,7 @@ getFieldNameForSchemaInstanceDeclaration fld = do
 toSchemaInstanceDeclaration
     :: MonadError CompileError m
     => StringType
+    -> IsPrefixed
     -> TypeContext
     -> String
     -- ^ Name of the message type to create an instance for
@@ -1327,10 +1342,10 @@ toSchemaInstanceDeclaration
     -- ^ Field names, with every field that is not actually a oneof
     -- combining fields paired with its options and protobuf type
     -> m HsDecl
-toSchemaInstanceDeclaration stringType ctxt messageName maybeConstructors fieldNamesEtc = do
+toSchemaInstanceDeclaration stringType isPrefixed ctxt messageName maybeConstructors fieldNamesEtc = do
   let fieldNames = map snd fieldNamesEtc
 
-  qualifiedFieldNames <- mapM (prefixedFieldName messageName) fieldNames
+  qualifiedFieldNames <- mapM (prefixedFieldNameWithFlag isPrefixed messageName) fieldNames
 
   let messageConstructor = HsCon (UnQual (HsIdent messageName))
 
@@ -1663,12 +1678,13 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
 dotProtoServiceD
     :: MonadError CompileError m
     => StringType
+    -> IsPrefixed
     -> DotProtoPackageSpec
     -> TypeContext
     -> DotProtoIdentifier
     -> [DotProtoServicePart]
     -> m [HsDecl]
-dotProtoServiceD stringType pkgSpec ctxt serviceIdent service = do
+dotProtoServiceD stringType isPrefixed pkgSpec ctxt serviceIdent service = do
      serviceName <- typeLikeName =<< dpIdentUnqualName serviceIdent
 
      endpointPrefix <-
@@ -1679,7 +1695,7 @@ dotProtoServiceD stringType pkgSpec ctxt serviceIdent service = do
          DotProtoNoPackage -> pure $ "/" ++ serviceName ++ "/"
 
      let serviceFieldD (DotProtoServiceRPCMethod RPCMethod{..}) = do
-           fullName <- prefixedMethodName serviceName =<< dpIdentUnqualName rpcMethodName
+           fullName <- prefixedMethodNameWithFlag isPrefixed serviceName =<< dpIdentUnqualName rpcMethodName
 
            methodName <- case rpcMethodName of
                            Single nm -> pure nm

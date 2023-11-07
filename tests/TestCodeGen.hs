@@ -61,10 +61,11 @@ pythonInteroperation = testGroup "Python interoperation" $ do
 #else
   recStyle <- [RegularRecords]
 #endif
+  isPrefixedArg <- [IsPrefixed True, IsPrefixed False]
   tt <- ["Data.Text.Lazy.Text", "Data.Text.Text", "Data.Text.Short.ShortText"]
   format <- ["Binary", "Jsonpb"]
   direction <- [simpleEncodeDotProto, simpleDecodeDotProto]
-  pure @[] (direction recStyle tt format)
+  pure @[] (direction recStyle isPrefixedArg tt format)
 
 swaggerWrapperFormat :: TestTree
 swaggerWrapperFormat = testGroup "Swagger Wrapper Format"
@@ -174,15 +175,15 @@ setPythonPath :: IO ()
 setPythonPath = Turtle.export "PYTHONPATH" .
   maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) =<< Turtle.need "PYTHONPATH"
 
-simpleEncodeDotProto :: RecordStyle -> String -> T.Text -> TestTree
-simpleEncodeDotProto recStyle chosenStringType format =
+simpleEncodeDotProto :: RecordStyle -> IsPrefixed -> String -> T.Text -> TestTree
+simpleEncodeDotProto recStyle isPrefixedArg chosenStringType format =
     testCase ("generate code for a simple .proto and then use it to encode messages" ++
               " with string type " ++ chosenStringType ++ " in format " ++ show format ++
-              ", record style " ++ show recStyle)
+              ", record style " ++ show recStyle ++ ", prefix flag is " ++ show isPrefixedArg)
     $ do
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
-         compileTestDotProtos recStyle decodedStringType
+         compileTestDotProtos recStyle isPrefixedArg decodedStringType
          -- Compile our generated encoder
          let encodeCmd = "tests/encode.sh " <> hsTmpDir
 #if DHALL
@@ -200,15 +201,15 @@ simpleEncodeDotProto recStyle chosenStringType format =
          Turtle.rmtree hsTmpDir
          Turtle.rmtree pyTmpDir
 
-simpleDecodeDotProto :: RecordStyle -> String -> T.Text -> TestTree
-simpleDecodeDotProto recStyle chosenStringType format =
+simpleDecodeDotProto :: RecordStyle -> IsPrefixed -> String -> T.Text -> TestTree
+simpleDecodeDotProto recStyle isPrefixedArg chosenStringType format =
     testCase ("generate code for a simple .proto and then use it to decode messages" ++
               " with string type " ++ chosenStringType ++ " in format " ++ show format ++
-              ", record style " ++ show recStyle)
+              ", record style " ++ show recStyle ++ ", prefix flag is " ++ show isPrefixedArg)
     $ do
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
-         compileTestDotProtos recStyle decodedStringType
+         compileTestDotProtos recStyle isPrefixedArg decodedStringType
          -- Compile our generated decoder
          let decodeCmd = "tests/decode.sh " <> hsTmpDir
 #if DHALL
@@ -233,8 +234,8 @@ pyTmpDir = "test-files/py-tmp"
 defaultStringType :: StringType
 defaultStringType = StringType "Data.Text.Lazy" "Text"
 
-compileTestDotProtos :: RecordStyle -> StringType -> IO ()
-compileTestDotProtos recStyle decodedStringType = do
+compileTestDotProtos :: RecordStyle -> IsPrefixed -> StringType -> IO ()
+compileTestDotProtos recStyle isPrefixedArg decodedStringType = do
   Turtle.mktree hsTmpDir
   Turtle.mktree pyTmpDir
   let protoFiles :: [Turtle.FilePath]
@@ -259,6 +260,7 @@ compileTestDotProtos recStyle decodedStringType = do
                    , inputProto = protoFile
                    , stringType = decodedStringType
                    , recordStyle = recStyle
+                   , isPrefixed = isPrefixedArg
                    }
 
     let cmd = T.concat [ "protoc --python_out="
