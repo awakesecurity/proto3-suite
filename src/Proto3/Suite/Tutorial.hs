@@ -103,6 +103,17 @@ instance Named Bar
 -- >   | Square
 -- >   | Triangle
 -- >   deriving (Bounded, Eq, Enum, Finite, Generic, Named, Ord, ProtoEnum)
+--
+-- Note: Due to how proto3 enums work, it is strongly advised that the first
+-- enum constructor is called Unknown (or something of similar meaning). If a
+-- proto3 wire format is missing the enum field, then the Haskell record
+-- resulting from parsing the wire format will still contain the
+-- zero-numbered enum constructor as present. Adding the Unknown constructor
+-- is especially important for future-proofing data, since if the enum
+-- is later added to a message as a field, then re-reading the previously
+-- persisted data will seem as if the enum value is present with that
+-- first value. If that first value is something rather specific, it can
+-- mislead the reader of that data.
 data Shape
   = Circle
   | Square
