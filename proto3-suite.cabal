@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                proto3-suite
-version:             0.7.0
+version:             0.8.0
 synopsis:            A higher-level API to the proto3-wire library
 description:
   This library provides a higher-level API to <https://github.com/awakesecurity/proto3-wire the `proto3-wire` library>
@@ -97,7 +97,8 @@ library
                        Proto3.Suite.DotProto.Internal
                        Proto3.Suite.JSONPB.Class
 
-  other-modules:       Turtle.Compat
+  other-modules:       Proto3.Suite.Haskell.Parser
+                       Turtle.Compat
 
   build-depends:       aeson >= 1.1.1.0 && < 2.2,
                        aeson-pretty,
@@ -112,8 +113,8 @@ library
                        contravariant >=1.4 && <1.6,
                        filepath,
                        foldl,
+                       ghc >= 9.0.1,
                        hashable,
-                       haskell-src ==1.0.*,
                        insert-ordered-containers,
                        lens,
                        mtl ==2.2.*,
@@ -138,7 +139,7 @@ library
     build-depends:     semigroups >= 0.18 && < 0.20
   hs-source-dirs:      src
   default-language:    Haskell2010
-  ghc-options:         -O2 -Wall
+  ghc-options:         -O2 -Wall -Werror
 
 test-suite tests
   import:           common
@@ -201,6 +202,7 @@ test-suite tests
     , deepseq ==1.4.*
     , doctest
     , generic-arbitrary
+    , ghc
     , hedgehog
     , mtl ==2.2.*
     , parsec >= 3.1.9 && <3.2.0
@@ -229,12 +231,13 @@ executable compile-proto-file
   hs-source-dirs:      tools/compile-proto-file
   default-language:    Haskell2010
   build-depends:       base >=4.12 && <5.0
+                       , ghc
                        , optparse-applicative
                        , proto3-suite
                        , system-filepath
                        , text
                        , turtle
-  ghc-options:         -O2 -Wall
+  ghc-options:         -O2 -Wall -Werror
 
 executable canonicalize-proto-file
   main-is:             Main.hs
@@ -249,4 +252,4 @@ executable canonicalize-proto-file
                        , range-set-list >=0.1.2 && <0.2
                        , system-filepath
                        , turtle
-  ghc-options:         -O2 -Wall
+  ghc-options:         -O2 -Wall -Werror

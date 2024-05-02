@@ -12,10 +12,10 @@ jobs:
           - ubuntu-latest
           - macos-latest
         compiler:
-          - ghc8107
           - ghc902
           - ghc924
           - ghc946
+          - ghc964
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3.5.3

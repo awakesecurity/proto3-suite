@@ -54,9 +54,29 @@ import           Data.Ord                       (comparing)
 import qualified Data.Set                       as S
 import           Data.String                    (fromString)
 import qualified Data.Text                      as T
-import           Language.Haskell.Parser        (ParseResult(..), parseModule)
-import           Language.Haskell.Pretty
-import           Language.Haskell.Syntax
+import qualified GHC.Data.EnumSet
+import qualified GHC.Data.FastString            as GHC
+import qualified GHC.Data.StringBuffer          as GHC
+import           GHC.Hs                         (HsModule(..), noLocA)
+import qualified GHC.Driver.Errors              as GHC (printMessages)
+import qualified GHC.Driver.Errors.Types        as GHC (PsMessage)
+import qualified GHC.Driver.Session             as GHC (languageExtensions)
+import qualified GHC.Hs                         as GHC
+import qualified GHC.Parser                     as GHC
+import qualified GHC.Parser.Lexer               as GHC (P(..), PState(errors, warnings),
+                                                        ParseResult(..), initParserState,
+                                                        mkParserOpts)
+import qualified GHC.Types.Basic                as GHC (PromotionFlag(..))
+import qualified GHC.Types.Error                as GHC (partitionMessages, unionMessages)
+import qualified GHC.Types.Name                 as GHC
+import           GHC.Types.Name.Occurrence      (dataName, tcName, varName)
+import qualified GHC.Types.Name.Reader          as GHC
+import qualified GHC.Types.SourceText           as GHC
+import qualified GHC.Types.SrcLoc               as GHC
+import qualified GHC.Unit.Module.Name           as GHC
+import qualified GHC.Utils.Error                as GHC (DiagOpts(..), Messages)
+import qualified GHC.Utils.Logger               as GHC (Logger)
+import qualified GHC.Utils.Outputable           as GHC
 import qualified NeatInterpolation              as Neat
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
@@ -101,8 +121,8 @@ parseStringType str = case splitOn "." str of
   _ -> Left "must be in the form Module.Type"
 
 -- | Generate a Haskell module corresponding to a @.proto@ file
-compileDotProtoFile :: CompileArgs -> IO (Either CompileError ())
-compileDotProtoFile CompileArgs{..} = runExceptT $ do
+compileDotProtoFile :: GHC.Logger -> CompileArgs -> IO (Either CompileError ())
+compileDotProtoFile logger CompileArgs{..} = runExceptT $ do
   (dotProto, importTypeContext) <- readDotProtoWithContext includeDir inputProto
   modulePathPieces <- traverse renameProtoFile (toModuleComponents dotProto)
 
@@ -113,7 +133,7 @@ compileDotProtoFile CompileArgs{..} = runExceptT $ do
 
   Turtle.mktree (Turtle.directory modulePath)
 
-  extraInstances <- foldMapM getExtraInstances extraInstanceFiles
+  extraInstances <- foldMapM (getExtraInstances logger) extraInstanceFiles
   haskellModule <- renderHsModuleForDotProto stringType recordStyle extraInstances dotProto importTypeContext
 
   liftIO (writeFile (Turtle.encodeString modulePath) haskellModule)
@@ -123,8 +143,8 @@ compileDotProtoFile CompileArgs{..} = runExceptT $ do
 
 -- | Same as 'compileDotProtoFile', except terminates the program with an error
 -- message on failure.
-compileDotProtoFileOrDie :: CompileArgs -> IO ()
-compileDotProtoFileOrDie args = compileDotProtoFile args >>= \case
+compileDotProtoFileOrDie :: GHC.Logger -> CompileArgs -> IO ()
+compileDotProtoFileOrDie logger args = compileDotProtoFile logger args >>= \case
   Left e -> do
     -- TODO: pretty print the error messages
     let errText          = Turtle.format Turtle.w  e
@@ -199,8 +219,11 @@ renderHsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto imp
           , "DeriveAnyClass"
           , "DeriveGeneric"
           , "GADTs"
+          , "NamedFieldPuns"
+          , "NegativeLiterals"
           , "OverloadedStrings"
           , "TypeApplications"
+          , "TypeOperators"
           ] ++
           case recordStyle of
             RegularRecords -> []
@@ -222,20 +245,23 @@ renderHsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto imp
                     RegularRecords -> []
                     LargeRecords -> [ "-fplugin=Data.Record.Plugin" ]
 
-        mkLRAnnotation :: HsDecl -> Maybe T.Text
-        mkLRAnnotation (HsDataDecl _ _ (HsIdent recName) _ [HsRecDecl _ _ (_fld1:_fld2:_)] _) =
-          Just ("{-# ANN type " <> T.pack recName <> " largeRecord #-}")
-        mkLRAnnotation _ = Nothing
+        mkLRAnnotation :: HsDecl -> Maybe HsDecl
+        mkLRAnnotation = fmap mkAnn . LargeRecord.typeNameIfLargeRecord
+          where
+            mkAnn recName = noLocA $ GHC.AnnD GHC.NoExtField $
+              GHC.HsAnnotation GHC.noAnn GHC.NoSourceText (GHC.TypeAnnProvenance recName)
+                               (uvar_ "largeRecord")
 
-        lrAnnotations :: T.Text
-        lrAnnotations =
+        annotatedHaskellModule :: HsModule
+        annotatedHaskellModule =
           case (recordStyle, haskellModule) of
-            (RegularRecords, _) -> ""
-            (LargeRecords, HsModule _ _ _ _ moduleDecls) ->
-              textUnlines (mapMaybe mkLRAnnotation moduleDecls)
+            (RegularRecords, _) -> haskellModule
+            (LargeRecords, HsModule{hsmodDecls = moduleDecls}) ->
+              haskellModule{hsmodDecls = moduleDecls ++ mapMaybe mkLRAnnotation moduleDecls}
 
         moduleContent :: T.Text
-        moduleContent = T.pack (prettyPrint haskellModule)
+        moduleContent = T.pack $
+          GHC.renderWithContext GHC.defaultSDocContext (GHC.ppr annotatedHaskellModule)
 
         textUnlines :: [T.Text] -> T.Text
         textUnlines = T.intercalate "\n"
@@ -246,8 +272,6 @@ renderHsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto imp
 
       -- | Generated by Haskell protocol buffer compiler. DO NOT EDIT!
       $moduleContent
-
-      $lrAnnotations
     |]
 
 -- | Compile a Haskell module AST given a 'DotProto' package AST.
@@ -300,76 +324,152 @@ hsModuleForDotProto
        decls <- replaceHsInstDecls extraInstances' <$>
                 foldMapM toDotProtoDeclaration protoDefinitions
 
-       return (module_ moduleName Nothing importDeclarations decls)
+       pure (module_ moduleName Nothing importDeclarations decls)
 
 getExtraInstances
     :: (MonadIO m, MonadError CompileError m)
-    => FilePath -> m ([HsImportDecl], [HsDecl])
-getExtraInstances extraInstanceFile = do
+    => GHC.Logger -> FilePath -> m ([HsImportDecl], [HsDecl])
+getExtraInstances logger (Turtle.encodeString -> extraInstanceFile) = do
+  contents <- liftIO $ GHC.hGetStringBuffer extraInstanceFile
+  let location = GHC.mkRealSrcLoc (GHC.mkFastString extraInstanceFile) 1 1
+      extensions = GHC.Data.EnumSet.fromList (GHC.languageExtensions Nothing)
+      diagOpts = GHC.DiagOpts
+        { diag_warning_flags = mempty
+        , diag_fatal_warning_flags = mempty
+        , diag_warn_is_error = False
+        , diag_reverse_errors = False
+        , diag_max_errors = Nothing
+        , diag_ppr_ctx = GHC.defaultSDocContext
+        }
+      parserOpts = GHC.mkParserOpts extensions diagOpts [] False True True True
+      initialState = GHC.initParserState parserOpts contents location
+  case GHC.unP GHC.parseModule initialState of
+    GHC.POk finalState (GHC.L _ m) -> do
+      liftIO $
+        printWarningsAndErrors logger diagOpts (GHC.warnings finalState) (GHC.errors finalState)
+      let isInstDecl (GHC.L _ GHC.InstD{}) = True
+          isInstDecl _                     = False
+      pure (hsmodImports m, filter isInstDecl (hsmodDecls m))
+    GHC.PFailed finalState -> do
+      liftIO $
+        printWarningsAndErrors logger diagOpts (GHC.warnings finalState) (GHC.errors finalState)
+      internalError (T.unpack "Error: Failed to parse instance file")
 
-  contents <- liftIO (readFile (Turtle.encodeString extraInstanceFile))
-
-  case parseModule contents of
-    ParseOk (HsModule _srcloc _mod _es idecls decls) -> do
-      let isInstDecl HsInstDecl{} = True
-          isInstDecl _            = False
-
-      return (idecls, filter isInstDecl decls) --TODO give compile result
-
-    ParseFailed srcLoc err -> do
-      let srcLocText = Turtle.format Turtle.w srcLoc
-
-      let errText = T.pack err
-
-      let message = [Neat.text|
-            Error: Failed to parse instance file
-
-            ${srcLocText}: ${errText}
-          |]
-
-      internalError (T.unpack message)
+printWarningsAndErrors ::
+  GHC.Logger -> GHC.DiagOpts -> GHC.Messages GHC.PsMessage -> GHC.Messages GHC.PsMessage -> IO ()
+printWarningsAndErrors logger diagOpts ws es = do
+  let (warningsAsWarnings, warningsAsErrors) = GHC.partitionMessages ws
+  GHC.printMessages logger diagOpts warningsAsWarnings
+  GHC.printMessages logger diagOpts (GHC.unionMessages es warningsAsErrors)
 
 -- | This very specific function will only work for the qualification on the very first type
 -- in the object of an instance declaration. Those are the only sort of instance declarations
 -- generated within this code, so it suffices.
 instancesForModule :: Module -> [HsDecl] -> [HsDecl]
-instancesForModule m = foldr go []
-   where go x xs = case x of
-             HsInstDecl a b c (HsTyCon (Qual tm  i):ts) d ->
-                        if m == tm then HsInstDecl a b c (HsTyCon (UnQual i):ts) d:xs else xs
-             _ -> xs
+instancesForModule m = mapMaybe go
+  where
+    go ( GHC.L instX
+         ( GHC.InstD clsInstX
+           ( GHC.ClsInstD clsInstDeclX clsInstDecl@GHC.ClsInstDecl
+             { cid_poly_ty = GHC.L tyX sig@GHC.HsSig{ sig_body = ty } } ) ) )
+      | Just (tc, GHC.L _ (GHC.HsTyVar _ GHC.NotPromoted (GHC.L _ (GHC.Qual tm i))) : ts) <-
+          splitTyConApp ty, m == tm =
+        Just ( GHC.L instX
+               ( GHC.InstD clsInstX
+                 ( GHC.ClsInstD clsInstDeclX clsInstDecl
+                   { GHC.cid_poly_ty = GHC.L tyX sig
+                     { GHC.sig_body = tyConApply tc (typeNamed_ (noLocA (GHC.Unqual i)) : ts) }
+                   } ) ) )
+    go _ = Nothing
 
--- | For each thing in @base@ replaces it if it finds a matching @override@
+-- | For each thing in @base@ replaces it if it finds a matching @override@.
+--
+-- Current Limitations: The type of the type class instance and the corresponding
+-- override must both be monomorphic; otherwise they will not match each other.
+-- Furthermore, comparison is based on unqualified names, so please ensure that
+-- those unqualified names are unambiguous or false matches may occur.
 replaceHsInstDecls :: [HsDecl] -> [HsDecl] -> [HsDecl]
-replaceHsInstDecls overrides base = concatMap mbReplace base
+replaceHsInstDecls overrides base = concatMap (mbReplace) base
   where
     -- instances defined separately from data type definition:
-    mbReplace hid@(HsInstDecl _ _ qn tys _) =
-        (: []) . fromMaybe hid $ search qn tys
+    mbReplace :: HsDecl -> [HsDecl]
+    mbReplace hid@(typeOfInstDecl -> Just classSig) =
+        [fromMaybe hid (search classSig)]
 
-    -- instances listed in "deriving" clause of data type definition:
-    mbReplace (HsDataDecl loc ctx tyn names def insts) =
-        let (uncustomized, customized) = partitionEithers (map (deriv tyn) insts)
-        in HsDataDecl loc ctx tyn names def uncustomized : customized
-
-    -- instances listed in "deriving" clause of newtype definition:
-    mbReplace (HsNewTypeDecl loc ctx tyn names def insts) =
-        let (uncustomized, customized) = partitionEithers (map (deriv tyn) insts)
-        in HsNewTypeDecl loc ctx tyn names def uncustomized : customized
+    -- instances listed in "deriving" clause of data type or newtype definition:
+    mbReplace ( GHC.L tyClDX
+                ( GHC.TyClD dataDeclX
+                  ( dataDecl@GHC.DataDecl
+                    { tcdLName = tyn
+                    , tcdDataDefn = dd@GHC.HsDataDefn { dd_derivs = clauses }
+                    } ) ) ) =
+        let ty = noLocA (GHC.HsTyVar mempty GHC.NotPromoted tyn)
+            (uncustomized, customized) = partitionEithers (concatMap (clause ty) clauses)
+        in ( GHC.L tyClDX
+             ( GHC.TyClD dataDeclX
+               ( dataDecl { GHC.tcdDataDefn = dd { GHC.dd_derivs = uncustomized } } ) ) )
+           : customized
 
     -- irrelevant declarations remain unchanged:
     mbReplace hid = [hid]
 
-    deriv tyn qn = maybe (Left qn) Right $ search qn [HsTyCon (UnQual tyn)]
+    clause :: HsType -> HsDerivingClause -> [Either HsDerivingClause HsDecl]
+    clause ty (splitDerivingClause -> (strategy, classSigs)) =
+      let (uncustomized, customized) = partitionEithers (map (deriv ty) classSigs)
+      in maybe id ((:) . Left) (derivingClause_ strategy uncustomized) (map Right customized)
 
-    search qn tys = find (\x -> Just (unQual qn,tys) == getSig x) overrides
+    deriv ::
+      HsType ->
+      (HsOuterSigTyVarBndrs, HsType) ->
+      Either (HsOuterSigTyVarBndrs, HsType) HsDecl
+    deriv ty classSig@(bindings, classType) =
+        maybe (Left classSig) Right (search (bindings, tyApp classType ty))
 
-    getSig (HsInstDecl _ _ qn tys _) = Just (unQual qn,tys)
-    getSig _ = Nothing
+    -- | NOTE: 'getSig' must return 'Just' for *both* the goal and the override
+    -- in order for there to be a match: 'Nothing' for both means no match.
+    search :: (HsOuterSigTyVarBndrs, HsType) -> Maybe HsDecl
+    search y = do
+      desired <- getSig y
+      find (\x -> Just desired == (getSig =<< typeOfInstDecl x)) overrides
 
-    unQual (Qual _ n) = Just n
-    unQual (UnQual n) = Just n
-    unQual (Special _) = Nothing
+    getSig :: (HsOuterSigTyVarBndrs, HsType) -> Maybe SimpleTypeName
+    getSig (GHC.HsOuterImplicit _, x) = simpleType x
+    getSig _ = empty
+
+-- | A simplified representation of certain Haskell types.
+data SimpleTypeName = SimpleTypeName GHC.OccName [SimpleTypeName]
+  deriving Eq
+
+-- | Types are difficult to compare in general, but for many
+-- of the simpler types we can find a corresponding simple
+-- description that is practical for us to compare.
+--
+-- WARNING: As legacy behavior we remove all qualifiers, rather than
+-- normalizing them in some way that considers equivalence of module
+-- qualifiers.  This behavior could potentially cause incorrect
+-- results if two modules provide the same type name.
+simpleType :: HsType -> Maybe SimpleTypeName
+simpleType (GHC.L _ (GHC.HsParTy _ x)) = simpleType x
+simpleType x = do
+    (tc, as) <- splitTyConApp x
+    sas <- traverse simpleType as
+    pure (SimpleTypeName (unQual tc) sas)
+  where
+    unQual :: HsName -> GHC.OccName
+    unQual (GHC.L _ (GHC.Unqual n)) = n
+    unQual (GHC.L _ (GHC.Qual _ n)) = n
+    unQual (GHC.L _ (GHC.Orig _ n)) = n
+    unQual (GHC.L _ (GHC.Exact n)) = GHC.nameOccName n
+
+-- | If both types are sufficiently simple,
+-- then return the result of an equality test.
+--
+-- WARNING: As legacy behavior we remove all qualifiers, rather than
+-- normalizing them in some way that considers equivalence of module
+-- qualifiers.  This behavior could potentially cause incorrect
+-- results if two modules provide the same type name.
+simpleTypeEq :: HsType -> HsType -> Maybe Bool
+simpleTypeEq a b = (==) <$> simpleType a <*> simpleType b
 
 -- | Parses the file at the given path and produces an AST along with a
 -- 'TypeContext' representing all types from imported @.proto@ files, using the
@@ -433,7 +533,7 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
 --   as such; instead it uses @Maybe a@, where @a@ is the wrapped type.
 ctxtImports :: MonadError CompileError m => TypeContext -> m [HsImportDecl]
 ctxtImports =
-    fmap (map mkImport . nub . filter (Module "Google.Protobuf.Wrappers" /=))
+    fmap (map mkImport . nub . filter (GHC.mkModuleName "Google.Protobuf.Wrappers" /=))
     . traverse (modulePathModName . dotProtoTypeInfoModulePath)
     . M.elems
   where
@@ -456,13 +556,14 @@ msgTypeFromDpTypeInfo :: MonadError CompileError m
 msgTypeFromDpTypeInfo ctxt DotProtoTypeInfo{..} ident = do
     modName   <- modulePathModName dotProtoTypeInfoModulePath
     identName <- qualifiedMessageTypeName ctxt dotProtoTypeInfoParent ident
-    pure $ HsTyCon (Qual modName (HsIdent identName))
+    pure $ noLocA $ GHC.HsTyVar GHC.noAnn GHC.NotPromoted $ qual_ modName tcName identName
 
 modulePathModName :: MonadError CompileError m => Path -> m Module
-modulePathModName (Path comps) = Module . intercalate "." <$> traverse typeLikeName (NE.toList comps)
+modulePathModName (Path comps) =
+  GHC.mkModuleName . intercalate "." <$> traverse typeLikeName (NE.toList comps)
 
 _pkgIdentModName :: MonadError CompileError m => DotProtoIdentifier -> m Module
-_pkgIdentModName (Single s)  = Module <$> typeLikeName s
+_pkgIdentModName (Single s)  = GHC.mkModuleName <$> typeLikeName s
 _pkgIdentModName (Dots path) = modulePathModName path
 _pkgIdentModName x           = throwError (InvalidPackageName x)
 
@@ -473,8 +574,8 @@ _pkgIdentModName x           = throwError (InvalidPackageName x)
 hsDhallPB :: String
 hsDhallPB = "HsDhallPb"
 
-dhallPBName :: String -> HsQName
-dhallPBName name = Qual (Module hsDhallPB) (HsIdent name)
+dhallPBName :: GHC.NameSpace -> String -> HsQName
+dhallPBName = qual_ (GHC.mkModuleName hsDhallPB)
 
 -- *** Generate Dhall Interpret and Inject generic instances
 
@@ -488,13 +589,13 @@ fromDhall, toDhall :: String
 
 dhallInterpretInstDecl :: String -> HsDecl
 dhallInterpretInstDecl typeName =
-  instDecl_ (dhallPBName fromDhall)
+  instDecl_ (dhallPBName tcName fromDhall)
             [ type_ typeName ]
             [ ]
 
 dhallInjectInstDecl :: String -> HsDecl
 dhallInjectInstDecl typeName =
-  instDecl_ (dhallPBName toDhall)
+  instDecl_ (dhallPBName tcName toDhall)
             [ type_ typeName ]
             [ ]
 #endif
@@ -504,21 +605,15 @@ dhallInjectInstDecl typeName =
 data FieldContext = WithinMessage | WithinOneOf
   deriving (Eq, Show)
 
-typeApp :: HsType -> HsExp
-typeApp ty = uvar_ ("@("++ pp ty ++ ")")
-  where
-    -- Do not add linebreaks to typeapps as that causes parse errors
-    pp = prettyPrintStyleMode style{mode=OneLineMode} defaultMode
-
 coerceE :: Bool -> Bool -> HsType -> HsType -> Maybe HsExp
-coerceE _ _ from to | from == to = Nothing
+coerceE _ _ from to | Just True <- simpleTypeEq from to = Nothing
 coerceE overTyCon unsafe from to =
-    Just $ HsApp (HsApp coerceF (typeApp from)) (typeApp to)
+    Just $ applyAt coerceF [from, to]
   where
-    coerceF | unsafe = HsVar (name "unsafeCoerce")
-            | otherwise  = HsVar (name "coerce")
-    name | overTyCon = protobufName . (<> "Over")
-         | otherwise = haskellName
+    coerceF | unsafe = var_ (name "unsafeCoerce")
+            | otherwise  = var_ (name "coerce")
+    name | overTyCon = protobufName varName . (<> "Over")
+         | otherwise = haskellName varName
 
 wrapFunE :: MonadError CompileError m => Bool -> FieldContext -> StringType -> TypeContext -> [DotProtoOption] -> DotProtoType -> m (Maybe HsExp)
 wrapFunE overTyCon fc stringType ctxt opts dpt =
@@ -627,7 +722,7 @@ dpptToHsTypeWrapped (StringType _ stringType) ctxt =  \case
   Named msgName ->
     case M.lookup msgName ctxt of
       Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
-          HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ctxt ty msgName
+        tyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ctxt ty msgName
       Just ty -> msgTypeFromDpTypeInfo ctxt ty msgName
       Nothing -> noSuchTypeError msgName
 
@@ -647,7 +742,7 @@ foldDPT dptToHsCont foldPrim ctxt dpt =
       Prim pType           -> cont <$> prim pType
       Repeated pType       -> cont <$> prim pType
       NestedRepeated pType -> cont <$> prim pType
-      Map k v  | validMapKey k -> HsTyApp . cont <$> prim k <*> go (Prim v) -- need to 'Nest' message types
+      Map k v  | validMapKey k -> tyApp . cont <$> prim k <*> go (Prim v) -- need to 'Nest' message types
                | otherwise -> throwError $ InvalidMapKeyType (show $ pPrint k)
 
 -- | Translate DotProtoType constructors to wrapped Haskell container types
@@ -659,14 +754,14 @@ dptToHsWrappedContType :: FieldContext -> TypeContext -> [DotProtoOption] -> Dot
 dptToHsWrappedContType fc ctxt opts = \case
   Prim (Named tyName)
     | WithinMessage <- fc, isMessage ctxt tyName
-                            -> Just $ HsTyApp (protobufType_ "Nested")
+                            -> Just $ tyApp (protobufType_ "Nested")
   Repeated (Named tyName)
-    | isMessage ctxt tyName -> Just $ HsTyApp (protobufType_ "NestedVec")
+    | isMessage ctxt tyName -> Just $ tyApp (protobufType_ "NestedVec")
   Repeated ty
-    | isUnpacked opts       -> Just $ HsTyApp (protobufType_ "UnpackedVec")
-    | isPacked opts         -> Just $ HsTyApp (protobufType_ "PackedVec")
-    | isPackable ctxt ty    -> Just $ HsTyApp (protobufType_ "PackedVec")
-    | otherwise             -> Just $ HsTyApp (protobufType_ "UnpackedVec")
+    | isUnpacked opts       -> Just $ tyApp (protobufType_ "UnpackedVec")
+    | isPacked opts         -> Just $ tyApp (protobufType_ "PackedVec")
+    | isPackable ctxt ty    -> Just $ tyApp (protobufType_ "PackedVec")
+    | otherwise             -> Just $ tyApp (protobufType_ "UnpackedVec")
   _ -> Nothing
 
 -- | Translate DotProtoType to Haskell container types.
@@ -676,10 +771,10 @@ dptToHsWrappedContType fc ctxt opts = \case
 dptToHsContType :: FieldContext -> TypeContext -> DotProtoType -> HsType -> HsType
 dptToHsContType fc ctxt = \case
   Prim (Named tyName) | WithinMessage <- fc, isMessage ctxt tyName
-                     -> HsTyApp $ primType_ "Maybe"
-  Repeated _         -> HsTyApp $ primType_ "Vector"
-  NestedRepeated _   -> HsTyApp $ primType_ "Vector"
-  Map _ _            -> HsTyApp $ primType_ "Map"
+                     -> tyApp $ primType_ "Maybe"
+  Repeated _         -> tyApp $ primType_ "Vector"
+  NestedRepeated _   -> tyApp $ primType_ "Vector"
+  Map _ _            -> tyApp $ primType_ "Map"
   _                  -> id
 
 -- | Convert a dot proto prim type to an unwrapped Haskell type
@@ -717,7 +812,7 @@ dpptToHsType (StringType _ stringType) ctxt = \case
   Named msgName ->
     case M.lookup msgName ctxt of
       Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
-          HsTyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ctxt ty msgName
+        tyApp (protobufType_ "Enumerated") <$> msgTypeFromDpTypeInfo ctxt ty msgName
       Just ty -> msgTypeFromDpTypeInfo ctxt ty msgName
       Nothing -> noSuchTypeError msgName
 
@@ -754,20 +849,17 @@ dotProtoDefinitionD stringType recordStyle pkgSpec ctxt = \case
 -- | Generate 'Named' instance for a type in this package
 namedInstD :: String -> HsDecl
 namedInstD messageName =
-  instDecl_ (protobufName "Named")
-      [ type_ messageName ]
-      [ HsFunBind [nameOfDecl] ]
+    instDecl_ (protobufName tcName "Named")
+              [ type_ messageName ]
+              [ functionS_ "nameOf" [nameOf] ]
   where
-    nameOfDecl = match_ (HsIdent "nameOf") [HsPWildCard]
-                        (HsUnGuardedRhs (apply fromStringE
-                                               [ str_ messageName ]))
-                        []
+    nameOf = ([wild_], unguardedRhss_ (apply fromStringE [ str_ messageName ]))
 
 hasDefaultInstD :: String -> HsDecl
 hasDefaultInstD messageName =
-  instDecl_ (protobufName "HasDefault")
-      [ type_ messageName ]
-      [ ]
+  instDecl_ (protobufName tcName "HasDefault")
+            [ type_ messageName ]
+            [ ]
 
 -- ** Generate types and instances for .proto messages
 
@@ -788,8 +880,9 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
 
     let mkDataDecl flds =
           dataDecl_ messageName
-            [ recDecl_ (HsIdent messageName) flds ]
-            defaultMessageDeriving
+                    []
+                    [ recDecl_ (unqual_ varName messageName) flds ]
+                    defaultMessageDeriving
 
 #ifdef SWAGGER
     let getName = \case
@@ -851,13 +944,13 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
     messagePartFieldD messageName (DotProtoMessageField DotProtoField{..}) = do
       fullName <- prefixedFieldName messageName =<< dpIdentUnqualName dotProtoFieldName
       fullTy <- dptToHsType WithinMessage stringType ctxt' dotProtoFieldType
-      pure [ ([HsIdent fullName], HsUnBangedTy fullTy ) ]
+      pure [ ([unqual_ varName fullName], unbangedTy_ fullTy) ]
 
     messagePartFieldD messageName (DotProtoMessageOneOf fieldName _) = do
       fullName <- prefixedFieldName messageName =<< dpIdentUnqualName fieldName
       qualTyName <- prefixedConName messageName =<< dpIdentUnqualName fieldName
-      let fullTy = HsTyApp (HsTyCon (haskellName "Maybe")) . type_ $ qualTyName
-      pure [ ([HsIdent fullName], HsUnBangedTy fullTy) ]
+      let fullTy = tyConApp (haskellName tcName "Maybe") . type_ $ qualTyName
+      pure [ ([unqual_ varName fullName], unbangedTy_ fullTy) ]
 
     messagePartFieldD _ _ = pure []
 
@@ -876,14 +969,14 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
     nestedOneOfDecls messageName identifier fields = do
       fullName <- prefixedConName messageName =<< dpIdentUnqualName identifier
 
-      (cons, idents) <- fmap unzip (mapM (oneOfCons fullName) fields)
+      (cons, _idents) <- fmap unzip (mapM (oneOfCons fullName) fields)
 
 #ifdef SWAGGER
-      toSchemaInstance <- toSchemaInstanceDeclaration stringType ctxt' fullName (Just idents)
+      toSchemaInstance <- toSchemaInstanceDeclaration stringType ctxt' fullName (Just _idents)
                             =<< mapM getFieldNameForSchemaInstanceDeclaration fields
 #endif
 
-      let nestedDecl = dataDecl_ fullName cons defaultMessageDeriving
+      let nestedDecl = dataDecl_ fullName [] cons defaultMessageDeriving
       pure [ nestedDecl
            , nfDataInstD nestedDecl fullName
            , namedInstD fullName
@@ -901,8 +994,8 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
     oneOfCons fullName DotProtoField{..} = do
        consTy <- dptToHsType WithinOneOf stringType ctxt' dotProtoFieldType
        consName <- prefixedConName fullName =<< dpIdentUnqualName dotProtoFieldName
-       let ident = HsIdent consName
-       pure (conDecl_ ident [HsUnBangedTy consTy], ident)
+       let ident = unqual_ dataName consName
+       pure (conDecl_ ident [unbangedTy_ consTy], ident)
 
     oneOfCons _ DotProtoEmptyField = internalError "field type : empty field"
 
@@ -924,10 +1017,11 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
      encodedFields   <- mapM encodeMessageField qualifiedFields
      decodedFields   <- mapM decodeMessageField qualifiedFields
 
-     let encodeMessageDecl = match_ (HsIdent "encodeMessage")
-                                    [HsPWildCard, HsPRec (unqual_ msgName) punnedFieldsP]
-                                    (HsUnGuardedRhs encodeMessageE) []
+     let encodeMessageBind :: HsBind
+         encodeMessageBind = functionS_ "encodeMessage"
+           [([wild_, recordPattern], unguardedRhss_ encodeMessageE)]
 
+         encodeMessageE :: HsExp
          encodeMessageE = case encodedFields of
            [] -> memptyE
            (field : fields) -> foldl op (paren field) fields
@@ -936,36 +1030,45 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
              -- is the most nested and the rightmost field--the one to be written
              -- first by the right-to-left builder--is the one that is least nested.
 
+         recordPattern :: HsPat
+         recordPattern = noLocA $
+           GHC.ConPat mempty (unqual_ dataName msgName)
+                      (GHC.RecCon (GHC.HsRecFields punnedFieldsP Nothing))
+
+         punnedFieldsP :: [GHC.LHsRecField GHC.GhcPs HsPat]
          punnedFieldsP = map (fp . coerce . recordFieldName) qualifiedFields
-           where fp nm = HsPFieldPat (unqual_ nm) (HsPVar (HsIdent nm))
+           where
+             fp = fieldPunPat . unqual_ varName
 
+     let decodeMessageBind :: HsBind
+         decodeMessageBind = functionS_ "decodeMessage"
+           [([wild_], unguardedRhss_ decodeMessageE)]
 
-     let decodeMessageDecl = match_ (HsIdent "decodeMessage") [ HsPWildCard ]
-                                    (HsUnGuardedRhs decodeMessageE) []
-
-         decodeMessageE = foldl (\f -> HsInfixApp f apOp)
+         decodeMessageE :: HsExp
+         decodeMessageE = foldl (\f -> opApp f apOp)
                                 (apply pureE [ uvar_ msgName ])
                                 decodedFields
 
-     let dotProtoDecl = match_ (HsIdent "dotProto") [HsPWildCard]
-                               (HsUnGuardedRhs dotProtoE) []
+     let dotProtoBind :: HsBind
+         dotProtoBind = functionS_ "dotProto"
+           [([wild_], unguardedRhss_ dotProtoE)]
 
-         dotProtoE = HsList $ do
+         dotProtoE :: HsExp
+         dotProtoE = list_ $ do
            DotProtoMessageField DotProtoField{..} <- messageParts
            pure $ apply dotProtoFieldC
                         [ fieldNumberE dotProtoFieldNumber
                         , dpTypeE dotProtoFieldType
                         , dpIdentE dotProtoFieldName
-                        , HsList (map optionE dotProtoFieldOptions)
+                        , list_ (map optionE dotProtoFieldOptions)
                         , str_ dotProtoFieldComment
                         ]
 
-
-     pure $ instDecl_ (protobufName "Message")
+     pure $ instDecl_ (protobufName tcName "Message")
                       [ type_ msgName ]
-                      [ HsFunBind [ encodeMessageDecl ]
-                      , HsFunBind [ decodeMessageDecl ]
-                      , HsFunBind [ dotProtoDecl ]
+                      [ encodeMessageBind
+                      , decodeMessageBind
+                      , dotProtoBind
                       ]
   where
     encodeMessageField :: QualifiedField -> m HsExp
@@ -978,13 +1081,11 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
 
         FieldOneOf OneofField{subfields} -> do
             alts <- mapM mkAlt subfields
-            pure $ HsCase recordFieldName'
-                    [ alt_ (HsPApp (haskellName "Nothing") [])
-                           (HsUnGuardedAlt memptyE)
-                           []
-                    , alt_ (HsPApp (haskellName "Just") [patVar "x"])
-                           (HsUnGuardedAlt (HsCase (uvar_ "x") alts))
-                           []
+            pure $ case_ recordFieldName'
+                    [ alt_ (conPat nothingN [])
+                           (unguardedRhss_ memptyE)
+                    , alt_ (conPat justN [patVar "x"])
+                           (unguardedRhss_ (case_ (uvar_ "x") alts))
                     ]
           where
             -- Create all pattern match & expr for each constructor:
@@ -997,7 +1098,7 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
                      | otherwise
                      = False
 
-              let wrapJust = HsParen . HsApp (HsVar (haskellName "Just"))
+              let wrapJust = paren . app justC
 
               xE <- (if isMaybe then id else fmap forceEmitE)
                      . wrapE WithinMessage stringType ctxt options dpType
@@ -1008,10 +1109,8 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
                      . (if isMaybe then wrapJust else id)
                      $ uvar_ "y"
 
-              pure $ alt_ (HsPApp (unqual_ conName) [patVar "y"])
-                          (HsUnGuardedAlt (apply encodeMessageFieldE [fieldNumberE fieldNum, xE]))
-                          []
-
+              pure $ alt_ (conPat (unqual_ dataName conName) [patVar "y"])
+                          (unguardedRhss_ (apply encodeMessageFieldE [fieldNumberE fieldNum, xE]))
 
     decodeMessageField :: QualifiedField -> m HsExp
     decodeMessageField QualifiedField{fieldInfo} =
@@ -1022,18 +1121,14 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
 
         FieldOneOf OneofField{subfields} -> do
             parsers <- mapM subfieldParserE subfields
-            pure $  apply oneofE [ HsVar (haskellName "Nothing")
-                                 , HsList parsers
-                                 ]
+            pure $ apply oneofE [ nothingC, list_ parsers ]
           where
             -- create a list of (fieldNumber, Cons <$> parser)
             subfieldParserE (OneofSubfield fieldNumber consName _ dpType options) = do
-              let fE | Prim (Named tyName) <- dpType, isMessage ctxt tyName
-                     = HsParen (HsApp fmapE (uvar_ consName))
-                     | otherwise
-                     = HsParen (HsInfixApp (HsVar (haskellName "Just"))
-                                           composeOp
-                                           (uvar_ consName))
+              let fE | Prim (Named tyName) <- dpType, isMessage ctxt tyName =
+                         paren (app fmapE (uvar_ consName))
+                     | otherwise =
+                         paren (opApp justC composeOp (uvar_ consName))
 
               -- For now we continue the historical practice of parsing
               -- submessages within oneofs as if were outside of oneofs,
@@ -1041,9 +1136,9 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
               -- That is why we do not pass WithinOneOf.
               alts <- unwrapE WithinMessage stringType ctxt options dpType decodeMessageFieldE
 
-              pure $ HsTuple
+              pure $ tuple_
                    [ fieldNumberE fieldNumber
-                   , HsInfixApp (apply pureE [ fE ]) apOp alts
+                   , opApp (apply pureE [ fE ]) apOp alts
                    ]
 
 
@@ -1064,25 +1159,24 @@ toJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
 
     let applyE nm oneofNm = do
           fs <- traverse (encodeMessageField oneofNm) qualFields
-          pure $ apply (HsVar (jsonpbName nm)) [HsList fs]
+          pure $ apply (var_ (jsonpbName varName nm)) [list_ fs]
 
     let patBinder = foldQF (const fieldBinder) (oneofSubDisjunctBinder . subfields)
     let matchE nm appNm oneofAppNm = do
           rhs <- applyE appNm oneofAppNm
-          pure $ match_
-            (HsIdent nm)
-            [ HsPApp (unqual_ msgName)
-                     (patVar . patBinder <$> qualFields) ]
-            (HsUnGuardedRhs rhs)
-            []
+          pure $ functionS_ nm
+            [ ( [conPat (unqual_ dataName msgName) (patVar . patBinder <$> qualFields)]
+              , unguardedRhss_ rhs
+              )
+            ]
 
     toJSONPB <- matchE "toJSONPB" "object" "objectOrNull"
     toEncoding <- matchE "toEncodingPB" "pairs" "pairsOrNull"
 
-    pure $ instDecl_ (jsonpbName "ToJSONPB")
+    pure $ instDecl_ (jsonpbName tcName "ToJSONPB")
                      [ type_ msgName ]
-                     [ HsFunBind [toJSONPB]
-                     , HsFunBind [toEncoding]
+                     [ toJSONPB
+                     , toEncoding
                      ]
 
   where
@@ -1098,13 +1192,13 @@ toJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
     -- "another" .= f2 -- always succeeds (produces default value on missing field)
     defPairE fldName fldNum dpType options = do
       w <- wrapE WithinMessage stringType ctxt options dpType (uvar_ (fieldBinder fldNum))
-      pure $ HsInfixApp (str_ (coerce fldName)) toJSONPBOp w
+      pure $ opApp (str_ (coerce fldName)) toJSONPBOp w
 
     -- E.g.
     -- HsJSONPB.pair "name" f4 -- fails on missing field
     oneOfPairE fldNm varNm options dpType = do
       w <- wrapE WithinOneOf stringType ctxt options dpType (uvar_ varNm)
-      pure $ apply (HsVar (jsonpbName "pair")) [str_ (coerce fldNm), w]
+      pure $ apply (var_ (jsonpbName varName "pair")) [str_ (coerce fldNm), w]
 
     -- Suppose we have a sum type Foo, nested inside a message Bar.
     -- We want to generate the following:
@@ -1122,9 +1216,9 @@ toJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
     oneofCaseE :: String -> OneofField -> m HsExp
     oneofCaseE retJsonCtor (OneofField typeName subfields) = do
         altEs <- traverse altE subfields
-        pure $ HsParen
-          $ HsLet [ HsFunBind [ match_ (HsIdent caseName) [] (HsUnGuardedRhs (caseExpr altEs)) [] ] ]
-          $ HsLambda defaultSrcLoc [patVar optsStr] (HsIf dontInline noInline yesInline)
+        pure $ paren
+          $ let_ [ functionS_ caseName [([], unguardedRhss_ (caseExpr altEs))] ]
+          $ lambda_ [patVar optsStr] (unguardedRhss_ (if_ dontInline noInline yesInline))
       where
         optsStr = "options"
         opts    = uvar_ optsStr
@@ -1132,26 +1226,22 @@ toJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
         caseName = "encode" <> over (ix 0) toUpper typeName
         caseBnd = uvar_ caseName
 
-        dontInline = HsApp (HsVar (jsonpbName "optEmitNamedOneof")) opts
+        dontInline = app (var_ (jsonpbName varName "optEmitNamedOneof")) opts
 
-        noInline = HsApp (HsParen (HsInfixApp (str_ typeName)
-                                              toJSONPBOp
-                                              (apply (HsVar (jsonpbName retJsonCtor))
-                                                     [ HsList [caseBnd], opts ])))
-                         opts
+        noInline = app (paren (opApp (str_ typeName)
+                                     toJSONPBOp
+                                     (apply (var_ (jsonpbName varName retJsonCtor))
+                                            [ list_ [caseBnd], opts ])))
+                       opts
 
-        yesInline = HsApp caseBnd opts
+        yesInline = app caseBnd opts
 
         altE sub@(OneofSubfield _ conName pbFldNm dpType options) = do
           let patVarNm = oneofSubBinder sub
           p <- oneOfPairE pbFldNm patVarNm options dpType
-          pure $ alt_ (HsPApp (haskellName "Just")
-                              [ HsPParen
-                                (HsPApp (unqual_ conName) [patVar patVarNm])
-                              ]
-                      )
-                      (HsUnGuardedAlt p)
-                      []
+          pure $
+            alt_ (conPat justN [ parenPat (conPat (unqual_ dataName conName) [patVar patVarNm]) ])
+                 (unguardedRhss_ p)
 
         -- E.g.
         -- case f4_or_f9 of
@@ -1161,14 +1251,11 @@ toJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
         --     -> HsJSONPB.pair "someid" f9
         --   Nothing
         --     -> mempty
-        caseExpr altEs = HsParen $
-            HsCase disjunctName (altEs <> [fallthroughE])
+        caseExpr altEs = paren $
+            case_ disjunctName (altEs <> [fallthroughE])
           where
             disjunctName = uvar_ (oneofSubDisjunctBinder subfields)
-            fallthroughE =
-              alt_ (HsPApp (haskellName "Nothing") [])
-                   (HsUnGuardedAlt memptyE)
-                   []
+            fallthroughE = alt_ (conPat nothingN []) (unguardedRhss_ memptyE)
 
 fromJSONPBMessageInstD
     :: forall m
@@ -1186,21 +1273,21 @@ fromJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
     fieldParsers <- traverse parseField qualFields
 
     let parseJSONPBE =
-          apply (HsVar (jsonpbName "withObject"))
+          apply (var_ (jsonpbName varName "withObject"))
                 [ str_ msgName
-                , HsParen (HsLambda defaultSrcLoc [lambdaPVar] fieldAps)
+                , paren (lambda_ [lambdaPVar] (unguardedRhss_ fieldAps))
                 ]
           where
-            fieldAps = foldl (\f -> HsInfixApp f apOp)
+            fieldAps = foldl (\f -> opApp f apOp)
                              (apply pureE [ uvar_ msgName ])
                              fieldParsers
 
-    let parseJSONPBDecl =
-          match_ (HsIdent "parseJSONPB") [] (HsUnGuardedRhs parseJSONPBE) []
+    let parseJSONPBBind =
+          functionS_ "parseJSONPB" [([], unguardedRhss_ parseJSONPBE)]
 
-    pure (instDecl_ (jsonpbName "FromJSONPB")
-                   [ type_ msgName ]
-                   [ HsFunBind [ parseJSONPBDecl ] ])
+    pure (instDecl_ (jsonpbName tcName "FromJSONPB")
+                    [ type_ msgName ]
+                    [ parseJSONPBBind ])
   where
     lambdaPVar = patVar "obj"
     lambdaVar  = uvar_ "obj"
@@ -1224,12 +1311,9 @@ fromJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
     oneofParserE :: OneofField -> m HsExp
     oneofParserE (OneofField oneofType fields) = do
         ds <- tryParseDisjunctsE
-        pure $ HsParen $
-          HsLet [ HsFunBind [ match_ (HsIdent letBndStr) [patVar letArgStr ]
-                                     (HsUnGuardedRhs ds) []
-                            ]
-                ]
-                (HsInfixApp parseWrapped altOp parseUnwrapped)
+        pure $ paren $
+          let_ [ functionS_ letBndStr [([patVar letArgStr], unguardedRhss_ ds)] ]
+               (opApp parseWrapped altOp parseUnwrapped)
       where
         oneofTyLit = str_ oneofType -- FIXME
 
@@ -1238,12 +1322,12 @@ fromJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
         letArgStr  = "parseObj"
         letArgName = uvar_ letArgStr
 
-        parseWrapped = HsParen $
-          HsInfixApp (HsParen (HsInfixApp lambdaVar parseJSONPBOp oneofTyLit))
-                     bindOp
-                     (apply (HsVar (jsonpbName "withObject")) [ oneofTyLit , letBndName ])
+        parseWrapped = paren $
+          opApp (opApp lambdaVar parseJSONPBOp oneofTyLit)
+                bindOp
+                (apply (var_ (jsonpbName varName "withObject")) [ oneofTyLit , letBndName ])
 
-        parseUnwrapped = HsParen (HsApp letBndName lambdaVar)
+        parseUnwrapped = paren (app letBndName lambdaVar)
 
         -- parseSomethingNameOrId parseObj =
         --   Hs.msum
@@ -1253,21 +1337,19 @@ fromJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
         --     ]
         tryParseDisjunctsE = do
           fs <- traverse subParserE fields
-          pure $ HsApp msumE (HsList (fs <> fallThruE))
+          pure $ app msumE (list_ (fs <> fallThruE))
 
-        fallThruE = [ HsApp pureE (HsVar (haskellName "Nothing")) ]
+        fallThruE = [ app pureE nothingC ]
 
         subParserE OneofSubfield{subfieldConsName, subfieldName,
                                  subfieldType, subfieldOptions} = do
           maybeCoercion <-
             unwrapFunE False WithinOneOf stringType ctxt subfieldOptions subfieldType
-          let inject = (HsInfixApp (HsVar (haskellName "Just"))
-                                   composeOp
-                                   (uvar_ subfieldConsName))
-          pure $ HsInfixApp
-              (maybe inject (HsInfixApp inject composeOp) maybeCoercion)
+          let inject = opApp justC composeOp (uvar_ subfieldConsName)
+          pure $ opApp
+              (maybe inject (opApp inject composeOp) maybeCoercion)
               fmapOp
-              (apply (HsVar (jsonpbName "parseField"))
+              (apply (var_ (jsonpbName varName "parseField"))
                      [ letArgName
                      , str_ (coerce subfieldName)])
 
@@ -1275,7 +1357,7 @@ fromJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
     normalParserE :: FieldName -> DotProtoType -> [DotProtoOption] -> m HsExp
     normalParserE fldName dpType options =
       unwrapE WithinMessage stringType ctxt options dpType $
-        HsInfixApp lambdaVar
+        opApp lambdaVar
                    parseJSONPBOp
                    (str_(coerce fldName))
 
@@ -1284,28 +1366,26 @@ fromJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
 
 toJSONInstDecl :: String -> HsDecl
 toJSONInstDecl typeName =
-  instDecl_ (jsonpbName "ToJSON")
+  instDecl_ (jsonpbName tcName "ToJSON")
             [ type_ typeName ]
-            [ HsFunBind [ match_ (HsIdent "toJSON") []
-                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonValue"))) []
-                        ]
-            , HsFunBind [ match_ (HsIdent "toEncoding") []
-                                 (HsUnGuardedRhs (HsVar (jsonpbName "toAesonEncoding"))) []
-                        ]
+            [ functionS_ "toJSON"
+                         [([], unguardedRhss_ (var_ (jsonpbName varName "toAesonValue")))]
+            , functionS_ "toEncoding"
+                         [([], unguardedRhss_ (var_ (jsonpbName varName "toAesonEncoding")))]
             ]
 
 fromJSONInstDecl :: String -> HsDecl
 fromJSONInstDecl typeName =
-  instDecl_ (jsonpbName "FromJSON")
+  instDecl_ (jsonpbName tcName "FromJSON")
             [ type_ typeName ]
-            [ HsFunBind [match_ (HsIdent "parseJSON") []
-                                (HsUnGuardedRhs (HsVar (jsonpbName "parseJSONPB"))) []
-                        ]
+            [ functionS_ "parseJSON"
+                         [([], unguardedRhss_ (var_ (jsonpbName varName "parseJSONPB")))]
             ]
 
 
 -- *** Generate `ToSchema` instance
 
+#ifdef SWAGGER
 getFieldNameForSchemaInstanceDeclaration
   :: MonadError CompileError m
   => DotProtoField
@@ -1332,40 +1412,40 @@ toSchemaInstanceDeclaration stringType ctxt messageName maybeConstructors fieldN
 
   qualifiedFieldNames <- mapM (prefixedFieldName messageName) fieldNames
 
-  let messageConstructor = HsCon (UnQual (HsIdent messageName))
+  let messageConstructor = uvar_ messageName
 
-  let _namedSchemaNameExpression = HsApp justC (str_ messageName)
+  let _namedSchemaNameExpression = app justC (str_ messageName)
 
 #ifdef SWAGGER
       -- { _paramSchemaType = HsJSONPB.SwaggerObject
       -- }
   let paramSchemaUpdates =
-        [ HsFieldUpdate _paramSchemaType _paramSchemaTypeExpression
+        [ fieldUpd_ _paramSchemaType _paramSchemaTypeExpression
         ]
         where
-          _paramSchemaType = jsonpbName "_paramSchemaType"
+          _paramSchemaType = jsonpbName varName "_paramSchemaType"
 
 #if MIN_VERSION_swagger2(2,4,0)
-          _paramSchemaTypeExpression = HsApp justC (HsVar (jsonpbName "SwaggerObject"))
+          _paramSchemaTypeExpression = app justC (var_ (jsonpbName dataName "SwaggerObject"))
 #else
-          _paramSchemaTypeExpression = HsVar (jsonpbName "SwaggerObject")
+          _paramSchemaTypeExpression = var_ (jsonpbName dataName "SwaggerObject")
 #endif
 #else
   let paramSchemaUpdates = []
 #endif
 
-  let _schemaParamSchemaExpression = HsRecUpdate memptyE paramSchemaUpdates
+  let _schemaParamSchemaExpression = recordUpd_ memptyE paramSchemaUpdates
 
       -- [ ("fieldName0", qualifiedFieldName0)
       -- , ("fieldName1", qualifiedFieldName1)
       -- ...
       -- ]
-  let properties = HsList $ do
+  let properties = list_ $ do
         (fieldName, qualifiedFieldName) <- zip fieldNames qualifiedFieldNames
-        return (HsTuple [ str_  fieldName, uvar_ qualifiedFieldName ])
+        pure (tuple_ [ str_  fieldName, uvar_ qualifiedFieldName ])
 
   let _schemaPropertiesExpression =
-        HsApp (HsVar (jsonpbName "insOrdFromList")) properties
+        app (var_ (jsonpbName varName "insOrdFromList")) properties
 
       -- { _schemaParamSchema = ...
       -- , _schemaProperties  = ...
@@ -1374,49 +1454,49 @@ toSchemaInstanceDeclaration stringType ctxt messageName maybeConstructors fieldN
   let schemaUpdates = normalUpdates ++ extraUpdates
         where
           normalUpdates =
-            [ HsFieldUpdate _schemaParamSchema _schemaParamSchemaExpression
-            , HsFieldUpdate _schemaProperties  _schemaPropertiesExpression
+            [ fieldUpd_ _schemaParamSchema _schemaParamSchemaExpression
+            , fieldUpd_ _schemaProperties  _schemaPropertiesExpression
             ]
 
           extraUpdates =
             case maybeConstructors of
                 Just _ ->
-                  [ HsFieldUpdate _schemaMinProperties justOne
-                  , HsFieldUpdate _schemaMaxProperties justOne
+                  [ fieldUpd_ _schemaMinProperties justOne
+                  , fieldUpd_ _schemaMaxProperties justOne
                   ]
                 Nothing ->
                   []
 
-          _schemaParamSchema    = jsonpbName "_schemaParamSchema"
-          _schemaProperties     = jsonpbName "_schemaProperties"
-          _schemaMinProperties  = jsonpbName "_schemaMinProperties"
-          _schemaMaxProperties  = jsonpbName "_schemaMaxProperties"
+          _schemaParamSchema    = jsonpbName varName "_schemaParamSchema"
+          _schemaProperties     = jsonpbName varName "_schemaProperties"
+          _schemaMinProperties  = jsonpbName varName "_schemaMinProperties"
+          _schemaMaxProperties  = jsonpbName varName "_schemaMaxProperties"
 
-          justOne = HsApp justC (HsLit (HsInt 1))
+          justOne = app justC (intE (1 :: Integer))
 
-  let _namedSchemaSchemaExpression = HsRecUpdate memptyE schemaUpdates
+  let _namedSchemaSchemaExpression = recordUpd_ memptyE schemaUpdates
 
       -- { _namedSchemaName   = ...
       -- , _namedSchemaSchema = ...
       -- }
-  let namedSchemaUpdates =
-        [ HsFieldUpdate _namedSchemaName   _namedSchemaNameExpression
-        , HsFieldUpdate _namedSchemaSchema _namedSchemaSchemaExpression
+  let namedSchemaBinds =
+        [ fieldBind_ _namedSchemaName   _namedSchemaNameExpression
+        , fieldBind_ _namedSchemaSchema _namedSchemaSchemaExpression
         ]
         where
-          _namedSchemaName   = jsonpbName "_namedSchemaName"
-          _namedSchemaSchema = jsonpbName "_namedSchemaSchema"
+          _namedSchemaName   = jsonpbName varName "_namedSchemaName"
+          _namedSchemaSchema = jsonpbName varName "_namedSchemaSchema"
 
-  let namedSchema = HsRecConstr (jsonpbName "NamedSchema") namedSchemaUpdates
+  let namedSchema = recordCtor_ (jsonpbName dataName "NamedSchema") namedSchemaBinds
 
   let toDeclareName fieldName = "declare_" ++ fieldName
 
   let toArgument fc (maybeOptsType, fieldName) =
           maybe pure (uncurry (unwrapE fc stringType ctxt)) maybeOptsType $
-            HsApp asProxy declare
+            app asProxy declare
         where
           declare = uvar_ (toDeclareName fieldName)
-          asProxy = HsVar (jsonpbName "asProxy")
+          asProxy = var_ (jsonpbName varName "asProxy")
 
       -- do let declare_fieldName0 = HsJSONPB.declareSchemaRef
       --    qualifiedFieldName0 <- declare_fieldName0 Proxy.Proxy
@@ -1429,28 +1509,26 @@ toSchemaInstanceDeclaration stringType ctxt messageName maybeConstructors fieldN
         let bindingStatements = do
               (fieldName, qualifiedFieldName) <- zip fieldNames qualifiedFieldNames
 
-              let declareIdentifier = HsIdent (toDeclareName fieldName)
+              let declareIdentifier = unqual_ varName (toDeclareName fieldName)
 
-              let stmt0 = HsLetStmt [ HsFunBind
-                                      [ HsMatch defaultSrcLoc declareIdentifier []
-                                                 (HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))) []
-                                      ]
-                                    ]
+              let stmt0 = letStmt_
+                    [ function_ declareIdentifier
+                        [([], unguardedRhss_ (var_ (jsonpbName varName "declareSchemaRef")))] ]
 
-              let stmt1 = HsGenerator defaultSrcLoc (HsPVar (HsIdent qualifiedFieldName))
-                                        (HsApp (HsVar (UnQual declareIdentifier))
-                                               (HsCon (proxyName "Proxy")))
+              let stmt1 = bindStmt_ (patVar qualifiedFieldName)
+                                    (app (var_ declareIdentifier)
+                                         (var_ (proxyName dataName "Proxy")))
               [ stmt0, stmt1]
 
         inferenceStatement <- do
           arguments <- traverse (toArgument WithinMessage) fieldNamesEtc
-          let patternBind = HsPatBind defaultSrcLoc HsPWildCard
-                (HsUnGuardedRhs (applicativeApply messageConstructor arguments)) []
-          pure $ if null fieldNames then [] else [ HsLetStmt [ patternBind ] ]
+          let patternBind = patBind_ wild_
+                (unguardedRhss_ (applicativeApply messageConstructor arguments))
+          pure $ if null fieldNames then [] else [ letStmt_ [ patternBind ] ]
 
-        let returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
+        let returnStatement = lastStmt_ (app returnE (paren namedSchema))
 
-        pure $ HsDo (bindingStatements ++ inferenceStatement ++ [ returnStatement ])
+        pure $ do_ (bindingStatements ++ inferenceStatement ++ [ returnStatement ])
 
       -- do let declare_fieldName0 = HsJSONPB.declareSchemaRef
       --    let _ = pure ConstructorName0 <*> HsJSONPB.asProxy declare_fieldName0
@@ -1462,30 +1540,30 @@ toSchemaInstanceDeclaration stringType ctxt messageName maybeConstructors fieldN
       --    return (...)
   let expressionForOneOf constructors = do
         let bindingStatement (fieldNameEtc, qualifiedFieldName, constructor) = do
-              let declareIdentifier = HsIdent (toDeclareName (snd fieldNameEtc))
+              let declareIdentifier = unqual_ varName (toDeclareName (snd fieldNameEtc))
 
-              let stmt0 = HsLetStmt [ HsFunBind
-                                        [ HsMatch defaultSrcLoc declareIdentifier []
-                                                   (HsUnGuardedRhs (HsVar (jsonpbName "declareSchemaRef"))) []
-                                        ]
-                                    ]
-              let stmt1 = HsGenerator defaultSrcLoc (HsPVar (HsIdent qualifiedFieldName))
-                                        (HsApp (HsVar (UnQual declareIdentifier))
-                                               (HsCon (proxyName "Proxy")))
+              let stmt0 = letStmt_
+                    [ function_ declareIdentifier
+                        [([], unguardedRhss_ (var_ (jsonpbName varName "declareSchemaRef")))] ]
+
+              let stmt1 = bindStmt_ (patVar qualifiedFieldName)
+                                    (app (var_ declareIdentifier)
+                                         (var_ (proxyName dataName "Proxy")))
+
               inferenceStatement <- do
                 argument <- toArgument WithinOneOf fieldNameEtc
-                let patternBind = HsPatBind defaultSrcLoc HsPWildCard
-                      (HsUnGuardedRhs (applicativeApply (HsCon (UnQual constructor)) [ argument ])) []
-                pure $ if null fieldNames then [] else [ HsLetStmt [ patternBind ] ]
+                let patternBind = patBind_ wild_
+                      (unguardedRhss_ (applicativeApply (var_ constructor) [ argument ]))
+                pure $ if null fieldNames then [] else [ letStmt_ [ patternBind ] ]
 
               pure $ [stmt0, stmt1] ++ inferenceStatement
 
         bindingStatements <- foldMapM bindingStatement $
           zip3 fieldNamesEtc qualifiedFieldNames constructors
 
-        let returnStatement = HsQualifier (HsApp returnE (HsParen namedSchema))
+        let returnStatement = lastStmt_ (app returnE (paren namedSchema))
 
-        pure $ HsDo (bindingStatements ++ [ returnStatement ])
+        pure $ do_ (bindingStatements ++ [ returnStatement ])
 
   expression <- case maybeConstructors of
     Nothing           -> expressionForMessage
@@ -1494,19 +1572,16 @@ toSchemaInstanceDeclaration stringType ctxt messageName maybeConstructors fieldN
   let instanceDeclaration =
           instDecl_ className [ classArgument ] [ classDeclaration ]
         where
-          className = jsonpbName "ToSchema"
+          className = jsonpbName tcName "ToSchema"
 
-          classArgument = HsTyCon (UnQual (HsIdent messageName))
+          classArgument = type_ messageName
 
-          classDeclaration = HsFunBind [ match ]
-            where
-              match = match_ matchName [ HsPWildCard ] rightHandSide []
-                where
-                  rightHandSide = HsUnGuardedRhs expression
+          classDeclaration =
+            functionS_ "declareNamedSchema"
+                       [([ wild_ ], unguardedRhss_ expression)]
 
-                  matchName = HsIdent "declareNamedSchema"
-
-  return instanceDeclaration
+  pure instanceDeclaration
+#endif
 
 
 -- ** Generate types and instances for .proto enums
@@ -1526,123 +1601,108 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
   case enumeratorDecls of
     [] -> throwError $ EmptyEnumeration enumName
     (i, conIdent) : _
-      | i == 0 -> return ()
+      | i == 0 -> pure ()
       | otherwise -> throwError $ NonzeroFirstEnumeration enumName conIdent i
 
   enumCons <- sortBy (comparing fst) <$> traverse (traverse (fmap (prefixedEnumFieldName enumName) . dpIdentUnqualName)) enumeratorDecls
 
   let enumConNames = map snd enumCons
 
-      minBoundD =
-          [ match_ (HsIdent "minBound")
-                   []
-                   (HsUnGuardedRhs (uvar_ (head enumConNames)))
-                   []
+      minBoundD :: HsBind
+      minBoundD = functionS_ "minBound"
+          [([], unguardedRhss_ (uvar_ (head enumConNames)))]
+
+      maxBoundD :: HsBind
+      maxBoundD = functionS_ "maxBound"
+          [([], unguardedRhss_ (uvar_ (last enumConNames)))]
+
+      compareD :: HsBind
+      compareD = functionS_ "compare"
+          [ ( [ patVar "x", patVar "y" ]
+            , unguardedRhss_
+                 (app
+                     (app
+                         (var_ (haskellName varName "compare"))
+                         (paren
+                             (app (var_ (protobufName varName "fromProtoEnum"))
+                                    (uvar_ "x")
+                             )
+                         )
+                     )
+                     (paren
+                         (app (var_ (protobufName varName "fromProtoEnum"))
+                                (uvar_ "y")
+                         )
+                     )
+                 )
+            )
           ]
 
-      maxBoundD =
-          [ match_ (HsIdent "maxBound")
-                   []
-                   (HsUnGuardedRhs (uvar_ (last enumConNames)))
-                   []
-          ]
-
-      compareD =
-          [ match_ (HsIdent "compare")
-                   [ patVar "x", patVar "y" ]
-                   (HsUnGuardedRhs
-                       (HsApp
-                           (HsApp
-                               (HsVar (haskellName "compare"))
-                               (HsParen
-                                   (HsApp (HsVar(protobufName "fromProtoEnum"))
-                                          (uvar_ "x")
-                                   )
-                               )
-                           )
-                           (HsParen
-                               (HsApp (HsVar (protobufName "fromProtoEnum"))
-                                      (uvar_ "y")
-                               )
-                           )
-                       )
-                   )
-                   []
-          ]
-
-      fromProtoEnumD =
-          [ match_ (HsIdent "fromProtoEnum") [ HsPApp (unqual_ conName) [] ]
-                   (HsUnGuardedRhs (intE conIdx))
-                   []
+      fromProtoEnumD :: HsBind
+      fromProtoEnumD = functionS_ "fromProtoEnum"
+          [ ([ conPat (unqual_ dataName conName) [] ], unguardedRhss_ (intE conIdx))
           | (conIdx, conName) <- enumCons
           ]
 
-      toProtoEnumMayD =
-          [ match_ (HsIdent "toProtoEnumMay")
-                   [ intP conIdx ]
-                   (HsUnGuardedRhs (HsApp justC (uvar_ conName)))
-                   []
+      toProtoEnumMayD :: HsBind
+      toProtoEnumMayD = functionS_ "toProtoEnumMay" $
+          [ ([ intP conIdx ], unguardedRhss_ (app justC (uvar_ conName)))
           | (conIdx, conName) <- enumCons ] ++
-          [ match_ (HsIdent "toProtoEnumMay")
-                   [ HsPWildCard ]
-                   (HsUnGuardedRhs nothingC)
-                   []
-          ]
+          [ ([ wild_ ], unguardedRhss_ nothingC) ]
 
-      parseJSONPBDecls :: [HsMatch]
-      parseJSONPBDecls = foldr ((:) . matchConName) [mismatch] enumConNames
+      parseJSONPBDecl :: HsBind
+      parseJSONPBDecl = functionS_ "parseJSONPB" $
+          foldr ((:) . matchConName) [mismatch] enumConNames
         where
-          matchConName conName = match_ (HsIdent "parseJSONPB") [pat conName]
-                                        (HsUnGuardedRhs
-                                           (HsApp pureE (uvar_ conName)))
-                                        []
+          matchConName conName =
+            ([pat conName], unguardedRhss_ (app pureE (uvar_ conName)))
 
-          pat nm = HsPApp (jsonpbName "String") [ HsPLit (HsString (tryStripEnumName nm)) ]
+          pat nm = conPat (jsonpbName dataName "String") [ strPat (tryStripEnumName nm) ]
 
           tryStripEnumName = fromMaybe <*> stripPrefix enumName
 
-          mismatch = match_ (HsIdent "parseJSONPB") [patVar "v"]
-                            (HsUnGuardedRhs
-                                  (apply (HsVar (jsonpbName "typeMismatch"))
-                                    [ str_ enumName, uvar_ "v" ]))
-                            []
+          mismatch =
+            ( [patVar "v"]
+            , unguardedRhss_ (apply (var_ (jsonpbName varName "typeMismatch"))
+                                    [ str_ enumName, uvar_ "v" ])
+            )
 
-
+      toJSONPBDecl :: HsBind
       toJSONPBDecl =
-        match_ (HsIdent "toJSONPB") [ patVar "x", HsPWildCard ]
-          (HsUnGuardedRhs
-             (HsApp (HsVar (jsonpbName "enumFieldString"))
-                    (uvar_ "x")))
-          []
+        functionS_ "toJSONPB"
+          [( [ patVar "x", wild_ ]
+           , unguardedRhss_ (app (var_ (jsonpbName varName "enumFieldString")) (uvar_ "x"))
+           )]
 
+      toEncodingPBDecl :: HsBind
       toEncodingPBDecl =
-        match_ (HsIdent "toEncodingPB") [ patVar "x", HsPWildCard ]
-          (HsUnGuardedRhs
-             (HsApp (HsVar (jsonpbName "enumFieldEncoding"))
-                    (uvar_ "x")))
-          []
+        functionS_ "toEncodingPB"
+          [([ patVar "x", wild_ ]
+           , unguardedRhss_ (app (var_ (jsonpbName varName "enumFieldEncoding")) (uvar_ "x"))
+           )]
 
   pure [ dataDecl_ enumName
-                   [ conDecl_ (HsIdent con) [] | con <- enumConNames ]
+                   []
+                   [ conDecl_ (unqual_ dataName con) [] | con <- enumConNames ]
                    defaultEnumDeriving
        , namedInstD enumName
        , hasDefaultInstD enumName
-       , instDecl_ (haskellName "Bounded") [ type_ enumName ]
-                   [ HsFunBind minBoundD
-                   , HsFunBind maxBoundD
+       , instDecl_ (haskellName tcName "Bounded") [ type_ enumName ]
+                   [ minBoundD
+                   , maxBoundD
                    ]
-       , instDecl_ (haskellName "Ord") [ type_ enumName ]
-                   [ HsFunBind compareD ]
-       , instDecl_ (protobufName "ProtoEnum") [ type_ enumName ]
-                   [ HsFunBind toProtoEnumMayD
-                   , HsFunBind fromProtoEnumD
+       , instDecl_ (haskellName tcName "Ord") [ type_ enumName ]
+                   [ compareD ]
+       , instDecl_ (protobufName tcName "ProtoEnum") [ type_ enumName ]
+                   [ toProtoEnumMayD
+                   , fromProtoEnumD
                    ]
-       , instDecl_ (jsonpbName "ToJSONPB") [ type_ enumName ]
-                   [ HsFunBind [toJSONPBDecl]
-                   , HsFunBind [toEncodingPBDecl]
+       , instDecl_ (jsonpbName tcName "ToJSONPB") [ type_ enumName ]
+                   [ toJSONPBDecl
+                   , toEncodingPBDecl
                    ]
-       , instDecl_ (jsonpbName "FromJSONPB") [ type_ enumName ]
-                   [ HsFunBind parseJSONPBDecls ]
+       , instDecl_ (jsonpbName tcName "FromJSONPB") [ type_ enumName ]
+                   [ parseJSONPBDecl ]
        -- Generate Aeson instances in terms of JSONPB instances
        , toJSONInstDecl enumName
        , fromJSONInstDecl enumName
@@ -1655,7 +1715,7 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
 
        -- And the Finite instance, used to infer a Swagger ToSchema instance
        -- for this enumerated type.
-       , instDecl_ (protobufName "Finite") [ type_ enumName ] []
+       , instDecl_ (protobufName tcName "Finite") [ type_ enumName ] []
        ]
 
 -- ** Generate code for dot proto services
@@ -1698,14 +1758,9 @@ dotProtoServiceD stringType pkgSpec ctxt serviceIdent service = do
 
            pure [ ( endpointPrefix ++ methodName
                   , fullName, rpcMethodRequestStreaming, rpcMethodResponseStreaming
-                  , HsUnBangedTy $
-                    HsTyFun (tyApp (HsTyVar (HsIdent "request"))
-                                   [streamingType, requestTy, responseTy])
-                            (tyApp ioT
-                                   [tyApp (HsTyVar (HsIdent "response"))
-                                          [streamingType, responseTy]
-                                   ]
-                            )
+                  , unbangedTy_ $
+                    funTy (tyApply (tvar_ "request") [streamingType, requestTy, responseTy])
+                          (tyApply ioT [tyApply (tvar_ "response") [streamingType, responseTy]])
                   )
                 ]
 
@@ -1716,69 +1771,67 @@ dotProtoServiceD stringType pkgSpec ctxt serviceIdent service = do
      serverFuncName <- prefixedFieldName serviceName "server"
      clientFuncName <- prefixedFieldName serviceName "client"
 
-     let conDecl = recDecl_ (HsIdent serviceName)
-                            [ ([HsIdent hsName], ty) | (_, hsName, _, _, ty) <- fieldsD ]
+     let conDecl = recDecl_ (unqual_ dataName serviceName)
+                            [ ([unqual_ varName hsName], ty) | (_, hsName, _, _, ty) <- fieldsD ]
 
-     let serverT = tyApp (HsTyCon (unqual_ serviceName))
-                         [ serverRequestT, serverResponseT ]
+     let serverT = tyApply (typeNamed_ (unqual_ tcName serviceName))
+                           [ serverRequestT, serverResponseT ]
 
      let serviceServerTypeD =
-            HsTypeSig defaultSrcLoc [ HsIdent serverFuncName ]
-                        (HsQualType [] (HsTyFun serverT (HsTyFun serviceOptionsC ioActionT)))
+           typeSig_ [ unqual_ varName serverFuncName ] implicitTyVarBinders_
+                    (funTy serverT (funTy serviceOptionsC ioActionT))
 
-     let serviceServerD = HsFunBind [serverFuncD]
+     let serviceServerD = valDecl_ $
+             functionS_ serverFuncName [(serverFuncPats, serverFuncRhs)]
            where
-             serverFuncD =
-               match_ (HsIdent serverFuncName)
-                      [ HsPRec (unqual_ serviceName)
-                               [ HsPFieldPat (unqual_ methodName) (HsPVar (HsIdent methodName))
-                               | (_, methodName, _, _, _) <- fieldsD
-                               ]
-                      , HsPApp (unqual_ "ServiceOptions")
-                               [ patVar "serverHost"
-                               , patVar "serverPort"
-                               , patVar "useCompression"
-                               , patVar "userAgentPrefix"
-                               , patVar "userAgentSuffix"
-                               , patVar "initialMetadata"
-                               , patVar "sslConfig"
-                               , patVar "logger"
-                               , patVar "serverMaxReceiveMessageLength"
-                               , patVar "serverMaxMetadataSize"
-                               ]
-                      ]
-                      (HsUnGuardedRhs (apply serverLoopE [ serverOptsE ]))
-                      []
+             serverFuncPats =
+                 [ recPat (unqual_ dataName serviceName)
+                          [ fieldPunPat (unqual_ varName methodName)
+                          | (_, methodName, _, _, _) <- fieldsD
+                          ]
+                 , conPat (unqual_ dataName "ServiceOptions")
+                          [ patVar "serverHost"
+                          , patVar "serverPort"
+                          , patVar "useCompression"
+                          , patVar "userAgentPrefix"
+                          , patVar "userAgentSuffix"
+                          , patVar "initialMetadata"
+                          , patVar "sslConfig"
+                          , patVar "logger"
+                          , patVar "serverMaxReceiveMessageLength"
+                          , patVar "serverMaxMetadataSize"
+                          ]
+                 ]
+
+             serverFuncRhs = unguardedRhss_ (apply serverLoopE [ serverOptsE ])
 
              handlerE handlerC adapterE methodName hsName =
                  apply handlerC [ apply methodNameC [ str_ methodName ]
                                 , apply adapterE [ uvar_ hsName ]
                                 ]
 
-             update u v = HsFieldUpdate (unqual_ u) (uvar_ v)
+             update u v = fieldUpd_ (unqual_ varName u) (uvar_ v)
 
-             serverOptsE = HsRecUpdate defaultOptionsE
-                 [ HsFieldUpdate (grpcName "optNormalHandlers") $
-                       HsList [ handlerE unaryHandlerC convertServerHandlerE endpointName hsName
-                              | (endpointName, hsName, NonStreaming, NonStreaming, _) <- fieldsD
-                              ]
+             serverOptsE = recordUpd_ defaultOptionsE
+                 [ fieldUpd_ (grpcName varName "optNormalHandlers") $
+                       list_ [ handlerE unaryHandlerC convertServerHandlerE endpointName hsName
+                             | (endpointName, hsName, NonStreaming, NonStreaming, _) <- fieldsD
+                             ]
 
-                 , HsFieldUpdate (grpcName "optClientStreamHandlers") $
-                       HsList [ handlerE clientStreamHandlerC convertServerReaderHandlerE endpointName hsName
-                              | (endpointName, hsName, Streaming, NonStreaming, _) <- fieldsD
-                              ]
+                 , fieldUpd_ (grpcName varName "optClientStreamHandlers") $
+                       list_ [ handlerE clientStreamHandlerC convertServerReaderHandlerE endpointName hsName
+                             | (endpointName, hsName, Streaming, NonStreaming, _) <- fieldsD
+                             ]
 
+                 , fieldUpd_ (grpcName varName "optServerStreamHandlers") $
+                       list_ [ handlerE serverStreamHandlerC convertServerWriterHandlerE endpointName hsName
+                             | (endpointName, hsName, NonStreaming, Streaming, _) <- fieldsD
+                             ]
 
-                 , HsFieldUpdate (grpcName "optServerStreamHandlers") $
-                       HsList [ handlerE serverStreamHandlerC convertServerWriterHandlerE endpointName hsName
-                              | (endpointName, hsName, NonStreaming, Streaming, _) <- fieldsD
-                              ]
-
-
-                 , HsFieldUpdate (grpcName "optBiDiStreamHandlers") $
-                       HsList [ handlerE biDiStreamHandlerC convertServerRWHandlerE endpointName hsName
-                              | (endpointName, hsName, Streaming, Streaming, _) <- fieldsD
-                              ]
+                 , fieldUpd_ (grpcName varName "optBiDiStreamHandlers") $
+                       list_ [ handlerE biDiStreamHandlerC convertServerRWHandlerE endpointName hsName
+                             | (endpointName, hsName, Streaming, Streaming, _) <- fieldsD
+                             ]
 
                  , update "optServerHost" "serverHost"
                  , update "optServerPort" "serverPort"
@@ -1792,23 +1845,21 @@ dotProtoServiceD stringType pkgSpec ctxt serviceIdent service = do
                  , update "optMaxMetadataSize" "serverMaxMetadataSize"
                  ]
 
-     let clientT = tyApp (HsTyCon (unqual_ serviceName)) [ clientRequestT, clientResultT ]
+     let clientT = tyApply (type_ serviceName) [ clientRequestT, clientResultT ]
 
      let serviceClientTypeD =
-             HsTypeSig defaultSrcLoc [ HsIdent clientFuncName ]
-                       (HsQualType [] (HsTyFun grpcClientT (HsTyApp ioT clientT)))
+            typeSig_ [ unqual_ varName clientFuncName ] implicitTyVarBinders_
+                     (funTy grpcClientT (tyApp ioT clientT))
 
-     let serviceClientD = HsFunBind [ clientFuncD ]
+     let serviceClientD = valDecl_ $
+              functionS_ clientFuncName [([patVar "client"], unguardedRhss_ clientRecE)]
             where
-              clientFuncD = match_ (HsIdent clientFuncName)
-                                   [ HsPVar (HsIdent "client") ]
-                                   ( HsUnGuardedRhs clientRecE ) []
-
-              clientRecE = foldl (\f -> HsInfixApp f apOp)
-                                 (apply pureE [ uvar_ serviceName ])
-                                 [ HsParen $ HsInfixApp clientRequestE' apOp (registerClientMethodE endpointName)
-                                 | (endpointName, _, _, _, _) <- fieldsD
-                                 ]
+              clientRecE = foldl
+                (\f -> opApp f apOp)
+                (apply pureE [ uvar_ serviceName ])
+                [ paren (opApp clientRequestE' apOp (registerClientMethodE endpointName))
+                | (endpointName, _, _, _, _) <- fieldsD
+                ]
 
               clientRequestE' = apply pureE [ apply clientRequestE [ uvar_ "client" ] ]
 
@@ -1817,9 +1868,12 @@ dotProtoServiceD stringType pkgSpec ctxt serviceIdent service = do
                                             , apply methodNameC [ str_ endpoint ]
                                             ]
 
-     pure [ HsDataDecl defaultSrcLoc  [] (HsIdent serviceName)
-                [ HsIdent "request", HsIdent "response" ]
-                [ conDecl ] defaultServiceDeriving
+     pure [ dataDecl_ serviceName
+                      [ userTyVar_ () (unqual_ GHC.tvName "request")
+                      , userTyVar_ () (unqual_ GHC.tvName "response")
+                      ]
+                      [ conDecl ]
+                      defaultServiceDeriving
 
           , serviceServerTypeD
           , serviceServerD
@@ -1839,56 +1893,59 @@ unaryHandlerC, clientStreamHandlerC, serverStreamHandlerC, biDiStreamHandlerC,
   convertServerReaderHandlerE, convertServerWriterHandlerE,
   convertServerRWHandlerE, clientRegisterMethodE, clientRequestE :: HsExp
 
-unaryHandlerC               = HsVar (grpcName "UnaryHandler")
-clientStreamHandlerC        = HsVar (grpcName "ClientStreamHandler")
-serverStreamHandlerC        = HsVar (grpcName "ServerStreamHandler")
-biDiStreamHandlerC          = HsVar (grpcName "BiDiStreamHandler")
-methodNameC                 = HsVar (grpcName "MethodName")
-defaultOptionsE             = HsVar (grpcName "defaultOptions")
-serverLoopE                 = HsVar (grpcName "serverLoop")
-convertServerHandlerE       = HsVar (grpcName "convertGeneratedServerHandler")
-convertServerReaderHandlerE = HsVar (grpcName "convertGeneratedServerReaderHandler")
-convertServerWriterHandlerE = HsVar (grpcName "convertGeneratedServerWriterHandler")
-convertServerRWHandlerE     = HsVar (grpcName "convertGeneratedServerRWHandler")
-clientRegisterMethodE       = HsVar (grpcName "clientRegisterMethod")
-clientRequestE              = HsVar (grpcName "clientRequest")
+unaryHandlerC               = var_ (grpcName dataName "UnaryHandler")
+clientStreamHandlerC        = var_ (grpcName dataName "ClientStreamHandler")
+serverStreamHandlerC        = var_ (grpcName dataName "ServerStreamHandler")
+biDiStreamHandlerC          = var_ (grpcName dataName "BiDiStreamHandler")
+methodNameC                 = var_ (grpcName tcName "MethodName")
+defaultOptionsE             = var_ (grpcName varName "defaultOptions")
+serverLoopE                 = var_ (grpcName varName "serverLoop")
+convertServerHandlerE       = var_ (grpcName varName "convertGeneratedServerHandler")
+convertServerReaderHandlerE = var_ (grpcName varName "convertGeneratedServerReaderHandler")
+convertServerWriterHandlerE = var_ (grpcName varName "convertGeneratedServerWriterHandler")
+convertServerRWHandlerE     = var_ (grpcName varName "convertGeneratedServerRWHandler")
+clientRegisterMethodE       = var_ (grpcName varName "clientRegisterMethod")
+clientRequestE              = var_ (grpcName varName "clientRequest")
 
 biDiStreamingC, serverStreamingC, clientStreamingC, normalC, serviceOptionsC,
   ioActionT, serverRequestT, serverResponseT, clientRequestT, clientResultT,
   ioT, grpcClientT :: HsType
-biDiStreamingC   = HsTyCon (Qual (Module "'HsGRPC") (HsIdent "BiDiStreaming"))
-serverStreamingC = HsTyCon (Qual (Module "'HsGRPC") (HsIdent "ServerStreaming"))
-clientStreamingC = HsTyCon (Qual (Module "'HsGRPC") (HsIdent "ClientStreaming"))
-normalC          = HsTyCon (Qual (Module "'HsGRPC") (HsIdent "Normal"))
-serviceOptionsC  = HsTyCon (Qual (Module "HsGRPC") (HsIdent "ServiceOptions"))
-serverRequestT   = HsTyCon (grpcName "ServerRequest")
-serverResponseT  = HsTyCon (grpcName "ServerResponse")
-clientRequestT   = HsTyCon (grpcName "ClientRequest")
-clientResultT    = HsTyCon (grpcName "ClientResult")
-grpcClientT      = HsTyCon (grpcName "Client")
-ioActionT        = tyApp ioT [ HsTyTuple [] ]
-ioT              = HsTyCon (haskellName "IO")
+biDiStreamingC   = typeNamed_ (qual_ grpcModule dataName "BiDiStreaming")
+serverStreamingC = typeNamed_ (qual_ grpcModule dataName "ServerStreaming")
+clientStreamingC = typeNamed_ (qual_ grpcModule dataName "ClientStreaming")
+normalC          = typeNamed_ (qual_ grpcModule dataName "Normal")
+serviceOptionsC  = typeNamed_ (qual_ grpcModule tcName "ServiceOptions")
+serverRequestT   = typeNamed_ (grpcName tcName "ServerRequest")
+serverResponseT  = typeNamed_ (grpcName tcName "ServerResponse")
+clientRequestT   = typeNamed_ (grpcName tcName "ClientRequest")
+clientResultT    = typeNamed_ (grpcName tcName "ClientResult")
+grpcClientT      = typeNamed_ (grpcName tcName "Client")
+ioActionT        = tyApp ioT (tupleType_ [])
+ioT              = typeNamed_ (haskellName tcName "IO")
+
+grpcModule :: GHC.ModuleName
+grpcModule = GHC.mkModuleName "HsGRPC"
 
 -- ** Expressions for protobuf-wire types
 
 forceEmitE :: HsExp -> HsExp
-forceEmitE = HsParen . HsApp forceEmitC
+forceEmitE = paren . app forceEmitC
 
 fieldNumberE :: FieldNumber -> HsExp
-fieldNumberE = HsParen . HsApp fieldNumberC . intE . getFieldNumber
+fieldNumberE = paren . app fieldNumberC . intE . getFieldNumber
 
 dpIdentE :: DotProtoIdentifier -> HsExp
-dpIdentE (Single n)       = apply singleC [ str_ n ]
-dpIdentE (Dots (Path (n NE.:| ns)))
-  = apply dotsC [ apply pathC [ HsParen (HsInfixApp (str_ n) neConsOp (HsList (map str_ ns))) ] ]
+dpIdentE (Single n) = apply singleC [ str_ n ]
+dpIdentE (Dots (Path (n NE.:| ns))) =
+  apply dotsC [ apply pathC [ paren (opApp (str_ n) neConsOp (list_ (map str_ ns))) ] ]
 dpIdentE (Qualified a b)  = apply qualifiedC [ dpIdentE a, dpIdentE b ]
 dpIdentE Anonymous        = anonymousC
 
 dpValueE :: DotProtoValue -> HsExp
 dpValueE (Identifier nm) = apply identifierC [ dpIdentE nm ]
 dpValueE (StringLit s)   = apply stringLitC  [ str_ s ]
-dpValueE (IntLit i)      = apply intLitC     [ HsLit (HsInt (fromIntegral i)) ]
-dpValueE (FloatLit f)    = apply floatLitC   [ HsLit (HsFrac (toRational f)) ]
+dpValueE (IntLit i)      = apply intLitC     [ intE i ]
+dpValueE (FloatLit f)    = apply floatLitC   [ floatE f ]
 dpValueE (BoolLit True)  = apply boolLitC    [ trueC ]
 dpValueE (BoolLit False) = apply boolLitC    [ falseC ]
 
@@ -1907,7 +1964,7 @@ dpTypeE (Map k v)          = apply mapC            [ dpPrimTypeE k, dpPrimTypeE 
 -- | Translate a dot proto primitive type to a Haskell AST primitive type.
 dpPrimTypeE :: DotProtoPrimType -> HsExp
 dpPrimTypeE ty =
-    let wrap = HsVar . protobufASTName in
+    let wrap = var_ . protobufASTName dataName in
     case ty of
         Named n  -> apply namedC [ dpIdentE n ]
         Int32    -> wrap "Int32"
@@ -1951,7 +2008,7 @@ defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = Strin
     , importDecl_ (m "Data.ByteString")       & qualified haskellNS  & everything
     , importDecl_ (m "Data.Coerce")           & qualified haskellNS  & everything
     , importDecl_ (m "Data.Int")              & qualified haskellNS  & selecting  [i"Int16", i"Int32", i"Int64"]
-    , importDecl_ (m "Data.List.NonEmpty")    & qualified haskellNS  & selecting  [HsIThingAll (HsIdent "NonEmpty")]
+    , importDecl_ (m "Data.List.NonEmpty")    & qualified haskellNS  & selecting  [ieNameAll_ (unqual_ tcName "NonEmpty")]
     , importDecl_ (m "Data.Map")              & qualified haskellNS  & selecting  [i"Map", i"mapKeysMonotonic"]
     , importDecl_ (m "Data.Proxy")            & qualified proxyNS    & everything
     , importDecl_ (m "Data.String")           & qualified haskellNS  & selecting  [i"fromString"]
@@ -1960,7 +2017,7 @@ defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = Strin
     , importDecl_ (m "Data.Word")             & qualified haskellNS  & selecting  [i"Word16", i"Word32", i"Word64"]
     , importDecl_ (m "GHC.Enum")              & qualified haskellNS  & everything
     , importDecl_ (m "GHC.Generics")          & qualified haskellNS  & everything
-    , importDecl_ (m "Google.Protobuf.Wrappers.Polymorphic") & qualified protobufNS & selecting [HsIThingAll (HsIdent "Wrapped")]
+    , importDecl_ (m "Google.Protobuf.Wrappers.Polymorphic") & qualified protobufNS & selecting [ieNameAll_ (unqual_ tcName "Wrapped")]
     , importDecl_ (m "Unsafe.Coerce")         & qualified haskellNS  & everything
     ]
     <>
@@ -2016,9 +2073,9 @@ defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = Strin
 #endif
         ]
   where
-    m = Module
-    i = HsIVar . HsIdent
-    s = HsIVar . HsSymbol
+    m = GHC.mkModuleName
+    i n = ieName_ (unqual_ (if isLower (head n) then varName else tcName) n)
+    s n = ieName_ (unqual_ varName n)
 
     grpcNS                    = m "HsGRPC"
     jsonpbNS                  = m "HsJSONPB"
@@ -2048,10 +2105,10 @@ defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = Strin
     everything f = f Nothing
 
 defaultMessageDeriving :: [HsQName]
-defaultMessageDeriving = map haskellName [ "Show", "Eq", "Ord", "Generic" ]
+defaultMessageDeriving = map (haskellName tcName) [ "Show", "Eq", "Ord", "Generic" ]
 
 defaultEnumDeriving :: [HsQName]
-defaultEnumDeriving = map haskellName [ "Show", "Eq", "Generic", "NFData" ]
+defaultEnumDeriving = map (haskellName tcName) [ "Show", "Eq", "Generic", "NFData" ]
 
 defaultServiceDeriving :: [HsQName]
-defaultServiceDeriving = map haskellName [ "Generic" ]
+defaultServiceDeriving = map (haskellName tcName) [ "Generic" ]

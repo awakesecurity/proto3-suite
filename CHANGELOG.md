@@ -1,3 +1,15 @@
+# 0.8.0
+* [BREAKING CHANGE: Use "ghc" library in place of "haskell-src".]
+  The "ghc" library is now used to parse and print Haskell source code.
+  Switching to "ghc" adds support for language features beyond Haskell 98
+  and should improve diagnostic messages for sources specified with
+  "--extraInstanceFile".  Breakage should be limited to users of:
+  * Proto3.Suite.DotProto.Generate
+  * Proto3.Suite.DotProto.Generate.LargeRecord
+  * Proto3.Suite.DotProto.Generate.Syntax
+* Add support for GHC 9.6.
+* Drop support for GHC 8.10.
+
 # 0.7.0
 * Support GHC 9.2, 9.4.
 * Support proto files without a package declaration.

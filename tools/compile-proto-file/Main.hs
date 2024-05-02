@@ -8,6 +8,7 @@
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TypeOperators       #-}
 
+import           GHC.Utils.Logger               (initLogger)
 import           Options.Applicative
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate
@@ -48,4 +49,7 @@ parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto fi
       <> help "Use large-records library to optimize the core code size of generated records"
 
 main :: IO ()
-main = execParser parseArgs >>= compileDotProtoFileOrDie
+main = do
+  logger <- initLogger
+  compileArgs <- execParser parseArgs
+  compileDotProtoFileOrDie logger compileArgs
