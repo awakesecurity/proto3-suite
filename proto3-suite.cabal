@@ -95,10 +95,10 @@ library
                        Google.Protobuf.Wrappers.Polymorphic
 
                        Proto3.Suite.DotProto.Internal
+                       Proto3.Suite.Haskell.Parser
                        Proto3.Suite.JSONPB.Class
 
-  other-modules:       Proto3.Suite.Haskell.Parser
-                       Turtle.Compat
+  other-modules:       Turtle.Compat
 
   build-depends:       aeson >= 1.1.1.0 && < 2.2,
                        aeson-pretty,
@@ -113,11 +113,11 @@ library
                        contravariant >=1.4 && <1.6,
                        filepath,
                        foldl,
-                       ghc >= 9.0.1,
+                       ghc >=9.0 && <9.7,
                        hashable,
                        insert-ordered-containers,
                        lens,
-                       mtl ==2.2.*,
+                       mtl >=2.2 && <2.4,
                        neat-interpolation,
                        parsec >= 3.1.9 && <3.2.0,
                        parsers >= 0.12 && <0.13,
@@ -132,11 +132,9 @@ library
                        time,
                        text >= 0.2 && <2.1,
                        text-short >=0.1.3 && <0.2,
-                       transformers >=0.4 && <0.6,
+                       transformers >=0.4 && <0.7,
                        turtle < 1.6.0 || >= 1.6.1 && < 1.7.0,
-                       vector >=0.11 && < 0.13
-  if !impl(ghc >= 8.0)
-    build-depends:     semigroups >= 0.18 && < 0.20
+                       vector >=0.11 &&  <0.14
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -O2 -Wall -Werror
@@ -204,7 +202,7 @@ test-suite tests
     , generic-arbitrary
     , ghc
     , hedgehog
-    , mtl ==2.2.*
+    , mtl >=2.2 && <2.4
     , parsec >= 3.1.9 && <3.2.0
     , pretty ==1.1.*
     , pretty-show >= 1.6.12 && < 2.0
@@ -218,12 +216,10 @@ test-suite tests
     , tasty-quickcheck >= 0.8.4 && <0.11
     , text >= 0.2 && <2.1
     , text-short >=0.1.3 && <0.2
-    , transformers >=0.4 && <0.6
+    , transformers >=0.4 && <0.7
     , turtle
-    , vector >=0.11 && < 0.13
+    , vector >=0.11 && < 0.14
 
-  if !impl(ghc >= 8.0)
-    build-depends:     semigroups >= 0.18 && < 0.20
   ghc-options:         -O2 -Wall
 
 executable compile-proto-file
@@ -245,7 +241,7 @@ executable canonicalize-proto-file
   default-language:    Haskell2010
   build-depends:       base >=4.11.0.0 && <5.0
                        , containers >=0.5 && <0.7
-                       , mtl ==2.2.*
+                       , mtl >=2.2 && <2.4
                        , optparse-generic
                        , proto3-suite
                        , proto3-wire >= 1.2 && <1.5

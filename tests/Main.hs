@@ -16,8 +16,8 @@ import           Data.Either                 (isRight)
 import qualified Data.List.NonEmpty          as NE
 import           Data.String
 import           GHC.Exts                    (fromList, Proxy#)
-import           GHC.Utils.Logger            (Logger, initLogger)
 import           Proto3.Suite
+import           Proto3.Suite.Haskell.Parser (Logger, initLogger)
 import           Proto3.Wire.Decode          (ParseError)
 import qualified Proto3.Wire.Decode          as Decode
 import           Proto3.Wire.Types           as P

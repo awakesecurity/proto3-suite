@@ -2,6 +2,7 @@
    the large-records library.
 -}
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Proto3.Suite.DotProto.Generate.LargeRecord where
@@ -13,9 +14,16 @@ import GHC.Types.SrcLoc (GenLocated(..))
 import Proto3.Suite.DotProto.Generate.Syntax
 
 typeNameIfLargeRecord :: HsDecl -> Maybe HsName
-typeNameIfLargeRecord ( L _ ( TyClD _ DataDecl{ tcdLName = n
-                                              , tcdDataDefn = HsDataDefn {dd_cons = [c]}
-                                              } ) )
+typeNameIfLargeRecord ( L _ ( TyClD _ DataDecl
+                                { tcdLName = n
+                                , tcdDataDefn = HsDataDefn
+                                    { dd_cons =
+#if MIN_VERSION_ghc(9,6,0)
+                                                DataTypeCons False
+#endif
+                                                                   [c]
+                                    }
+                                } ) )
     | largeRec c = Just n
     | otherwise = Nothing
   where
@@ -42,4 +50,4 @@ nfDataInstD typeDecl typeName =
               [ rnfDecl | isLargeRecord typeDecl ]
   where
     rnfDecl = function_ (unqual_ varName "rnf")
-                        [ ([], grhss_ [ unguardedRhs_ (var_ (lrName varName "grnf")) ] [] []) ]
+                        [ ([], var_ (lrName varName "grnf")) ]

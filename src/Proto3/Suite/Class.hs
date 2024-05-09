@@ -99,7 +99,9 @@ module Proto3.Suite.Class
   , GenericMessage(..)
   ) where
 
+#if !MIN_VERSION_base(4,18,0)
 import           Control.Applicative
+#endif
 import           Control.Monad
 import qualified Data.ByteString        as B
 import qualified Data.ByteString.Base64 as B64

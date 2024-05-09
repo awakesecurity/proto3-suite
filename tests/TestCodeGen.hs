@@ -28,12 +28,12 @@ import           Data.Typeable                  (Typeable, typeRep,
                                                  splitTyConApp, tyConName
 #endif
                                                 )
-import           GHC.Utils.Logger               (Logger)
 import           Google.Protobuf.Timestamp      (Timestamp(..))
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.Class             (def)
 import           Proto3.Suite.DotProto.Generate
 import           Proto3.Suite.DotProto          (fieldLikeName, prefixedEnumFieldName, typeLikeName)
+import           Proto3.Suite.Haskell.Parser    (Logger)
 import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  ToJSONPB (..), defaultOptions,
                                                  eitherDecode, encode,

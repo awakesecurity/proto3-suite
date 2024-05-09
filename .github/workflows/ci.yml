@@ -13,8 +13,8 @@ jobs:
           - macos-latest
         compiler:
           - ghc902
-          - ghc924
-          - ghc946
+          - ghc928
+          - ghc948
           - ghc962
     runs-on: ${{ matrix.os }}
     steps:

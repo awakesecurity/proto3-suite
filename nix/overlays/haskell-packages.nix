@@ -26,6 +26,19 @@ in {
         [ (pkgsNew.haskell.lib.packagesFromDirectory { directory = ../packages; })
 
           (haskellPackagesNew: haskellPackagesOld: {
+
+          # With nixpkgs-23.11 and ghc962, generics-sop thinks that th-abstraction is out of bounds.
+          generics-sop =
+            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.generics-sop;
+
+          # With nixpkgs-23.11 and ghc902, large-generics thinks that primitive is out of bounds.
+          large-generics =
+            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.large-generics;
+
+          # With nixpkgs-23.11 and ghc902, large-records thinks that primitive is out of bounds.
+          large-records =
+            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.large-records;
+
           range-set-list =
             pkgsNew.haskell.lib.overrideCabal
               haskellPackagesOld.range-set-list
@@ -34,15 +47,19 @@ in {
                 jailbreak = true;
               });
 
+          # With nixpkgs-23.11 and ghc962, proto3-wire thinks
+          # that doctest and transformers are out of bounds.
           proto3-wire =
             let
               source = pkgsNew.fetchFromGitHub {
                 owner = "awakesecurity";
                 repo = "proto3-wire";
-                rev = "938523213d5de2d0ad9ece051d1a03002ee539cc";
-                sha256 = "GVH3N1KrFUVpR8ZRkjZcRp51VgMtSXqClL88dM7FBdc=";
+                rev = "b3d837f66d97f97f1ad46c5bb0f1d1bb3b7b13c1"; # 1.4.2
+                sha256 = "LXinRHg7fjBf9of7pDm/oWAacCwJ9x/PtnJz6S0W/FA=";
               };
-            in haskellPackagesNew.callCabal2nix "proto3-wire" source { };
+            in
+              pkgsNew.haskell.lib.doJailbreak
+                (haskellPackagesNew.callCabal2nix "proto3-wire" source { });
 
           proto3-suite-base =
             let

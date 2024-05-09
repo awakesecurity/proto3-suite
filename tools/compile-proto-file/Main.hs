@@ -8,10 +8,10 @@
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TypeOperators       #-}
 
-import           GHC.Utils.Logger               (initLogger)
 import           Options.Applicative
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate
+import           Proto3.Suite.Haskell.Parser    (initLogger)
 
 parseArgs :: ParserInfo CompileArgs
 parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto file to a Haskell module")
