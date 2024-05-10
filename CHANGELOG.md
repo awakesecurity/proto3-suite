@@ -8,8 +8,9 @@
   * Proto3.Suite.DotProto.Generate.LargeRecord
   * Proto3.Suite.DotProto.Generate.Syntax
 * Drop support for GHC 8.10.
-* Add support for GHC 9.6.
-* Add support for GHC 9.8.
+* On Darwin, drop support for GHC 9.0.
+* Add support for GHC 9.6 (without large-records).
+* Add support for GHC 9.8 (without large-records, dhall).
 
 # 0.7.0
 * Support GHC 9.2, 9.4.

@@ -38,6 +38,8 @@ jobs:
             largeRecords: true
           - compiler: ghc981
             dhall: true
+          - compiler: ghc902
+            os: macos-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3.5.3
