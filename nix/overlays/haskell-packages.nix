@@ -209,6 +209,12 @@ in {
           tasty-discover =
             pkgsNew.haskell.lib.dontCheck haskellPackagesOld.tasty-discover;
 
+          # Suppress:
+          #   warning: non-portable path to file '"dist/build/Test/autogen/cabal_macros.h"'; specified path differs in case from file name on disk [-Wnonportable-include-path]
+          tasty-golden =
+            pkgsNew.haskell.lib.appendConfigureFlags haskellPackagesOld.tasty-golden
+              [ "--ghc-option=-Wno-nonportable-include-path" ];
+
           # With nixpkgs-23.11 and ghc981, text-metrics wants hspec for testing,
           # which causes problems.
           text-metrics =
