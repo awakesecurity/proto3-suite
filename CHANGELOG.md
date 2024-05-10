@@ -7,8 +7,9 @@
   * Proto3.Suite.DotProto.Generate
   * Proto3.Suite.DotProto.Generate.LargeRecord
   * Proto3.Suite.DotProto.Generate.Syntax
-* Add support for GHC 9.6.
 * Drop support for GHC 8.10.
+* Add support for GHC 9.6.
+* Add support for GHC 9.8.
 
 # 0.7.0
 * Support GHC 9.2, 9.4.

@@ -23,7 +23,7 @@ import qualified GHC.Driver.Errors (printMessages)
 import GHC.Parser.Errors.Types (PsMessage)
 import GHC.Parser.Lexer (getPsMessages, initParserState, mkParserOpts)
 import GHC.Types.Error (Messages, NoDiagnosticOpts(..), partitionMessages, unionMessages)
-import GHC.Utils.Error (DiagOpts(..))
+import GHC.Utils.Error (DiagOpts, emptyDiagOpts)
 import GHC.Utils.Logger (Logger, initLogger)
 import GHC.Utils.Outputable (defaultSDocContext, renderWithContext)
 #elif MIN_VERSION_ghc(9,4,0)
@@ -93,14 +93,19 @@ parseModule logger location input = do
   where
     exts = EnumSet.fromList (languageExtensions Nothing)
 #if MIN_VERSION_ghc(9,4,0)
-    diagOpts = DiagOpts
-      { diag_warning_flags = mempty
-      , diag_fatal_warning_flags = mempty
-      , diag_warn_is_error = False
-      , diag_reverse_errors = False
-      , diag_max_errors = Nothing
-      , diag_ppr_ctx = defaultSDocContext
-      }
+    diagOpts =
+#if MIN_VERSION_ghc(9,8,0)
+      emptyDiagOpts
+#else
+      DiagOpts
+        { diag_warning_flags = mempty
+        , diag_fatal_warning_flags = mempty
+        , diag_warn_is_error = False
+        , diag_reverse_errors = False
+        , diag_max_errors = Nothing
+        , diag_ppr_ctx = defaultSDocContext
+        }
+#endif
     parserOpts = mkParserOpts exts diagOpts [] False True True True
     initialState = initParserState parserOpts input location
 #elif MIN_VERSION_ghc(9,2,0)

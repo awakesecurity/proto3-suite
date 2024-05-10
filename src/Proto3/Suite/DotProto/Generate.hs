@@ -43,10 +43,10 @@ import           Control.Monad.IO.Class         (MonadIO(..))
 import           Data.Char
 import           Data.Coerce
 import           Data.Either                    (partitionEithers)
-import           Data.List                      (find, intercalate, nub, sort, sortBy, stripPrefix)
+import           Data.List                      (find, intercalate, nub, sort, stripPrefix)
 import qualified Data.List.NonEmpty             as NE
 import           Data.List.Split                (splitOn)
-import           Data.List.NonEmpty (NonEmpty (..))
+import           Data.List.NonEmpty             (NonEmpty (..))
 import qualified Data.Map                       as M
 import           Data.Maybe
 import           Data.Monoid
@@ -1601,21 +1601,23 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
   let enumeratorDecls =
         [ (i, conIdent) | DotProtoEnumField conIdent i _options <- enumParts ]
 
-  case enumeratorDecls of
+  enumeratorDeclsNE <- case enumeratorDecls of
     [] -> throwError $ EmptyEnumeration enumName
-    (i, conIdent) : _
-      | i == 0 -> pure ()
+    h@(i, conIdent) : t
+      | i == 0 -> pure (h :| t)
       | otherwise -> throwError $ NonzeroFirstEnumeration enumName conIdent i
 
-  enumCons <- sortBy (comparing fst) <$> traverse (traverse (fmap (prefixedEnumFieldName enumName) . dpIdentUnqualName)) enumeratorDecls
+  enumCons <- NE.sortBy (comparing fst) <$>
+    traverse (traverse (fmap (prefixedEnumFieldName enumName) . dpIdentUnqualName))
+             enumeratorDeclsNE
 
-  let enumConNames = map snd enumCons
+  let enumConNames = fmap snd enumCons
 
       minBoundD :: HsBind
-      minBoundD = functionS_ "minBound" [([], uvar_ (head enumConNames))]
+      minBoundD = functionS_ "minBound" [([], uvar_ (NE.head enumConNames))]
 
       maxBoundD :: HsBind
-      maxBoundD = functionS_ "maxBound" [([], uvar_ (last enumConNames))]
+      maxBoundD = functionS_ "maxBound" [([], uvar_ (NE.last enumConNames))]
 
       compareD :: HsBind
       compareD = functionS_ "compare"
@@ -1640,13 +1642,13 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
       fromProtoEnumD :: HsBind
       fromProtoEnumD = functionS_ "fromProtoEnum"
           [ ([ conPat (unqual_ dataName conName) [] ], intE conIdx)
-          | (conIdx, conName) <- enumCons
+          | (conIdx, conName) <- NE.toList enumCons
           ]
 
       toProtoEnumMayD :: HsBind
       toProtoEnumMayD = functionS_ "toProtoEnumMay" $
           [ ([ intP conIdx ], app justC (uvar_ conName))
-          | (conIdx, conName) <- enumCons ] ++
+          | (conIdx, conName) <- NE.toList enumCons ] ++
           [ ([ wild_ ], nothingC) ]
 
       parseJSONPBDecl :: HsBind
@@ -1681,7 +1683,7 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
 
   pure [ dataDecl_ enumName
                    []
-                   [ conDecl_ (unqual_ dataName con) [] | con <- enumConNames ]
+                   [ conDecl_ (unqual_ dataName con) [] | con <- NE.toList enumConNames ]
                    defaultEnumDeriving
        , namedInstD enumName
        , hasDefaultInstD enumName
@@ -1867,8 +1869,8 @@ dotProtoServiceD stringType pkgSpec ctxt serviceIdent service = do
                                             ]
 
      pure [ dataDecl_ serviceName
-                      [ userTyVar_ () (unqual_ GHC.tvName "request")
-                      , userTyVar_ () (unqual_ GHC.tvName "response")
+                      [ userTyVar_ synDef (unqual_ GHC.tvName "request")
+                      , userTyVar_ synDef (unqual_ GHC.tvName "response")
                       ]
                       [ conDecl ]
                       defaultServiceDeriving
@@ -2072,7 +2074,7 @@ defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = Strin
         ]
   where
     m = GHC.mkModuleName
-    i n = ieName_ (unqual_ (if isLower (head n) then varName else tcName) n)
+    i n = ieName_ (unqual_ (if foldr (const . isLower) True n then varName else tcName) n)
     s n = ieName_ (unqual_ varName n)
 
     grpcNS                    = m "HsGRPC"

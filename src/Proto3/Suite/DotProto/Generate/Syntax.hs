@@ -21,7 +21,19 @@ import GHC.Types.Name.Occurrence (NameSpace, dataName, mkOccName, tcName, tvName
 import GHC.Types.Name.Reader (mkRdrQual, mkRdrUnqual, rdrNameSpace)
 import GHC.Types.SrcLoc (GenLocated(..), SrcSpan, generatedSrcSpan)
 
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_ghc(9,8,0)
+import Control.Arrow ((***))
+import Data.Bool (bool)
+import Data.Ratio ((%))
+import Data.Void (Void)
+import GHC.Hs hiding (HsBind, HsDecl, HsDerivingClause, HsOuterSigTyVarBndrs, HsTyVarBndr, HsType)
+import qualified GHC.Hs as GHC (HsOuterSigTyVarBndrs)
+import GHC.Types.Basic (DoPmc(..))
+import GHC.Types.Fixity (LexicalFixity(..))
+import GHC.Types.PkgQual (RawPkgQual(..))
+import GHC.Types.SourceText
+         (IntegralLit(..), FractionalExponentBase(..), FractionalLit(..), SourceText(..))
+#elif MIN_VERSION_ghc(9,6,0)
 import Control.Arrow ((***))
 import Data.Bool (bool)
 import Data.Ratio ((%))
@@ -96,12 +108,23 @@ type HsPat = LPat GhcPs
 type HsQName = LIdP GhcPs
 type HsQOp = LHsExpr GhcPs
 type HsSig = LSig GhcPs
+type HsTyVarBndr = LHsTyVarBndr
+#if MIN_VERSION_ghc(9,8,0)
+                                (HsBndrVis GhcPs)
+#else
+                                ()
+#endif
+                                   GhcPs
 type HsType = LHsType GhcPs
 type Module = ModuleName
 
 class SyntaxDefault a
   where
     synDef :: a
+
+instance SyntaxDefault ()
+  where
+    synDef = ()
 
 instance SyntaxDefault (Maybe a)
   where
@@ -126,6 +149,14 @@ instance SyntaxDefault SourceText
 instance SyntaxDefault SrcSpan
   where
     synDef = generatedSrcSpan
+
+#if MIN_VERSION_ghc(9,8,0)
+
+instance SyntaxDefault (HsBndrVis GhcPs)
+  where
+    synDef = HsBndrRequired
+
+#endif
 
 #if MIN_VERSION_ghc(9,4,0)
 
@@ -384,7 +415,7 @@ importDecl_ moduleName qualified maybeAs details = noLocA ImportDecl
   }
 
 ieName_ :: HsName -> HsImportSpec
-ieName_ = noLocA . IEVar NoExtField . noLocA . IEName
+ieName_ = noLocA . IEVar synDef . noLocA . IEName
 #if MIN_VERSION_ghc(9,6,0)
                                                       synDef
 #endif
@@ -395,7 +426,7 @@ ieNameAll_ = noLocA . IEThingAll synDef . noLocA . IEName
                                                           synDef
 #endif
 
-dataDecl_ :: String -> [LHsTyVarBndr () GhcPs] -> [HsConDecl] -> [HsQName] -> HsDecl
+dataDecl_ :: String -> [HsTyVarBndr] -> [HsConDecl] -> [HsQName] -> HsDecl
 dataDecl_ messageName bndrs constructors derivedInstances = noLocA $ GHC.TyClD NoExtField DataDecl
     { tcdDExt = synDef
     , tcdLName = unqual_ tcName messageName
@@ -592,8 +623,14 @@ function_ :: HsName -> [([HsPat], HsExp)] -> HsBind
 function_ = functionLike_ NoSrcStrict
 
 functionLike_ :: SrcStrictness -> HsName -> [([HsPat], HsExp)] -> HsBind
-functionLike_ strictness name alts = noLocA $ mkFunBind Generated name (map match alts)
+functionLike_ strictness name alts = noLocA $ mkFunBind generated name (map match alts)
   where
+    generated :: Origin
+    generated = Generated
+#if MIN_VERSION_ghc(9,8,0)
+                          DoPmc
+#endif
+
     match :: ([HsPat], HsExp) -> HsMatch
     match (pats, rhs) = mkSimpleMatch ctxt pats rhs
 
@@ -680,6 +717,9 @@ recordCtor_ nm fields = noLocA RecordCon
   }
 
 fieldUpd_ :: HsName -> HsExp -> LHsRecUpdField GhcPs
+#if MIN_VERSION_ghc(9,8,0)
+                                                     GhcPs
+#endif
 fieldUpd_ nm val = noLocA
 #if MIN_VERSION_ghc(9,4,0)
   HsFieldBind
@@ -703,12 +743,18 @@ fieldUpd_ nm val = noLocA
     }
 #endif
 
-recordUpd_ :: HsExp -> [LHsRecUpdField GhcPs] -> HsExp
+recordUpd_ :: HsExp -> [ LHsRecUpdField GhcPs
+#if MIN_VERSION_ghc(9,8,0)
+                                              GhcPs
+#endif
+                       ] -> HsExp
 recordUpd_ r fields = noLocA RecordUpd
   { rupd_ext = synDef
   , rupd_expr = r
   , rupd_flds =
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc(9,8,0)
+      RegularRecUpdFields synDef
+#elif MIN_VERSION_ghc(9,2,0)
       Left
 #endif
         fields
@@ -781,9 +827,15 @@ alt_ :: HsPat -> HsExp -> HsAlt
 alt_ = mkHsCaseAlt
 
 case_ :: HsExp -> [HsAlt] -> HsExp
-case_ e = noLocA . HsCase synDef e . mkMatchGroup Generated
+case_ e = noLocA . HsCase synDef e . mkMatchGroup generated
 #if MIN_VERSION_ghc(9,2,0)
-  . noLocA
+                                                            . noLocA
+#endif
+  where
+    generated :: Origin
+    generated = Generated
+#if MIN_VERSION_ghc(9,8,0)
+                          DoPmc
 #endif
 
 -- | Simple let expression for ordinary bindings.
