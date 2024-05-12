@@ -17,6 +17,7 @@ import qualified Data.List.NonEmpty          as NE
 import           Data.String
 import           GHC.Exts                    (fromList, Proxy#)
 import           Proto3.Suite
+import           Proto3.Suite.Haskell.Parser (Logger, initLogger)
 import           Proto3.Wire.Decode          (ParseError)
 import qualified Proto3.Wire.Decode          as Decode
 import           Proto3.Wire.Types           as P
@@ -40,17 +41,19 @@ import qualified Test.Proto.Parse.Option
 -- -----------------------------------------------------------------------------
 
 main :: IO ()
-main = defaultMain tests
+main = do
+  logger <- initLogger
+  defaultMain (tests logger)
 
-tests :: TestTree
-tests = testGroup "Tests"
+tests :: Logger -> TestTree
+tests logger = testGroup "Tests"
   [ docTests
   , qcProperties
   , encodeUnitTests
   , decodeUnitTests
   , parserUnitTests
   , dotProtoUnitTests
-  , codeGenTests
+  , codeGenTests logger
   , Test.Proto.Generate.Name.tests
   , Test.Proto.Parse.Option.tests
 
@@ -67,6 +70,8 @@ docTests = testCase "doctests" $ do
   putStrLn "Running all doctests..."
   Test.DocTest.doctest
     [ "--verbose"
+    , "-package"
+    , "ghc"
     , "-isrc"
 #ifdef SWAGGER
 #ifdef SWAGGER_WRAPPER_FORMAT

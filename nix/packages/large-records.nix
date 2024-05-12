@@ -7,6 +7,8 @@ mkDerivation {
   pname = "large-records";
   version = "0.4";
   sha256 = "de51d5f473ca9e57b818221e9bf776e6f68ca90e5cbca1171dc14ce690a7093c";
+  revision = "1";
+  editedCabalFile = "0wcw9rnp2mkchq2xccsyiqqncxq09lj0nyk661a8xpggflsjbhwb";
   libraryHaskellDepends = [
     base containers ghc large-generics mtl primitive
     record-dot-preprocessor record-hasfield syb template-haskell

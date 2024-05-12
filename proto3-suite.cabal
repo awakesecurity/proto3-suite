@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                proto3-suite
-version:             0.7.0
+version:             0.8.0
 synopsis:            A higher-level API to the proto3-wire library
 description:
   This library provides a higher-level API to <https://github.com/awakesecurity/proto3-wire the `proto3-wire` library>
@@ -95,28 +95,29 @@ library
                        Google.Protobuf.Wrappers.Polymorphic
 
                        Proto3.Suite.DotProto.Internal
+                       Proto3.Suite.Haskell.Parser
                        Proto3.Suite.JSONPB.Class
 
   other-modules:       Turtle.Compat
 
-  build-depends:       aeson >= 1.1.1.0 && < 2.2,
+  build-depends:       aeson >= 1.1.1.0 && < 2.3,
                        aeson-pretty,
                        attoparsec >= 0.13.0.1,
-                       base >=4.8 && <5.0,
+                       base >=4.15 && <5.0,
                        base64-bytestring >= 1.0.0.1 && < 1.3,
                        binary >=0.8.3,
-                       bytestring >=0.10.6.0 && <0.12.0,
-                       deepseq ==1.4.*,
+                       bytestring >=0.10.6.0 && <0.13,
+                       deepseq >=1.4 && <1.6,
                        cereal >= 0.5.1 && <0.6,
                        containers >=0.5 && < 0.7,
                        contravariant >=1.4 && <1.6,
                        filepath,
                        foldl,
+                       ghc >=9.0 && <9.9,
                        hashable,
-                       haskell-src ==1.0.*,
                        insert-ordered-containers,
                        lens,
-                       mtl ==2.2.*,
+                       mtl >=2.2 && <2.4,
                        neat-interpolation,
                        parsec >= 3.1.9 && <3.2.0,
                        parsers >= 0.12 && <0.13,
@@ -129,16 +130,14 @@ library
                        split,
                        system-filepath,
                        time,
-                       text >= 0.2 && <2.1,
+                       text >= 0.2 && <2.2,
                        text-short >=0.1.3 && <0.2,
-                       transformers >=0.4 && <0.6,
+                       transformers >=0.4 && <0.7,
                        turtle < 1.6.0 || >= 1.6.1 && < 1.7.0,
-                       vector >=0.11 && < 0.13
-  if !impl(ghc >= 8.0)
-    build-depends:     semigroups >= 0.18 && < 0.20
+                       vector >=0.11 &&  <0.14
   hs-source-dirs:      src
   default-language:    Haskell2010
-  ghc-options:         -O2 -Wall
+  ghc-options:         -O2 -Wall -Werror
 
 test-suite tests
   import:           common
@@ -193,16 +192,17 @@ test-suite tests
   build-depends:
       aeson >= 1.1.1.0 && < 2.2
     , attoparsec >= 0.13.0.1
-    , base >=4.8 && <5.0
+    , base >=4.15 && <5.0
     , base64-bytestring >= 1.0.0.1 && < 1.3
-    , bytestring >=0.10.6.0 && <0.12.0
+    , bytestring >=0.10.6.0 && <0.13
     , cereal >= 0.5.1 && <0.6
     , containers >=0.5 && < 0.7
-    , deepseq ==1.4.*
+    , deepseq >=1.4 && <1.6
     , doctest
     , generic-arbitrary
+    , ghc
     , hedgehog
-    , mtl ==2.2.*
+    , mtl >=2.2 && <2.4
     , parsec >= 3.1.9 && <3.2.0
     , pretty ==1.1.*
     , pretty-show >= 1.6.12 && < 2.0
@@ -214,39 +214,38 @@ test-suite tests
     , tasty-hedgehog
     , tasty-hunit >= 0.9 && <0.11
     , tasty-quickcheck >= 0.8.4 && <0.11
-    , text >= 0.2 && <2.1
+    , text >= 0.2 && <2.2
     , text-short >=0.1.3 && <0.2
-    , transformers >=0.4 && <0.6
+    , transformers >=0.4 && <0.7
     , turtle
-    , vector >=0.11 && < 0.13
+    , vector >=0.11 && < 0.14
 
-  if !impl(ghc >= 8.0)
-    build-depends:     semigroups >= 0.18 && < 0.20
   ghc-options:         -O2 -Wall
 
 executable compile-proto-file
   main-is:             Main.hs
   hs-source-dirs:      tools/compile-proto-file
   default-language:    Haskell2010
-  build-depends:       base >=4.12 && <5.0
+  build-depends:       base >=4.15 && <5.0
+                       , ghc
                        , optparse-applicative
                        , proto3-suite
                        , system-filepath
                        , text
                        , turtle
-  ghc-options:         -O2 -Wall
+  ghc-options:         -O2 -Wall -Werror
 
 executable canonicalize-proto-file
   main-is:             Main.hs
   hs-source-dirs:      tools/canonicalize-proto-file
   default-language:    Haskell2010
-  build-depends:       base >=4.11.0.0 && <5.0
+  build-depends:       base >=4.15 && <5.0
                        , containers >=0.5 && <0.7
-                       , mtl ==2.2.*
+                       , mtl >=2.2 && <2.4
                        , optparse-generic
                        , proto3-suite
                        , proto3-wire >= 1.2 && <1.5
                        , range-set-list >=0.1.2 && <0.2
                        , system-filepath
                        , turtle
-  ghc-options:         -O2 -Wall
+  ghc-options:         -O2 -Wall -Werror

@@ -19,6 +19,37 @@ for more details.
 
 ## Building
 
+### GHC Versions
+
+#### GHC 9.8
+
+We do not support features making use of the "dhall" or "large-records"
+libraries because neither library currently builds on GHC 9.8, and
+therefore we cannot test our support.
+
+Otherwise we support GHC 9.8 on Linux and Darwin.
+
+#### GHC 9.6
+
+We do not support features making use of the "large-records"
+library because it does not currently build on GHC 9.6, and
+therefore we cannot test our support.
+
+Otherwise we support GHC 9.6 on Linux and Darwin.
+
+#### GHC 9.4
+
+Supported on Linux and Darwin.
+
+#### GHC 9.2
+
+Supported on Linux and Darwin.
+
+#### GHC 9.0
+
+Supported only on Linux because "crypton" fails a test on Darwin,
+probably due to [this issue](https://github.com/kazu-yamamoto/crypton/issues/35).
+
 ### Nix shell + Cabal (recommended)
 
 The Nix shell provides an incremental build environment (but see below for

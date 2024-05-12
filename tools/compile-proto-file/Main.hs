@@ -11,6 +11,7 @@
 import           Options.Applicative
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto.Generate
+import           Proto3.Suite.Haskell.Parser    (initLogger)
 
 parseArgs :: ParserInfo CompileArgs
 parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto file to a Haskell module")
@@ -48,4 +49,7 @@ parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto fi
       <> help "Use large-records library to optimize the core code size of generated records"
 
 main :: IO ()
-main = execParser parseArgs >>= compileDotProtoFileOrDie
+main = do
+  logger <- initLogger
+  compileArgs <- execParser parseArgs
+  compileDotProtoFileOrDie logger compileArgs

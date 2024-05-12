@@ -12,20 +12,28 @@ module TestCodeGen where
 import           ArbitraryGeneratedTestTypes    ()
 import           Control.Applicative
 import           Control.Monad
+#ifdef SWAGGER
 import qualified Data.Aeson
+#endif
 import qualified Data.ByteString.Lazy           as LBS
 import           Data.Proxy                     (Proxy(..))
 import           Data.String                    (IsString)
+#ifdef SWAGGER
 import           Data.Swagger                   (ToSchema)
 import qualified Data.Swagger
+#endif
 import qualified Data.Text                      as T
-import           Data.Typeable                  (Typeable, splitTyConApp,
-                                                 tyConName, typeRep)
+import           Data.Typeable                  (Typeable, typeRep,
+#ifdef SWAGGER
+                                                 splitTyConApp, tyConName
+#endif
+                                                )
 import           Google.Protobuf.Timestamp      (Timestamp(..))
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.Class             (def)
 import           Proto3.Suite.DotProto.Generate
 import           Proto3.Suite.DotProto          (fieldLikeName, prefixedEnumFieldName, typeLikeName)
+import           Proto3.Suite.Haskell.Parser    (Logger)
 import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  ToJSONPB (..), defaultOptions,
                                                  eitherDecode, encode,
@@ -39,23 +47,27 @@ import qualified Turtle
 import qualified Turtle.Format                  as F
 import qualified TestProto
 import qualified TestProtoOneof
+#ifdef SWAGGER
 import qualified TestProtoWrappers
+#endif
 
-codeGenTests :: TestTree
-codeGenTests = testGroup "Code generator unit tests"
+codeGenTests :: Logger -> TestTree
+codeGenTests logger = testGroup "Code generator unit tests"
   [ jsonpbTests
-  , swaggerTests
   , hasDefaultTests
-  , swaggerWrapperFormat
   , pascalCaseMessageNames
   , camelCaseMessageFieldNames
   , don'tAlterEnumFieldNames
   , knownTypeMessages
-  , pythonInteroperation
+  , pythonInteroperation logger
+#ifdef SWAGGER
+  , swaggerTests
+  , swaggerWrapperFormat
+#endif
   ]
 
-pythonInteroperation :: TestTree
-pythonInteroperation = testGroup "Python interoperation" $ do
+pythonInteroperation :: Logger -> TestTree
+pythonInteroperation logger = testGroup "Python interoperation" $ do
 #ifdef LARGE_RECORDS
   recStyle <- [RegularRecords, LargeRecords]
 #else
@@ -63,9 +75,10 @@ pythonInteroperation = testGroup "Python interoperation" $ do
 #endif
   tt <- ["Data.Text.Lazy.Text", "Data.Text.Text", "Data.Text.Short.ShortText"]
   format <- ["Binary", "Jsonpb"]
-  direction <- [simpleEncodeDotProto, simpleDecodeDotProto]
+  direction <- [simpleEncodeDotProto logger, simpleDecodeDotProto logger]
   pure @[] (direction recStyle tt format)
 
+#ifdef SWAGGER
 swaggerWrapperFormat :: TestTree
 swaggerWrapperFormat = testGroup "Swagger Wrapper Format"
     [ expectSchema @TestProtoWrappers.TestDoubleValue
@@ -112,6 +125,7 @@ swaggerWrapperFormat = testGroup "Swagger Wrapper Format"
         wf = True
 #else
         wf = False
+#endif
 #endif
 
 knownTypeMessages :: TestTree
@@ -174,15 +188,15 @@ setPythonPath :: IO ()
 setPythonPath = Turtle.export "PYTHONPATH" .
   maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) =<< Turtle.need "PYTHONPATH"
 
-simpleEncodeDotProto :: RecordStyle -> String -> T.Text -> TestTree
-simpleEncodeDotProto recStyle chosenStringType format =
+simpleEncodeDotProto :: Logger -> RecordStyle -> String -> T.Text -> TestTree
+simpleEncodeDotProto logger recStyle chosenStringType format =
     testCase ("generate code for a simple .proto and then use it to encode messages" ++
               " with string type " ++ chosenStringType ++ " in format " ++ show format ++
               ", record style " ++ show recStyle)
     $ do
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
-         compileTestDotProtos recStyle decodedStringType
+         compileTestDotProtos logger recStyle decodedStringType
          -- Compile our generated encoder
          let encodeCmd = "tests/encode.sh " <> hsTmpDir
 #if DHALL
@@ -200,15 +214,15 @@ simpleEncodeDotProto recStyle chosenStringType format =
          Turtle.rmtree hsTmpDir
          Turtle.rmtree pyTmpDir
 
-simpleDecodeDotProto :: RecordStyle -> String -> T.Text -> TestTree
-simpleDecodeDotProto recStyle chosenStringType format =
+simpleDecodeDotProto :: Logger -> RecordStyle -> String -> T.Text -> TestTree
+simpleDecodeDotProto logger recStyle chosenStringType format =
     testCase ("generate code for a simple .proto and then use it to decode messages" ++
               " with string type " ++ chosenStringType ++ " in format " ++ show format ++
               ", record style " ++ show recStyle)
     $ do
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
-         compileTestDotProtos recStyle decodedStringType
+         compileTestDotProtos logger recStyle decodedStringType
          -- Compile our generated decoder
          let decodeCmd = "tests/decode.sh " <> hsTmpDir
 #if DHALL
@@ -233,8 +247,8 @@ pyTmpDir = "test-files/py-tmp"
 defaultStringType :: StringType
 defaultStringType = StringType "Data.Text.Lazy" "Text"
 
-compileTestDotProtos :: RecordStyle -> StringType -> IO ()
-compileTestDotProtos recStyle decodedStringType = do
+compileTestDotProtos :: Logger -> RecordStyle -> StringType -> IO ()
+compileTestDotProtos logger recStyle decodedStringType = do
   Turtle.mktree hsTmpDir
   Turtle.mktree pyTmpDir
   let protoFiles :: [Turtle.FilePath]
@@ -252,7 +266,7 @@ compileTestDotProtos recStyle decodedStringType = do
         ]
 
   forM_ protoFiles $ \protoFile -> do
-    compileDotProtoFileOrDie
+    compileDotProtoFileOrDie logger
         CompileArgs{ includeDir = ["test-files"]
                    , extraInstanceFiles = ["test-files" Turtle.</> "Orphan.hs"]
                    , outputDir = hsTmpDir
@@ -376,6 +390,7 @@ jsonpbTests = testGroup "JSONPB tests"
       ]
   ]
 
+#ifdef SWAGGER
 swaggerTests :: TestTree
 swaggerTests = testGroup "Swagger tests"
   [ schemaOf @TestProtoOneof.Something
@@ -388,6 +403,7 @@ swaggerTests = testGroup "Swagger tests"
       "{\"enum\":[\"DUMMY0\",\"DUMMY1\"],\"type\":\"string\"}"
 
   ]
+#endif
 
 hasDefaultTests :: TestTree
 hasDefaultTests = testGroup "Generic HasDefault"
@@ -454,6 +470,7 @@ decodesAs bs x = testProperty (testName "")  (eitherDecode bs === Right x)
       showString " == Right " .
       showsPrec 11 x
 
+#ifdef SWAGGER
 schemaOf ::
   forall a .
   (ToSchema a, Eq a, Show a, Typeable a) =>
@@ -468,3 +485,4 @@ schemaOf bs = testProperty (testName "") (lbsSchemaOf @a === bs)
 
 lbsSchemaOf :: forall a . ToSchema a => LBS.ByteString
 lbsSchemaOf = Data.Aeson.encode (Data.Swagger.toSchema (Proxy @a))
+#endif
