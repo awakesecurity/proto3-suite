@@ -32,11 +32,11 @@ jobs:
         exclude:
           - swagger: false
             swaggerWrapper: true
-          - compiler: ghc962
+          - compiler: ghc965
             largeRecords: true
-          - compiler: ghc981
+          - compiler: ghc982
             largeRecords: true
-          - compiler: ghc981
+          - compiler: ghc982
             dhall: true
           - compiler: ghc902
             os: macos-latest
