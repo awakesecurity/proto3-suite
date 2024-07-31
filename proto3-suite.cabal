@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                proto3-suite
-version:             0.8.0
+version:             0.8.1
 synopsis:            A higher-level API to the proto3-wire library
 description:
   This library provides a higher-level API to <https://github.com/awakesecurity/proto3-wire the `proto3-wire` library>
@@ -100,7 +100,7 @@ library
 
   other-modules:       Turtle.Compat
 
-  build-depends:       aeson >= 1.1.1.0 && < 2.3,
+  build-depends:       aeson >= 1.1.1.0 && < 2.2,
                        aeson-pretty,
                        attoparsec >= 0.13.0.1,
                        base >=4.15 && <5.0,

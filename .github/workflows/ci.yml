@@ -15,8 +15,8 @@ jobs:
           - ghc902
           - ghc928
           - ghc948
-          - ghc962
-          - ghc981
+          - ghc965
+          - ghc982
         dhall:
           - false
           - true
