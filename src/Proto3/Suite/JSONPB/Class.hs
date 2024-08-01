@@ -64,14 +64,7 @@
 
 module Proto3.Suite.JSONPB.Class where
 
-import qualified Data.Aeson                       as A (Encoding, FromJSON (..),
-                                                        FromJSONKey (..),
-                                                        FromJSONKeyFunction (..),
-                                                        ToJSON (..), Value (..),
-                                                        ToJSON1(..), FromJSON1(..),
-                                                        ToJSONKey(..),
-                                                        decode, eitherDecode,
-                                                        (.!=))
+import qualified Data.Aeson as A
 import qualified Data.Aeson.Encoding              as E
 import qualified Data.Aeson.Encoding.Internal     as E
 #if !MIN_VERSION_aeson(2,1,0)
@@ -81,15 +74,13 @@ import qualified Data.Aeson.Internal              as A (formatError, iparse)
 import qualified Data.Aeson.Key                   as A
 #endif
 import qualified Data.Aeson.Parser                as A (eitherDecodeWith, json)
-import qualified Data.Aeson.Types                 as A (Object, Pair, Parser,
-                                                        Series,
+import qualified Data.Aeson.Types                 as A (Pair, Parser,
                                                         explicitParseField,
                                                         explicitParseFieldMaybe,
 #if MIN_VERSION_aeson(2,1,0)
                                                         formatError,
                                                         iparse,
 #endif
-                                                        object,
 #if !(MIN_VERSION_aeson(2,0,2))
                                                         toJSONKeyText,
 #endif
@@ -588,11 +579,23 @@ instance A.ToJSONKey (Proto3.Suite.Types.String TS.ShortText) where
 #endif
 
 instance (A.ToJSONKey k, ToJSONPB k, ToJSONPB v) => ToJSONPB (M.Map k v) where
-  toJSONPB m opts = A.liftToJSON @(M.Map k) (`toJSONPB` opts) (A.Array . V.fromList . map (`toJSONPB` opts)) m
-  toEncodingPB m opts = A.liftToEncoding @(M.Map k) (`toEncodingPB` opts) (E.list (`toEncodingPB` opts)) m
+  toJSONPB m opts = A.liftToJSON @(M.Map k)
+#if MIN_VERSION_aeson(2,2,0)
+                      (const False)  -- Unless and until we test for the protobuf default value.
+#endif
+                         (`toJSONPB` opts) (A.Array . V.fromList . map (`toJSONPB` opts)) m
+  toEncodingPB m opts = A.liftToEncoding @(M.Map k)
+#if MIN_VERSION_aeson(2,2,0)
+                          (const False)  -- Unless and until we test for the protobuf default value.
+#endif
+                            (`toEncodingPB` opts) (E.list (`toEncodingPB` opts)) m
 
 instance (Ord k, A.FromJSONKey k, FromJSONPB k, FromJSONPB v) => FromJSONPB (M.Map k v) where
-  parseJSONPB = A.liftParseJSON @(M.Map k) parseJSONPB parseList
+  parseJSONPB = A.liftParseJSON @(M.Map k)
+#if MIN_VERSION_aeson(2,2,0)
+                  Nothing  -- Unless and until we decide to use the protobuf default value.
+#endif
+                    parseJSONPB parseList
     where
       parseList (A.Array a) = traverse parseJSONPB (V.toList a)
       parseList v = A.typeMismatch "not a list" v

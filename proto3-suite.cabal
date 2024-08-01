@@ -100,7 +100,7 @@ library
 
   other-modules:       Turtle.Compat
 
-  build-depends:       aeson >= 1.1.1.0 && < 2.3,
+  build-depends:       aeson >= 1.1.1.0,
                        aeson-pretty,
                        attoparsec >= 0.13.0.1,
                        attoparsec-aeson,
@@ -191,7 +191,7 @@ test-suite tests
     Test.Proto.Parse.Option
 
   build-depends:
-      aeson >= 1.1.1.0 && < 2.2
+      aeson >= 1.1.1.0
     , attoparsec >= 0.13.0.1
     , attoparsec-aeson
     , base >=4.15 && <5.0

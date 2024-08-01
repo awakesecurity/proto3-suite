@@ -1,5 +1,5 @@
-resolver:
-  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/0.yaml
+resolver: nightly-2024-07-12
+# url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/0.yaml
 
 allow-newer: true
 
@@ -8,9 +8,15 @@ packages:
 
 extra-deps:
   - github: awakesecurity/proto3-wire
-    commit: 9b1c178f8a23a5f03237cb77cce403bc386da523
+    commit: 2d48ee3446858f08a8c75130c90d770c377569bd 
 
 nix:
   packages:
     - zlib.dev
     - zlib.out
+
+
+flags:
+  proto3-suite:
+    large-records: False
+    dhall: False
