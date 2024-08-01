@@ -64,12 +64,12 @@
 
 module Proto3.Suite.JSONPB.Class where
 
-import qualified Data.Aeson                       as A (Encoding, Series, FromJSON (..),
+import qualified Data.Aeson                       as A (Encoding, FromJSON (..),
                                                         FromJSONKey (..),
                                                         FromJSONKeyFunction (..),
                                                         ToJSON (..), Value (..),
                                                         ToJSON1(..), FromJSON1(..),
-                                                        ToJSONKey(..), 
+                                                        ToJSONKey(..),
                                                         decode, eitherDecode,
                                                         (.!=))
 import qualified Data.Aeson.Encoding              as E
@@ -82,6 +82,7 @@ import qualified Data.Aeson.Key                   as A
 #endif
 import qualified Data.Aeson.Parser                as A (eitherDecodeWith, json)
 import qualified Data.Aeson.Types                 as A (Object, Pair, Parser,
+                                                        Series,
                                                         explicitParseField,
                                                         explicitParseFieldMaybe,
 #if MIN_VERSION_aeson(2,1,0)
