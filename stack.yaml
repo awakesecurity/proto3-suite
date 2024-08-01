@@ -14,9 +14,3 @@ nix:
   packages:
     - zlib.dev
     - zlib.out
-
-
-flags:
-  proto3-suite:
-    large-records: False
-    dhall: False
