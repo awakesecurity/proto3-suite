@@ -36,8 +36,6 @@ jobs:
             largeRecords: true
           - compiler: ghc982
             largeRecords: true
-          - compiler: ghc982
-            dhall: true
           - compiler: ghc902
             os: macos-latest
     runs-on: ${{ matrix.os }}

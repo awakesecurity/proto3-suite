@@ -1,5 +1,6 @@
 # 0.8.1
 * Fix support for dhall-1.42.
+* Support dhall on GHC 9.8.
 * Fix aeson upper bound in library target (was correct in test target).
 * Fix default compiler version in shell.nix.
 * Test with GHC 9.8.2 instead of GHC 9.8.1 and GHC 9.6.5 instead of GHC 9.6.2.
