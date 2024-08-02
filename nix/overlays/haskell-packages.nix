@@ -118,6 +118,12 @@ in {
           half =
             pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.half;
 
+          # With nixpkgs-24.05 and ghc982, we observed a non-reproducible
+          # failure of the hedgehog tests.  Rather than risk occasional
+          # failures building this test dependency, we skip its tests.
+          hedgehog =
+            pkgsNew.haskell.lib.dontCheck haskellPackagesOld.hedgehog;
+
           # With nixpkgs-23.11 and ghc981, hourglass does not support the version
           # of the time package that is provided, but that matters only to tests.
           hourglass =
