@@ -1,3 +1,10 @@
+# 0.8.1
+* Fix support for dhall-1.42.
+* Fix aeson upper bound in library target (was correct in test target).
+* Fix default compiler version in shell.nix.
+* Test with GHC 9.8.2 instead of GHC 9.8.1 and GHC 9.6.5 instead of GHC 9.6.2.
+* Test with nixpkgs-24.05 but always using aeson-2.1.2.1.
+
 # 0.8.0
 * [BREAKING CHANGE: Use "ghc" library in place of "haskell-src".]
   The "ghc" library is now used to parse and print Haskell source code.

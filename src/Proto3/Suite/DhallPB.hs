@@ -30,12 +30,14 @@ import           Dhall                       (FromDhall (..), ToDhall (..))
 import           GHC.Float                   (double2Float, float2Double)
 import           Proto3.Suite.Types          (Enumerated (..), Fixed (..))
 
+#if !(MIN_VERSION_dhall(1,42,0))
 import qualified Data.ByteString
 import qualified Data.ByteString.Base64
 import qualified Data.ByteString.Base64.Lazy
 import qualified Data.ByteString.Lazy
 import qualified Data.Text.Encoding
 import qualified Data.Text.Lazy.Encoding
+#endif
 import qualified Dhall
 
 #if !(MIN_VERSION_dhall(1,27,0))
@@ -63,6 +65,8 @@ instance Dhall.FromDhall a => Dhall.FromDhall (Enumerated a)
 
 instance Dhall.FromDhall a => Dhall.FromDhall (Either Int32 a)
 
+#if !(MIN_VERSION_dhall(1,42,0))
+
 --------------------------------------------------------------------------------
 -- Interpret the strict and lazy ByteString types
 --
@@ -79,6 +83,8 @@ instance Dhall.FromDhall Data.ByteString.ByteString where
   autoWith _ = fmap b64Decode Dhall.strictText
     where
       b64Decode =  Data.ByteString.Base64.decodeLenient . Data.Text.Encoding.encodeUtf8
+
+#endif
 
 --------------------------------------------------------------------------------
 -- Interpret integer scalar types
@@ -182,6 +188,8 @@ instance Dhall.ToDhall (Fixed Word64) where
 instance Dhall.ToDhall Float where
   injectWith = fmap (contramap float2Double) Dhall.injectWith
 
+#if !(MIN_VERSION_dhall(1,42,0))
+
 --------------------------------------------------------------------------------
 -- Inject strict and lazy ByteStrings
 --
@@ -204,6 +212,8 @@ instance Dhall.ToDhall Data.ByteString.ByteString where
       -- but we should never encounter that case with this usage
       -- because we Base64 encode the ByteString first
       b64Encode = Data.Text.Encoding.decodeUtf8 . Data.ByteString.Base64.encode
+
+#endif
 
 #if !(MIN_VERSION_dhall(1,27,0))
 --------------------------------------------------------------------------------

@@ -33,12 +33,28 @@ in {
             pkgsNew.haskell.lib.dontCheck haskellPackagesOld.adjunctions;
 
           # With nixpkgs-23.11 and ghc981, aeson-2.1.2.1 thinks that th-abstraction is out of bounds.
+          #
           # Also, in order to avoid the breaking change to package structure in aeson-2.2.0.0,
           # we patch the import list of aeson-2.1.2.1.
+          #
+          # And we disable tests because explicitly specifying aeson-2.1.2.1
+          # seems to trigger a test failure, at least on GHC 9.4.8 and 9.8.1;
+          # perhaps somewhere in nixpkgs the test is suppressed and
+          # overriding the Nix definition re-enables testing?
+          #
+          #       encodeDouble:                                FAIL
+          #         *** Failed! Falsified (after 15 tests and 2 shrinks):
+          #         1.0
+          #         0.0
+          #         "\"+inf\"" /= "null"
+          #         Use --quickcheck-replay=305830 to reproduce.
+          #         Use -p '/encodeDouble/' to rerun this test only.
+          #
           aeson =
             pkgsNew.haskell.lib.doJailbreak
-              ( pkgsNew.haskell.lib.appendPatches haskellPackagesOld.aeson
-                  [ ../patches/aeson-2.1.2.1.patch ] );
+              ( pkgsNew.haskell.lib.dontCheck
+                  ( pkgsNew.haskell.lib.appendPatches haskellPackagesOld.aeson
+                      [ ../patches/aeson-2.1.2.1.patch ] ) );
 
           # With nixpkgs-23.11 and ghc981, atomic-write wants hspec for testing,
           # which causes problems.
@@ -168,6 +184,11 @@ in {
           # With nixpkgs-23.11 and our overrides, neat-interpolation that rebase is out of bounds.
           neat-interpolation =
             pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.neat-interpolation;
+
+          # With GHC 9.0/9.2, "network-uri" with testing enabled would find that
+          # "th-compat" wants an older version of "directory" than does "process".
+          network-uri =
+            pkgsNew.haskell.lib.dontCheck haskellPackagesOld.network-uri;
 
           # With nixpkgs-23.11 and our overrides, rerebase that rebase is out of bounds.
           rerebase =
