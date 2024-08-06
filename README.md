@@ -23,8 +23,8 @@ for more details.
 
 #### GHC 9.8
 
-We do not support features making use of the "dhall" or "large-records"
-libraries because neither library currently builds on GHC 9.8, and
+We do not support features making use of the "large-records"
+library because it does not currently build on GHC 9.8, and
 therefore we cannot test our support.
 
 Otherwise we support GHC 9.8 on Linux and Darwin.
