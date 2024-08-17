@@ -52,9 +52,9 @@ getFormat = do
       Left _ -> die $ "Bad value of FORMAT environment variable: " ++ show fstr
       Right format -> pure format
 
-tests, testCase1, testCase2, testCaseSignedInts, testCase3, testCase4,
-    testCase5, testCase6, testCase7, testCase8, testCase9, testCase10,
-    testCase11, testCase12, testCase13, testCase14, testCase15,
+tests, testCase1, testCase2, testCaseSignedInts, testCaseRepeatedSignedInts,
+    testCase3, testCase4, testCase5, testCase6, testCase7, testCase8, testCase9,
+    testCase10, testCase11, testCase12, testCase13, testCase14, testCase15,
     testCase16, testCase17, testCase18, testCase19,
     testCase_DoubleValue, testCase_FloatValue, testCase_Int64Value,
     testCase_UInt64Value, testCase_Int32Value, testCase_UInt32Value,
@@ -62,7 +62,7 @@ tests, testCase1, testCase2, testCaseSignedInts, testCase3, testCase4,
     allTestsDone :: (?format :: Format) => TestTree
 tests = testGroup
           ("Decode protobuf messages from Python: format " ++ show ?format)
-          [ testCase1, testCase2, testCaseSignedInts
+          [ testCase1, testCase2, testCaseSignedInts, testCaseRepeatedSignedInts
           , testCase3, testCase4, testCase5, testCase6
           , testCase7, testCase8, testCase9, testCase10
           , testCase11, testCase12, testCase13, testCase14
@@ -117,6 +117,13 @@ testCaseSignedInts = testCaseInFormat "Signed integer types" $
        expect (SignedInts (-42) (-84))
        expect (SignedInts minBound minBound)
        expect (SignedInts maxBound maxBound)
+
+testCaseRepeatedSignedInts = testCaseInFormat "Repeated signed integer types" $
+    do expect (WithRepeatedSigned [] [])
+       expect (WithRepeatedSigned [0] [0])
+       expect (WithRepeatedSigned
+                 [0, 42, -42, 0x3FFFFFFF, -0x40000000, maxBound, minBound]
+                 [0, 84, -84, 0x3FFFFFFFFFFFFFFF, -0x4000000000000000, maxBound, minBound])
 
 testCase3 = testCaseInFormat "Nested enumeration" $
     do WithEnum { withEnumEnumField = Enumerated a } <- readProto
@@ -398,7 +405,7 @@ testCase_DoubleValue = testCaseInFormat "DoubleValue" $ do
   let w = TestProtoWrappers.TestDoubleValue
   expect (w Nothing)
   expect (w (Just 3.5))
- 
+
 testCase_FloatValue = testCaseInFormat "FloatValue" $ do
   let w = TestProtoWrappers.TestFloatValue
   expect (w Nothing)

@@ -79,14 +79,16 @@ library
   exposed-modules:     Proto3.Suite
                        Proto3.Suite.Class
                        Proto3.Suite.DotProto
+                       Proto3.Suite.DotProto.AST
+                       Proto3.Suite.DotProto.AST.Lens
                        Proto3.Suite.DotProto.Generate
                        Proto3.Suite.DotProto.Generate.LargeRecord
                        Proto3.Suite.DotProto.Generate.Record
                        Proto3.Suite.DotProto.Generate.Syntax
-                       Proto3.Suite.DotProto.AST
-                       Proto3.Suite.DotProto.AST.Lens
                        Proto3.Suite.DotProto.Parsing
                        Proto3.Suite.DotProto.Rendering
+                       Proto3.Suite.Form
+                       Proto3.Suite.Form.Encode
                        Proto3.Suite.JSONPB
                        Proto3.Suite.Tutorial
                        Proto3.Suite.Types
@@ -123,7 +125,7 @@ library
                        parsers >= 0.12 && <0.13,
                        pretty ==1.1.*,
                        pretty-show >= 1.6.12 && < 2.0,
-                       proto3-wire >= 1.2.2 && < 1.5,
+                       proto3-wire >= 1.4.4 && < 1.5,
                        QuickCheck >=2.10 && <2.15,
                        quickcheck-instances >=0.3.26 && < 0.4,
                        safe ==0.3.*,
@@ -134,7 +136,8 @@ library
                        text-short >=0.1.3 && <0.2,
                        transformers >=0.4 && <0.7,
                        turtle < 1.6.0 || >= 1.6.1 && < 1.7.0,
-                       vector >=0.11 &&  <0.14
+                       vector >=0.11 && <0.14,
+                       witch ==1.2.*
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -O2 -Wall -Werror
@@ -148,6 +151,8 @@ test-suite tests
   hs-source-dirs:
     gen
     tests
+
+  cpp-options:         -DTYPE_LEVEL_FORMAT
 
   if flag(dhall)
     other-modules:     TestDhall
@@ -188,6 +193,7 @@ test-suite tests
     Test.Proto.Generate.Name.Gen
     Test.Proto.Parse.Gen
     Test.Proto.Parse.Option
+    Test.Proto.ToEncoding
 
   build-depends:
       aeson >= 1.1.1.0 && < 2.2
@@ -207,7 +213,7 @@ test-suite tests
     , pretty ==1.1.*
     , pretty-show >= 1.6.12 && < 2.0
     , proto3-suite
-    , proto3-wire >= 1.2 && < 1.5
+    , proto3-wire >= 1.4.4 && < 1.5
     , QuickCheck >=2.10 && <2.15
     , record-hasfield
     , tasty >= 0.11 && <1.5
@@ -218,7 +224,7 @@ test-suite tests
     , text-short >=0.1.3 && <0.2
     , transformers >=0.4 && <0.7
     , turtle
-    , vector >=0.11 && < 0.14
+    , vector >=0.11 && <0.14
 
   ghc-options:         -O2 -Wall
 
@@ -244,7 +250,7 @@ executable canonicalize-proto-file
                        , mtl >=2.2 && <2.4
                        , optparse-generic
                        , proto3-suite
-                       , proto3-wire >= 1.2 && <1.5
+                       , proto3-wire >= 1.4.4 && < 1.5
                        , range-set-list >=0.1.2 && <0.2
                        , system-filepath
                        , turtle

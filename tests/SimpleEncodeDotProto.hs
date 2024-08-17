@@ -19,15 +19,37 @@ import           Text.Read (readEither)
 import           System.Environment (getArgs, getProgName)
 import           System.Exit (die)
 
-data Format = Binary | Jsonpb
+#if TYPE_LEVEL_FORMAT
+import qualified Proto3.Suite.Form.Encode as Form
+import           Test.Proto.ToEncoding (ToEncoding(..))
+#endif
+
+data Format = Binary | BinaryForm | Jsonpb
   deriving (Eq, Read, Show)
 
-outputMessage :: (Message a, JSONPB.ToJSONPB a, ?format :: Format) => a -> IO ()
+outputMessage ::
+  ( Message a
+  , JSONPB.ToJSONPB a
+#if TYPE_LEVEL_FORMAT
+  , ToEncoding a
+#endif
+  , ?format :: Format
+  ) =>
+  a ->
+  IO ()
 outputMessage msg = putStrLn (show (BL.length encoded)) >> BL.putStr encoded
   where
     encoded = case ?format of
-      Binary -> toLazyByteString msg
-      Jsonpb -> JSONPB.encode JSONPB.jsonPBOptions msg
+      Binary ->
+        toLazyByteString msg
+      BinaryForm ->
+#if TYPE_LEVEL_FORMAT
+        Form.toLazyByteString (toEncoding msg)
+#else
+        error "Compile SimpleEncodeDotProto.hs with -DTYPE_LEVEL_FORMAT to support BinaryForm"
+#endif
+      Jsonpb ->
+        JSONPB.encode JSONPB.jsonPBOptions msg
 
 testCase1 :: (?format :: Format) => IO ()
 testCase1 =
@@ -45,6 +67,14 @@ testCaseSignedInts =
      outputMessage (SignedInts (-42) (-84))
      outputMessage (SignedInts minBound minBound)
      outputMessage (SignedInts maxBound maxBound)
+
+testCaseRepeatedSignedInts :: (?format :: Format) => IO ()
+testCaseRepeatedSignedInts =
+  do outputMessage (WithRepeatedSigned [] [])
+     outputMessage (WithRepeatedSigned [0] [0])
+     outputMessage (WithRepeatedSigned
+                      [0, 42, -42, 0x3FFFFFFF, -0x40000000, maxBound, minBound]
+                      [0, 84, -84, 0x3FFFFFFFFFFFFFFF, -0x4000000000000000, maxBound, minBound])
 
 testCase3 :: (?format :: Format) => IO ()
 testCase3 =
@@ -288,6 +318,7 @@ main = do
   testCase1
   testCase2
   testCaseSignedInts
+  testCaseRepeatedSignedInts
   testCase3
   testCase4
   testCase5

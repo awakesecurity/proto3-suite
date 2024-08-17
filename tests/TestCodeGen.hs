@@ -74,9 +74,11 @@ pythonInteroperation logger = testGroup "Python interoperation" $ do
   recStyle <- [RegularRecords]
 #endif
   tt <- ["Data.Text.Lazy.Text", "Data.Text.Text", "Data.Text.Short.ShortText"]
-  format <- ["Binary", "Jsonpb"]
-  direction <- [simpleEncodeDotProto logger, simpleDecodeDotProto logger]
-  pure @[] (direction recStyle tt format)
+  format <- ["Binary", "BinaryForm", "Jsonpb"]
+  testEncode <- [True, False]
+  guard $ testEncode || format /= "BinaryForm"
+  let f = if testEncode then simpleEncodeDotProto else simpleDecodeDotProto
+  pure @[] (f logger recStyle tt format)
 
 #ifdef SWAGGER
 swaggerWrapperFormat :: TestTree
@@ -196,18 +198,23 @@ simpleEncodeDotProto logger recStyle chosenStringType format =
     $ do
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
-         compileTestDotProtos logger recStyle decodedStringType
+         compileTestDotProtos logger recStyle decodedStringType (format == "BinaryForm")
          -- Compile our generated encoder
          let encodeCmd = "tests/encode.sh " <> hsTmpDir
+                           <> (if format == "BinaryForm" then " -DTYPE_LEVEL_FORMAT" else "")
 #if DHALL
                            <> " -DDHALL"
 #endif
          Turtle.shell encodeCmd empty >>= (@?= ExitSuccess)
 
-         -- The python encoder test exits with a special error code to indicate
-         -- all tests were successful
+         -- The python test of encoding exits with a special error code to indicate
+         -- all tests were successful.
          setPythonPath
-         let cmd = hsTmpDir <> "/simpleEncodeDotProto " <> format <> " | python tests/check_simple_dot_proto.py " <> format
+         -- The python decoder used in this test cares only about the distinction
+         -- between binary and JSONPB formats, not whether we bypassed intermediate
+         -- representation of the data within the Haskell encoder.
+         let pformat = if format == "BinaryForm" then "Binary" else format
+         let cmd = hsTmpDir <> "/simpleEncodeDotProto " <> format <> " | python tests/check_simple_dot_proto.py " <> pformat
          Turtle.shell cmd empty >>= (@?= ExitFailure 12)
 
          -- Not using bracket so that we can inspect the output to fix the tests
@@ -222,7 +229,7 @@ simpleDecodeDotProto logger recStyle chosenStringType format =
     $ do
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
-         compileTestDotProtos logger recStyle decodedStringType
+         compileTestDotProtos logger recStyle decodedStringType False
          -- Compile our generated decoder
          let decodeCmd = "tests/decode.sh " <> hsTmpDir
 #if DHALL
@@ -247,8 +254,8 @@ pyTmpDir = "test-files/py-tmp"
 defaultStringType :: StringType
 defaultStringType = StringType "Data.Text.Lazy" "Text"
 
-compileTestDotProtos :: Logger -> RecordStyle -> StringType -> IO ()
-compileTestDotProtos logger recStyle decodedStringType = do
+compileTestDotProtos :: Logger -> RecordStyle -> StringType -> Bool -> IO ()
+compileTestDotProtos logger recStyle decodedStringType typeLevel = do
   Turtle.mktree hsTmpDir
   Turtle.mktree pyTmpDir
   let protoFiles :: [Turtle.FilePath]
@@ -273,6 +280,7 @@ compileTestDotProtos logger recStyle decodedStringType = do
                    , inputProto = protoFile
                    , stringType = decodedStringType
                    , recordStyle = recStyle
+                   , typeLevelFormat = typeLevel
                    }
 
     let cmd = T.concat [ "protoc --python_out="

@@ -64,6 +64,20 @@ caseSignedMaxBound = read_proto(SignedInts)
 assert caseSignedMaxBound.signed32 == (2**32 - 1) // 2
 assert caseSignedMaxBound.signed64 == (2**64 - 1) // 2
 
+# Test case: RepeatedSignedInts
+caseRepeatedSignedEmpty = read_proto(WithRepeatedSigned)
+assert list(caseRepeatedSignedEmpty.r32) == []
+assert list(caseRepeatedSignedEmpty.r64) == []
+
+caseRepeatedSignedSingleton = read_proto(WithRepeatedSigned)
+assert list(caseRepeatedSignedSingleton.r32) == [0]
+assert list(caseRepeatedSignedSingleton.r64) == [0]
+
+caseRepeatedSignedMultiple = read_proto(WithRepeatedSigned)
+print(caseRepeatedSignedMultiple.r64,"\n")
+assert list(caseRepeatedSignedMultiple.r32) == [0, 42, -42, 2**30-1, -(2**30), 2**31-1, -(2**31)]
+assert list(caseRepeatedSignedMultiple.r64) == [0, 84, -84, 2**62-1, -(2**62), 2**63-1, -(2**63)]
+
 # Test case 3: Nested enumeration
 case3a = read_proto(WithEnum)
 assert case3a.enumField == WithEnum.ENUM1

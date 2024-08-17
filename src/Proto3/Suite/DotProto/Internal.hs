@@ -1,17 +1,18 @@
 -- | This module provides misc internal helpers and utilities
 
-{-# LANGUAGE CPP               #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE NamedFieldPuns    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes       #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE MultiWayIf          #-}
+{-# LANGUAGE NamedFieldPuns      #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE QuasiQuotes         #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Proto3.Suite.DotProto.Internal where
 
@@ -568,13 +569,13 @@ qualifiedMessageTypeName ctxt parentIdent msgIdent = do
 
 -- | Bookeeping for qualified fields
 data QualifiedField = QualifiedField
-  { recordFieldName :: FieldName
-  , fieldInfo       :: FieldInfo
+  { recordFieldName   :: FieldName
+  , fieldInfo         :: FieldInfo
   } deriving Show
 
 -- | Bookkeeping for fields
 data FieldInfo
-  = FieldOneOf OneofField
+  = FieldOneOf FieldName OneofField
   | FieldNormal FieldName FieldNumber DotProtoType [DotProtoOption]
   deriving Show
 
@@ -586,11 +587,11 @@ data OneofField = OneofField
 
 -- | Bookkeeping for oneof subfields
 data OneofSubfield = OneofSubfield
-  { subfieldNumber   :: FieldNumber
-  , subfieldConsName :: String
-  , subfieldName     :: FieldName
-  , subfieldType     :: DotProtoType
-  , subfieldOptions  :: [DotProtoOption]
+  { subfieldNumber       :: FieldNumber
+  , subfieldConsName     :: String
+  , subfieldName         :: FieldName
+  , subfieldType         :: DotProtoType
+  , subfieldOptions      :: [DotProtoOption]
   } deriving Show
 
 getQualifiedFields :: MonadError CompileError m
@@ -617,14 +618,22 @@ getQualifiedFields msgName msgParts = flip foldMapM msgParts $ \case
     let mkSubfield DotProtoField{..} = do
             s <- dpIdentUnqualName dotProtoFieldName
             c <- prefixedConName oneofTypeName s
-            pure [OneofSubfield dotProtoFieldNumber c (coerce s) dotProtoFieldType dotProtoFieldOptions]
+            pure [ OneofSubfield
+                     { subfieldNumber       = dotProtoFieldNumber
+                     , subfieldConsName     = c
+                     , subfieldName         = coerce s
+                     , subfieldType         = dotProtoFieldType
+                     , subfieldOptions      = dotProtoFieldOptions
+                     }
+                 ]
         mkSubfield DotProtoEmptyField = pure []
 
     fieldElems <- foldMapM mkSubfield fields
 
-    pure . (:[]) $ QualifiedField { recordFieldName = coerce oneofName
-                                  , fieldInfo = FieldOneOf (OneofField ident fieldElems)
-                                  }
+    pure . (:[]) $ QualifiedField
+                     { recordFieldName = coerce oneofName
+                     , fieldInfo = FieldOneOf (coerce ident) (OneofField ident fieldElems)
+                     }
   _ -> pure []
 
 -- | Project qualified fields, given a projection function per field type.
@@ -633,7 +642,7 @@ foldQF :: (FieldName -> FieldNumber -> a) -- ^ projection for normal fields
        -> QualifiedField
        -> a
 foldQF f _ (QualifiedField _ (FieldNormal fldName fldNum _ _)) = f fldName fldNum
-foldQF _ g (QualifiedField _ (FieldOneOf fld))                 = g fld
+foldQF _ g (QualifiedField _ (FieldOneOf _ fld))               = g fld
 
 fieldBinder :: FieldNumber -> String
 fieldBinder = ("f" ++) . show
@@ -663,6 +672,12 @@ data CompileError
   | NonzeroFirstEnumeration String DotProtoIdentifier Int32
   | EmptyEnumeration String
   | Unimplemented String
+  | RedefinedFields (Histogram FieldName) (Histogram FieldNumber)
+      -- ^ At least one field/oneof name and or field number was
+      -- used more than once within the same message definition,
+      -- which violates the protobuf specification.  The histograms
+      -- mention only the repeated names and numbers, not the ones
+      -- used only once.
   deriving (Show, Eq)
 
 
@@ -680,3 +695,21 @@ invalidMethodNameError = throwError . InvalidMethodName
 
 noSuchTypeError :: MonadError CompileError m => DotProtoIdentifier -> m a
 noSuchTypeError = throwError . NoSuchType
+
+
+newtype Histogram a = Histogram (M.Map a Int)
+  deriving stock (Eq, Ord, Show)
+
+instance Ord a => Semigroup (Histogram a)
+  where
+    Histogram x <> Histogram y = Histogram (M.unionWith (+) x y)
+
+instance Ord a => Monoid (Histogram a)
+  where
+    mempty = Histogram M.empty
+
+oneOccurrence :: a -> Histogram a
+oneOccurrence k = Histogram (M.singleton k 1)
+
+mulipleOccurrencesOnly :: Histogram a -> Histogram a
+mulipleOccurrencesOnly (Histogram m) = Histogram (M.filter (1 <) m)

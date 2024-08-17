@@ -286,8 +286,8 @@ in {
               source = pkgsNew.fetchFromGitHub {
                 owner = "awakesecurity";
                 repo = "proto3-wire";
-                rev = "b3d837f66d97f97f1ad46c5bb0f1d1bb3b7b13c1"; # 1.4.2
-                sha256 = "LXinRHg7fjBf9of7pDm/oWAacCwJ9x/PtnJz6S0W/FA=";
+                rev = "434600a2ba7c2e882593456cc18b7c507bd1a63c"; # 1.4.4
+                sha256 = "3UZF2kcuw3GJHMIiCWh+e6iJCywmiAYV0SmU0TJS0N8=";
               };
             in
               pkgsNew.haskell.lib.doJailbreak
@@ -353,7 +353,11 @@ in {
 
                   test-files = (gitignoreSource ../../test-files);
 
-                  compile-proto-flags = if enableLargeRecords then "--largeRecords" else "";
+                  compile-proto-flags = {
+                    largeRecords = enableLargeRecords;
+                    typeLevelFormat = true;
+                  };
+
                   cg-artifacts = pkgsNew.runCommand "proto3-suite-test-cg-artifacts" { } ''
                     mkdir -p $out/protos
 
@@ -364,7 +368,7 @@ in {
                     build () {
                       echo "[proto3-suite-test-cg-artifacts] Compiling proto-file/$1"
                       ${haskellPackagesNew.proto3-suite-boot}/bin/compile-proto-file \
-                        ${compile-proto-flags} \
+                        ${pkgsNew.lib.cli.toGNUCommandLineShell {} compile-proto-flags} \
                         --out $out \
                         --includeDir "$2" \
                         --proto "$1"

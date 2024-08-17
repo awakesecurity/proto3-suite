@@ -88,6 +88,7 @@ module Proto3.Suite.Class
   , fromB64
   , coerceOver
   , unsafeCoerceOver
+  , ZigZag(..)
 
   -- * Documentation
   , Named(..)
@@ -103,6 +104,7 @@ module Proto3.Suite.Class
 import           Control.Applicative
 #endif
 import           Control.Monad
+import           Data.Bits              (Bits, FiniteBits)
 import qualified Data.ByteString        as B
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy   as BL
@@ -743,38 +745,25 @@ instance MessageField (PackedVec Int64) where
 
 instance MessageField (PackedVec (Signed Int32)) where
   encodeMessageField !fn =
-      omittingDefault (Encode.packedVarintsV zigZag fn) . coerce @_ @(Vector Int32)
+      omittingDefault (Encode.packedVarintsV zigZag fn) . packedvec
     where
-      zigZag = fromIntegral . Encode.zigZagEncode
+      zigZag = fromIntegral @Word32 @Word64 . zigZagEncode @Int32
   {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedVarintsV' figure out how much to inline.
 
-  decodeMessageField = decodePacked (fmap (fmap zagZig) Decode.packedVarints)
-    where
-      -- This type signature is important: `Decode.zigZagDecode` will not undo
-      -- `Encode.zigZagEncode` if given a signed value with the high order bit
-      -- set. So we don't allow GHC to infer a signed input type.
-      zagZig :: Word32 -> Signed Int32
-      zagZig = Signed . fromIntegral . Decode.zigZagDecode
+  decodeMessageField = decodePacked (fmap (fmap zigZagDecode) Decode.packedVarints)
 
   protoType _ = messageField (Repeated SInt32) (Just PackedField)
 
 instance MessageField (PackedVec (Signed Int64)) where
   encodeMessageField !fn =
-      omittingDefault (Encode.packedVarintsV zigZag fn) . coerce @_ @(Vector Int64)
+      omittingDefault (Encode.packedVarintsV zigZag fn) . packedvec
     where
-      zigZag = fromIntegral . Encode.zigZagEncode
+      zigZag = zigZagEncode @Int64
   {-# INLINE encodeMessageField #-}  -- Let 'Encode.packedVarintsV' figure out how much to inline.
 
-  decodeMessageField = decodePacked (fmap (fmap zagZig) Decode.packedVarints)
-    where
-      -- This type signature is important: `Decode.zigZagDecode` will not undo
-      -- `Encode.zigZagEncode` if given a signed value with the high order bit
-      -- set. So we don't allow GHC to infer a signed input type.
-      zagZig :: Word64 -> Signed Int64
-      zagZig = Signed . fromIntegral . Decode.zigZagDecode
+  decodeMessageField = decodePacked (fmap (fmap zigZagDecode) Decode.packedVarints)
 
   protoType _ = messageField (Repeated SInt64) (Just PackedField)
-
 
 instance MessageField (PackedVec (Fixed Word32)) where
   encodeMessageField !fn =
@@ -1067,3 +1056,63 @@ instance GenericMessage f => GenericMessage (M1 D t f) where
   genericEncodeMessage num (M1 x)   = genericEncodeMessage num x
   genericDecodeMessage num          = M1 <$> genericDecodeMessage num
   genericDotProto _                 = genericDotProto (proxy# :: Proxy# f)
+
+class ZigZag a
+  where
+    -- | The unsigned integral type used to hold the value
+    -- after ZigZag encoding but before varint encoding, and
+    -- after varint decoding but before ZigZag decoding.
+    --
+    -- NOTE: The two integral types must have the same width both to
+    -- correctly encode large @sint32@ values and, during decoding,
+    -- to compensate for overlong encodings emitted by versions of
+    -- this library before v0.8.1.  Those older versions incorrectly
+    -- sign-extended ZigZag-encoded @sint32@ values in packed fields.
+    type ZigZagEncoded a :: Type
+
+    -- | Importantly, the resulting unsigned integer has the same
+    -- width as the input type, so that any integral promotion before
+    -- or during varint encoding will zero-pad instead of sign-extend.
+    --
+    -- Sign extension would result in a more bulky encoding
+    -- and would violate the compatibility guarantee in
+    -- <https://protobuf.dev/programming-guides/proto3/#updating> that
+    -- an @sint32@ value can be decoded as if it had type @sint64@.
+    zigZagEncode :: Signed a -> ZigZagEncoded a
+    default zigZagEncode ::
+      (Num a, FiniteBits a, Integral a, Num (ZigZagEncoded a)) =>
+      Signed a -> ZigZagEncoded a
+    zigZagEncode = fromIntegral . Encode.zigZagEncode . signed
+    {-# INLINE zigZagEncode #-}
+
+    -- | Importantly, the given unsigned integer has the same width as the result type.
+    -- If the encoder was a version of this library before v0.8.1, and the field was
+    -- packed, it would have incorrectly sign-extended between the ZigZag encoding step
+    -- and the varint encoding step, rather than zero-padding.  By narrowing before we
+    -- ZigZag decode, we exclude the incorrect bits.
+    --
+    -- Maintaining compatibility with versions of this library before v0.8.1
+    -- does have a curious side effect.  When an @sint64@ value outside the
+    -- range of @sint32@ is decoded as type @sint32@, the sign will be
+    -- preserved and the magnitude decreased, rather than the more typical
+    -- conversion that outputs the remainder after division by @2^32@, as
+    -- would happen with 'fromIntegral @Int64 @Int32'.  One could argue that
+    -- our behavior is surprising and unusual.  However, both narrowings
+    -- lose information, and neither is supported by protobuf:
+    -- <https://protobuf.dev/programming-guides/dos-donts/> says,
+    -- "However, changing a field's message type will break
+    -- unless the new message is a superset of the old one."
+    zigZagDecode :: ZigZagEncoded a -> Signed a
+    default zigZagDecode ::
+      (Num (ZigZagEncoded a), Bits (ZigZagEncoded a), Integral (ZigZagEncoded a), Num a) =>
+      ZigZagEncoded a -> Signed a
+    zigZagDecode = Signed . fromIntegral . Decode.zigZagDecode
+    {-# INLINE zigZagDecode #-}
+
+instance ZigZag Int32
+  where
+    type ZigZagEncoded Int32 = Word32
+
+instance ZigZag Int64
+  where
+    type ZigZagEncoded Int64 = Word64

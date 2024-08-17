@@ -50,6 +50,12 @@ write_proto(SignedInts(signed32 = (-42), signed64 = (-84)))
 write_proto(SignedInts(signed32 = -(2**31), signed64 = -(2**63)))
 write_proto(SignedInts(signed32 = (2**32 - 1) // 2, signed64 = (2**64 - 1) // 2))
 
+# Test case: RepeatedSignedInts
+write_proto(WithRepeatedSigned(r32 = [], r64 = []))
+write_proto(WithRepeatedSigned(r32 = [0], r64 = [0]))
+write_proto(WithRepeatedSigned(r32 = [0, 42, -42, 2**30 - 1, -(2**30), 2**31 - 1, -(2**31)],
+                               r64 = [0, 84, -84, 2**62 - 1, -(2**62), 2**63 - 1, -(2**63)]))
+
 # Test case 3: Nested enumeration
 write_proto(WithEnum(enumField = WithEnum.ENUM1))
 write_proto(WithEnum(enumField = WithEnum.ENUM2))

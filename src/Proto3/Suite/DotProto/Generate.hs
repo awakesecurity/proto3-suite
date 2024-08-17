@@ -4,6 +4,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE ImplicitParams            #-}
 {-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE MultiWayIf                #-}
 {-# LANGUAGE NamedFieldPuns            #-}
@@ -24,7 +25,7 @@
 module Proto3.Suite.DotProto.Generate
   ( CompileError(..)
   , StringType(..)
-  , RecordStyle (..)
+  , RecordStyle(..)
   , parseStringType
   , TypeContext
   , CompileArgs(..)
@@ -38,12 +39,15 @@ module Proto3.Suite.DotProto.Generate
 
 import           Control.Applicative
 import           Control.Lens                   ((&), ix, over, has, filtered)
+import           Control.Monad                  (when)
 import           Control.Monad.Except           (MonadError(..), runExceptT)
 import           Control.Monad.IO.Class         (MonadIO(..))
+import           Control.Monad.Trans            (lift)
+import           Control.Monad.Writer           (WriterT, runWriterT, tell)
 import           Data.Char
 import           Data.Coerce
 import           Data.Either                    (partitionEithers)
-import           Data.List                      (find, intercalate, nub, sort, stripPrefix)
+import           Data.List                      (find, intercalate, nub, sort, sortOn, stripPrefix)
 import qualified Data.List.NonEmpty             as NE
 import           Data.List.Split                (splitOn)
 import           Data.List.NonEmpty             (NonEmpty (..))
@@ -108,6 +112,7 @@ data CompileArgs = CompileArgs
   , outputDir          :: FilePath
   , stringType         :: StringType
   , recordStyle        :: RecordStyle
+  , typeLevelFormat    :: Bool
   }
 
 data StringType = StringType String String
@@ -135,7 +140,11 @@ compileDotProtoFile logger CompileArgs{..} = runExceptT $ do
   Turtle.mktree (Turtle.directory modulePath)
 
   extraInstances <- foldMapM (getExtraInstances logger) extraInstanceFiles
-  haskellModule <- renderHsModuleForDotProto stringType recordStyle extraInstances dotProto importTypeContext
+  haskellModule <-
+    let ?recordStyle = recordStyle
+        ?stringType = stringType
+        ?typeLevelFormat = typeLevelFormat
+    in renderHsModuleForDotProto extraInstances dotProto importTypeContext
 
   liftIO (writeFile (Turtle.encodeString modulePath) haskellModule)
   where
@@ -203,13 +212,18 @@ renameProtoFile filename =
 -- | Compile a 'DotProto' AST into a 'String' representing the Haskell
 --   source of a module implementing types and instances for the .proto
 --   messages and enums.
-renderHsModuleForDotProto
-    :: MonadError CompileError m
-    => StringType
-    -> RecordStyle
-    -> ([HsImportDecl],[HsDecl]) -> DotProto -> TypeContext -> m String
-renderHsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto importCtxt = do
-    haskellModule <- hsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto importCtxt
+renderHsModuleForDotProto ::
+  ( MonadError CompileError m
+  , (?recordStyle :: RecordStyle)
+  , (?stringType :: StringType)
+  , (?typeLevelFormat :: Bool)
+  ) =>
+  ([HsImportDecl],[HsDecl]) ->
+  DotProto ->
+  TypeContext ->
+  m String
+renderHsModuleForDotProto extraInstanceFiles dotProto importCtxt = do
+    haskellModule <- hsModuleForDotProto extraInstanceFiles dotProto importCtxt
 
     let languagePragmas = textUnlines $ map (\extn -> "{-# LANGUAGE " <> extn <> " #-}") $ sort extensions
         ghcOptionPragmas = textUnlines $ map (\opt -> "{-# OPTIONS_GHC " <> opt <> " #-}") $ sort options
@@ -226,15 +240,16 @@ renderHsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto imp
           , "TypeApplications"
           , "TypeOperators"
           ] ++
-          case recordStyle of
+          (if ?typeLevelFormat then [ "TypeFamilies" ] else []) ++
+          case ?recordStyle of
             RegularRecords -> []
             LargeRecords -> [ "ConstraintKinds"
-                           , "FlexibleInstances"
-                           , "MultiParamTypeClasses"
-                           , "ScopedTypeVariables"
-                           , "TypeFamilies"
-                           , "UndecidableInstances"
-                           ]
+                            , "FlexibleInstances"
+                            , "MultiParamTypeClasses"
+                            , "ScopedTypeVariables"
+                            , "TypeFamilies"
+                            , "UndecidableInstances"
+                            ]
 
         options :: [T.Text]
         options = [ "-fno-warn-unused-imports"
@@ -242,7 +257,7 @@ renderHsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto imp
                   , "-fno-warn-unused-matches"
                   , "-fno-warn-missing-export-lists"
                   ] ++
-                  case recordStyle of
+                  case ?recordStyle of
                     RegularRecords -> []
                     LargeRecords -> [ "-fplugin=Data.Record.Plugin" ]
 
@@ -263,7 +278,7 @@ renderHsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto imp
                                                GHC.GhcPs
 #endif
         annotatedHaskellModule =
-          case (recordStyle, haskellModule) of
+          case (?recordStyle, haskellModule) of
             (RegularRecords, _) -> haskellModule
             (LargeRecords, GHC.HsModule{hsmodDecls = moduleDecls}) ->
               haskellModule{GHC.hsmodDecls = moduleDecls ++ mapMaybe mkLRAnnotation moduleDecls}
@@ -284,26 +299,24 @@ renderHsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto imp
 
 -- | Compile a Haskell module AST given a 'DotProto' package AST.
 -- Instances given in @eis@ override those otherwise generated.
-hsModuleForDotProto
-    :: MonadError CompileError m
-    => StringType
-    -- ^ the module and the type for string
-    -> RecordStyle
-    -- ^ kind of records to generate
-    -> ([HsImportDecl], [HsDecl])
-    -- ^ Extra user-define instances that override default generated instances
-    -> DotProto
-    -- ^
-    -> TypeContext
-    -- ^
-    -> m (GHC.HsModule
+hsModuleForDotProto ::
+  ( MonadError CompileError m
+  , (?recordStyle :: RecordStyle)
+  , (?stringType :: StringType)
+  , (?typeLevelFormat :: Bool)
+  ) =>
+  -- | Extra user-define instances that override default generated instances
+  ([HsImportDecl], [HsDecl]) ->
+  -- |
+  DotProto ->
+  -- |
+  TypeContext ->
+  m (GHC.HsModule
 #if MIN_VERSION_ghc(9,6,0)
-                       GHC.GhcPs
+                  GHC.GhcPs
 #endif
-         )
+                           )
 hsModuleForDotProto
-    stringType
-    recordStyle
     (extraImports, extraInstances)
     dotProto@DotProto{ protoMeta = DotProtoMeta { metaModulePath = modulePath }
                      , protoPackage
@@ -315,21 +328,17 @@ hsModuleForDotProto
 
        typeContextImports <- ctxtImports importTypeContext
 
-       let hasService = has (traverse._DotProtoService) protoDefinitions
+       let icUsesGrpc = has (traverse._DotProtoService) protoDefinitions
 
        let importDeclarations = concat
-              [ defaultImports recordStyle
-                               ImportCustomisation
-                               { icUsesGrpc = hasService
-                               , icStringType = stringType
-                               }
+              [ defaultImports icUsesGrpc
               , extraImports
               , typeContextImports ]
 
        typeContext <- dotProtoTypeContext dotProto
 
        let toDotProtoDeclaration =
-             dotProtoDefinitionD stringType recordStyle protoPackage (typeContext <> importTypeContext)
+             dotProtoDefinitionD protoPackage (typeContext <> importTypeContext)
 
        let extraInstances' = instancesForModule moduleName extraInstances
 
@@ -629,25 +638,61 @@ coerceE overTyCon unsafe from to =
     name | overTyCon = protobufName varName . (<> "Over")
          | otherwise = haskellName varName
 
-wrapFunE :: MonadError CompileError m => Bool -> FieldContext -> StringType -> TypeContext -> [DotProtoOption] -> DotProtoType -> m (Maybe HsExp)
-wrapFunE overTyCon fc stringType ctxt opts dpt =
+wrapFunE ::
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  Bool ->
+  FieldContext ->
+  TypeContext ->
+  [DotProtoOption] ->
+  DotProtoType ->
+  m (Maybe HsExp)
+wrapFunE overTyCon fc ctxt opts dpt =
   coerceE overTyCon (isMap dpt)
-    <$> dptToHsType fc stringType ctxt dpt
-    <*> dptToHsTypeWrapped fc stringType opts ctxt dpt
+    <$> dptToHsType fc ctxt dpt
+    <*> dptToHsTypeWrapped fc opts ctxt dpt
 
-wrapE :: MonadError CompileError m => FieldContext -> StringType -> TypeContext -> [DotProtoOption] -> DotProtoType -> HsExp -> m HsExp
-wrapE fc stringType ctxt opts dpt e =
-  maybeModify e <$> wrapFunE False fc stringType ctxt opts dpt
+wrapE ::
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  FieldContext ->
+  TypeContext ->
+  [DotProtoOption] ->
+  DotProtoType ->
+  HsExp ->
+  m HsExp
+wrapE fc ctxt opts dpt e =
+  maybeModify e <$> wrapFunE False fc ctxt opts dpt
 
-unwrapFunE :: MonadError CompileError m => Bool -> FieldContext -> StringType -> TypeContext -> [DotProtoOption] -> DotProtoType -> m (Maybe HsExp)
-unwrapFunE overTyCon fc stringType ctxt opts dpt =
+unwrapFunE ::
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  Bool ->
+  FieldContext ->
+  TypeContext ->
+  [DotProtoOption] ->
+  DotProtoType ->
+  m (Maybe HsExp)
+unwrapFunE overTyCon fc ctxt opts dpt =
   coerceE overTyCon (isMap dpt)
-    <$> dptToHsTypeWrapped fc stringType opts ctxt dpt
-    <*> dptToHsType fc stringType ctxt dpt
+    <$> dptToHsTypeWrapped fc opts ctxt dpt
+    <*> dptToHsType fc ctxt dpt
 
-unwrapE :: MonadError CompileError m => FieldContext -> StringType -> TypeContext -> [DotProtoOption] -> DotProtoType -> HsExp -> m HsExp
-unwrapE fc stringType ctxt opts dpt e = do
-  maybeModify e <$> unwrapFunE True fc stringType ctxt opts dpt
+unwrapE ::
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  FieldContext ->
+  TypeContext ->
+  [DotProtoOption] ->
+  DotProtoType ->
+  HsExp ->
+  m HsExp
+unwrapE fc ctxt opts dpt e = do
+  maybeModify e <$> unwrapFunE True fc ctxt opts dpt
 
 --------------------------------------------------------------------------------
 --
@@ -655,35 +700,44 @@ unwrapE fc stringType ctxt opts dpt e = do
 --
 
 -- | Convert a dot proto type to a Haskell type
-dptToHsType :: MonadError CompileError m => FieldContext -> StringType -> TypeContext -> DotProtoType -> m HsType
-dptToHsType fc = foldDPT (dptToHsContType fc) . dpptToHsType
+dptToHsType ::
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  FieldContext ->
+  TypeContext ->
+  DotProtoType ->
+  m HsType
+dptToHsType fc = foldDPT (dptToHsContType fc) dpptToHsType
 
 -- | Convert a dot proto type to a wrapped Haskell type
-dptToHsTypeWrapped
-  :: MonadError CompileError m
-  => FieldContext
-  -> StringType
-  -> [DotProtoOption]
-  -> TypeContext
-  -> DotProtoType
-  -> m HsType
-dptToHsTypeWrapped fc stringType opts =
+dptToHsTypeWrapped ::
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  FieldContext ->
+  [DotProtoOption] ->
+  TypeContext ->
+  DotProtoType ->
+  m HsType
+dptToHsTypeWrapped fc opts =
   foldDPT
     -- The wrapper for the collection type replaces the native haskell
     -- collection type, so try that first.
     (\ctxt ty -> maybe (dptToHsContType fc ctxt ty) id (dptToHsWrappedContType fc ctxt opts ty))
     -- Always wrap the primitive type.
-    (dpptToHsTypeWrapped stringType)
+    dpptToHsTypeWrapped
 
 -- | Like 'dptToHsTypeWrapped' but without use of
 -- 'dptToHsContType' or 'dptToHsWrappedContType'.
-dpptToHsTypeWrapped
-  :: MonadError CompileError m
-  => StringType
-  -> TypeContext
-  -> DotProtoPrimType
-  -> m HsType
-dpptToHsTypeWrapped (StringType _ stringType) ctxt =  \case
+dpptToHsTypeWrapped ::
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  TypeContext ->
+  DotProtoPrimType ->
+  m HsType
+dpptToHsTypeWrapped ctxt | StringType _ stringType <- ?stringType = \case
   Int32 ->
     pure $ primType_ "Int32"
   Int64 ->
@@ -792,12 +846,14 @@ dptToHsContType fc ctxt = \case
   _                  -> id
 
 -- | Convert a dot proto prim type to an unwrapped Haskell type
-dpptToHsType :: MonadError CompileError m
-             => StringType
-             -> TypeContext
-             -> DotProtoPrimType
-             -> m HsType
-dpptToHsType (StringType _ stringType) ctxt = \case
+dpptToHsType ::
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  TypeContext ->
+  DotProtoPrimType ->
+  m HsType
+dpptToHsType ctxt | StringType _ stringType <- ?stringType = \case
   Int32    -> pure $ primType_ "Int32"
   Int64    -> pure $ primType_ "Int64"
   SInt32   -> pure $ primType_ "Int32"
@@ -843,22 +899,25 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
 
 -- ** Generate instances for a 'DotProto' package
 
-dotProtoDefinitionD :: MonadError CompileError m
-                    => StringType
-                    -> RecordStyle
-                    -> DotProtoPackageSpec
-                    -> TypeContext
-                    -> DotProtoDefinition
-                    -> m [HsDecl]
-dotProtoDefinitionD stringType recordStyle pkgSpec ctxt = \case
+dotProtoDefinitionD ::
+  ( MonadError CompileError m
+  , (?recordStyle :: RecordStyle)
+  , (?stringType :: StringType)
+  , (?typeLevelFormat :: Bool)
+  ) =>
+  DotProtoPackageSpec ->
+  TypeContext ->
+  DotProtoDefinition ->
+  m [HsDecl]
+dotProtoDefinitionD pkgSpec ctxt = \case
   DotProtoMessage _ messageName messageParts ->
-    dotProtoMessageD stringType recordStyle ctxt Anonymous messageName messageParts
+    dotProtoMessageD ctxt Anonymous messageName messageParts
 
   DotProtoEnum _ enumName enumParts ->
     dotProtoEnumD Anonymous enumName enumParts
 
   DotProtoService _ serviceName serviceParts ->
-    dotProtoServiceD stringType pkgSpec ctxt serviceName serviceParts
+    dotProtoServiceD pkgSpec ctxt serviceName serviceParts
 
 -- | Generate 'Named' instance for a type in this package
 namedInstD :: String -> HsDecl
@@ -879,17 +938,19 @@ hasDefaultInstD messageName =
 
 -- | Generate data types, 'Bounded', 'Enum', 'FromJSONPB', 'Named', 'Message',
 --   'ToJSONPB' instances as appropriate for the given 'DotProtoMessagePart's
-dotProtoMessageD
-    :: forall m
-     . MonadError CompileError m
-    => StringType
-    -> RecordStyle
-    -> TypeContext
-    -> DotProtoIdentifier
-    -> DotProtoIdentifier
-    -> [DotProtoMessagePart]
-    -> m [HsDecl]
-dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messageParts = do
+dotProtoMessageD ::
+  forall m .
+  ( MonadError CompileError m
+  , (?recordStyle :: RecordStyle)
+  , (?stringType :: StringType)
+  , (?typeLevelFormat :: Bool)
+  ) =>
+  TypeContext ->
+  DotProtoIdentifier ->
+  DotProtoIdentifier ->
+  [DotProtoMessagePart] ->
+  m [HsDecl]
+dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     messageName <- qualifiedMessageName parentIdent messageIdent
 
     let mkDataDecl flds =
@@ -908,15 +969,15 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
     messageDataDecl <- mkDataDecl <$> foldMapM (messagePartFieldD messageName) messageParts
 
     foldMapM id
-      [ sequence
+      [ sequence $
           [ pure messageDataDecl
           , pure (nfDataInstD messageDataDecl messageName)
           , pure (namedInstD messageName)
           , pure (hasDefaultInstD messageName)
-          , messageInstD stringType ctxt' parentIdent messageIdent messageParts
+          , messageInstD ctxt' parentIdent messageIdent messageParts
 
-          , toJSONPBMessageInstD stringType ctxt' parentIdent messageIdent messageParts
-          , fromJSONPBMessageInstD stringType ctxt' parentIdent messageIdent messageParts
+          , toJSONPBMessageInstD ctxt' parentIdent messageIdent messageParts
+          , fromJSONPBMessageInstD ctxt' parentIdent messageIdent messageParts
 
             -- Generate Aeson instances in terms of JSONPB instances
           , pure (toJSONInstDecl messageName)
@@ -924,7 +985,7 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
 
 #ifdef SWAGGER
           -- And the Swagger ToSchema instance corresponding to JSONPB encodings
-          , toSchemaInstanceDeclaration stringType ctxt' messageName Nothing
+          , toSchemaInstanceDeclaration ctxt' messageName Nothing
               =<< foldMapM getName messageParts
 #endif
 
@@ -933,7 +994,10 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
           , pure (dhallInterpretInstDecl messageName)
           , pure (dhallInjectInstDecl messageName)
 #endif
-          ]
+          ] ++
+          ( if ?typeLevelFormat
+              then [ fieldFormsInstD ctxt' parentIdent messageIdent messageParts ]
+              else [] )
 
       -- Nested regular and oneof message decls
       , foldMapOfM (traverse . _DotProtoMessageDefinition)
@@ -950,14 +1014,14 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
     ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup messageIdent ctxt)
                 <> ctxt
 
-    nfDataInstD = case recordStyle of
+    nfDataInstD = case ?recordStyle of
                     RegularRecords -> RegularRecord.nfDataInstD
                     LargeRecords -> LargeRecord.nfDataInstD
 
     messagePartFieldD :: String -> DotProtoMessagePart -> m [([HsName], HsBangType)]
     messagePartFieldD messageName (DotProtoMessageField DotProtoField{..}) = do
       fullName <- prefixedFieldName messageName =<< dpIdentUnqualName dotProtoFieldName
-      fullTy <- dptToHsType WithinMessage stringType ctxt' dotProtoFieldType
+      fullTy <- dptToHsType WithinMessage ctxt' dotProtoFieldType
       pure [ ([unqual_ varName fullName], unbangedTy_ fullTy) ]
 
     messagePartFieldD messageName (DotProtoMessageOneOf fieldName _) = do
@@ -971,7 +1035,7 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
     nestedDecls :: DotProtoDefinition -> m [HsDecl]
     nestedDecls (DotProtoMessage _ subMsgName subMessageDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoMessageD stringType recordStyle ctxt' parentIdent' subMsgName subMessageDef
+      dotProtoMessageD ctxt' parentIdent' subMsgName subMessageDef
 
     nestedDecls (DotProtoEnum _ subEnumName subEnumDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
@@ -986,7 +1050,7 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
       (cons, _idents) <- fmap unzip (mapM (oneOfCons fullName) fields)
 
 #ifdef SWAGGER
-      toSchemaInstance <- toSchemaInstanceDeclaration stringType ctxt' fullName (Just _idents)
+      toSchemaInstance <- toSchemaInstanceDeclaration ctxt' fullName (Just _idents)
                             =<< mapM getFieldNameForSchemaInstanceDeclaration fields
 #endif
 
@@ -1006,25 +1070,85 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
 
     oneOfCons :: String -> DotProtoField -> m (HsConDecl, HsName)
     oneOfCons fullName DotProtoField{..} = do
-       consTy <- dptToHsType WithinOneOf stringType ctxt' dotProtoFieldType
+       consTy <- dptToHsType WithinOneOf ctxt' dotProtoFieldType
        consName <- prefixedConName fullName =<< dpIdentUnqualName dotProtoFieldName
        let ident = unqual_ dataName consName
        pure (conDecl_ ident [unbangedTy_ consTy], ident)
 
     oneOfCons _ DotProtoEmptyField = internalError "field type : empty field"
 
--- *** Generate Protobuf 'Message' instances
 
-messageInstD
-    :: forall m
-     . MonadError CompileError m
-    => StringType
-    -> TypeContext
-    -> DotProtoIdentifier
-    -> DotProtoIdentifier
-    -> [DotProtoMessagePart]
-    -> m HsDecl
-messageInstD stringType ctxt parentIdent msgIdent messageParts = do
+-- *** Generate Protobuf 'FieldFormsOf' type family instances
+
+type FieldOccurrences = (Histogram FieldName, Histogram FieldNumber)
+
+fieldFormsInstD ::
+  forall m .
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  TypeContext ->
+  DotProtoIdentifier->
+  DotProtoIdentifier ->
+  [DotProtoMessagePart]->
+  m HsDecl
+fieldFormsInstD ctxt parentIdent msgIdent messageParts = do
+    msgName <- qualifiedMessageName parentIdent msgIdent
+    qualifiedFields <- getQualifiedFields msgName messageParts
+    (concat -> fieldSpecs, (fieldNames, fieldNumbers)) <-
+      runWriterT (mapM mkFieldForm qualifiedFields)
+    let repeatedFieldNames = mulipleOccurrencesOnly fieldNames
+        repeatedFieldNumbers = mulipleOccurrencesOnly fieldNumbers
+    when (repeatedFieldNames /= mempty || repeatedFieldNumbers /= mempty) $
+      throwError $ RedefinedFields repeatedFieldNames repeatedFieldNumbers
+    when (let Histogram m = fieldNames in M.member "" m) $
+      internalError $ "empty field name within message " ++ show msgIdent
+    pure $ tyFamInstDecl_ (protobufFormName tcName "FieldFormsOf")
+                          [ type_ msgName ]
+                          (listT_ (map snd (sortOn fst (fieldSpecs))))
+  where
+    fieldForm :: HsQName
+    fieldForm = protobufFormName dataName "FieldForm"
+
+    mkFieldForm :: QualifiedField -> WriterT FieldOccurrences m [(FieldName, HsType)]
+    mkFieldForm QualifiedField{fieldInfo} = case fieldInfo of
+      FieldNormal fieldName fieldNum dpType options -> do
+          tell (oneOccurrence fieldName, oneOccurrence fieldNum)
+          fieldTy <- lift $ dptToHsTypeWrapped WithinMessage options ctxt dpType
+          let spec = tyConApply fieldForm [ natT (getFieldNumber fieldNum), fieldTy, strT mempty ]
+          pure [(fieldName, tupleT_ [ strT (getFieldName fieldName), spec ])]
+
+      FieldOneOf oneofName OneofField{subfields} -> do
+          tell (oneOccurrence oneofName, mempty)
+          mapM mkSubfield subfields
+        where
+          mkSubfield :: OneofSubfield -> WriterT FieldOccurrences m (FieldName, HsType)
+          mkSubfield (OneofSubfield
+                        { subfieldNumber = subfieldNum
+                        , subfieldName = subfieldName
+                        , subfieldType = dpType
+                        , subfieldOptions = options
+                        }) = do
+            tell (oneOccurrence subfieldName, oneOccurrence subfieldNum)
+            subfieldTy <- lift $ dptToHsTypeWrapped WithinOneOf options ctxt dpType
+            let oneOf = strT (getFieldName oneofName)
+                spec = tyConApply fieldForm [ natT (getFieldNumber subfieldNum), subfieldTy, oneOf ]
+            pure (subfieldName, tupleT_ [ strT (getFieldName subfieldName), spec ])
+
+
+-- *** Generate Protobuf 'Message' type class instances
+
+messageInstD ::
+  forall m .
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  TypeContext ->
+  DotProtoIdentifier ->
+  DotProtoIdentifier ->
+  [DotProtoMessagePart] ->
+  m HsDecl
+messageInstD ctxt parentIdent msgIdent messageParts = do
      msgName         <- qualifiedMessageName parentIdent msgIdent
      qualifiedFields <- getQualifiedFields msgName messageParts
 
@@ -1086,10 +1210,10 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
       let recordFieldName' = uvar_ (coerce recordFieldName) in
       case fieldInfo of
         FieldNormal _fieldName fieldNum dpType options -> do
-            fieldE <- wrapE WithinMessage stringType ctxt options dpType recordFieldName'
+            fieldE <- wrapE WithinMessage ctxt options dpType recordFieldName'
             pure $ apply encodeMessageFieldE [ fieldNumberE fieldNum, fieldE ]
 
-        FieldOneOf OneofField{subfields} -> do
+        FieldOneOf _ OneofField{subfields} -> do
             alts <- mapM mkAlt subfields
             pure $ case_ recordFieldName'
                     [ alt_ (conPat nothingN []) memptyE
@@ -1099,7 +1223,12 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
             -- Create all pattern match & expr for each constructor:
             --    Constructor y -> encodeMessageField num (Nested (Just y)) -- for embedded messages
             --    Constructor y -> encodeMessageField num (ForceEmit y)     -- for everything else
-            mkAlt (OneofSubfield fieldNum conName _ dpType options) = do
+            mkAlt (OneofSubfield
+                     { subfieldNumber = fieldNum
+                     , subfieldConsName = conName
+                     , subfieldType = dpType
+                     , subfieldOptions = options
+                     }) = do
               let isMaybe
                      | Prim (Named tyName) <- dpType
                      = isMessage ctxt tyName
@@ -1109,11 +1238,12 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
               let wrapJust = paren . app justC
 
               xE <- (if isMaybe then id else fmap forceEmitE)
-                     . wrapE WithinMessage stringType ctxt options dpType
+                     . wrapE WithinMessage ctxt options dpType
                          -- For now we use 'WithinMessage' to preserve
                          -- the historical approach of treating this field
                          -- as if it were an ordinary non-oneof field that
-                         -- just happens to be present.
+                         -- just happens to be present, then forcing it to
+                         -- be emitted.
                      . (if isMaybe then wrapJust else id)
                      $ uvar_ "y"
 
@@ -1124,15 +1254,20 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
     decodeMessageField QualifiedField{fieldInfo} =
       case fieldInfo of
         FieldNormal _fieldName fieldNum dpType options ->
-            unwrapE WithinMessage stringType ctxt options dpType $
+            unwrapE WithinMessage ctxt options dpType $
               apply atE [ decodeMessageFieldE, fieldNumberE fieldNum ]
 
-        FieldOneOf OneofField{subfields} -> do
+        FieldOneOf _ OneofField{subfields} -> do
             parsers <- mapM subfieldParserE subfields
             pure $ apply oneofE [ nothingC, list_ parsers ]
           where
             -- create a list of (fieldNumber, Cons <$> parser)
-            subfieldParserE (OneofSubfield fieldNumber consName _ dpType options) = do
+            subfieldParserE (OneofSubfield
+                               { subfieldNumber = fieldNumber
+                               , subfieldConsName = consName
+                               , subfieldType = dpType
+                               , subfieldOptions = options
+                               }) = do
               let fE | Prim (Named tyName) <- dpType, isMessage ctxt tyName =
                          paren (app fmapE (uvar_ consName))
                      | otherwise =
@@ -1142,7 +1277,7 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
               -- submessages within oneofs as if were outside of oneofs,
               -- and replacing the "Just . Ctor" with "fmap . Ctor".
               -- That is why we do not pass WithinOneOf.
-              alts <- unwrapE WithinMessage stringType ctxt options dpType decodeMessageFieldE
+              alts <- unwrapE WithinMessage ctxt options dpType decodeMessageFieldE
 
               pure $ tuple_
                    [ fieldNumberE fieldNumber
@@ -1152,16 +1287,17 @@ messageInstD stringType ctxt parentIdent msgIdent messageParts = do
 
 -- *** Generate ToJSONPB/FromJSONPB instances
 
-toJSONPBMessageInstD
-    :: forall m
-     . MonadError CompileError m
-    => StringType
-    -> TypeContext
-    -> DotProtoIdentifier
-    -> DotProtoIdentifier
-    -> [DotProtoMessagePart]
-    -> m HsDecl
-toJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
+toJSONPBMessageInstD ::
+  forall m .
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  TypeContext ->
+  DotProtoIdentifier ->
+  DotProtoIdentifier ->
+  [DotProtoMessagePart] ->
+  m HsDecl
+toJSONPBMessageInstD ctxt parentIdent msgIdent messageParts = do
     msgName    <- qualifiedMessageName parentIdent msgIdent
     qualFields <- getQualifiedFields msgName messageParts
 
@@ -1193,19 +1329,19 @@ toJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
       case fieldInfo of
         FieldNormal fldName fldNum dpType options ->
           defPairE fldName fldNum dpType options
-        FieldOneOf oo ->
+        FieldOneOf _ oo ->
           oneofCaseE oneofNm oo
 
     -- E.g.
     -- "another" .= f2 -- always succeeds (produces default value on missing field)
     defPairE fldName fldNum dpType options = do
-      w <- wrapE WithinMessage stringType ctxt options dpType (uvar_ (fieldBinder fldNum))
+      w <- wrapE WithinMessage ctxt options dpType (uvar_ (fieldBinder fldNum))
       pure $ opApp (str_ (coerce fldName)) toJSONPBOp w
 
     -- E.g.
     -- HsJSONPB.pair "name" f4 -- fails on missing field
     oneOfPairE fldNm varNm options dpType = do
-      w <- wrapE WithinOneOf stringType ctxt options dpType (uvar_ varNm)
+      w <- wrapE WithinOneOf ctxt options dpType (uvar_ varNm)
       pure $ apply (var_ (jsonpbName varName "pair")) [str_ (coerce fldNm), w]
 
     -- Suppose we have a sum type Foo, nested inside a message Bar.
@@ -1244,7 +1380,12 @@ toJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
 
         yesInline = app caseBnd opts
 
-        altE sub@(OneofSubfield _ conName pbFldNm dpType options) = do
+        altE sub@(OneofSubfield
+                    { subfieldConsName = conName
+                    , subfieldName = pbFldNm
+                    , subfieldType = dpType
+                    , subfieldOptions = options
+                    }) = do
           let patVarNm = oneofSubBinder sub
           p <- oneOfPairE pbFldNm patVarNm options dpType
           pure $
@@ -1264,16 +1405,17 @@ toJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
             disjunctName = uvar_ (oneofSubDisjunctBinder subfields)
             fallthroughE = alt_ (conPat nothingN []) memptyE
 
-fromJSONPBMessageInstD
-    :: forall m
-     . MonadError CompileError m
-    => StringType
-    -> TypeContext
-    -> DotProtoIdentifier
-    -> DotProtoIdentifier
-    -> [DotProtoMessagePart]
-    -> m HsDecl
-fromJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
+fromJSONPBMessageInstD ::
+  forall m .
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  TypeContext ->
+  DotProtoIdentifier ->
+  DotProtoIdentifier ->
+  [DotProtoMessagePart] ->
+  m HsDecl
+fromJSONPBMessageInstD ctxt parentIdent msgIdent messageParts = do
     msgName    <- qualifiedMessageName parentIdent msgIdent
     qualFields <- getQualifiedFields msgName messageParts
 
@@ -1300,7 +1442,7 @@ fromJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
 
     parseField (QualifiedField _ (FieldNormal fldName _ dpType options)) =
       normalParserE fldName dpType options
-    parseField (QualifiedField _ (FieldOneOf fld)) =
+    parseField (QualifiedField _ (FieldOneOf _ fld)) =
       oneofParserE fld
 
     -- E.g., for message
@@ -1350,7 +1492,7 @@ fromJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
         subParserE OneofSubfield{subfieldConsName, subfieldName,
                                  subfieldType, subfieldOptions} = do
           maybeCoercion <-
-            unwrapFunE False WithinOneOf stringType ctxt subfieldOptions subfieldType
+            unwrapFunE False WithinOneOf ctxt subfieldOptions subfieldType
           let inject = opApp justC composeOp (uvar_ subfieldConsName)
           pure $ opApp
               (maybe inject (opApp inject composeOp) maybeCoercion)
@@ -1362,7 +1504,7 @@ fromJSONPBMessageInstD stringType ctxt parentIdent msgIdent messageParts = do
     -- E.g. obj .: "someid"
     normalParserE :: FieldName -> DotProtoType -> [DotProtoOption] -> m HsExp
     normalParserE fldName dpType options =
-      unwrapE WithinMessage stringType ctxt options dpType $
+      unwrapE WithinMessage ctxt options dpType $
         opApp lambdaVar
                    parseJSONPBOp
                    (str_(coerce fldName))
@@ -1401,19 +1543,20 @@ getFieldNameForSchemaInstanceDeclaration fld = do
   let optsType = (dotProtoFieldOptions fld, dotProtoFieldType fld)
   pure (Just optsType, unqual)
 
-toSchemaInstanceDeclaration
-    :: MonadError CompileError m
-    => StringType
-    -> TypeContext
-    -> String
-    -- ^ Name of the message type to create an instance for
-    -> Maybe [HsName]
-    -- ^ Oneof constructors
-    -> [(Maybe ([DotProtoOption], DotProtoType), String)]
-    -- ^ Field names, with every field that is not actually a oneof
-    -- combining fields paired with its options and protobuf type
-    -> m HsDecl
-toSchemaInstanceDeclaration stringType ctxt messageName maybeConstructors fieldNamesEtc = do
+toSchemaInstanceDeclaration ::
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  TypeContext ->
+  -- | Name of the message type to create an instance for
+  String ->
+  -- | Oneof constructors
+  Maybe [HsName] ->
+  -- | Field names, with every field that is not actually a oneof
+  -- combining fields paired with its options and protobuf type
+  [(Maybe ([DotProtoOption], DotProtoType), String)] ->
+  m HsDecl
+toSchemaInstanceDeclaration ctxt messageName maybeConstructors fieldNamesEtc = do
   let fieldNames = map snd fieldNamesEtc
 
   qualifiedFieldNames <- mapM (prefixedFieldName messageName) fieldNames
@@ -1498,7 +1641,7 @@ toSchemaInstanceDeclaration stringType ctxt messageName maybeConstructors fieldN
   let toDeclareName fieldName = "declare_" ++ fieldName
 
   let toArgument fc (maybeOptsType, fieldName) =
-          maybe pure (uncurry (unwrapE fc stringType ctxt)) maybeOptsType $
+          maybe pure (uncurry (unwrapE fc ctxt)) maybeOptsType $
             app asProxy declare
         where
           declare = uvar_ (toDeclareName fieldName)
@@ -1720,15 +1863,16 @@ dotProtoEnumD parentIdent enumIdent enumParts = do
 
 -- ** Generate code for dot proto services
 
-dotProtoServiceD
-    :: MonadError CompileError m
-    => StringType
-    -> DotProtoPackageSpec
-    -> TypeContext
-    -> DotProtoIdentifier
-    -> [DotProtoServicePart]
-    -> m [HsDecl]
-dotProtoServiceD stringType pkgSpec ctxt serviceIdent service = do
+dotProtoServiceD ::
+  ( MonadError CompileError m
+  , (?stringType :: StringType)
+  ) =>
+  DotProtoPackageSpec ->
+  TypeContext ->
+  DotProtoIdentifier ->
+  [DotProtoServicePart] ->
+  m [HsDecl]
+dotProtoServiceD pkgSpec ctxt serviceIdent service = do
      serviceName <- typeLikeName =<< dpIdentUnqualName serviceIdent
 
      endpointPrefix <-
@@ -1745,9 +1889,9 @@ dotProtoServiceD stringType pkgSpec ctxt serviceIdent service = do
                            Single nm -> pure nm
                            _ -> invalidMethodNameError rpcMethodName
 
-           requestTy  <- dpptToHsType stringType ctxt (Named rpcMethodRequestType)
+           requestTy  <- dpptToHsType ctxt (Named rpcMethodRequestType)
 
-           responseTy <- dpptToHsType stringType ctxt (Named rpcMethodResponseType)
+           responseTy <- dpptToHsType ctxt (Named rpcMethodResponseType)
 
            let streamingType =
                  case (rpcMethodRequestStreaming, rpcMethodResponseStreaming) of
@@ -1983,13 +2127,15 @@ dpPrimTypeE ty =
         Float    -> wrap "Float"
         Double   -> wrap "Double"
 
-data ImportCustomisation = ImportCustomisation
-  { icStringType :: StringType
-  , icUsesGrpc :: Bool
-  }
-
-defaultImports :: RecordStyle -> ImportCustomisation -> [HsImportDecl]
-defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = StringType stringModule stringType} =
+defaultImports ::
+  ( (?recordStyle :: RecordStyle)
+  , (?stringType :: StringType)
+  , (?typeLevelFormat :: Bool)
+  ) =>
+  -- | Uses GRPC?
+  Bool ->
+  [HsImportDecl]
+defaultImports icUsesGrpc | StringType stringModule stringType <- ?stringType =
     [ importDecl_ (m "Prelude")               & qualified haskellNS  & everything
     , importDecl_ (m "Proto3.Suite.Class")    & qualified protobufNS & everything
 #ifdef DHALL
@@ -2028,7 +2174,14 @@ defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = Strin
     , importDecl_ (m "Network.GRPC.HighLevel.Server.Unregistered") & alias grpcNS & selecting [i"serverLoop"]
     ])
     <>
-    case recordStyle of
+    ( if not ?typeLevelFormat then [] else [
+      importDecl_ (m "Proto3.Suite.Form") & qualified protobufFormNS & selecting
+        [ ieNameAll_ (unqual_ tcName "FieldForm")
+        , i"FieldFormsOf"
+        ]
+    ])
+    <>
+    case ?recordStyle of
       RegularRecords -> []
       LargeRecords ->
         [ importDecl_ (m "Data.Record.Generic")              & qualified lrNS  & everything

@@ -17,6 +17,7 @@ import qualified Data.List.NonEmpty          as NE
 import           Data.String
 import           GHC.Exts                    (fromList, Proxy#)
 import           Proto3.Suite
+import qualified Proto3.Suite.Form.Encode    as Form
 import           Proto3.Suite.Haskell.Parser (Logger, initLogger)
 import           Proto3.Wire.Decode          (ParseError)
 import qualified Proto3.Wire.Decode          as Decode
@@ -25,8 +26,8 @@ import qualified Test.DocTest
 import           Test.QuickCheck             (Arbitrary, Property, arbitrary,
                                               counterexample, oneof)
 import           Test.Tasty
-import           Test.Tasty.HUnit            (Assertion, assertBool, testCase,
-                                              (@=?), (@?=))
+import           Test.Tasty.HUnit            (Assertion, assertBool, assertEqual,
+                                              testCase, (@=?), (@?=))
 import           Test.Tasty.QuickCheck       (testProperty, (===))
 import           TestCodeGen
 import qualified TestProto                   as TP
@@ -37,6 +38,7 @@ import           TestDhall
 
 import qualified Test.Proto.Generate.Name
 import qualified Test.Proto.Parse.Option
+import           Test.Proto.ToEncoding (ToEncoding(..))
 
 -- -----------------------------------------------------------------------------
 
@@ -153,7 +155,13 @@ encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
   , check "with_enum0.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM1
   , check "with_enum1.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM2
   , check "with_repetition.bin"       $ TP.WithRepetition [1..5]
-  , check "with_repeated_signed.bin"  $ TP.WithRepeatedSigned [0,1,-1,2,-2] [0,1,-1,2,-2]
+  , check "with_repeated_signed.bin"  $ TP.WithRepeatedSigned
+      [ 0, -1, 1, -2, 2,
+        0x3FFFFFFF, -0x40000000, 0x40000000, -0x40000001,
+        0x7FFFFFFF, -0x7FFFFFFF - 1 ]
+      [ 0, -1, 1, -2, 2,
+        0x3FFFFFFFFFFFFFFF, -0x4000000000000000, 0x4000000000000000, -0x4000000000000001,
+        0x7FFFFFFFFFFFFFFF, -0x7FFFFFFFFFFFFFFF - 1 ]
   , check "with_bytes.bin"            $ TP.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
   , check "with_nesting_repeated.bin" $ TP.WithNestingRepeated
                                           [ TP.WithNestingRepeated_Nested "123abc" 123456 [1,2,3,4] [5,6,7,8]
@@ -163,7 +171,10 @@ encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
   where
     check fp v = testCase fp $ do
       goldenEncoding <- BL.readFile (testFilesPfx <> fp)
-      toLazyByteString v @?= goldenEncoding
+      assertEqual (show fp ++ ": encoding from intermediate representation")
+        goldenEncoding (toLazyByteString v)
+      assertEqual (show fp ++ ": direct encoding")
+        goldenEncoding (Form.toLazyByteString (toEncoding v))
 
 --------------------------------------------------------------------------------
 -- Decoding
@@ -208,7 +219,13 @@ parseFromGoldens = testGroup "Parse golden encodings"
   , check "with_enum0.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM1
   , check "with_enum1.bin"            $ TP.WithEnum $ Enumerated $ Right $ TP.WithEnum_TestEnumENUM2
   , check "with_repetition.bin"       $ TP.WithRepetition [1..5]
-  , check "with_repeated_signed.bin"  $ TP.WithRepeatedSigned [0,1,-1,2,-2] [0,1,-1,2,-2]
+  , check "with_repeated_signed.bin"  $ TP.WithRepeatedSigned
+      [ 0, -1, 1, -2, 2,
+        0x3FFFFFFF, -0x40000000, 0x40000000, -0x40000001,
+        0x7FFFFFFF, -0x7FFFFFFF - 1 ]
+      [ 0, -1, 1, -2, 2,
+        0x3FFFFFFFFFFFFFFF, -0x4000000000000000, 0x4000000000000000, -0x4000000000000001,
+        0x7FFFFFFFFFFFFFFF, -0x7FFFFFFFFFFFFFFF - 1 ]
   , check "with_fixed.bin"            $ TP.WithFixed 16 (-123) 4096 (-4096)
   , check "with_bytes.bin"            $ TP.WithBytes (BC.pack "abc") (fromList $ map BC.pack ["abc","123"])
   , check "with_packing.bin"          $ TP.WithPacking [1,2,3] [1,2,3]

@@ -254,18 +254,23 @@ dataConCantHappen = noExtCon
 
 #endif
 
-haskellName, jsonpbName, grpcName, lrName, protobufName, protobufASTName, proxyName ::
+haskellName, jsonpbName, grpcName, lrName, protobufName,
+  protobufASTName, protobufFormName, proxyName ::
   NameSpace -> String -> HsQName
-haskellName     = qual_ haskellNS
-jsonpbName      = qual_ (mkModuleName "HsJSONPB")
-grpcName        = qual_ (mkModuleName "HsGRPC")
-lrName          = qual_ (mkModuleName "LR")
-protobufName    = qual_ (mkModuleName "HsProtobuf")
-protobufASTName = qual_ (mkModuleName "HsProtobufAST")
-proxyName       = qual_ (mkModuleName "Proxy")
+haskellName      = qual_ haskellNS
+jsonpbName       = qual_ (mkModuleName "HsJSONPB")
+grpcName         = qual_ (mkModuleName "HsGRPC")
+lrName           = qual_ (mkModuleName "LR")
+protobufName     = qual_ (mkModuleName "HsProtobuf")
+protobufASTName  = qual_ (mkModuleName "HsProtobufAST")
+protobufFormName = qual_ protobufFormNS
+proxyName        = qual_ (mkModuleName "Proxy")
 
 haskellNS :: ModuleName
 haskellNS = mkModuleName "Hs"
+
+protobufFormNS :: ModuleName
+protobufFormNS = mkModuleName "HsProtobufForm"
 
 --------------------------------------------------------------------------------
 --
@@ -586,6 +591,22 @@ typeOfInstDecl ( L _ ( GHC.InstD _ ClsInstD
 typeOfInstDecl _ =
   Nothing
 
+tyFamInstDecl_ :: HsQName -> [HsType] -> HsType -> HsDecl
+tyFamInstDecl_ tyFamName pats rhs = noLocA $ GHC.InstD NoExtField TyFamInstD
+  { tfid_ext = NoExtField
+  , tfid_inst = TyFamInstDecl
+      { tfid_xtn = synDef
+      , tfid_eqn = FamEqn
+          { feqn_ext = synDef
+          , feqn_tycon = tyFamName
+          , feqn_bndrs = HsOuterImplicit NoExtField
+          , feqn_pats = map HsValArg pats
+          , feqn_fixity = Prefix
+          , feqn_rhs = rhs
+          }
+      }
+  }
+
 -- | 'HsBind' includes a location, and this is one of the few places
 -- where we do not need a location.  Rather than distinguishing in
 -- the type between bindings that have a location and those that
@@ -868,14 +889,24 @@ tuple_ xs = mkLHsTupleExpr xs
                               synDef
 #endif
 
+-- | A promoted boxed tuple value with all components present.
+tupleT_ :: [HsType] -> HsType
+tupleT_ = noLocA . HsExplicitTupleTy synDef
+
 list_ :: [HsExp] -> HsExp
 list_ = nlList
+
+listT_ :: [HsType] -> HsType
+listT_ = noLocA . HsExplicitListTy synDef IsPromoted
 
 str_ :: String -> HsExp
 str_ = noLocA . HsLit synDef . mkHsString
 
 strPat :: String -> HsPat
 strPat = noLocA . LitPat NoExtField . HsString NoSourceText . mkFastString
+
+strT :: String -> HsType
+strT = noLocA . HsTyLit synDef . HsStrTy NoSourceText . mkFastString
 
 --------------------------------------------------------------------------------
 --
@@ -887,8 +918,10 @@ nothingN, justN :: HsQName
 dotProtoFieldC, primC, repeatedC, nestedRepeatedC, namedC, mapC,
   fieldNumberC, singleC, dotsC, pathC, qualifiedC, anonymousC, dotProtoOptionC,
   identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC, nothingC,
-  justC, forceEmitC,  encodeMessageFieldE, fromStringE, decodeMessageFieldE,
+  justC, forceEmitC, encodeMessageFieldE, fromStringE, decodeMessageFieldE,
   pureE, returnE, mappendE, memptyE, msumE, atE, oneofE, fmapE :: HsExp
+
+justT, nothingT :: HsType
 
 dotProtoFieldC       = var_ (protobufASTName tcName "DotProtoField")
 primC                = var_ (protobufASTName dataName "Prim")
@@ -917,9 +950,11 @@ oneofE               = var_ (protobufName varName "oneof")
 trueC                = var_ (haskellName dataName "True")
 falseC               = var_ (haskellName dataName "False")
 nothingC             = var_ nothingN
-nothingN             =       haskellName dataName "Nothing"
+nothingN             = haskellName dataName "Nothing"
+nothingT             = typeNamed_ (haskellName tcName "Nothing")
 justC                = var_ justN
 justN                =       haskellName dataName "Just"
+justT                = typeNamed_ (haskellName tcName "Just")
 fromStringE          = var_ (haskellName varName "fromString")
 pureE                = var_ (haskellName varName "pure")
 returnE              = var_ (haskellName varName "return")
@@ -970,6 +1005,9 @@ intP x = noLocA $ NPat synDef overlit Nothing NoExtField
       , il_neg = x < 0
       , il_value = abs (toInteger x)
       }
+
+natT :: Integral a => a -> HsType
+natT = noLocA . HsTyLit synDef . HsNumTy NoSourceText . toInteger
 
 floatE :: forall f . RealFloat f => f -> HsExp
 floatE x
