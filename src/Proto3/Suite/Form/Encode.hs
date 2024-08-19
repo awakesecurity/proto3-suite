@@ -141,7 +141,8 @@ type family DistinctCheck (message :: Type) (clashing :: [k]) :: Constraint
     DistinctCheck _ '[] = ()
     DistinctCheck message clashing = TypeError
       ( 'ShowType message ':<>: 'Text " forbids repetition of these fields:"
-        ':$$: 'ShowType clashing )
+        ':$$: 'ShowType clashing
+        ':$$: 'Text "(Any repeatable fields imply bad use of Proto3.Suite.Form.Encode.omitted.)" )
 
 type Distinct (message :: Type) (names :: [k]) = DistinctCheck message (Clashing names)
 
@@ -244,26 +245,29 @@ instance Occupies ('Repeated packed) names names
 reflectFieldNumber :: forall (num :: Nat) . KnownNat num => FieldNumber
 reflectFieldNumber = FieldNumber (fromInteger (natVal' (proxy# :: Proxy# num)))
 
--- | Uses an empty encoding for a message field, thereby
--- expressing its default value unless it is a repeated
--- field, in which case the effect is the same as 'id'.
+-- | Uses an empty encoding for the non-repeatable message fields and oneofs
+-- that appear in the final type parameter of 'Prefix' but not the previous
+-- type parameter, thereby implicitly emitting their default values.
 --
--- To omit an entire @oneof@, omit it by its
--- own name or by the name of any of its fields.
+-- This function is not always required, but becomes necessary when
+-- there are two code paths, one of which may write non-repeatable
+-- fields and one of which leaves them implicitly defaulted.  This
+-- function reconciles the types of the two code paths.
 --
--- This function is not needed for repeated fields,
--- and for other fields is needed only to match the
--- type of another code path in which the same field
--- has a nonempty encoding.
+-- This function is not needed for repeated fields, and misusing it to
+-- add a repeated field may yield a confusing compilation error message
+-- stating that it should not have been repeated, which is why that
+-- message mentions that misuse of this function may trigger it.  Such
+-- usage happens only when the longer name list is explicitly specified
+-- by type application or some other means other than inferring it by
+-- unification with the type of a correctly-typed alternative code path.
+--
+-- (Sufficient type context could provide a more focused compiler error
+-- message, but would greatly complicate class context with additional
+-- lookups, because the name consumed by a field is not always the same
+-- name used to look up that name.)
 omitted ::
-  forall (name :: Symbol) (message :: Type) (names :: [Symbol])
-         (fieldName :: Symbol) (num :: Nat) (ty :: Type) (oneof :: Symbol)
-         (repetition :: Repetition) (elem :: Type) (moreNames :: [Symbol]) .
-  ( FindField name message ~ '(fieldName, 'FieldForm num ty oneof)
-  , RepetitionOf name ty oneof ~ '(repetition, elem)
-  , Occupies repetition names moreNames
-  , KnownNat num
-  ) =>
+  forall (message :: Type) (names :: [Symbol]) (moreNames :: [Symbol]) .
   Prefix message names moreNames
 omitted = UnsafePrefix mempty
 
@@ -308,7 +312,7 @@ optionalSubmessage ::
   (a -> Encoding elem) ->
   Maybe a ->
   Prefix message names (occupied ': names)
-optionalSubmessage f = maybe (omitted @name) (submessage @name . f)
+optionalSubmessage f = maybe omitted (submessage @name . f)
 {-# INLINE optionalSubmessage #-}
 
 -- | Like 'submessage' but for repeated submessage fields.
@@ -431,8 +435,9 @@ leaf ::
 leaf = leafField @name . from
 {-# INLINE leaf #-}
 
--- | Inhabited by leaf fields (those that are not submessages)
--- whose values can be emitted individually.
+-- | Inhabited by "leaf" fields whose values can be emitted
+-- individually.  By a "leaf" field we mean those fields
+-- that are not submessages: scalars and enumerators.
 --
 -- Unpacked repeated fields may be encoded in this way and/or with
 -- type class 'Leaves', but packed repeated fields require 'Leaves'.
@@ -539,8 +544,9 @@ leavesV ::
 leavesV = leavesVOn @name from
 {-# INLINE leavesV #-}
 
--- | Inhabited by leaf fields (those that are not submessages)
--- that are repeated, whether or not they are packed.
+-- | Inhabited by "leaf" fields whose values are repeated, whether
+-- or not they are packed. individually.  By a "leaf" field we mean
+-- those fields that are not submessages: scalars and enumerators.
 --
 -- Unpacked repeated fields may also be encoded using type class 'Leaf'.
 -- Non-repeated fields are not supported; use 'Leaf' instead.

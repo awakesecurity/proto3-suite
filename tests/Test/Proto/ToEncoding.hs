@@ -215,7 +215,7 @@ instance ToEncoding TestProtoOneofImport.WithOneof
     toEncoding (TestProtoOneofImport.WithOneof f1) = Form.messageFromFields $
       case f1 of
         Nothing ->
-          Form.omitted @"pickOne"
+          Form.omitted
         Just (TestProtoOneofImport.WithOneofPickOneA v) ->
           Form.leaf @"a" v
         Just (TestProtoOneofImport.WithOneofPickOneB v) ->
@@ -230,7 +230,7 @@ instance ToEncoding TestProtoOneof.Something
       Form.leaf @"another" f2 .
       case f3 of
         Nothing ->
-          Form.omitted @"pickOne"
+          Form.omitted
         Just (TestProtoOneof.SomethingPickOneName v) ->
           Form.leaf @"name" v
         Just (TestProtoOneof.SomethingPickOneSomeid v) ->
@@ -247,7 +247,7 @@ instance ToEncoding TestProtoOneof.WithImported
     toEncoding (TestProtoOneof.WithImported f1) = Form.messageFromFields $
       case f1 of
         Nothing ->
-          Form.omitted @"pickOne"
+          Form.omitted
         Just (TestProtoOneof.WithImportedPickOneDummyMsg1 v) ->
           Form.submessage @"dummyMsg1" (toEncoding v)
         Just (TestProtoOneof.WithImportedPickOneWithOneof v) ->
