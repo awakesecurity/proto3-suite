@@ -140,7 +140,8 @@ type family DistinctCheck (message :: Type) (clashing :: [k]) :: Constraint
   where
     DistinctCheck _ '[] = ()
     DistinctCheck message clashing = TypeError
-      ( ShowType message :<>: Text " forbids repetition of these fields:" :$$: ShowType clashing )
+      ( 'ShowType message ':<>: 'Text " forbids repetition of these fields:"
+        ':$$: 'ShowType clashing )
 
 type Distinct (message :: Type) (names :: [k]) = DistinctCheck message (Clashing names)
 
@@ -157,8 +158,8 @@ type family FindFieldCheck (name :: Symbol) (message :: Type) (mf :: Maybe (Symb
   where
     FindFieldCheck _ _ ('Just form) = form
     FindFieldCheck name message 'Nothing = TypeError
-      ( ShowType name :<>: Text " not found among the fields and oneofs of message type "
-        :<>: ShowType message )
+      ( 'ShowType name ':<>: 'Text " not found among the fields and oneofs of message type "
+        ':<>: 'ShowType message )
 
 -- | Yields 'Just' of the format of the a field whose field
 -- name or @oneof@ name matches the given name, unless there
@@ -215,8 +216,8 @@ type family RepetitionOfField (name :: Symbol) (message :: Type) (namedForm :: (
   where
     RepetitionOfField name message '(name, 'FieldForm _ ty oneof) = RepetitionOf name ty oneof
     RepetitionOfField name message _ = TypeError
-      ( ShowType name :<>: Text " is a oneof in message type " :<>: ShowType message
-        :$$: Text "and therefore you must specify which of its fields to encode" )
+      ( 'ShowType name ':<>: 'Text " is a oneof in message type " ':<>: 'ShowType message
+        ':$$: 'Text "and therefore you must specify which of its fields to encode" )
 
 type LeafRepetition (name :: Symbol) (message :: Type) =
   Fst (RepetitionOfField name message (FindField name message))

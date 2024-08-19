@@ -595,15 +595,27 @@ tyFamInstDecl_ :: HsQName -> [HsType] -> HsType -> HsDecl
 tyFamInstDecl_ tyFamName pats rhs = noLocA $ GHC.InstD NoExtField TyFamInstD
   { tfid_ext = NoExtField
   , tfid_inst = TyFamInstDecl
-      { tfid_xtn = synDef
-      , tfid_eqn = FamEqn
-          { feqn_ext = synDef
-          , feqn_tycon = tyFamName
-          , feqn_bndrs = HsOuterImplicit NoExtField
-          , feqn_pats = map HsValArg pats
-          , feqn_fixity = Prefix
-          , feqn_rhs = rhs
-          }
+      {
+#if MIN_VERSION_ghc(9,2,0)
+        tfid_xtn = synDef,
+#endif
+        tfid_eqn =
+#if !MIN_VERSION_ghc(9,2,0)
+          HsIB synDef
+#endif
+                      FamEqn
+            { feqn_ext = synDef
+            , feqn_tycon = tyFamName
+            , feqn_bndrs =
+#if MIN_VERSION_ghc(9,2,0)
+                HsOuterImplicit NoExtField
+#else
+                Nothing
+#endif
+            , feqn_pats = map HsValArg pats
+            , feqn_fixity = Prefix
+            , feqn_rhs = rhs
+            }
       }
   }
 
