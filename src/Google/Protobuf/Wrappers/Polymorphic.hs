@@ -3,9 +3,7 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DeriveTraversable          #-}
 {-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
 
 module Google.Protobuf.Wrappers.Polymorphic
   ( Wrapped(..)
@@ -14,7 +12,6 @@ module Google.Protobuf.Wrappers.Polymorphic
 import Control.DeepSeq (NFData)
 import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generic)
-import Witch (From(..))
 
 -- | A Haskell type representing the standard protobuf wrapper
 -- message that is associated with the given Haskell type.
@@ -28,6 +25,3 @@ newtype Wrapped a = Wrapped a
   deriving (Foldable, Functor, Generic, Show, Traversable)
   deriving newtype (Bounded, Enum, Eq, FromJSON, Monoid,
                     NFData, Num, Ord, Semigroup, ToJSON)
-
-instance From a b => From a (Wrapped b) where
-  from = Wrapped . from

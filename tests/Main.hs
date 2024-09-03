@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MagicHash         #-}
 {-# LANGUAGE OverloadedLists   #-}
@@ -38,7 +39,7 @@ import           TestDhall
 
 import qualified Test.Proto.Generate.Name
 import qualified Test.Proto.Parse.Option
-import           Test.Proto.ToEncoding (ToEncoding(..))
+import           Test.Proto.ToEncoding (Iterator(..), ToEncoding(..))
 
 -- -----------------------------------------------------------------------------
 
@@ -173,8 +174,19 @@ encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
       goldenEncoding <- BL.readFile (testFilesPfx <> fp)
       assertEqual (show fp ++ ": encoding from intermediate representation")
         goldenEncoding (toLazyByteString v)
-      assertEqual (show fp ++ ": direct encoding")
-        goldenEncoding (Form.toLazyByteString (toEncoding v))
+      -- NOTE: We skip the 'Identity' iterator in this test because we expect it
+      -- will create longer output for packed fields than the golden result when
+      -- there is more than one element of the repetition--in which case our test
+      -- code misuses 'Identity' by using it repeatedly, once for each element.
+      -- Though suboptimal, the resulting encoding remains decodable by parsers
+      -- that adhere to the protobuf specification.  We check that decodability
+      -- in other tests that pair a Haskell encoder with a Python decoder.
+      assertEqual (show fp ++ ": direct encoding, Forward iterator")
+        goldenEncoding (Form.toLazyByteString (let ?iterator = Forward in toEncoding v))
+      assertEqual (show fp ++ ": direct encoding, Reverse iterator")
+        goldenEncoding (Form.toLazyByteString (let ?iterator = Reverse in toEncoding v))
+      assertEqual (show fp ++ ": direct encoding, Vector iterator")
+        goldenEncoding (Form.toLazyByteString (let ?iterator = Vector in toEncoding v))
 
 --------------------------------------------------------------------------------
 -- Decoding

@@ -145,6 +145,9 @@ testCase4 = testCaseInFormat "Nested message" $
        WithNesting { withNestingNestedMessage = b } <- readProto
        b @?= Nothing
 
+       WithNesting { withNestingNestedMessage = c } <- readProto
+       c @?= Just (WithNesting_Nested "" 0 [] [])
+
 testCase5 = testCaseInFormat "Nested repeated message" $
     do WithNestingRepeated { withNestingRepeatedNestedMessages = a } <- readProto
        length a @?= 3
@@ -393,69 +396,92 @@ testCase18 = testCaseInFormat "Imported Oneof" $ do
 testCase19 = testCaseInFormat "Maps" $ do
   result <- readProto
   let wt = Just . WrappedTrivial . Just . Trivial
-  let expected = MapTest{ mapTestPrim = M.fromList [("foo", 1),("bar", 42),("baz", 1234567)]
-                        -- The python implementation forbids serialising map entries
-                        -- with 'None' as the value (dynamic type error).
-                        , mapTestTrivial = M.fromList [(1, wt 1),(2, wt 42),(101, wt 1234567), (79, Just (WrappedTrivial Nothing))]
-                        , mapTestSigned = M.fromList [(1,2),(3,4),(5,6)]
-                        }
+  let expected = MapTest
+        { mapTestPrim = M.fromList [("foo", 1), ("bar", 42), ("baz", 1234567)]
+        , mapTestTrivial = M.fromList $
+            [(1, wt 1), (2, wt 42), (101, wt 1234567), (79, Just (WrappedTrivial Nothing))] ++
+            (if ?format == Jsonpb then [] else [(80, Nothing)])
+              -- The python implementation forbids serialising map entries
+              -- with 'None' as the value (dynamic type error).  Even if we
+              -- merely reference key 80, the generated Python code will create
+              -- an explicit submessage whose fields have default values.
+              -- For binary encodings we can work around this limitation
+              -- by replacing maps with equivalent repeated key-value pair
+              -- submessages, but for JSONPB those are not equivalent.
+        , mapTestSigned = M.fromList [(1, 2), (3, 4), (5, 6)]
+        }
   result @?= expected
 
 testCase_DoubleValue = testCaseInFormat "DoubleValue" $ do
-  let w = TestProtoWrappers.TestDoubleValue
-  expect (w Nothing)
-  expect (w (Just 3.5))
+  let check x y z = expect $
+        TestProtoWrappers.TestDoubleValue x y (fmap TestProtoWrappers.TestDoubleValuePickOneOne z)
+  check Nothing [4.75, 0, -7.125] Nothing
+  check (Just 3.5) [] (Just 0.0)
+  check (Just (-3.5)) [0.0, 0.0, 0.0] (Just (-1.75))
 
 testCase_FloatValue = testCaseInFormat "FloatValue" $ do
-  let w = TestProtoWrappers.TestFloatValue
-  expect (w Nothing)
-  expect (w (Just 2.5))
+  let check x y z = expect $
+        TestProtoWrappers.TestFloatValue x y (fmap TestProtoWrappers.TestFloatValuePickOneOne z)
+  check Nothing [] (Just 0.0)
+  check (Just 2.5) [1.75, 0, -5.125] Nothing
+  check (Just (-2.5)) [0.0, 0.0, 0.0] (Just (-1.25))
 
 testCase_Int64Value = testCaseInFormat "Int64Value" $ do
-  let w = TestProtoWrappers.TestInt64Value
-  expect (w Nothing)
-  expect (w (Just 0))
-  expect (w (Just maxBound))
-  expect (w (Just (-1)))
-  expect (w (Just minBound))
+  let check x y z = expect $
+        TestProtoWrappers.TestInt64Value x y (fmap TestProtoWrappers.TestInt64ValuePickOneOne z)
+  check Nothing [1, 0, -5] Nothing
+  check (Just 0) [] (Just 5)
+  check (Just maxBound) [minBound, 0, maxBound] (Just minBound)
+  check (Just (-1)) [0, maxBound, minBound] (Just maxBound)
+  check (Just minBound) [0, 0, 0] (Just 0)
 
 testCase_UInt64Value = testCaseInFormat "UInt64Value" $ do
-  let w = TestProtoWrappers.TestUInt64Value
-  expect (w Nothing)
-  expect (w (Just 0))
-  expect (w (Just maxBound))
+  let check x y z = expect $
+        TestProtoWrappers.TestUInt64Value x y (fmap TestProtoWrappers.TestUInt64ValuePickOneOne z)
+  check Nothing [1, 0, 5] Nothing
+  check (Just 0) [] (Just 5)
+  check (Just maxBound) [minBound, 0, maxBound] (Just minBound)
+  check (Just 1) [0, maxBound, minBound] (Just maxBound)
+  check (Just minBound) [0, 0, 0] (Just 0)
 
 testCase_Int32Value = testCaseInFormat "Int32Value" $ do
-  let w = TestProtoWrappers.TestInt32Value
-  expect (w Nothing)
-  expect (w (Just 0))
-  expect (w (Just maxBound))
-  expect (w (Just (-1)))
-  expect (w (Just minBound))
+  let check x y z = expect $
+        TestProtoWrappers.TestInt32Value x y (fmap TestProtoWrappers.TestInt32ValuePickOneOne z)
+  check Nothing [1, 0, -5] Nothing
+  check (Just 0) [] (Just 5)
+  check (Just maxBound) [minBound, 0, maxBound] (Just minBound)
+  check (Just (-1)) [0, maxBound, minBound] (Just maxBound)
+  check (Just minBound) [0, 0, 0] (Just 0)
 
 testCase_UInt32Value = testCaseInFormat "UInt32Value" $ do
-  let w = TestProtoWrappers.TestUInt32Value
-  expect (w Nothing)
-  expect (w (Just 0))
-  expect (w (Just maxBound))
+  let check x y z = expect $
+        TestProtoWrappers.TestUInt32Value x y (fmap TestProtoWrappers.TestUInt32ValuePickOneOne z)
+  check Nothing [1, 0, 5] Nothing
+  check (Just 0) [] (Just 5)
+  check (Just maxBound) [minBound, 0, maxBound] (Just minBound)
+  check (Just 1) [0, maxBound, minBound] (Just maxBound)
+  check (Just minBound) [0, 0, 0] (Just 0)
 
 testCase_BoolValue = testCaseInFormat "BoolValue" $ do
-  let w = TestProtoWrappers.TestBoolValue
-  expect (w Nothing)
-  expect (w (Just False))
-  expect (w (Just True))
+  let check x y z = expect $
+        TestProtoWrappers.TestBoolValue x y (fmap TestProtoWrappers.TestBoolValuePickOneOne z)
+  check Nothing [False, True] Nothing
+  check (Just False) [] (Just True)
+  check (Just True) [True, False] (Just False)
 
 testCase_StringValue = testCaseInFormat "StringValue" $ do
-  let w = TestProtoWrappers.TestStringValue
-  expect (w Nothing)
-  expect (w (Just ""))
-  expect (w (Just "abc"))
+  let check x y z = expect $
+        TestProtoWrappers.TestStringValue x y (fmap TestProtoWrappers.TestStringValuePickOneOne z)
+  check Nothing ["abc", "", "def"] Nothing
+  check (Just "") [] (Just "xyz")
+  check (Just "abc") ["", "", ""] (Just "")
 
 testCase_BytesValue = testCaseInFormat "BytesValue" $ do
-  let w = TestProtoWrappers.TestBytesValue
-  expect (w Nothing)
-  expect (w (Just ""))
-  expect (w (Just "012"))
+  let check x y z = expect $
+        TestProtoWrappers.TestBytesValue x y (fmap TestProtoWrappers.TestBytesValuePickOneOne z)
+  check Nothing ["012", "", "345"] Nothing
+  check (Just "") [] (Just "789")
+  check (Just "012") ["", "", ""] (Just "")
 
 
 allTestsDone = testCaseInFormat "Receive end of test suite sentinel message" $

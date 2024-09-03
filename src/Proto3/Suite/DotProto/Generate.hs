@@ -42,12 +42,14 @@ import           Control.Lens                   ((&), ix, over, has, filtered)
 import           Control.Monad                  (when)
 import           Control.Monad.Except           (MonadError(..), runExceptT)
 import           Control.Monad.IO.Class         (MonadIO(..))
-import           Control.Monad.Trans            (lift)
 import           Control.Monad.Writer           (WriterT, runWriterT, tell)
 import           Data.Char
 import           Data.Coerce
 import           Data.Either                    (partitionEithers)
-import           Data.List                      (find, intercalate, nub, sort, sortOn, stripPrefix)
+import           Data.Foldable                  (fold)
+import           Data.Function                  (on)
+import           Data.Functor                   ((<&>))
+import           Data.List                      (find, intercalate, nub, sort, sortBy, stripPrefix)
 import qualified Data.List.NonEmpty             as NE
 import           Data.List.Split                (splitOn)
 import           Data.List.NonEmpty             (NonEmpty (..))
@@ -891,6 +893,105 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
                       , Fixed32, Fixed64, SFixed32, SFixed64
                       , String, Bool])
 
+-- | Convert a dot proto type to a Haskell type of kind `Proto3.Suite.Form.Repetition`.
+-- It is ASSUMED that the field with this type is NOT part of a @oneof@.
+dptToFormRepetition ::
+  MonadError CompileError m => [DotProtoOption] -> TypeContext -> DotProtoType -> m HsType
+dptToFormRepetition opts ctxt = \case
+  Prim _                    -> pure formSingularT
+  Repeated (Named tyName)
+    | isMessage ctxt tyName -> pure formUnpackedT
+  Repeated pType
+    | isUnpacked opts       -> pure formUnpackedT
+    | isPacked opts         -> pure formPackedT
+    | isPackable ctxt pType -> pure formPackedT
+    | otherwise             -> pure formUnpackedT
+  NestedRepeated pType      -> internalError $ "unexpected NestedRepeated on " ++ show pType
+  Map k _
+    | validMapKey k         -> pure formUnpackedT
+    | otherwise             -> throwError $ InvalidMapKeyType (show $ pPrint k)
+
+-- | Convert a dot proto type to a Haskell type of kind `Proto3.Suite.Form.ProtoType`,
+-- with `Proto3.Suite.Form.Optional` replacing wrapper types.
+dptToFormType :: MonadError CompileError m => TypeContext -> DotProtoType -> m HsType
+dptToFormType ctxt = \case
+  Prim pType -> dpptToFormType ctxt pType
+  Repeated pType -> dpptToFormType ctxt pType
+  NestedRepeated pType -> internalError $ "unexpected NestedRepeated on " ++ show pType
+  Map k v
+    | validMapKey k -> do
+        k2 <- dpptToFormType ctxt k
+        v2 <- dptToFormType ctxt (Prim v)
+        pure $ tyApply formMapT [k2, v2]
+    | otherwise ->
+        throwError $ InvalidMapKeyType (show $ pPrint k)
+
+-- | Like 'dptToFormType' but for primitive types.
+dpptToFormType ::
+  forall m .
+  MonadError CompileError m =>
+  TypeContext ->
+  DotProtoPrimType ->
+  m HsType
+dpptToFormType ctxt = \case
+    Int32 ->
+      pure formInt32T
+    Int64 ->
+      pure formInt64T
+    SInt32 ->
+      pure formSInt32T
+    SInt64 ->
+      pure formSInt64T
+    UInt32 ->
+      pure formUInt32T
+    UInt64 ->
+      pure formUInt64T
+    Fixed32 ->
+      pure formFixed32T
+    Fixed64 ->
+      pure formFixed64T
+    SFixed32 ->
+      pure formSFixed32T
+    SFixed64 ->
+      pure formSFixed64T
+    String ->
+      pure formStringT
+    Bytes ->
+      pure formBytesT
+    Bool ->
+      pure formBoolT
+    Float ->
+      pure formFloatT
+    Double ->
+      pure formDoubleT
+    Named (Dots (Path ("google" :| ["protobuf", x])))
+      | x == "Int32Value" ->
+          wrapper formInt32T
+      | x == "Int64Value" ->
+          wrapper formInt64T
+      | x == "UInt32Value" ->
+          wrapper formUInt32T
+      | x == "UInt64Value" ->
+          wrapper formUInt64T
+      | x == "StringValue" ->
+          wrapper formStringT
+      | x == "BytesValue" ->
+          wrapper formBytesT
+      | x == "BoolValue" ->
+          wrapper formBoolT
+      | x == "FloatValue" ->
+          wrapper formFloatT
+      | x == "DoubleValue" ->
+          wrapper formDoubleT
+    Named msgName ->
+      case M.lookup msgName ctxt of
+        Just ty@(DotProtoTypeInfo { dotProtoTypeInfoKind = DotProtoKindEnum }) ->
+          tyApp formEnumerationT <$> msgTypeFromDpTypeInfo ctxt ty msgName
+        Just ty -> tyApp formMessageT <$> msgTypeFromDpTypeInfo ctxt ty msgName
+        Nothing -> noSuchTypeError msgName
+  where
+    wrapper :: HsType -> m HsType
+    wrapper = pure . tyApp formMessageT . tyApp formOptionalT
 
 --------------------------------------------------------------------------------
 --
@@ -969,7 +1070,7 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     messageDataDecl <- mkDataDecl <$> foldMapM (messagePartFieldD messageName) messageParts
 
     foldMapM id
-      [ sequence $
+      [ sequence
           [ pure messageDataDecl
           , pure (nfDataInstD messageDataDecl messageName)
           , pure (namedInstD messageName)
@@ -994,10 +1095,11 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
           , pure (dhallInterpretInstDecl messageName)
           , pure (dhallInjectInstDecl messageName)
 #endif
-          ] ++
-          ( if ?typeLevelFormat
-              then [ fieldFormsInstD ctxt' parentIdent messageIdent messageParts ]
-              else [] )
+          ]
+
+      , if ?typeLevelFormat
+          then typeLevelInstsD ctxt' parentIdent messageIdent messageParts
+          else pure []
 
       -- Nested regular and oneof message decls
       , foldMapOfM (traverse . _DotProtoMessageDefinition)
@@ -1078,11 +1180,19 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     oneOfCons _ DotProtoEmptyField = internalError "field type : empty field"
 
 
--- *** Generate Protobuf 'FieldFormsOf' type family instances
+-- *** Generate type family instances providing type-level information about protobuf formats.
 
 type FieldOccurrences = (Histogram FieldName, Histogram FieldNumber)
 
-fieldFormsInstD ::
+data FieldSpec = FieldSpec
+  { fieldSpecName :: FieldName
+  , fieldSpecNumber :: FieldNumber
+  , fieldSpecOneOf :: Maybe FieldName
+  , fieldSpecRepetition :: HsType
+  , fieldSpecProtoType :: HsType
+  }
+
+typeLevelInstsD ::
   forall m .
   ( MonadError CompileError m
   , (?stringType :: StringType)
@@ -1091,49 +1201,84 @@ fieldFormsInstD ::
   DotProtoIdentifier->
   DotProtoIdentifier ->
   [DotProtoMessagePart]->
-  m HsDecl
-fieldFormsInstD ctxt parentIdent msgIdent messageParts = do
+  m [HsDecl]
+typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
     msgName <- qualifiedMessageName parentIdent msgIdent
+
     qualifiedFields <- getQualifiedFields msgName messageParts
-    (concat -> fieldSpecs, (fieldNames, fieldNumbers)) <-
-      runWriterT (mapM mkFieldForm qualifiedFields)
-    let repeatedFieldNames = mulipleOccurrencesOnly fieldNames
+
+    (fieldSpecLists, (fieldNames, fieldNumbers)) <-
+      runWriterT (mapM mkFieldSpecs qualifiedFields)
+
+    let (sort -> oneOfs, sortBy (compare `on` fieldSpecName) -> fieldSpecs) = fold fieldSpecLists
+        repeatedFieldNames = mulipleOccurrencesOnly fieldNames
         repeatedFieldNumbers = mulipleOccurrencesOnly fieldNumbers
+
     when (repeatedFieldNames /= mempty || repeatedFieldNumbers /= mempty) $
       throwError $ RedefinedFields repeatedFieldNames repeatedFieldNumbers
+
     when (let Histogram m = fieldNames in M.member "" m) $
       internalError $ "empty field name within message " ++ show msgIdent
-    pure $ tyFamInstDecl_ (protobufFormName tcName "FieldFormsOf")
-                          [ type_ msgName ]
-                          (listT_ (map snd (sortOn fst (fieldSpecs))))
-  where
-    fieldForm :: HsQName
-    fieldForm = protobufFormName dataName "FieldForm"
 
-    mkFieldForm :: QualifiedField -> WriterT FieldOccurrences m [(FieldName, HsType)]
-    mkFieldForm QualifiedField{fieldInfo} = case fieldInfo of
+    let msgNameT = type_ msgName
+        toSym = symT . getFieldName
+        fieldNameT = toSym . fieldSpecName
+        fieldNumberT = natT . getFieldNumber . fieldSpecNumber
+        oneOfT = maybe (symT "") toSym . fieldSpecOneOf
+
+    let onFields :: HsQName -> (FieldSpec -> HsType) -> [HsDecl]
+        onFields tyFamName rhs = fieldSpecs <&> \f ->
+          tyFamInstDecl_ tyFamName [ msgNameT, fieldNameT f ] (rhs f)
+
+        onOneOfs :: HsQName -> (FieldName -> HsType) -> [HsDecl]
+        onOneOfs tyFamName rhs = oneOfs <&> \o ->
+          tyFamInstDecl_ tyFamName [ msgNameT, toSym o ] (rhs o)
+
+    let namesOf :: HsDecl
+        numberOf, protoTypeOf, oneOfOf, repetitionOf :: [HsDecl]
+        namesOf = tyFamInstDecl_ formNamesOf [ msgNameT ] (listT_ (map fieldNameT fieldSpecs))
+        numberOf = onFields formNumberOf fieldNumberT
+        protoTypeOf = onFields formProtoTypeOf fieldSpecProtoType
+        oneOfOf = onFields formOneOfOf oneOfT ++
+                  onOneOfs formOneOfOf toSym
+        repetitionOf = onFields formRepetitionOf fieldSpecRepetition ++
+                       onOneOfs formRepetitionOf (const formOneOfT)
+
+    pure $ namesOf : numberOf ++ protoTypeOf ++ oneOfOf ++ repetitionOf
+  where
+    mkFieldSpecs :: QualifiedField -> WriterT FieldOccurrences m ([FieldName], [FieldSpec])
+    mkFieldSpecs QualifiedField{fieldInfo} = case fieldInfo of
       FieldNormal fieldName fieldNum dpType options -> do
-          tell (oneOccurrence fieldName, oneOccurrence fieldNum)
-          fieldTy <- lift $ dptToHsTypeWrapped WithinMessage options ctxt dpType
-          let spec = tyConApply fieldForm [ natT (getFieldNumber fieldNum), fieldTy, strT mempty ]
-          pure [(fieldName, tupleT_ [ strT (getFieldName fieldName), spec ])]
+        tell (oneOccurrence fieldName, oneOccurrence fieldNum)
+        repetition <- dptToFormRepetition options ctxt dpType
+        protoType <- dptToFormType ctxt dpType
+        pure ( [], [ FieldSpec
+                       { fieldSpecName = fieldName
+                       , fieldSpecNumber = fieldNum
+                       , fieldSpecOneOf = Nothing
+                       , fieldSpecRepetition = repetition
+                       , fieldSpecProtoType = protoType
+                       } ] )
 
       FieldOneOf oneofName OneofField{subfields} -> do
           tell (oneOccurrence oneofName, mempty)
-          mapM mkSubfield subfields
+          ([oneofName], ) <$> mapM mkSubfieldSpec subfields
         where
-          mkSubfield :: OneofSubfield -> WriterT FieldOccurrences m (FieldName, HsType)
-          mkSubfield (OneofSubfield
-                        { subfieldNumber = subfieldNum
-                        , subfieldName = subfieldName
-                        , subfieldType = dpType
-                        , subfieldOptions = options
-                        }) = do
+          mkSubfieldSpec :: OneofSubfield -> WriterT FieldOccurrences m FieldSpec
+          mkSubfieldSpec (OneofSubfield
+                            { subfieldNumber = subfieldNum
+                            , subfieldName = subfieldName
+                            , subfieldType = dpType
+                            }) = do
             tell (oneOccurrence subfieldName, oneOccurrence subfieldNum)
-            subfieldTy <- lift $ dptToHsTypeWrapped WithinOneOf options ctxt dpType
-            let oneOf = strT (getFieldName oneofName)
-                spec = tyConApply fieldForm [ natT (getFieldNumber subfieldNum), subfieldTy, oneOf ]
-            pure (subfieldName, tupleT_ [ strT (getFieldName subfieldName), spec ])
+            protoType <- dptToFormType ctxt dpType
+            pure FieldSpec
+                   { fieldSpecName = subfieldName
+                   , fieldSpecNumber = subfieldNum
+                   , fieldSpecOneOf = Just oneofName
+                   , fieldSpecRepetition = formOneOfT
+                   , fieldSpecProtoType = protoType
+                   }
 
 
 -- *** Generate Protobuf 'Message' type class instances
@@ -2175,10 +2320,7 @@ defaultImports icUsesGrpc | StringType stringModule stringType <- ?stringType =
     ])
     <>
     ( if not ?typeLevelFormat then [] else [
-      importDecl_ (m "Proto3.Suite.Form") & qualified protobufFormNS & selecting
-        [ ieNameAll_ (unqual_ tcName "FieldForm")
-        , i"FieldFormsOf"
-        ]
+      importDecl_ (m "Proto3.Suite.Form") & qualified protobufFormNS & everything
     ])
     <>
     case ?recordStyle of

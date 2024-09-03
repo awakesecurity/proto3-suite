@@ -272,6 +272,48 @@ haskellNS = mkModuleName "Hs"
 protobufFormNS :: ModuleName
 protobufFormNS = mkModuleName "HsProtobufForm"
 
+protobufFormType :: NameSpace -> String -> HsType
+protobufFormType ns = typeNamed_ . protobufFormName ns
+
+formNamesOf, formNumberOf, formOneOfOf, formRepetitionOf, formProtoTypeOf :: HsQName
+formNamesOf = protobufFormName tcName "NamesOf"
+formNumberOf = protobufFormName tcName "NumberOf"
+formOneOfOf = protobufFormName tcName "OneOfOf"
+formRepetitionOf = protobufFormName tcName "RepetitionOf"
+formProtoTypeOf = protobufFormName tcName "ProtoTypeOf"
+
+formSingularT, formOneOfT, formUnpackedT, formPackedT :: HsType
+formSingularT = protobufFormType dataName "Singular"
+formOneOfT = protobufFormType dataName "OneOf"
+formUnpackedT = protobufFormType dataName "Unpacked"
+formPackedT = protobufFormType dataName "Packed"
+
+formInt32T, formInt64T, formSInt32T, formSInt64T, formUInt32T, formUInt64T,
+  formFixed32T, formFixed64T, formSFixed32T, formSFixed64T,
+  formStringT, formBytesT, formBoolT, formFloatT, formDoubleT,
+  formEnumerationT, formMessageT, formMapT :: HsType
+formInt32T = protobufFormType dataName "Int32"
+formInt64T = protobufFormType dataName "Int64"
+formSInt32T = protobufFormType dataName "SInt32"
+formSInt64T = protobufFormType dataName "SInt64"
+formUInt32T = protobufFormType dataName "UInt32"
+formUInt64T = protobufFormType dataName "UInt64"
+formFixed32T = protobufFormType dataName "Fixed32"
+formFixed64T = protobufFormType dataName "Fixed64"
+formSFixed32T = protobufFormType dataName "SFixed32"
+formSFixed64T = protobufFormType dataName "SFixed64"
+formStringT = protobufFormType dataName "String"
+formBytesT = protobufFormType dataName "Bytes"
+formBoolT = protobufFormType dataName "Bool"
+formFloatT = protobufFormType dataName "Float"
+formDoubleT = protobufFormType dataName "Double"
+formEnumerationT = protobufFormType dataName "Enumeration"
+formMessageT = protobufFormType dataName "Message"
+formMapT = protobufFormType dataName "Map"
+
+formOptionalT :: HsType
+formOptionalT = protobufFormType tcName "Optional"
+
 --------------------------------------------------------------------------------
 --
 -- * Wrappers around ghc constructors
@@ -917,8 +959,8 @@ str_ = noLocA . HsLit synDef . mkHsString
 strPat :: String -> HsPat
 strPat = noLocA . LitPat NoExtField . HsString NoSourceText . mkFastString
 
-strT :: String -> HsType
-strT = noLocA . HsTyLit synDef . HsStrTy NoSourceText . mkFastString
+symT :: String -> HsType
+symT = noLocA . HsTyLit synDef . HsStrTy NoSourceText . mkFastString
 
 --------------------------------------------------------------------------------
 --

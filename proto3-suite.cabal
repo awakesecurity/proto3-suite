@@ -100,7 +100,9 @@ library
                        Proto3.Suite.Haskell.Parser
                        Proto3.Suite.JSONPB.Class
 
-  other-modules:       Turtle.Compat
+  other-modules:
+                       Proto3.Suite.Form.Encode.Core
+                       Turtle.Compat
 
   build-depends:       aeson >= 1.1.1.0 && < 2.2,
                        aeson-pretty,
@@ -131,13 +133,13 @@ library
                        safe ==0.3.*,
                        split,
                        system-filepath,
-                       time,
+                       template-haskell >=2.17 && <2.22,
                        text >= 0.2 && <2.2,
                        text-short >=0.1.3 && <0.2,
+                       time,
                        transformers >=0.4 && <0.7,
                        turtle < 1.6.0 || >= 1.6.1 && < 1.7.0,
-                       vector >=0.11 && <0.14,
-                       witch >=1.1 && <1.3
+                       vector >=0.11 && <0.14
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -O2 -Wall -Werror

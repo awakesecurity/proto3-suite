@@ -3,10 +3,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE ExplicitNamespaces #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -44,31 +42,21 @@ import           GHC.TypeLits (Symbol)
 import           Prelude hiding (String)
 import           Proto3.Wire.Class (ProtoEnum(..))
 import           Test.QuickCheck (Arbitrary(..))
-import           Witch (From(..))
 
 -- | 'Fixed' provides a way to encode integers in the fixed-width wire formats.
 newtype Fixed a = Fixed { fixed :: a }
   deriving (Show, Eq, Ord, Num, Generic, NFData, Arbitrary, Enum, Bounded
            , Functor, Foldable, Traversable)
 
-instance From a b => From a (Fixed b) where
-  from = Fixed . from
-
 -- | 'Signed' provides a way to encode integers in the signed wire formats.
 newtype Signed a = Signed { signed :: a }
   deriving (Show, Eq, Ord, Num, Generic, NFData, Arbitrary, Bounded
            , Functor, Foldable, Traversable)
 
-instance From a b => From a (Signed b) where
-  from = Signed . from
-
 -- | 'Enumerated' lifts any type with an 'IsEnum' instance so that it can be encoded
 -- with 'HasEncoding'.
 newtype Enumerated a = Enumerated { enumerated :: Either Int32 a }
   deriving (Show, Generic, NFData, Functor, Foldable, Traversable)
-
-instance From a (Enumerated a) where
-  from = Enumerated . Right
 
 -- | We consider two enumerated values to be equal if they serialize to the same code.
 instance ProtoEnum a => Eq (Enumerated a) where
@@ -92,18 +80,12 @@ newtype String a = String { string :: a }
   deriving (Show, Eq, Ord, Generic, Monoid, NFData, Arbitrary,
             Functor, Foldable, Semigroup, Traversable)
 
-instance From a b => From a (String b) where
-  from = String . from
-
 -- | 'Bytes' provides a way to indicate that the given type expresses
 -- a Protobuf bytes scalar.  @'Bytes' a@ may have type class instances
 -- that are more specific to Protobuf uses than those of @a@.
 newtype Bytes a = Bytes { bytes :: a }
   deriving (Show, Eq, Ord, Generic, Monoid, NFData, Arbitrary,
             Functor, Foldable, Semigroup, Traversable)
-
-instance From a b => From a (Bytes b) where
-  from = Bytes . from
 
 -- | 'PackedVec' provides a way to encode packed lists of basic protobuf types into
 -- the wire format.
@@ -155,9 +137,6 @@ newtype Nested a = Nested { nested :: Maybe a }
 newtype ForceEmit a = ForceEmit{ forceEmit :: a }
   deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable,
             Traversable, Semigroup)
-
-instance From a b => From a (ForceEmit b) where
-  from = ForceEmit . from
 
 -- | 'Commented' provides a way to add comments to generated @.proto@ files.
 newtype Commented (comment :: Symbol) a = Commented { unCommented :: a }

@@ -40,6 +40,7 @@ import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  jsonPBOptions)
 import           Proto3.Suite.Types             (Enumerated(..))
 import           System.Exit
+import           Test.Proto.ToEncoding          (Iterator(..))
 import           Test.Tasty
 import           Test.Tasty.HUnit               (testCase, (@?=))
 import           Test.Tasty.QuickCheck          (Arbitrary, (===), testProperty)
@@ -74,10 +75,11 @@ pythonInteroperation logger = testGroup "Python interoperation" $ do
   recStyle <- [RegularRecords]
 #endif
   tt <- ["Data.Text.Lazy.Text", "Data.Text.Text", "Data.Text.Short.ShortText"]
-  format <- ["Binary", "BinaryForm", "Jsonpb"]
+  format <- ["Binary", "Jsonpb"]
   testEncode <- [True, False]
-  guard $ testEncode || format /= "BinaryForm"
-  let f = if testEncode then simpleEncodeDotProto else simpleDecodeDotProto
+  direct <- [False, True]
+  guard $ not direct || (testEncode && format == "Binary")
+  let f = if testEncode then simpleEncodeDotProto direct else simpleDecodeDotProto
   pure @[] (f logger recStyle tt format)
 
 #ifdef SWAGGER
@@ -190,32 +192,40 @@ setPythonPath :: IO ()
 setPythonPath = Turtle.export "PYTHONPATH" .
   maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) =<< Turtle.need "PYTHONPATH"
 
-simpleEncodeDotProto :: Logger -> RecordStyle -> String -> T.Text -> TestTree
-simpleEncodeDotProto logger recStyle chosenStringType format =
+simpleEncodeDotProto :: Bool -> Logger -> RecordStyle -> String -> T.Text -> TestTree
+simpleEncodeDotProto direct logger recStyle chosenStringType format =
     testCase ("generate code for a simple .proto and then use it to encode messages" ++
               " with string type " ++ chosenStringType ++ " in format " ++ show format ++
-              ", record style " ++ show recStyle)
+              ", record style " ++ show recStyle ++
+              (if direct then ", direct mode" else ", intermediate mode"))
     $ do
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
-         compileTestDotProtos logger recStyle decodedStringType (format == "BinaryForm")
+         compileTestDotProtos logger recStyle decodedStringType direct
          -- Compile our generated encoder
          let encodeCmd = "tests/encode.sh " <> hsTmpDir
-                           <> (if format == "BinaryForm" then " -DTYPE_LEVEL_FORMAT" else "")
+                           <> (if direct then " -DTYPE_LEVEL_FORMAT" else "")
 #if DHALL
                            <> " -DDHALL"
 #endif
          Turtle.shell encodeCmd empty >>= (@?= ExitSuccess)
 
          -- The python test of encoding exits with a special error code to indicate
-         -- all tests were successful.
+         -- all tests were successful.  When directly encoding without an intermediate
+         -- data structure, we run the test several times (still compiling just once)
+         -- in order to cover various supported ways of iterating over repeated fields.
          setPythonPath
-         -- The python decoder used in this test cares only about the distinction
-         -- between binary and JSONPB formats, not whether we bypassed intermediate
-         -- representation of the data within the Haskell encoder.
-         let pformat = if format == "BinaryForm" then "Binary" else format
-         let cmd = hsTmpDir <> "/simpleEncodeDotProto " <> format <> " | python tests/check_simple_dot_proto.py " <> pformat
-         Turtle.shell cmd empty >>= (@?= ExitFailure 12)
+         let iterators :: [Iterator]
+             iterators
+               | direct = [minBound .. maxBound]
+               | otherwise = [Identity]  -- Just an unused placeholder
+         forM_ iterators $ \(iterator :: Iterator) -> do
+           when direct $
+             putStrLn $ "        iterator: " ++ show iterator
+           let cmd = hsTmpDir <> "/simpleEncodeDotProto " <> format <>
+                     " " <> T.pack (show iterator) <>
+                     " | python tests/check_simple_dot_proto.py " <> format
+           Turtle.shell cmd empty >>= (@?= ExitFailure 12)
 
          -- Not using bracket so that we can inspect the output to fix the tests
          Turtle.rmtree hsTmpDir

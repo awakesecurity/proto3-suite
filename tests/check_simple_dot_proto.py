@@ -74,7 +74,6 @@ assert list(caseRepeatedSignedSingleton.r32) == [0]
 assert list(caseRepeatedSignedSingleton.r64) == [0]
 
 caseRepeatedSignedMultiple = read_proto(WithRepeatedSigned)
-print(caseRepeatedSignedMultiple.r64,"\n")
 assert list(caseRepeatedSignedMultiple.r32) == [0, 42, -42, 2**30-1, -(2**30), 2**31-1, -(2**31)]
 assert list(caseRepeatedSignedMultiple.r64) == [0, 84, -84, 2**62-1, -(2**62), 2**63-1, -(2**63)]
 
@@ -101,6 +100,13 @@ assert case4a.nestedMessage.nestedUnpacked == []
 
 case4b = read_proto(WithNesting)
 assert not case4b.HasField('nestedMessage')
+
+case4c = read_proto(WithNesting)
+assert case4c.HasField('nestedMessage')
+assert case4c.nestedMessage.nestedField1 == ""
+assert case4c.nestedMessage.nestedField2 == 0
+assert case4c.nestedMessage.nestedPacked == []
+assert case4c.nestedMessage.nestedUnpacked == []
 
 # Test case 5: Nested repeated message
 case5a = read_proto(WithNestingRepeated)
@@ -395,119 +401,278 @@ case18h = read_proto(WithImported)
 assert not case18h.HasField('dummyMsg1')
 assert not case18h.HasField('withOneof')
 
-case19 = read_proto(MapTest)
-assert case19.prim['foo'] == 1
-assert case19.trivial[101].trivial.trivialField == 1234567
-# generated python proto types do not define structural equality.
-assert not case19.trivial[79].HasField('trivial')
-assert case19.signed[1] == 2
+if format == jsonpb:
+    case19 = read_proto(MapTest)
+    assert case19.prim['foo'] == 1
+    assert case19.prim['bar'] == 42
+    assert case19.prim['baz'] == 1234567
+    assert case19.trivial[1].trivial.trivialField == 1
+    assert case19.trivial[2].trivial.trivialField == 42
+    assert case19.trivial[101].trivial.trivialField == 1234567
+    # generated python proto types do not define structural equality.
+    assert 79 in case19.trivial
+    assert not case19.trivial[79].HasField('trivial')
+    assert case19.signed[1] == 2
+    assert case19.signed[3] == 4
+    assert case19.signed[5] == 6
+else:
+    # In Binary format we can work around the limitations of Python protobuf
+    # support by using an alternative message definition whose binary encoding
+    # should be identical, according to the protobuf specification.
+    case19 = read_proto(MapTestEmulation)
+    assert len(case19.prim) == 3
+    assert case19.prim[0].key == 'bar'
+    assert case19.prim[0].value == 42
+    assert case19.prim[1].key == 'baz'
+    assert case19.prim[1].value == 1234567
+    assert case19.prim[2].key == 'foo'
+    assert case19.prim[2].value == 1
+    assert len(case19.trivial) == 5
+    assert case19.trivial[0].key == 1
+    assert case19.trivial[0].value.trivial.trivialField == 1
+    assert case19.trivial[1].key == 2
+    assert case19.trivial[1].value.trivial.trivialField == 42
+    assert case19.trivial[2].key == 79
+    assert case19.trivial[2].HasField('value')
+    assert not case19.trivial[2].value.HasField('trivial')
+    assert case19.trivial[3].key == 80
+    assert not case19.trivial[3].HasField('value')
+    assert case19.trivial[4].key == 101
+    assert case19.trivial[4].value.trivial.trivialField == 1234567
+    assert len(case19.signed) == 3
+    assert case19.signed[0].key == 1
+    assert case19.signed[0].value == 2
+    assert case19.signed[1].key == 3
+    assert case19.signed[1].value == 4
+    assert case19.signed[2].key == 5
+    assert case19.signed[2].value == 6
 
 case_DoubleValue_A = read_proto(TestDoubleValue)
 assert not case_DoubleValue_A.HasField('wrapper')
+assert list(map(lambda w: w.value, case_DoubleValue_A.many)) == [4.75, 0.0, -7.125]
+assert not case_DoubleValue_A.HasField('one')
 
 case_DoubleValue_B = read_proto(TestDoubleValue)
 assert case_DoubleValue_B.HasField('wrapper')
 assert case_DoubleValue_B.wrapper.value == 3.5
+assert list(map(lambda w: w.value, case_DoubleValue_B.many)) == []
+assert case_DoubleValue_B.HasField('one')
+assert case_DoubleValue_B.one.value == 0.0
+
+case_DoubleValue_C = read_proto(TestDoubleValue)
+assert case_DoubleValue_C.HasField('wrapper')
+assert case_DoubleValue_C.wrapper.value == -3.5
+assert list(map(lambda w: w.value, case_DoubleValue_C.many)) == [0.0, 0.0, 0.0]
+assert case_DoubleValue_C.HasField('one')
+assert case_DoubleValue_C.one.value == -1.75
 
 case_FloatValue_A = read_proto(TestFloatValue)
 assert not case_FloatValue_A.HasField('wrapper')
+assert list(map(lambda w: w.value, case_FloatValue_A.many)) == []
+assert case_FloatValue_A.HasField('one')
+assert case_FloatValue_A.one.value == 0.0
 
 case_FloatValue_B = read_proto(TestFloatValue)
 assert case_FloatValue_B.HasField('wrapper')
 assert case_FloatValue_B.wrapper.value == 2.5
+assert list(map(lambda w: w.value, case_FloatValue_B.many)) == [1.75, 0.0, -5.125]
+assert not case_FloatValue_B.HasField('one')
+
+case_FloatValue_C = read_proto(TestFloatValue)
+assert case_FloatValue_C.HasField('wrapper')
+assert case_FloatValue_C.wrapper.value == -2.5
+assert list(map(lambda w: w.value, case_FloatValue_C.many)) == [0.0, 0.0, 0.0]
+assert case_FloatValue_C.HasField('one')
+assert case_FloatValue_C.one.value == -1.25
 
 case_Int64Value_A = read_proto(TestInt64Value)
 assert not case_Int64Value_A.HasField('wrapper')
+assert list(map(lambda w: w.value, case_Int64Value_A.many)) == [1, 0, -5]
+assert not case_Int64Value_A.HasField('one')
 
 case_Int64Value_B = read_proto(TestInt64Value)
 assert case_Int64Value_B.HasField('wrapper')
 assert case_Int64Value_B.wrapper.value == 0
+assert list(map(lambda w: w.value, case_Int64Value_B.many)) == []
+assert case_Int64Value_B.HasField('one')
+assert case_Int64Value_B.one.value == 5
 
 case_Int64Value_C = read_proto(TestInt64Value)
 assert case_Int64Value_C.HasField('wrapper')
 assert case_Int64Value_C.wrapper.value == 9223372036854775807
+assert list(map(lambda w: w.value, case_Int64Value_C.many)) == [-9223372036854775808, 0, 9223372036854775807]
+assert case_Int64Value_C.HasField('one')
+assert case_Int64Value_C.one.value == -9223372036854775808
 
 case_Int64Value_D = read_proto(TestInt64Value)
 assert case_Int64Value_D.HasField('wrapper')
 assert case_Int64Value_D.wrapper.value == -1
+assert list(map(lambda w: w.value, case_Int64Value_D.many)) == [0, 9223372036854775807, -9223372036854775808]
+assert case_Int64Value_D.HasField('one')
+assert case_Int64Value_D.one.value == 9223372036854775807
 
 case_Int64Value_E = read_proto(TestInt64Value)
 assert case_Int64Value_E.HasField('wrapper')
 assert case_Int64Value_E.wrapper.value == -9223372036854775808
+assert list(map(lambda w: w.value, case_Int64Value_E.many)) == [0, 0, 0]
+assert case_Int64Value_E.HasField('one')
+assert case_Int64Value_E.one.value == 0
 
 case_UInt64Value_A = read_proto(TestUInt64Value)
 assert not case_UInt64Value_A.HasField('wrapper')
+assert list(map(lambda w: w.value, case_UInt64Value_A.many)) == [1, 0, 5]
+assert not case_UInt64Value_A.HasField('one')
 
 case_UInt64Value_B = read_proto(TestUInt64Value)
 assert case_UInt64Value_B.HasField('wrapper')
 assert case_UInt64Value_B.wrapper.value == 0
+assert list(map(lambda w: w.value, case_UInt64Value_B.many)) == []
+assert case_UInt64Value_B.HasField('one')
+assert case_UInt64Value_B.one.value == 5
 
 case_UInt64Value_C = read_proto(TestUInt64Value)
 assert case_UInt64Value_C.HasField('wrapper')
 assert case_UInt64Value_C.wrapper.value == 18446744073709551615
+assert list(map(lambda w: w.value, case_UInt64Value_C.many)) == [0, 0, 18446744073709551615]
+assert case_UInt64Value_C.HasField('one')
+assert case_UInt64Value_C.one.value == 0
+
+case_UInt64Value_D = read_proto(TestUInt64Value)
+assert case_UInt64Value_D.HasField('wrapper')
+assert case_UInt64Value_D.wrapper.value == 1
+assert list(map(lambda w: w.value, case_UInt64Value_D.many)) == [0, 18446744073709551615, 0]
+assert case_UInt64Value_D.HasField('one')
+assert case_UInt64Value_D.one.value == 18446744073709551615
+
+case_UInt64Value_E = read_proto(TestUInt64Value)
+assert case_UInt64Value_E.HasField('wrapper')
+assert case_UInt64Value_E.wrapper.value == 0
+assert list(map(lambda w: w.value, case_UInt64Value_E.many)) == [0, 0, 0]
+assert case_UInt64Value_E.HasField('one')
+assert case_UInt64Value_E.one.value == 0
 
 case_Int32Value_A = read_proto(TestInt32Value)
 assert not case_Int32Value_A.HasField('wrapper')
+assert list(map(lambda w: w.value, case_Int32Value_A.many)) == [1, 0, -5]
+assert not case_Int32Value_A.HasField('one')
 
 case_Int32Value_B = read_proto(TestInt32Value)
 assert case_Int32Value_B.HasField('wrapper')
 assert case_Int32Value_B.wrapper.value == 0
+assert list(map(lambda w: w.value, case_Int32Value_B.many)) == []
+assert case_Int32Value_B.HasField('one')
+assert case_Int32Value_B.one.value == 5
 
 case_Int32Value_C = read_proto(TestInt32Value)
 assert case_Int32Value_C.HasField('wrapper')
 assert case_Int32Value_C.wrapper.value == 2147483647
+assert list(map(lambda w: w.value, case_Int32Value_C.many)) == [-2147483648, 0, 2147483647]
+assert case_Int32Value_C.HasField('one')
+assert case_Int32Value_C.one.value == -2147483648
 
 case_Int32Value_D = read_proto(TestInt32Value)
 assert case_Int32Value_D.HasField('wrapper')
 assert case_Int32Value_D.wrapper.value == -1
+assert list(map(lambda w: w.value, case_Int32Value_D.many)) == [0, 2147483647, -2147483648]
+assert case_Int32Value_D.HasField('one')
+assert case_Int32Value_D.one.value == 2147483647
 
 case_Int32Value_E = read_proto(TestInt32Value)
 assert case_Int32Value_E.HasField('wrapper')
 assert case_Int32Value_E.wrapper.value == -2147483648
+assert list(map(lambda w: w.value, case_Int32Value_E.many)) == [0, 0, 0]
+assert case_Int32Value_E.HasField('one')
+assert case_Int32Value_E.one.value == 0
 
 case_UInt32Value_A = read_proto(TestUInt32Value)
 assert not case_UInt32Value_A.HasField('wrapper')
+assert list(map(lambda w: w.value, case_UInt32Value_A.many)) == [1, 0, 5]
+assert not case_UInt32Value_A.HasField('one')
 
 case_UInt32Value_B = read_proto(TestUInt32Value)
 assert case_UInt32Value_B.HasField('wrapper')
 assert case_UInt32Value_B.wrapper.value == 0
+assert list(map(lambda w: w.value, case_UInt32Value_B.many)) == []
+assert case_UInt32Value_B.HasField('one')
+assert case_UInt32Value_B.one.value == 5
 
 case_UInt32Value_C = read_proto(TestUInt32Value)
 assert case_UInt32Value_C.HasField('wrapper')
 assert case_UInt32Value_C.wrapper.value == 4294967295
+assert list(map(lambda w: w.value, case_UInt32Value_C.many)) == [0, 0, 4294967295]
+assert case_UInt32Value_C.HasField('one')
+assert case_UInt32Value_C.one.value == 0
+
+case_UInt32Value_D = read_proto(TestUInt32Value)
+assert case_UInt32Value_D.HasField('wrapper')
+assert case_UInt32Value_D.wrapper.value == 1
+assert list(map(lambda w: w.value, case_UInt32Value_D.many)) == [0, 4294967295, 0]
+assert case_UInt32Value_D.HasField('one')
+assert case_UInt32Value_D.one.value == 4294967295
+
+case_UInt32Value_E = read_proto(TestUInt32Value)
+assert case_UInt32Value_E.HasField('wrapper')
+assert case_UInt32Value_E.wrapper.value == 0
+assert list(map(lambda w: w.value, case_UInt32Value_E.many)) == [0, 0, 0]
+assert case_UInt32Value_E.HasField('one')
+assert case_UInt32Value_E.one.value == 0
 
 case_BoolValue_A = read_proto(TestBoolValue)
 assert not case_BoolValue_A.HasField('wrapper')
+assert list(map(lambda w: w.value, case_BoolValue_A.many)) == [False, True]
+assert not case_BoolValue_A.HasField('one')
 
 case_BoolValue_B = read_proto(TestBoolValue)
 assert case_BoolValue_B.HasField('wrapper')
 assert case_BoolValue_B.wrapper.value == False
+assert list(map(lambda w: w.value, case_BoolValue_B.many)) == []
+assert case_BoolValue_B.HasField('one')
+assert case_BoolValue_B.one.value == True
 
 case_BoolValue_C = read_proto(TestBoolValue)
 assert case_BoolValue_C.HasField('wrapper')
 assert case_BoolValue_C.wrapper.value == True
+assert list(map(lambda w: w.value, case_BoolValue_C.many)) == [True, False]
+assert case_BoolValue_C.HasField('one')
+assert case_BoolValue_C.one.value == False
 
 case_StringValue_A = read_proto(TestStringValue)
 assert not case_StringValue_A.HasField('wrapper')
+assert list(map(lambda w: w.value, case_StringValue_A.many)) == ["abc", "", "def"]
+assert not case_StringValue_A.HasField('one')
 
 case_StringValue_B = read_proto(TestStringValue)
 assert case_StringValue_B.HasField('wrapper')
 assert case_StringValue_B.wrapper.value == ""
+assert list(map(lambda w: w.value, case_StringValue_B.many)) == []
+assert case_StringValue_B.HasField('one')
+assert case_StringValue_B.one.value == "xyz"
 
 case_StringValue_C = read_proto(TestStringValue)
 assert case_StringValue_C.HasField('wrapper')
 assert case_StringValue_C.wrapper.value == "abc"
+assert list(map(lambda w: w.value, case_StringValue_C.many)) == ["", "", ""]
+assert case_StringValue_C.HasField('one')
+assert case_StringValue_C.one.value == ""
 
 case_BytesValue_A = read_proto(TestBytesValue)
 assert not case_BytesValue_A.HasField('wrapper')
+assert list(map(lambda w: w.value, case_BytesValue_A.many)) == [b"012", b"", b"345"]
+assert not case_BytesValue_A.HasField('one')
 
 case_BytesValue_B = read_proto(TestBytesValue)
 assert case_BytesValue_B.HasField('wrapper')
 assert case_BytesValue_B.wrapper.value == b""
+assert list(map(lambda w: w.value, case_BytesValue_B.many)) == []
+assert case_BytesValue_B.HasField('one')
+assert case_BytesValue_B.one.value == b"789"
 
 case_BytesValue_C = read_proto(TestBytesValue)
 assert case_BytesValue_C.HasField('wrapper')
 assert case_BytesValue_C.wrapper.value == b"012"
+assert list(map(lambda w: w.value, case_BytesValue_C.many)) == [b"", b"", b""]
+assert case_BytesValue_C.HasField('one')
+assert case_BytesValue_C.one.value == b""
 
 # Wait for the special 'done' messsage
 done_msg = read_proto(MultipleFields)
