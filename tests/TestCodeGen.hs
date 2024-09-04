@@ -86,32 +86,32 @@ pythonInteroperation logger = testGroup "Python interoperation" $ do
 swaggerWrapperFormat :: TestTree
 swaggerWrapperFormat = testGroup "Swagger Wrapper Format"
     [ expectSchema @TestProtoWrappers.TestDoubleValue
-           "{\"properties\":{\"wrapper\":{\"format\":\"DoubleValue\",\"type\":\"number\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"double\",\"type\":\"number\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"DoubleValue\",\"type\":\"number\"},\"many\":{\"items\":{\"format\":\"DoubleValue\",\"type\":\"number\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestDoubleValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"double\",\"type\":\"number\"},\"many\":{\"items\":{\"format\":\"double\",\"type\":\"number\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestDoubleValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestFloatValue
-           "{\"properties\":{\"wrapper\":{\"format\":\"FloatValue\",\"type\":\"number\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"float\",\"type\":\"number\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"FloatValue\",\"type\":\"number\"},\"many\":{\"items\":{\"format\":\"FloatValue\",\"type\":\"number\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestFloatValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"float\",\"type\":\"number\"},\"many\":{\"items\":{\"format\":\"float\",\"type\":\"number\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestFloatValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestInt64Value
-           "{\"properties\":{\"wrapper\":{\"format\":\"Int64Value\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"int64\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"Int64Value\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"Int64Value\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"},\"type\":\"array\"}},\"pickOne\":{\"$ref\":\"#/definitions/TestInt64ValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int64\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"int64\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestInt64ValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestUInt64Value
-           "{\"properties\":{\"wrapper\":{\"format\":\"UInt64Value\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"int64\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"UInt64Value\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"UInt64Value\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestUInt64ValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int64\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"int64\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestUInt64ValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestInt32Value
-           "{\"properties\":{\"wrapper\":{\"format\":\"Int32Value\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"Int32Value\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"Int32Value\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"},\"type\":\"array\"}},\"pickOne\":{\"$ref\":\"#/definitions/TestInt32ValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestInt32ValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestUInt32Value
-           "{\"properties\":{\"wrapper\":{\"format\":\"UInt32Value\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"int32\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"UInt32Value\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"UInt32Value\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestUInt32ValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int32\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"int32\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestUInt32ValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestBoolValue
-           "{\"properties\":{\"wrapper\":{\"format\":\"BoolValue\",\"type\":\"boolean\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"type\":\"boolean\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"BoolValue\",\"type\":\"boolean\"},\"many\":{\"items\":{\"format\":\"BoolValue\",\"type\":\"boolean\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestBoolValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"type\":\"boolean\"},\"many\":{\"items\":{\"type\":\"boolean\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestBoolValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestStringValue
-           "{\"properties\":{\"wrapper\":{\"format\":\"StringValue\",\"type\":\"string\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"type\":\"string\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"StringValue\",\"type\":\"string\"},\"many\":{\"items\":{\"format\":\"StringValue\",\"type\":\"string\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestStringValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"type\":\"string\"},\"many\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestStringValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestBytesValue
-           "{\"properties\":{\"wrapper\":{\"format\":\"BytesValue\",\"type\":\"string\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"byte\",\"type\":\"string\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"BytesValue\",\"type\":\"string\"},\"many\":{\"items\":{\"format\":\"BytesValue\",\"type\":\"string\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestBytesValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"byte\",\"type\":\"string\"},\"many\":{\"items\":{\"format\":\"byte\",\"type\":\"string\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestBytesValuePickOne\"}},\"type\":\"object\"}"
     ]
   where
     expectSchema ::
