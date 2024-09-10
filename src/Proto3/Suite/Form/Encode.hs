@@ -20,11 +20,11 @@
 -- /WARNING/: This module is experimental and breaking changes may occur much more
 -- frequently than in the other modules of this package, perhaps even in patch releases.
 module Proto3.Suite.Form.Encode
-  ( Encoding(..)
+  ( MessageEncoding(..)
   , toLazyByteString
   , Prefix(..)
   , Distinct
-  , messageFromFields
+  , fieldsToMessage
   , Occupy
   , omitted
   , KnownFieldNumber
@@ -51,7 +51,8 @@ import Prelude hiding (String, (.), id)
 import Proto3.Suite.Class (MessageField(..), Named)
 import Proto3.Suite.Form.Encode.Core
 import Proto3.Suite.Form
-         (Association, MessageFieldType, Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf)
+         (Association, MessageFieldType, Packing(..), Presence(..),
+          Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf)
 import Proto3.Suite.Types (Enumerated(..), Fixed(..), Signed(..))
 import Proto3.Suite.Types qualified
 import Proto3.Wire.Class (ProtoEnum(..))
@@ -114,68 +115,68 @@ $(instantiatePackableField [t| 'Double |] [t| Double |] [| id |])
 $(instantiateStringOrBytesField [t| 'String |] [t| Proto3.Suite.Types.String |])
 $(instantiateStringOrBytesField [t| 'Bytes |] [t| Proto3.Suite.Types.Bytes |])
 
-instance ( RepetitionOf message name ~ 'Singular
+instance ( RepetitionOf message name ~ 'Singular 'Implicit
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Enumerated e) message 'Singular ('Enumeration e)
+         FieldImpl name (Enumerated e) message ('Singular 'Implicit) ('Enumeration e)
   where
     fieldImpl = primitiveField @name
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'OneOf
+instance ( RepetitionOf message name ~ 'Alternative
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Enumerated e) message 'OneOf ('Enumeration e)
+         FieldImpl name (Enumerated e) message 'Alternative ('Enumeration e)
   where
     fieldImpl = primitiveField @name
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Identity (Enumerated e)) message 'Unpacked ('Enumeration e)
+         FieldImpl name (Identity (Enumerated e)) message ('Repeated 'Unpacked) ('Enumeration e)
   where
     fieldImpl = primitiveField @name
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Forward (Enumerated e)) message 'Unpacked ('Enumeration e)
+         FieldImpl name (Forward (Enumerated e)) message ('Repeated 'Unpacked) ('Enumeration e)
   where
     fieldImpl = primitiveField @name
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Reverse (Enumerated e)) message 'Unpacked ('Enumeration e)
+         FieldImpl name (Reverse (Enumerated e)) message ('Repeated 'Unpacked) ('Enumeration e)
   where
     fieldImpl = primitiveField @name
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Vector (Enumerated e)) message 'Unpacked ('Enumeration e)
+         FieldImpl name (Vector (Enumerated e)) message ('Repeated 'Unpacked) ('Enumeration e)
   where
     fieldImpl = primitiveField @name
     {-# INLINE fieldImpl #-}
@@ -183,112 +184,112 @@ instance ( RepetitionOf message name ~ 'Unpacked
 -- | NOTE: This instance produces the same encoding as for @[packed=false]@,
 -- because packing does not improve efficiency for length-one sequences, and
 -- because the protobuf specification requires parsers to handle that format.
-instance ( RepetitionOf message name ~ 'Packed
+instance ( RepetitionOf message name ~ 'Repeated 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Identity (Enumerated e)) message 'Packed ('Enumeration e)
+         FieldImpl name (Identity (Enumerated e)) message ('Repeated 'Packed) ('Enumeration e)
   where
     fieldImpl = primitiveField @name
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Packed
+instance ( RepetitionOf message name ~ 'Repeated 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Forward (Enumerated e)) message 'Packed ('Enumeration e)
+         FieldImpl name (Forward (Enumerated e)) message ('Repeated 'Packed) ('Enumeration e)
   where
     fieldImpl = primitiveField @name
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Packed
+instance ( RepetitionOf message name ~ 'Repeated 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Reverse (Enumerated e)) message 'Packed ('Enumeration e)
+         FieldImpl name (Reverse (Enumerated e)) message ('Repeated 'Packed) ('Enumeration e)
   where
     fieldImpl = primitiveField @name
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Packed
+instance ( RepetitionOf message name ~ 'Repeated 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Vector (Enumerated e)) message 'Packed ('Enumeration e)
+         FieldImpl name (Vector (Enumerated e)) message ('Repeated 'Packed) ('Enumeration e)
   where
     fieldImpl = primitiveField @name
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Singular
+instance ( RepetitionOf message name ~ 'Singular 'Implicit
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name e message 'Singular ('Enumeration e)
+         FieldImpl name e message ('Singular 'Implicit) ('Enumeration e)
   where
     fieldImpl = field @name . Enumerated . Right
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'OneOf
+instance ( RepetitionOf message name ~ 'Alternative
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name e message 'OneOf ('Enumeration e)
+         FieldImpl name e message 'Alternative ('Enumeration e)
   where
     fieldImpl = field @name . Enumerated . Right
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Identity e) message 'Unpacked ('Enumeration e)
+         FieldImpl name (Identity e) message ('Repeated 'Unpacked) ('Enumeration e)
   where
     fieldImpl = field @name . fmap @Identity (Enumerated . Right)
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Forward e) message 'Unpacked ('Enumeration e)
+         FieldImpl name (Forward e) message ('Repeated 'Unpacked) ('Enumeration e)
   where
     fieldImpl = field @name . fmap @Forward (Enumerated . Right)
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Reverse e) message 'Unpacked ('Enumeration e)
+         FieldImpl name (Reverse e) message ('Repeated 'Unpacked) ('Enumeration e)
   where
     fieldImpl = field @name . fmap @Reverse (Enumerated . Right)
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Vector e) message 'Unpacked ('Enumeration e)
+         FieldImpl name (Vector e) message ('Repeated 'Unpacked) ('Enumeration e)
   where
     fieldImpl = field @name . fmap @Vector (Enumerated . Right)
     {-# INLINE fieldImpl #-}
@@ -296,46 +297,46 @@ instance ( RepetitionOf message name ~ 'Unpacked
 -- | NOTE: This instance produces the same encoding as for @[packed=false]@,
 -- because packing does not improve efficiency for length-one sequences, and
 -- because the protobuf specification requires parsers to handle that format.
-instance ( RepetitionOf message name ~ 'Packed
+instance ( RepetitionOf message name ~ 'Repeated 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Identity e) message 'Packed ('Enumeration e)
+         FieldImpl name (Identity e) message ('Repeated 'Packed) ('Enumeration e)
   where
     fieldImpl = field @name . fmap @Identity (Enumerated . Right)
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Packed
+instance ( RepetitionOf message name ~ 'Repeated 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Forward e) message 'Packed ('Enumeration e)
+         FieldImpl name (Forward e) message ('Repeated 'Packed) ('Enumeration e)
   where
     fieldImpl = field @name . fmap @Forward (Enumerated . Right)
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Packed
+instance ( RepetitionOf message name ~ 'Repeated 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Reverse e) message 'Packed ('Enumeration e)
+         FieldImpl name (Reverse e) message ('Repeated 'Packed) ('Enumeration e)
   where
     fieldImpl = field @name . fmap @Reverse (Enumerated . Right)
     {-# INLINE fieldImpl #-}
 
-instance ( RepetitionOf message name ~ 'Packed
+instance ( RepetitionOf message name ~ 'Repeated 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
          , KnownFieldNumber message name
          , Named e
          , ProtoEnum e
          ) =>
-         FieldImpl name (Vector e) message 'Packed ('Enumeration e)
+         FieldImpl name (Vector e) message ('Repeated 'Packed) ('Enumeration e)
   where
     fieldImpl = field @name . fmap @Vector (Enumerated . Right)
     {-# INLINE fieldImpl #-}
@@ -345,12 +346,12 @@ instance ( RepetitionOf message name ~ 'Packed
 message ::
   forall (name :: Symbol) (inner :: Type) (outer :: Type) (names :: [Symbol]) .
   ( ProtoTypeOf outer name ~ 'Message inner
-  , Field name (Encoding inner) outer
+  , Field name (MessageEncoding inner) outer
   , KnownFieldNumber outer name
   ) =>
-  Encoding inner ->
+  MessageEncoding inner ->
   Prefix outer names (Occupy outer name names)
-message = field @name @(Encoding inner)
+message = field @name @(MessageEncoding inner)
 
 -- | Specializes the argument type of 'field' to be a sequence of key-value pair encodings,
 -- which can help to avoid ambiguity when the argument expression is polymorphic.
@@ -358,13 +359,13 @@ associations ::
   forall (name :: Symbol) (t :: Type -> Type) (key :: ProtoType) (value :: ProtoType)
          (message :: Type) (names :: [Symbol]) .
   ( ProtoTypeOf message name ~ 'Map key value
-  , RepetitionOf message name ~ 'Unpacked
-  , Field name (t (Encoding (Association key value))) message
+  , RepetitionOf message name ~ 'Repeated 'Unpacked
+  , Field name (t (MessageEncoding (Association key value))) message
   , KnownFieldNumber message name
   ) =>
-  t (Encoding (Association key value)) ->
+  t (MessageEncoding (Association key value)) ->
   Prefix message names names
-associations = field @name @(t (Encoding (Association key value)))
+associations = field @name @(t (MessageEncoding (Association key value)))
 
 -- | Delegates field encoding to 'MessageField' at the cost
 -- of requiring the relevant intermediate representation.

@@ -17,11 +17,11 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Proto3.Suite.Form.Encode.Core
-  ( Encoding(..)
+  ( MessageEncoding(..)
   , toLazyByteString
   , Prefix(..)
   , Distinct
-  , messageFromFields
+  , fieldsToMessage
   , Occupy
   , omitted
   , KnownFieldNumber
@@ -55,8 +55,8 @@ import Language.Haskell.TH qualified as TH
 import Prelude hiding ((.), id)
 import Proto3.Suite.Class (HasDefault(..), Primitive(..), zigZagEncode)
 import Proto3.Suite.Form
-         (Association, NumberOf, OneOfOf, Optional, RecoverProtoType,
-          Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf, Wrapped(..))
+         (Association, NumberOf, OneOfOf, Wrapper, Packing(..), Presence(..), RecoverProtoType,
+          Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf, Wrap(..))
 import Proto3.Suite.Types (Enumerated(..), Fixed(..), Signed(..))
 import Proto3.Wire.Class (ProtoEnum(..))
 import Proto3.Wire.Encode qualified as Encode
@@ -64,16 +64,17 @@ import Proto3.Wire.Types (FieldNumber(..))
 
 -- | Annotates 'Encode.MessageBuilder' with the type of protobuf message it encodes.
 -- Prefix a tag and length to turn the message into a submessage of a larger message.
-newtype Encoding (a :: Type) = UnsafeEncoding { untypedEncoding :: Encode.MessageBuilder }
+newtype MessageEncoding (a :: Type) = UnsafeMessageEncoding
+  { untypedMessageEncoding :: Encode.MessageBuilder }
 
-type role Encoding nominal
+type role MessageEncoding nominal
 
 -- | Serialize a message (or portion thereof) as a lazy 'BL.ByteString'.
-toLazyByteString :: forall a . Encoding a -> BL.ByteString
-toLazyByteString = Encode.toLazyByteString . untypedEncoding
+toLazyByteString :: forall a . MessageEncoding a -> BL.ByteString
+toLazyByteString = Encode.toLazyByteString . untypedMessageEncoding
 
 -- | A 'Category' on builders that prefix zero or more fields to a message.
--- Use '.' to accumulate prefixes to create an 'Encoding' for a whole message.
+-- Use '.' to accumulate prefixes to create an 'MessageEncoding' for a whole message.
 --
 -- The first type parameter specifies the type of message being built.
 --
@@ -161,20 +162,22 @@ type family OccupiedOnly (message :: Type) (names :: [Symbol]) :: [Symbol]
 type family OccupiedOnly1 (message :: Type) (name :: Symbol) (names :: [Symbol])
                           (repetition :: Repetition) :: [Symbol]
   where
-    OccupiedOnly1 message name names 'Singular = name ': OccupiedOnly message names
-    OccupiedOnly1 message name names 'OneOf = OneOfOf message name ': OccupiedOnly message names
-    OccupiedOnly1 message name names 'Unpacked = OccupiedOnly message names
-    OccupiedOnly1 message name names 'Packed = OccupiedOnly message names
+    OccupiedOnly1 message name names ('Singular _) =
+      name ': OccupiedOnly message names
+    OccupiedOnly1 message name names 'Alternative =
+      OneOfOf message name ': OccupiedOnly message names
+    OccupiedOnly1 message name names ('Repeated _) =
+      OccupiedOnly message names
 
 -- | Relabels a prefix of fields of a message as an encoding for
 -- the message as a whole (though without any tag or length that
 -- would make it a submessage).
-messageFromFields ::
+fieldsToMessage ::
   forall (message :: Type) (names :: [Symbol]) .
   Distinct message names =>
   Prefix message '[] names ->
-  Encoding message
-messageFromFields = UnsafeEncoding . untypedPrefix
+  MessageEncoding message
+fieldsToMessage = UnsafeMessageEncoding . untypedPrefix
 
 type Occupy (message :: Type) (name :: Symbol) (names :: [Symbol]) =
   Occupy1 message name names (RepetitionOf message name)
@@ -182,10 +185,9 @@ type Occupy (message :: Type) (name :: Symbol) (names :: [Symbol]) =
 type family Occupy1 (message :: Type) (name :: Symbol) (names :: [Symbol])
                     (repetition :: Repetition) :: [Symbol]
   where
-    Occupy1 message name names 'Singular = name ': names
-    Occupy1 message name names 'OneOf = OneOfOf message name ': names
-    Occupy1 message name names 'Unpacked = names
-    Occupy1 message name names 'Packed = names
+    Occupy1 message name names ('Singular _) = name ': names
+    Occupy1 message name names 'Alternative = OneOfOf message name ': names
+    Occupy1 message name names ('Repeated _) = names
 
 -- | Uses an empty encoding for the @oneof@s and non-@oneof@ message fields
 -- that appear in the final type parameter of 'Prefix' but not the previous
@@ -253,191 +255,197 @@ class ( RepetitionOf message name ~ repetition
     fieldImpl :: forall names . a -> Prefix message names (Occupy message name names)
 
 -- | Populated non-repeated submessage not inside of a @oneof@.
-instance ( RepetitionOf outer name ~ 'Singular
+instance ( RepetitionOf outer name ~ 'Singular 'Optional
          , ProtoTypeOf outer name ~ 'Message inner
          , KnownFieldNumber outer name
          ) =>
-         FieldImpl name (Encoding inner) outer 'Singular ('Message inner)
+         FieldImpl name (MessageEncoding inner) outer ('Singular 'Optional) ('Message inner)
   where
-    fieldImpl = UnsafePrefix . Encode.embedded (fieldNumber @outer @name) . untypedEncoding
+    fieldImpl = UnsafePrefix . Encode.embedded (fieldNumber @outer @name) . untypedMessageEncoding
     {-# INLINE fieldImpl #-}
 
 -- | Optional non-repeated submessage not inside of a @oneof@.
-instance ( RepetitionOf outer name ~ 'Singular
+instance ( RepetitionOf outer name ~ 'Singular 'Optional
          , ProtoTypeOf outer name ~ 'Message inner
          , KnownFieldNumber outer name
          ) =>
-         FieldImpl name (Maybe (Encoding inner)) outer 'Singular ('Message inner)
+         FieldImpl name (Maybe (MessageEncoding inner)) outer ('Singular 'Optional) ('Message inner)
   where
     fieldImpl = maybe omitted (field @name)
     {-# INLINE fieldImpl #-}
 
 -- | Submessage inside of a @oneof@.
-instance ( RepetitionOf outer name ~ 'OneOf
+instance ( RepetitionOf outer name ~ 'Alternative
          , ProtoTypeOf outer name ~ 'Message inner
          , KnownFieldNumber outer name
          ) =>
-         FieldImpl name (Encoding inner) outer 'OneOf ('Message inner)
+         FieldImpl name (MessageEncoding inner) outer 'Alternative ('Message inner)
   where
-    fieldImpl = UnsafePrefix . Encode.embedded (fieldNumber @outer @name) . untypedEncoding
+    fieldImpl = UnsafePrefix . Encode.embedded (fieldNumber @outer @name) . untypedMessageEncoding
     {-# INLINE fieldImpl #-}
 
 -- | Single submessage within a repeated submessage field.
-instance ( RepetitionOf outer name ~ 'Unpacked
+instance ( RepetitionOf outer name ~ 'Repeated 'Unpacked
          , ProtoTypeOf outer name ~ 'Message inner
          , KnownFieldNumber outer name
          ) =>
-         FieldImpl name (Identity (Encoding inner)) outer 'Unpacked ('Message inner)
+         FieldImpl name (Identity (MessageEncoding inner)) outer ('Repeated 'Unpacked) ('Message inner)
   where
     fieldImpl =
-      UnsafePrefix . Encode.embedded (fieldNumber @outer @name) . untypedEncoding . runIdentity
+      UnsafePrefix . Encode.embedded (fieldNumber @outer @name) .
+      untypedMessageEncoding . runIdentity
     {-# INLINE fieldImpl #-}
 
 -- | Repeated submessage, given as a 'Foldable' sequence in the correct order.
-instance ( RepetitionOf outer name ~ 'Unpacked
+instance ( RepetitionOf outer name ~ 'Repeated 'Unpacked
          , ProtoTypeOf outer name ~ 'Message inner
          , KnownFieldNumber outer name
          ) =>
-         FieldImpl name (Forward (Encoding inner)) outer 'Unpacked ('Message inner)
+         FieldImpl name (Forward (MessageEncoding inner)) outer ('Repeated 'Unpacked) ('Message inner)
   where
-    fieldImpl (Forward f xs) = foldPrefixF (field @name . Identity . f) xs
+    fieldImpl (Forward f xs) = foldPrefixF (\x -> field @name (Identity (f x))) xs
     {-# INLINE fieldImpl #-}
 
 -- | Repeated submessage, given as a 'Foldable' sequence in reverse order.
-instance ( RepetitionOf outer name ~ 'Unpacked
+instance ( RepetitionOf outer name ~ 'Repeated 'Unpacked
          , ProtoTypeOf outer name ~ 'Message inner
          , KnownFieldNumber outer name
          ) =>
-         FieldImpl name (Reverse (Encoding inner)) outer 'Unpacked ('Message inner)
+         FieldImpl name (Reverse (MessageEncoding inner)) outer ('Repeated 'Unpacked) ('Message inner)
   where
-    fieldImpl (Reverse f xs) = foldPrefixR (field @name . Identity . f) xs
+    fieldImpl (Reverse f xs) = foldPrefixR (\x -> field @name (Identity (f x))) xs
     {-# INLINE fieldImpl #-}
 
 -- | Repeated submessage, given as a `Data.Vector.Generic.Vector` in the correct order.
-instance ( RepetitionOf outer name ~ 'Unpacked
+instance ( RepetitionOf outer name ~ 'Repeated 'Unpacked
          , ProtoTypeOf outer name ~ 'Message inner
          , KnownFieldNumber outer name
          ) =>
-         FieldImpl name (Vector (Encoding inner)) outer 'Unpacked ('Message inner)
+         FieldImpl name (Vector (MessageEncoding inner)) outer ('Repeated 'Unpacked) ('Message inner)
   where
-    fieldImpl (Vector f xs) = foldPrefixV (field @name . Identity . f) xs
+    fieldImpl (Vector f xs) = foldPrefixV (\x -> field @name (Identity (f x))) xs
     {-# INLINE fieldImpl #-}
 
 -- | One of many key-value pairs within a protobuf map field.
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ 'Map key value
          , KnownFieldNumber message name
          ) =>
-         FieldImpl name (Identity (Encoding (Association key value))) message 'Unpacked
-                   ('Map key value)
+         FieldImpl name (Identity (MessageEncoding (Association key value)))
+                   message ('Repeated 'Unpacked) ('Map key value)
   where
-    fieldImpl =
-      UnsafePrefix . Encode.embedded (fieldNumber @message @name) . untypedEncoding . runIdentity
+    fieldImpl (Identity e) =
+      UnsafePrefix (Encode.embedded (fieldNumber @message @name) (untypedMessageEncoding e))
     {-# INLINE fieldImpl #-}
 
 -- | Key-value pairs of a protobuf map field, given as a 'Foldable' sequence in the correct order.
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ 'Map key value
          , KnownFieldNumber message name
          ) =>
-         FieldImpl name (Forward (Encoding (Association key value))) message 'Unpacked
-                   ('Map key value)
+         FieldImpl name (Forward (MessageEncoding (Association key value)))
+                   message ('Repeated 'Unpacked) ('Map key value)
   where
-    fieldImpl (Forward f xs) = foldPrefixF (field @name . Identity . f) xs
+    fieldImpl (Forward f xs) = foldPrefixF (\x -> field @name (Identity (f x))) xs
     {-# INLINE fieldImpl #-}
 
 -- | Key-value pairs of a protobuf map field, given as a 'Foldable' sequence in reverse order.
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ 'Map key value
          , KnownFieldNumber message name
          ) =>
-         FieldImpl name (Reverse (Encoding (Association key value))) message 'Unpacked
-                   ('Map key value)
+         FieldImpl name (Reverse (MessageEncoding (Association key value)))
+                   message ('Repeated 'Unpacked) ('Map key value)
   where
-    fieldImpl (Reverse f xs) = foldPrefixR (field @name . Identity . f) xs
+    fieldImpl (Reverse f xs) = foldPrefixR (\x -> field @name (Identity (f x))) xs
     {-# INLINE fieldImpl #-}
 
 -- | Key-value pairs of a protobuf map field, given as
 -- a `Data.Vector.Generic.Vector` in the correct order.
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ 'Map key value
          , KnownFieldNumber message name
          ) =>
-         FieldImpl name (Vector (Encoding (Association key value))) message 'Unpacked ('Map key value)
+         FieldImpl name (Vector (MessageEncoding (Association key value)))
+                   message ('Repeated 'Unpacked) ('Map key value)
   where
-    fieldImpl (Vector f xs) = foldPrefixV (field @name . Identity . f) xs
+    fieldImpl (Vector f xs) = foldPrefixV (\x -> field @name (Identity (f x))) xs
     {-# INLINE fieldImpl #-}
 
 -- | Optional non-repeated wrapped scalar not inside of a @oneof@.
-instance ( RepetitionOf outer name ~ 'Singular
-         , ProtoTypeOf outer name ~ 'Message (Optional protoType)
+instance ( RepetitionOf outer name ~ 'Singular 'Optional
+         , ProtoTypeOf outer name ~ 'Message (Wrapper protoType)
          , KnownFieldNumber outer name
-         , Field "value" b (Optional protoType)
+         , Field "value" b (Wrapper protoType)
          ) =>
-         FieldImpl name (Maybe (Wrapped b)) outer 'Singular ('Message (Optional protoType))
+         FieldImpl name (Maybe (Wrap b)) outer ('Singular 'Optional) ('Message (Wrapper protoType))
   where
-    fieldImpl = field @name @(Maybe (Encoding (Optional protoType))) .
-                fmap @Maybe (messageFromFields . field @"value" @b . wrapped)
+    fieldImpl m =
+      field @name @(Maybe (MessageEncoding (Wrapper protoType)))
+        (fmap @Maybe (\(Wrap x) -> fieldsToMessage (field @"value" @b x)) m)
     {-# INLINE fieldImpl #-}
 
--- | Wrapped scalar inside of a @oneof@.
-instance ( RepetitionOf outer name ~ 'OneOf
-         , ProtoTypeOf outer name ~ 'Message (Optional protoType)
+-- | Wrap scalar inside of a @oneof@.
+instance ( RepetitionOf outer name ~ 'Alternative
+         , ProtoTypeOf outer name ~ 'Message (Wrapper protoType)
          , KnownFieldNumber outer name
-         , Field "value" b (Optional protoType)
+         , Field "value" b (Wrapper protoType)
          ) =>
-         FieldImpl name (Wrapped b) outer 'OneOf ('Message (Optional protoType))
+         FieldImpl name (Wrap b) outer 'Alternative ('Message (Wrapper protoType))
   where
-    fieldImpl = field @name @(Encoding (Optional protoType)) .
-                messageFromFields . field @"value" @b . wrapped
+    fieldImpl (Wrap x) =
+      field @name @(MessageEncoding (Wrapper protoType)) (fieldsToMessage (field @"value" @b x))
     {-# INLINE fieldImpl #-}
 
 -- | Single wrapped scalar within a repeated field.
-instance ( RepetitionOf outer name ~ 'Unpacked
-         , ProtoTypeOf outer name ~ 'Message (Optional protoType)
+instance ( RepetitionOf outer name ~ 'Repeated 'Unpacked
+         , ProtoTypeOf outer name ~ 'Message (Wrapper protoType)
          , KnownFieldNumber outer name
-         , Field "value" b (Optional protoType)
+         , Field "value" b (Wrapper protoType)
          ) =>
-         FieldImpl name (Identity (Wrapped b)) outer 'Unpacked ('Message (Optional protoType))
+         FieldImpl name (Identity (Wrap b)) outer
+                   ('Repeated 'Unpacked) ('Message (Wrapper protoType))
   where
-    fieldImpl = field @name @(Identity (Encoding (Optional protoType))) .
-                fmap @Identity (messageFromFields . field @"value" @b . wrapped)
+    fieldImpl = field @name @(Identity (MessageEncoding (Wrapper protoType))) .
+                fmap @Identity (\(Wrap x) -> fieldsToMessage (field @"value" @b x))
     {-# INLINE fieldImpl #-}
 
 -- | Repeated wrapped scalar, given as a 'Foldable' sequence in the correct order.
-instance ( RepetitionOf outer name ~ 'Unpacked
-         , ProtoTypeOf outer name ~ 'Message (Optional protoType)
+instance ( RepetitionOf outer name ~ 'Repeated 'Unpacked
+         , ProtoTypeOf outer name ~ 'Message (Wrapper protoType)
          , KnownFieldNumber outer name
-         , Field "value" b (Optional protoType)
+         , Field "value" b (Wrapper protoType)
          ) =>
-         FieldImpl name (Forward (Wrapped b)) outer 'Unpacked ('Message (Optional protoType))
+         FieldImpl name (Forward (Wrap b)) outer
+                   ('Repeated 'Unpacked) ('Message (Wrapper protoType))
   where
-    fieldImpl = field @name @(Forward (Encoding (Optional protoType))) .
-                fmap @Forward (messageFromFields . field @"value" @b . wrapped)
+    fieldImpl = field @name @(Forward (MessageEncoding (Wrapper protoType))) .
+                fmap @Forward (\(Wrap x) -> fieldsToMessage (field @"value" @b x))
     {-# INLINE fieldImpl #-}
 
 -- | Repeated wrapped scalar, given as a 'Foldable' sequence in reverse order.
-instance ( RepetitionOf outer name ~ 'Unpacked
-         , ProtoTypeOf outer name ~ 'Message (Optional protoType)
+instance ( RepetitionOf outer name ~ 'Repeated 'Unpacked
+         , ProtoTypeOf outer name ~ 'Message (Wrapper protoType)
          , KnownFieldNumber outer name
-         , Field "value" b (Optional protoType)
+         , Field "value" b (Wrapper protoType)
          ) =>
-         FieldImpl name (Reverse (Wrapped b)) outer 'Unpacked ('Message (Optional protoType))
+         FieldImpl name (Reverse (Wrap b)) outer
+                   ('Repeated 'Unpacked) ('Message (Wrapper protoType))
   where
-    fieldImpl = field @name @(Reverse (Encoding (Optional protoType))) .
-                fmap @Reverse (messageFromFields . field @"value" @b . wrapped)
+    fieldImpl = field @name @(Reverse (MessageEncoding (Wrapper protoType))) .
+                fmap @Reverse (\(Wrap x) -> fieldsToMessage (field @"value" @b x))
     {-# INLINE fieldImpl #-}
 
 -- | Repeated wrapped scalar, given as a `Data.Vector.Generic.Vector` in the correct order.
-instance ( RepetitionOf outer name ~ 'Unpacked
-         , ProtoTypeOf outer name ~ 'Message (Optional protoType)
+instance ( RepetitionOf outer name ~ 'Repeated 'Unpacked
+         , ProtoTypeOf outer name ~ 'Message (Wrapper protoType)
          , KnownFieldNumber outer name
-         , Field "value" b (Optional protoType)
+         , Field "value" b (Wrapper protoType)
          ) =>
-         FieldImpl name (Vector (Wrapped b)) outer 'Unpacked ('Message (Optional protoType))
+         FieldImpl name (Vector (Wrap b)) outer ('Repeated 'Unpacked) ('Message (Wrapper protoType))
   where
-    fieldImpl = field @name @(Vector (Encoding (Optional protoType))) .
-                fmap @Vector (messageFromFields . field @"value" @b . wrapped)
+    fieldImpl = field @name @(Vector (MessageEncoding (Wrapper protoType))) .
+                fmap @Vector (\(Wrap x) -> fieldsToMessage (field @"value" @b x))
     {-# INLINE fieldImpl #-}
 
 -- | Any encoding of the first type can be decoded as the second without
@@ -490,71 +498,83 @@ class ( RepetitionOf message name ~ repetition
     primitiveField ::
       forall names . a -> Prefix message names (Occupy message name names)
 
-instance ( RepetitionOf message name ~ 'Singular
+instance ( RepetitionOf message name ~ 'Singular 'Implicit
          , ProtoTypeOf message name ~ protoType
          , CompatibleScalar (RecoverProtoType a) protoType
          , KnownFieldNumber message name
          , HasDefault a
          , Primitive a
          ) =>
-         PrimitiveField name a message 'Singular protoType
+         PrimitiveField name a message ('Singular 'Implicit) protoType
   where
     primitiveField value
       | isDefault value = UnsafePrefix mempty
       | otherwise = UnsafePrefix (encodePrimitive (fieldNumber @message @name) value)
     {-# INLINE primitiveField #-}
 
-instance ( RepetitionOf message name ~ 'OneOf
+instance ( RepetitionOf message name ~ 'Singular 'Optional
          , ProtoTypeOf message name ~ protoType
          , CompatibleScalar (RecoverProtoType a) protoType
          , KnownFieldNumber message name
          , Primitive a
          ) =>
-         PrimitiveField name a message 'OneOf protoType
+         PrimitiveField name a message ('Singular 'Optional) protoType
   where
-    primitiveField = UnsafePrefix . encodePrimitive (fieldNumber @message @name)
+    primitiveField value = UnsafePrefix (encodePrimitive (fieldNumber @message @name) value)
     {-# INLINE primitiveField #-}
 
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Alternative
          , ProtoTypeOf message name ~ protoType
          , CompatibleScalar (RecoverProtoType a) protoType
          , KnownFieldNumber message name
          , Primitive a
          ) =>
-         PrimitiveField name (Identity a) message 'Unpacked protoType
+         PrimitiveField name a message 'Alternative protoType
   where
-    primitiveField = UnsafePrefix . encodePrimitive (fieldNumber @message @name) . runIdentity
+    primitiveField value = UnsafePrefix (encodePrimitive (fieldNumber @message @name) value)
     {-# INLINE primitiveField #-}
 
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ protoType
          , CompatibleScalar (RecoverProtoType a) protoType
          , KnownFieldNumber message name
          , Primitive a
          ) =>
-         PrimitiveField name (Forward a) message 'Unpacked protoType
+         PrimitiveField name (Identity a) message ('Repeated 'Unpacked) protoType
+  where
+    primitiveField (Identity value) =
+      UnsafePrefix (encodePrimitive (fieldNumber @message @name) value)
+    {-# INLINE primitiveField #-}
+
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
+         , ProtoTypeOf message name ~ protoType
+         , CompatibleScalar (RecoverProtoType a) protoType
+         , KnownFieldNumber message name
+         , Primitive a
+         ) =>
+         PrimitiveField name (Forward a) message ('Repeated 'Unpacked) protoType
   where
     primitiveField (Forward f xs) = foldPrefixF (primitiveField @name . Identity . f) xs
     {-# INLINE primitiveField #-}
 
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ protoType
          , CompatibleScalar (RecoverProtoType a) protoType
          , KnownFieldNumber message name
          , Primitive a
          ) =>
-         PrimitiveField name (Reverse a) message 'Unpacked protoType
+         PrimitiveField name (Reverse a) message ('Repeated 'Unpacked) protoType
   where
     primitiveField (Reverse f xs) = foldPrefixR (primitiveField @name . Identity . f) xs
     {-# INLINE primitiveField #-}
 
-instance ( RepetitionOf message name ~ 'Unpacked
+instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
          , ProtoTypeOf message name ~ protoType
          , CompatibleScalar (RecoverProtoType a) protoType
          , KnownFieldNumber message name
          , Primitive a
          ) =>
-         PrimitiveField name (Vector a) message 'Unpacked protoType
+         PrimitiveField name (Vector a) message ('Repeated 'Unpacked) protoType
   where
     primitiveField (Vector f xs) = foldPrefixV (primitiveField @name . Identity . f) xs
     {-# INLINE primitiveField #-}
@@ -562,50 +582,51 @@ instance ( RepetitionOf message name ~ 'Unpacked
 -- | NOTE: This instance produces the same encoding as for @[packed=false]@,
 -- because packing does not improve efficiency for length-one sequences, and
 -- because the protobuf specification requires parsers to handle that format.
-instance ( RepetitionOf message name ~ 'Packed
+instance ( RepetitionOf message name ~ 'Repeated 'Packed
          , ProtoTypeOf message name ~ protoType
          , CompatibleScalar (RecoverProtoType a) protoType
          , KnownFieldNumber message name
          , Primitive a
          ) =>
-         PrimitiveField name (Identity a) message 'Packed protoType
+         PrimitiveField name (Identity a) message ('Repeated 'Packed) protoType
   where
-    primitiveField = UnsafePrefix . encodePrimitive (fieldNumber @message @name) . runIdentity
+    primitiveField (Identity value) =
+      UnsafePrefix (encodePrimitive (fieldNumber @message @name) value)
     {-# INLINE primitiveField #-}
 
-instance ( RepetitionOf message name ~ 'Packed
+instance ( RepetitionOf message name ~ 'Repeated 'Packed
          , ProtoTypeOf message name ~ protoType
          , CompatibleScalar (RecoverProtoType a) protoType
          , KnownFieldNumber message name
          , PackedPrimitives a
          ) =>
-         PrimitiveField name (Forward a) message 'Packed protoType
+         PrimitiveField name (Forward a) message ('Repeated 'Packed) protoType
   where
     primitiveField (Forward f xs)
       | null xs = UnsafePrefix mempty
       | otherwise = UnsafePrefix (packedPrimitivesF f (fieldNumber @message @name) xs)
     {-# INLINE primitiveField #-}
 
-instance ( RepetitionOf message name ~ 'Packed
+instance ( RepetitionOf message name ~ 'Repeated 'Packed
          , ProtoTypeOf message name ~ protoType
          , CompatibleScalar (RecoverProtoType a) protoType
          , KnownFieldNumber message name
          , PackedPrimitives a
          ) =>
-         PrimitiveField name (Reverse a) message 'Packed protoType
+         PrimitiveField name (Reverse a) message ('Repeated 'Packed) protoType
   where
     primitiveField (Reverse f xs)
       | null xs = UnsafePrefix mempty
       | otherwise = UnsafePrefix (packedPrimitivesR f (fieldNumber @message @name) xs)
     {-# INLINE primitiveField #-}
 
-instance ( RepetitionOf message name ~ 'Packed
+instance ( RepetitionOf message name ~ 'Repeated 'Packed
          , ProtoTypeOf message name ~ protoType
          , CompatibleScalar (RecoverProtoType a) protoType
          , KnownFieldNumber message name
          , PackedPrimitives a
          ) =>
-         PrimitiveField name (Vector a) message 'Packed protoType
+         PrimitiveField name (Vector a) message ('Repeated 'Packed) protoType
   where
     primitiveField (Vector f xs)
       | Data.Vector.Generic.null xs = UnsafePrefix mempty
@@ -849,92 +870,101 @@ instantiatePackableField :: TH.Q TH.Type -> TH.Q TH.Type -> TH.Q TH.Exp -> TH.Q 
 instantiatePackableField protoType elementType conversion =
   [d|
 
-    instance ( RepetitionOf message name ~ 'Singular
+    instance ( RepetitionOf message name ~ 'Singular 'Implicit
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              ) =>
-             FieldImpl name $elementType message 'Singular $protoType
+             FieldImpl name $elementType message ('Singular 'Implicit) $protoType
       where
-        fieldImpl = primitiveField @name . $conversion
+        fieldImpl x = primitiveField @name ($conversion x)
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'OneOf
+    instance ( RepetitionOf message name ~ 'Singular 'Optional
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              ) =>
-             FieldImpl name $elementType message 'OneOf $protoType
+             FieldImpl name $elementType message ('Singular 'Optional) $protoType
       where
-        fieldImpl = primitiveField @name . $conversion
+        fieldImpl x = primitiveField @name ($conversion x)
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'Unpacked
+    instance ( RepetitionOf message name ~ 'Alternative
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              ) =>
-             FieldImpl name (Identity $elementType) message 'Unpacked $protoType
+             FieldImpl name $elementType message 'Alternative $protoType
       where
-        fieldImpl = primitiveField @name . fmap @Identity $conversion
+        fieldImpl x = primitiveField @name ($conversion x)
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'Unpacked
+    instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              ) =>
-             FieldImpl name (Forward $elementType) message 'Unpacked $protoType
+             FieldImpl name (Identity $elementType) message ('Repeated 'Unpacked) $protoType
+      where
+        fieldImpl (Identity x) = primitiveField @name (Identity ($conversion x))
+        {-# INLINE fieldImpl #-}
+
+    instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
+             , ProtoTypeOf message name ~ $protoType
+             , KnownFieldNumber message name
+             ) =>
+             FieldImpl name (Forward $elementType) message ('Repeated 'Unpacked) $protoType
       where
         fieldImpl (Forward f xs) = primitiveField @name (Forward ($conversion . f) xs)
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'Unpacked
+    instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              ) =>
-             FieldImpl name (Reverse $elementType) message 'Unpacked $protoType
+             FieldImpl name (Reverse $elementType) message ('Repeated 'Unpacked) $protoType
       where
         fieldImpl (Reverse f xs) = primitiveField @name (Reverse ($conversion . f) xs)
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'Unpacked
+    instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              ) =>
-             FieldImpl name (Vector $elementType) message 'Unpacked $protoType
+             FieldImpl name (Vector $elementType) message ('Repeated 'Unpacked) $protoType
       where
         fieldImpl (Vector f xs) = primitiveField @name (Vector ($conversion . f) xs)
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'Packed
+    instance ( RepetitionOf message name ~ 'Repeated 'Packed
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              ) =>
-             FieldImpl name (Identity $elementType) message 'Packed $protoType
+             FieldImpl name (Identity $elementType) message ('Repeated 'Packed) $protoType
       where
-        fieldImpl = primitiveField @name . fmap @Identity $conversion
+        fieldImpl (Identity x) = primitiveField @name (Identity ($conversion x))
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'Packed
+    instance ( RepetitionOf message name ~ 'Repeated 'Packed
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              ) =>
-             FieldImpl name (Forward $elementType) message 'Packed $protoType
+             FieldImpl name (Forward $elementType) message ('Repeated 'Packed) $protoType
       where
         fieldImpl (Forward f xs) = primitiveField @name (Forward ($conversion . f) xs)
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'Packed
+    instance ( RepetitionOf message name ~ 'Repeated 'Packed
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              ) =>
-             FieldImpl name (Reverse $elementType) message 'Packed $protoType
+             FieldImpl name (Reverse $elementType) message ('Repeated 'Packed) $protoType
       where
         fieldImpl (Reverse f xs) = primitiveField @name (Reverse ($conversion . f) xs)
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'Packed
+    instance ( RepetitionOf message name ~ 'Repeated 'Packed
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              ) =>
-             FieldImpl name (Vector $elementType) message 'Packed $protoType
+             FieldImpl name (Vector $elementType) message ('Repeated 'Packed) $protoType
       where
         fieldImpl (Vector f xs) = primitiveField @name (Vector ($conversion . f) xs)
         {-# INLINE fieldImpl #-}
@@ -945,63 +975,74 @@ instantiateStringOrBytesField :: TH.Q TH.Type -> TH.Q TH.Type -> TH.Q [TH.Dec]
 instantiateStringOrBytesField protoType elementTC =
   [d|
 
-    instance ( RepetitionOf message name ~ 'Singular
+    instance ( RepetitionOf message name ~ 'Singular 'Implicit
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              , HasDefault ($elementTC a)
              , Primitive ($elementTC a)
              ) =>
-             FieldImpl name a message 'Singular $protoType
+             FieldImpl name a message ('Singular 'Implicit) $protoType
       where
-        fieldImpl = primitiveField @name . coerce @a @($elementTC a)
+        fieldImpl x = primitiveField @name (coerce @a @($elementTC a) x)
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'OneOf
+    instance ( RepetitionOf message name ~ 'Singular 'Optional
+             , ProtoTypeOf message name ~ $protoType
+             , KnownFieldNumber message name
+             , HasDefault ($elementTC a)
+             , Primitive ($elementTC a)
+             ) =>
+             FieldImpl name a message ('Singular 'Optional) $protoType
+      where
+        fieldImpl x = primitiveField @name (coerce @a @($elementTC a) x)
+        {-# INLINE fieldImpl #-}
+
+    instance ( RepetitionOf message name ~ 'Alternative
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              , Primitive ($elementTC a)
              ) =>
-             FieldImpl name a message 'OneOf $protoType
+             FieldImpl name a message 'Alternative $protoType
       where
         fieldImpl = primitiveField @name @($elementTC a) . coerce @a @($elementTC a)
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'Unpacked
+    instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              , Primitive ($elementTC a)
              ) =>
-             FieldImpl name (Identity a) message 'Unpacked $protoType
+             FieldImpl name (Identity a) message ('Repeated 'Unpacked) $protoType
       where
         fieldImpl = primitiveField @name . coerce @(Identity a) @(Identity ($elementTC a))
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'Unpacked
+    instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              , Primitive ($elementTC a)
              ) =>
-             FieldImpl name (Forward a) message 'Unpacked $protoType
+             FieldImpl name (Forward a) message ('Repeated 'Unpacked) $protoType
       where
         fieldImpl = primitiveField @name . coerce @(Forward a) @(Forward ($elementTC a))
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'Unpacked
+    instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              , Primitive ($elementTC a)
              ) =>
-             FieldImpl name (Reverse a) message 'Unpacked $protoType
+             FieldImpl name (Reverse a) message ('Repeated 'Unpacked) $protoType
       where
         fieldImpl = primitiveField @name . coerce @(Reverse a) @(Reverse ($elementTC a))
         {-# INLINE fieldImpl #-}
 
-    instance ( RepetitionOf message name ~ 'Unpacked
+    instance ( RepetitionOf message name ~ 'Repeated 'Unpacked
              , ProtoTypeOf message name ~ $protoType
              , KnownFieldNumber message name
              , Primitive ($elementTC a)
              ) =>
-             FieldImpl name (Vector a) message 'Unpacked $protoType
+             FieldImpl name (Vector a) message ('Repeated 'Unpacked) $protoType
       where
         fieldImpl = primitiveField @name . coerce @(Vector a) @(Vector ($elementTC a))
         {-# INLINE fieldImpl #-}

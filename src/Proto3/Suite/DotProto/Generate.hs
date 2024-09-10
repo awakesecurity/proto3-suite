@@ -898,18 +898,24 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
 dptToFormRepetition ::
   MonadError CompileError m => [DotProtoOption] -> TypeContext -> DotProtoType -> m HsType
 dptToFormRepetition opts ctxt = \case
-  Prim _                    -> pure formSingularT
+  Prim (Named tyName)
+    | isMessage ctxt tyName -> pure $ tyApp formSingularT formOptionalT
+  Prim _                    -> pure $ tyApp formSingularT formImplicitT
+    -- TO DO: When the @optional@ keyword is supported, check for it here.
   Repeated (Named tyName)
-    | isMessage ctxt tyName -> pure formUnpackedT
+    | isMessage ctxt tyName -> pure unpacked
   Repeated pType
-    | isUnpacked opts       -> pure formUnpackedT
-    | isPacked opts         -> pure formPackedT
-    | isPackable ctxt pType -> pure formPackedT
-    | otherwise             -> pure formUnpackedT
+    | isUnpacked opts       -> pure unpacked
+    | isPacked opts         -> pure packed
+    | isPackable ctxt pType -> pure packed
+    | otherwise             -> pure unpacked
   NestedRepeated pType      -> internalError $ "unexpected NestedRepeated on " ++ show pType
   Map k _
-    | validMapKey k         -> pure formUnpackedT
+    | validMapKey k         -> pure unpacked
     | otherwise             -> throwError $ InvalidMapKeyType (show $ pPrint k)
+  where
+    packed = tyApp formRepeatedT formPackedT
+    unpacked = tyApp formRepeatedT formUnpackedT
 
 -- | Convert a dot proto type to a Haskell type of kind `Proto3.Suite.Form.ProtoType`,
 -- with `Proto3.Suite.Form.Optional` replacing wrapper types.
@@ -991,7 +997,7 @@ dpptToFormType ctxt = \case
         Nothing -> noSuchTypeError msgName
   where
     wrapper :: HsType -> m HsType
-    wrapper = pure . tyApp formMessageT . tyApp formOptionalT
+    wrapper = pure . tyApp formMessageT . tyApp formWrapperT
 
 --------------------------------------------------------------------------------
 --
@@ -1242,7 +1248,7 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
         oneOfOf = onFields formOneOfOf oneOfT ++
                   onOneOfs formOneOfOf toSym
         repetitionOf = onFields formRepetitionOf fieldSpecRepetition ++
-                       onOneOfs formRepetitionOf (const formOneOfT)
+                       onOneOfs formRepetitionOf (const formAlternativeT)
 
     pure $ namesOf : numberOf ++ protoTypeOf ++ oneOfOf ++ repetitionOf
   where
@@ -1276,7 +1282,7 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
                    { fieldSpecName = subfieldName
                    , fieldSpecNumber = subfieldNum
                    , fieldSpecOneOf = Just oneofName
-                   , fieldSpecRepetition = formOneOfT
+                   , fieldSpecRepetition = formAlternativeT
                    , fieldSpecProtoType = protoType
                    }
 

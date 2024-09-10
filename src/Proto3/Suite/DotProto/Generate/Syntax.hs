@@ -282,11 +282,18 @@ formOneOfOf = protobufFormName tcName "OneOfOf"
 formRepetitionOf = protobufFormName tcName "RepetitionOf"
 formProtoTypeOf = protobufFormName tcName "ProtoTypeOf"
 
-formSingularT, formOneOfT, formUnpackedT, formPackedT :: HsType
-formSingularT = protobufFormType dataName "Singular"
-formOneOfT = protobufFormType dataName "OneOf"
+formImplicitT, formOptionalT :: HsType
+formImplicitT = protobufFormType dataName "Implicit"
+formOptionalT = protobufFormType dataName "Optional"
+
+formUnpackedT, formPackedT :: HsType
 formUnpackedT = protobufFormType dataName "Unpacked"
 formPackedT = protobufFormType dataName "Packed"
+
+formSingularT, formAlternativeT, formRepeatedT :: HsType
+formSingularT = protobufFormType dataName "Singular"
+formAlternativeT = protobufFormType dataName "Alternative"
+formRepeatedT = protobufFormType dataName "Repeated"
 
 formInt32T, formInt64T, formSInt32T, formSInt64T, formUInt32T, formUInt64T,
   formFixed32T, formFixed64T, formSFixed32T, formSFixed64T,
@@ -311,8 +318,8 @@ formEnumerationT = protobufFormType dataName "Enumeration"
 formMessageT = protobufFormType dataName "Message"
 formMapT = protobufFormType dataName "Map"
 
-formOptionalT :: HsType
-formOptionalT = protobufFormType tcName "Optional"
+formWrapperT :: HsType
+formWrapperT = protobufFormType tcName "Wrapper"
 
 --------------------------------------------------------------------------------
 --

@@ -216,14 +216,14 @@ type instance Form.NumberOf (TestMessage num repetition protoType) "name" = num
 
 type instance Form.ProtoTypeOf (TestMessage num repetition protoType) "name" = protoType
 
-type instance Form.OneOfOf (TestMessage num 'Form.Singular protoType) "name" = ""
-type instance Form.OneOfOf (TestMessage num 'Form.OneOf protoType) "name" = "pickOne"
-type instance Form.OneOfOf (TestMessage num 'Form.OneOf protoType) "pickOne" = "pickOne"
-type instance Form.OneOfOf (TestMessage num 'Form.Unpacked protoType) "name" = ""
-type instance Form.OneOfOf (TestMessage num 'Form.Packed protoType) "name" = ""
+type instance Form.OneOfOf (TestMessage num ('Form.Singular presence) protoType) "name" = ""
+type instance Form.OneOfOf (TestMessage num 'Form.Alternative protoType) "name" = "pickOne"
+type instance Form.OneOfOf (TestMessage num 'Form.Alternative protoType) "pickOne" = "pickOne"
+type instance Form.OneOfOf (TestMessage num ('Form.Repeated packing) protoType) "name" = ""
 
 type instance Form.RepetitionOf (TestMessage num repetition protoType) "name" = repetition
-type instance Form.RepetitionOf (TestMessage num 'Form.OneOf protoType) "pickOne" = 'Form.OneOf
+type instance Form.RepetitionOf (TestMessage num 'Form.Alternative protoType) "pickOne" =
+  'Form.Alternative
 
 encoderPromotions :: TestTree
 encoderPromotions = testGroup "Encoder promotes types correctly"
@@ -276,26 +276,28 @@ encoderPromotions = testGroup "Encoder promotes types correctly"
       , Typeable b
       , Arbitrary a
       , Show a
-      , forall n . KnownNat n => Form.Field "name" a (TestMessage n 'Form.Singular protoType)
-      , forall n . KnownNat n => Form.Field "name" b (TestMessage n 'Form.Singular protoType)
-      , forall n . KnownNat n => Form.Field "name" a (TestMessage n 'Form.OneOf protoType)
-      , forall n . KnownNat n => Form.Field "name" b (TestMessage n 'Form.OneOf protoType)
-      , forall n . KnownNat n => Form.Field "name" (Identity a) (TestMessage n 'Form.Unpacked protoType)
-      , forall n . KnownNat n => Form.Field "name" (Identity b) (TestMessage n 'Form.Unpacked protoType)
-      , forall n . KnownNat n => Form.Field "name" (Form.Forward a) (TestMessage n 'Form.Unpacked protoType)
-      , forall n . KnownNat n => Form.Field "name" (Form.Forward b) (TestMessage n 'Form.Unpacked protoType)
-      , forall n . KnownNat n => Form.Field "name" (Form.Reverse a) (TestMessage n 'Form.Unpacked protoType)
-      , forall n . KnownNat n => Form.Field "name" (Form.Reverse b) (TestMessage n 'Form.Unpacked protoType)
-      , forall n . KnownNat n => Form.Field "name" (Form.Vector a) (TestMessage n 'Form.Unpacked protoType)
-      , forall n . KnownNat n => Form.Field "name" (Form.Vector b) (TestMessage n 'Form.Unpacked protoType)
-      , forall n . KnownNat n => Form.Field "name" (Identity a) (TestMessage n 'Form.Packed protoType)
-      , forall n . KnownNat n => Form.Field "name" (Identity b) (TestMessage n 'Form.Packed protoType)
-      , forall n . KnownNat n => Form.Field "name" (Form.Forward a) (TestMessage n 'Form.Packed protoType)
-      , forall n . KnownNat n => Form.Field "name" (Form.Forward b) (TestMessage n 'Form.Packed protoType)
-      , forall n . KnownNat n => Form.Field "name" (Form.Reverse a) (TestMessage n 'Form.Packed protoType)
-      , forall n . KnownNat n => Form.Field "name" (Form.Reverse b) (TestMessage n 'Form.Packed protoType)
-      , forall n . KnownNat n => Form.Field "name" (Form.Vector a) (TestMessage n 'Form.Packed protoType)
-      , forall n . KnownNat n => Form.Field "name" (Form.Vector b) (TestMessage n 'Form.Packed protoType)
+      , forall n . KnownNat n => Form.Field "name" a (TestMessage n ('Form.Singular 'Form.Implicit) protoType)
+      , forall n . KnownNat n => Form.Field "name" b (TestMessage n ('Form.Singular 'Form.Implicit) protoType)
+      , forall n . KnownNat n => Form.Field "name" a (TestMessage n ('Form.Singular 'Form.Optional) protoType)
+      , forall n . KnownNat n => Form.Field "name" b (TestMessage n ('Form.Singular 'Form.Optional) protoType)
+      , forall n . KnownNat n => Form.Field "name" a (TestMessage n 'Form.Alternative protoType)
+      , forall n . KnownNat n => Form.Field "name" b (TestMessage n 'Form.Alternative protoType)
+      , forall n . KnownNat n => Form.Field "name" (Identity a) (TestMessage n ('Form.Repeated 'Form.Unpacked) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Identity b) (TestMessage n ('Form.Repeated 'Form.Unpacked) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Form.Forward a) (TestMessage n ('Form.Repeated 'Form.Unpacked) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Form.Forward b) (TestMessage n ('Form.Repeated 'Form.Unpacked) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Form.Reverse a) (TestMessage n ('Form.Repeated 'Form.Unpacked) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Form.Reverse b) (TestMessage n ('Form.Repeated 'Form.Unpacked) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Form.Vector a) (TestMessage n ('Form.Repeated 'Form.Unpacked) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Form.Vector b) (TestMessage n ('Form.Repeated 'Form.Unpacked) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Identity a) (TestMessage n ('Form.Repeated 'Form.Packed) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Identity b) (TestMessage n ('Form.Repeated 'Form.Packed) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Form.Forward a) (TestMessage n ('Form.Repeated 'Form.Packed) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Form.Forward b) (TestMessage n ('Form.Repeated 'Form.Packed) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Form.Reverse a) (TestMessage n ('Form.Repeated 'Form.Packed) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Form.Reverse b) (TestMessage n ('Form.Repeated 'Form.Packed) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Form.Vector a) (TestMessage n ('Form.Repeated 'Form.Packed) protoType)
+      , forall n . KnownNat n => Form.Field "name" (Form.Vector b) (TestMessage n ('Form.Repeated 'Form.Packed) protoType)
       ) =>
       String ->
       (a -> b) ->
@@ -310,24 +312,28 @@ encoderPromotions = testGroup "Encoder promotes types correctly"
           Just (SomeNat (_ :: Proxy num)) ->
             forAll arbitrary $ \a ->
             let b = convert a in
-            counterexample "Singular" (check1 @num @'Form.Singular @protoType a b) .&&.
-            counterexample "OneOf" (check1 @num @'Form.OneOf @protoType a b) .&&.
+            counterexample "Implicit"
+              (check1 @num @('Form.Singular 'Form.Implicit) @protoType a b) .&&.
+            counterexample "Optional"
+              (check1 @num @('Form.Singular 'Form.Optional) @protoType a b) .&&.
+            counterexample "Alternative"
+              (check1 @num @'Form.Alternative @protoType a b) .&&.
             counterexample "Unpacked Identity"
-              (check1 @num @'Form.Unpacked @protoType (Identity a) (Identity b)) .&&.
+              (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (Identity a) (Identity b)) .&&.
             counterexample "Unpacked Forward"
-              (check1 @num @'Form.Unpacked @protoType (Form.Forward id (Identity a)) (Form.Forward id (Identity b))) .&&.
+              (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (Form.Forward id (Identity a)) (Form.Forward id (Identity b))) .&&.
             counterexample "Unpacked Reverse"
-              (check1 @num @'Form.Unpacked @protoType (Form.Reverse id (Identity a)) (Form.Reverse id (Identity b))) .&&.
+              (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (Form.Reverse id (Identity a)) (Form.Reverse id (Identity b))) .&&.
             counterexample "Unpacked Vector"
-              (check1 @num @'Form.Unpacked @protoType (Form.Vector id (V.singleton a)) (Form.Vector id (V.singleton b))) .&&.
+              (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (Form.Vector id (V.singleton a)) (Form.Vector id (V.singleton b))) .&&.
             counterexample "Packed Identity"
-              (check1 @num @'Form.Packed @protoType (Identity a) (Identity b)) .&&.
+              (check1 @num @('Form.Repeated 'Form.Packed) @protoType (Identity a) (Identity b)) .&&.
             counterexample "Packed Forward"
-              (check1 @num @'Form.Packed @protoType (Form.Forward id (Identity a)) (Form.Forward id (Identity b))) .&&.
+              (check1 @num @('Form.Repeated 'Form.Packed) @protoType (Form.Forward id (Identity a)) (Form.Forward id (Identity b))) .&&.
             counterexample "Packed Reverse"
-              (check1 @num @'Form.Packed @protoType (Form.Reverse id (Identity a)) (Form.Reverse id (Identity b))) .&&.
+              (check1 @num @('Form.Repeated 'Form.Packed) @protoType (Form.Reverse id (Identity a)) (Form.Reverse id (Identity b))) .&&.
             counterexample "Packed Vector"
-              (check1 @num @'Form.Packed @protoType (Form.Vector id (V.singleton a)) (Form.Vector id (V.singleton b)))
+              (check1 @num @('Form.Repeated 'Form.Packed) @protoType (Form.Vector id (V.singleton a)) (Form.Vector id (V.singleton b)))
 
     check1 ::
       forall (num :: Nat) (repetition :: Form.Repetition) (protoType :: Form.ProtoType) a b .
@@ -341,10 +347,10 @@ encoderPromotions = testGroup "Encoder promotes types correctly"
       Property
     check1 a b =
       Form.toLazyByteString
-        (Form.messageFromFields (Form.field @"name" @a @(TestMessage num repetition protoType) a))
+        (Form.fieldsToMessage (Form.field @"name" @a @(TestMessage num repetition protoType) a))
         ===
         Form.toLazyByteString
-          (Form.messageFromFields (Form.field @"name" @b @(TestMessage num repetition protoType) b))
+          (Form.fieldsToMessage (Form.field @"name" @b @(TestMessage num repetition protoType) b))
 
     showsType :: forall a . Typeable a => ShowS
     showsType = showsTypeRep (typeRep (Proxy :: Proxy a))
