@@ -28,9 +28,8 @@ module Proto3.Suite.Form.Encode
   , Occupy
   , omitted
   , KnownFieldNumber
-  , Field
-  , field
-  , FieldImpl
+  , Field(..)
+  , FieldImpl(..)
   , Forward(..)
   , Reverse(..)
   , Vector(..)
@@ -44,9 +43,9 @@ module Proto3.Suite.Form.Encode
 
 import Control.Category (Category(..))
 import Data.Functor.Identity (Identity(..))
-import Data.Int (Int32, Int64)
+import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Kind (Type)
-import Data.Word (Word32, Word64)
+import Data.Word (Word8, Word16, Word32, Word64)
 import GHC.TypeLits (Symbol)
 import Prelude hiding (String, (.), id)
 import Proto3.Suite.Class (MessageField(..), Named)
@@ -57,18 +56,59 @@ import Proto3.Suite.Types (Enumerated(..), Fixed(..), Signed(..))
 import Proto3.Suite.Types qualified
 import Proto3.Wire.Class (ProtoEnum(..))
 
+$(instantiatePackableField [t| 'Int32 |] [t| Int8 |] [| fromIntegral @Int8 @Int32 |])
+$(instantiatePackableField [t| 'Int32 |] [t| Word8 |] [| fromIntegral @Word8 @Int32 |])
+$(instantiatePackableField [t| 'Int32 |] [t| Int16 |] [| fromIntegral @Int16 @Int32 |])
+$(instantiatePackableField [t| 'Int32 |] [t| Word16 |] [| fromIntegral @Word16 @Int32 |])
 $(instantiatePackableField [t| 'Int32 |] [t| Int32 |] [| id |])
+$(instantiatePackableField [t| 'Int64 |] [t| Int8 |] [| fromIntegral @Int8 @Int32 |])
+$(instantiatePackableField [t| 'Int64 |] [t| Word8 |] [| fromIntegral @Word8 @Int32 |])
+$(instantiatePackableField [t| 'Int64 |] [t| Int16 |] [| fromIntegral @Int16 @Int32 |])
+$(instantiatePackableField [t| 'Int64 |] [t| Word16 |] [| fromIntegral @Word16 @Int32 |])
+$(instantiatePackableField [t| 'Int64 |] [t| Int32 |] [| id |])
+$(instantiatePackableField [t| 'Int64 |] [t| Word32 |] [| fromIntegral @Word32 @Int64 |])
 $(instantiatePackableField [t| 'Int64 |] [t| Int64 |] [| id |])
+$(instantiatePackableField [t| 'SInt32 |] [t| Int8 |] [| Signed . fromIntegral @Int8 @Int32 |])
+$(instantiatePackableField [t| 'SInt32 |] [t| Word8 |] [| Signed . fromIntegral @Word8 @Int32 |])
+$(instantiatePackableField [t| 'SInt32 |] [t| Int16 |] [| Signed . fromIntegral @Int16 @Int32 |])
+$(instantiatePackableField [t| 'SInt32 |] [t| Word16 |] [| Signed . fromIntegral @Word16 @Int32 |])
 $(instantiatePackableField [t| 'SInt32 |] [t| Int32 |] [| Signed |])
+$(instantiatePackableField [t| 'SInt64 |] [t| Int8 |] [| Signed . fromIntegral @Int8 @Int32 |])
+$(instantiatePackableField [t| 'SInt64 |] [t| Word8 |] [| Signed . fromIntegral @Word8 @Int32 |])
+$(instantiatePackableField [t| 'SInt64 |] [t| Int16 |] [| Signed . fromIntegral @Int16 @Int32 |])
+$(instantiatePackableField [t| 'SInt64 |] [t| Word16 |] [| Signed . fromIntegral @Word16 @Int32 |])
+$(instantiatePackableField [t| 'SInt64 |] [t| Int32 |] [| Signed |])
+$(instantiatePackableField [t| 'SInt64 |] [t| Word32 |] [| Signed . fromIntegral @Word32 @Int64 |])
 $(instantiatePackableField [t| 'SInt64 |] [t| Int64 |] [| Signed |])
+$(instantiatePackableField [t| 'UInt32 |] [t| Word8 |] [| fromIntegral @Word8 @Word32 |])
+$(instantiatePackableField [t| 'UInt32 |] [t| Word16 |] [| fromIntegral @Word16 @Word32 |])
 $(instantiatePackableField [t| 'UInt32 |] [t| Word32 |] [| id |])
+$(instantiatePackableField [t| 'UInt64 |] [t| Word8 |] [| fromIntegral @Word8 @Word32 |])
+$(instantiatePackableField [t| 'UInt64 |] [t| Word16 |] [| fromIntegral @Word16 @Word32 |])
+$(instantiatePackableField [t| 'UInt64 |] [t| Word32 |] [| id |])
 $(instantiatePackableField [t| 'UInt64 |] [t| Word64 |] [| id |])
+$(instantiatePackableField [t| 'Fixed32 |] [t| Word8 |] [| Fixed . fromIntegral @Word8 @Word32 |])
+$(instantiatePackableField [t| 'Fixed32 |] [t| Word16 |] [| Fixed . fromIntegral @Word16 @Word32 |])
 $(instantiatePackableField [t| 'Fixed32 |] [t| Word32 |] [| Fixed |])
+$(instantiatePackableField [t| 'Fixed64 |] [t| Word8 |] [| Fixed . fromIntegral @Word8 @Word64 |])
+$(instantiatePackableField [t| 'Fixed64 |] [t| Word16 |] [| Fixed . fromIntegral @Word16 @Word64 |])
+$(instantiatePackableField [t| 'Fixed64 |] [t| Word32 |] [| Fixed . fromIntegral @Word32 @Word64 |])
 $(instantiatePackableField [t| 'Fixed64 |] [t| Word64 |] [| Fixed |])
+$(instantiatePackableField [t| 'SFixed32 |] [t| Int8 |] [| Signed . Fixed . fromIntegral @Int8 @Int32 |])
+$(instantiatePackableField [t| 'SFixed32 |] [t| Word8 |] [| Signed . Fixed . fromIntegral @Word8 @Int32 |])
+$(instantiatePackableField [t| 'SFixed32 |] [t| Int16 |] [| Signed . Fixed . fromIntegral @Int16 @Int32 |])
+$(instantiatePackableField [t| 'SFixed32 |] [t| Word16 |] [| Signed . Fixed . fromIntegral @Word16 @Int32 |])
 $(instantiatePackableField [t| 'SFixed32 |] [t| Int32 |] [| Signed . Fixed |])
+$(instantiatePackableField [t| 'SFixed64 |] [t| Int8 |] [| Signed . Fixed . fromIntegral @Int8 @Int64 |])
+$(instantiatePackableField [t| 'SFixed64 |] [t| Word8 |] [| Signed . Fixed . fromIntegral @Word8 @Int64 |])
+$(instantiatePackableField [t| 'SFixed64 |] [t| Int16 |] [| Signed . Fixed . fromIntegral @Int16 @Int64 |])
+$(instantiatePackableField [t| 'SFixed64 |] [t| Word16 |] [| Signed . Fixed . fromIntegral @Word16 @Int64 |])
+$(instantiatePackableField [t| 'SFixed64 |] [t| Int32 |] [| Signed . Fixed . fromIntegral @Int32 @Int64 |])
+$(instantiatePackableField [t| 'SFixed64 |] [t| Word32 |] [| Signed . Fixed . fromIntegral @Word32 @Int64 |])
 $(instantiatePackableField [t| 'SFixed64 |] [t| Int64 |] [| Signed . Fixed |])
 $(instantiatePackableField [t| 'Bool |] [t| Bool |] [| id |])
 $(instantiatePackableField [t| 'Float |] [t| Float |] [| id |])
+$(instantiatePackableField [t| 'Double |] [t| Float |] [| realToFrac @Float @Double |])
 $(instantiatePackableField [t| 'Double |] [t| Double |] [| id |])
 
 $(instantiateStringOrBytesField [t| 'String |] [t| Proto3.Suite.Types.String |])
@@ -82,8 +122,8 @@ instance ( RepetitionOf message name ~ 'Singular
          ) =>
          FieldImpl name (Enumerated e) message 'Singular ('Enumeration e)
   where
-    field = primitiveField @name
-    {-# INLINE field #-}
+    fieldImpl = primitiveField @name
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'OneOf
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -93,8 +133,8 @@ instance ( RepetitionOf message name ~ 'OneOf
          ) =>
          FieldImpl name (Enumerated e) message 'OneOf ('Enumeration e)
   where
-    field = primitiveField @name
-    {-# INLINE field #-}
+    fieldImpl = primitiveField @name
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -104,8 +144,8 @@ instance ( RepetitionOf message name ~ 'Unpacked
          ) =>
          FieldImpl name (Identity (Enumerated e)) message 'Unpacked ('Enumeration e)
   where
-    field = primitiveField @name
-    {-# INLINE field #-}
+    fieldImpl = primitiveField @name
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -115,8 +155,8 @@ instance ( RepetitionOf message name ~ 'Unpacked
          ) =>
          FieldImpl name (Forward (Enumerated e)) message 'Unpacked ('Enumeration e)
   where
-    field = primitiveField @name
-    {-# INLINE field #-}
+    fieldImpl = primitiveField @name
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -126,8 +166,8 @@ instance ( RepetitionOf message name ~ 'Unpacked
          ) =>
          FieldImpl name (Reverse (Enumerated e)) message 'Unpacked ('Enumeration e)
   where
-    field = primitiveField @name
-    {-# INLINE field #-}
+    fieldImpl = primitiveField @name
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -137,8 +177,8 @@ instance ( RepetitionOf message name ~ 'Unpacked
          ) =>
          FieldImpl name (Vector (Enumerated e)) message 'Unpacked ('Enumeration e)
   where
-    field = primitiveField @name
-    {-# INLINE field #-}
+    fieldImpl = primitiveField @name
+    {-# INLINE fieldImpl #-}
 
 -- | NOTE: This instance produces the same encoding as for @[packed=false]@,
 -- because packing does not improve efficiency for length-one sequences, and
@@ -151,8 +191,8 @@ instance ( RepetitionOf message name ~ 'Packed
          ) =>
          FieldImpl name (Identity (Enumerated e)) message 'Packed ('Enumeration e)
   where
-    field = primitiveField @name
-    {-# INLINE field #-}
+    fieldImpl = primitiveField @name
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -162,8 +202,8 @@ instance ( RepetitionOf message name ~ 'Packed
          ) =>
          FieldImpl name (Forward (Enumerated e)) message 'Packed ('Enumeration e)
   where
-    field = primitiveField @name
-    {-# INLINE field #-}
+    fieldImpl = primitiveField @name
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -173,8 +213,8 @@ instance ( RepetitionOf message name ~ 'Packed
          ) =>
          FieldImpl name (Reverse (Enumerated e)) message 'Packed ('Enumeration e)
   where
-    field = primitiveField @name
-    {-# INLINE field #-}
+    fieldImpl = primitiveField @name
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -184,8 +224,8 @@ instance ( RepetitionOf message name ~ 'Packed
          ) =>
          FieldImpl name (Vector (Enumerated e)) message 'Packed ('Enumeration e)
   where
-    field = primitiveField @name
-    {-# INLINE field #-}
+    fieldImpl = primitiveField @name
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Singular
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -195,8 +235,8 @@ instance ( RepetitionOf message name ~ 'Singular
          ) =>
          FieldImpl name e message 'Singular ('Enumeration e)
   where
-    field = field @name . Enumerated . Right
-    {-# INLINE field #-}
+    fieldImpl = field @name . Enumerated . Right
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'OneOf
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -206,8 +246,8 @@ instance ( RepetitionOf message name ~ 'OneOf
          ) =>
          FieldImpl name e message 'OneOf ('Enumeration e)
   where
-    field = field @name . Enumerated . Right
-    {-# INLINE field #-}
+    fieldImpl = field @name . Enumerated . Right
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -217,8 +257,8 @@ instance ( RepetitionOf message name ~ 'Unpacked
          ) =>
          FieldImpl name (Identity e) message 'Unpacked ('Enumeration e)
   where
-    field = field @name . fmap @Identity (Enumerated . Right)
-    {-# INLINE field #-}
+    fieldImpl = field @name . fmap @Identity (Enumerated . Right)
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -228,8 +268,8 @@ instance ( RepetitionOf message name ~ 'Unpacked
          ) =>
          FieldImpl name (Forward e) message 'Unpacked ('Enumeration e)
   where
-    field = field @name . fmap @Forward (Enumerated . Right)
-    {-# INLINE field #-}
+    fieldImpl = field @name . fmap @Forward (Enumerated . Right)
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -239,8 +279,8 @@ instance ( RepetitionOf message name ~ 'Unpacked
          ) =>
          FieldImpl name (Reverse e) message 'Unpacked ('Enumeration e)
   where
-    field = field @name . fmap @Reverse (Enumerated . Right)
-    {-# INLINE field #-}
+    fieldImpl = field @name . fmap @Reverse (Enumerated . Right)
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Unpacked
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -250,8 +290,8 @@ instance ( RepetitionOf message name ~ 'Unpacked
          ) =>
          FieldImpl name (Vector e) message 'Unpacked ('Enumeration e)
   where
-    field = field @name . fmap @Vector (Enumerated . Right)
-    {-# INLINE field #-}
+    fieldImpl = field @name . fmap @Vector (Enumerated . Right)
+    {-# INLINE fieldImpl #-}
 
 -- | NOTE: This instance produces the same encoding as for @[packed=false]@,
 -- because packing does not improve efficiency for length-one sequences, and
@@ -264,8 +304,8 @@ instance ( RepetitionOf message name ~ 'Packed
          ) =>
          FieldImpl name (Identity e) message 'Packed ('Enumeration e)
   where
-    field = field @name . fmap @Identity (Enumerated . Right)
-    {-# INLINE field #-}
+    fieldImpl = field @name . fmap @Identity (Enumerated . Right)
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -275,8 +315,8 @@ instance ( RepetitionOf message name ~ 'Packed
          ) =>
          FieldImpl name (Forward e) message 'Packed ('Enumeration e)
   where
-    field = field @name . fmap @Forward (Enumerated . Right)
-    {-# INLINE field #-}
+    fieldImpl = field @name . fmap @Forward (Enumerated . Right)
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -286,8 +326,8 @@ instance ( RepetitionOf message name ~ 'Packed
          ) =>
          FieldImpl name (Reverse e) message 'Packed ('Enumeration e)
   where
-    field = field @name . fmap @Reverse (Enumerated . Right)
-    {-# INLINE field #-}
+    fieldImpl = field @name . fmap @Reverse (Enumerated . Right)
+    {-# INLINE fieldImpl #-}
 
 instance ( RepetitionOf message name ~ 'Packed
          , ProtoTypeOf message name ~ 'Enumeration e
@@ -297,8 +337,8 @@ instance ( RepetitionOf message name ~ 'Packed
          ) =>
          FieldImpl name (Vector e) message 'Packed ('Enumeration e)
   where
-    field = field @name . fmap @Vector (Enumerated . Right)
-    {-# INLINE field #-}
+    fieldImpl = field @name . fmap @Vector (Enumerated . Right)
+    {-# INLINE fieldImpl #-}
 
 -- | Specializes the argument type of 'field' to the encoding of a submessage type,
 -- which can help to avoid ambiguity when the argument expression is polymorphic.
