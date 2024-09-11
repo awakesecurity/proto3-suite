@@ -26,12 +26,12 @@ module Proto3.Suite.Form
   , ProtoTypeOf
   , OneOfOf
   , RepetitionOf
-  , Presence(..)
+  , Omission(..)
   , Packing(..)
   , Repetition(..)
   , ProtoType(..)
   , Association
-  , MappedPresence
+  , RepetitionOfMapped
   , Wrapper
   , Wrap(..)
   , RecoverRepetition
@@ -78,13 +78,15 @@ type family OneOfOf (message :: Type) (name :: Symbol) :: Symbol
 -- as are those fields that are within @oneof@s.)
 type family RepetitionOf (message :: Type) (name :: Symbol) :: Repetition
 
--- | The field presence of a field that is not @repeated@.
-data Presence
+-- | The semantics of omission of an encoding of a non-@map@ field
+-- that is neither @optional@ nor @repeated@.
+data Omission
   = Implicit
       -- ^ A scalar/enumerated field whose omission implies its default value.
-  | Optional
-      -- ^ A submessage field or an @optional@ scalar/enumerated field whose
-      -- omission implies an "unset" value distinct from the default value.
+  | Alternative
+      -- ^ The field is part of a @oneof@.  The entire @oneof@ is either set or unset,
+      -- and if it is set then a particular field of the @oneof@ has been selected, and
+      -- must be encoded explicitly even if it has the default value for its type.
 
 -- | The packing of field that is @repeated@ or is a @map@.  Every
 -- encoding appends and element, and omission means zero elements.
@@ -94,19 +96,35 @@ data Packing
   | Packed
       -- ^ Packing is supported and preferred (perhaps implicitly).
 
--- | Whether or a field is @repeated@, what it means when its encoding is omitted,
--- and if it is @repeated@, whether or not packing is preferred.
+-- | Whether or a field is @repeated@, what it means when its encoding is
+-- omitted, and if it is @repeated@, whether or not packing is preferred.
+--
+-- The data constructors are chosen in such a way that each
+-- implies how many values are expected as arguments to 'field'.
+-- This choice simplifies instantiation of type classes.
 data Repetition
-  = Singular Presence
-      -- ^ The field is neither @repeated@, nor a @map, nor part of a @oneof@.
-      -- It has the specified field presence.
-  | Alternative
-      -- ^ The field is part of a @oneof@.  The entire @oneof@ is either set or unset,
-      -- and if it is set then a particular field of the @oneof@ has been selected, and
-      -- must be encoded explicitly even if it has the default value for its type.
+  = Singular Omission
+      -- ^ The field is not a @map@ and is neither @optional@ nor @repeated@.
+      -- It has the specified semantics when its encoding is omitted.
+      --
+      -- We expect exactly one value as an argument to 'field', because:
+      --
+      -- If the field is /not/ part of a @oneof@ then we expect exactly one value
+      -- (which is to be omitted from the encoding if it is the default value).
+      --
+      -- If the field /is/ part of a @oneof@ /and we have chosen this field/
+      -- (as opposed to a different field or the absence of the entire @oneof@),
+      -- then we also expect exactly one value.
+  | Optional
+      -- ^ A non-@repeated@ submessage field or an @optional@ scalar/enumerated field
+      -- whose omission implies an "unset" value distinct from the default value.
+      --
+      -- We expect an optional value as an argument to 'field'--typically a 'Maybe' type.
   | Repeated Packing
       -- ^ The field is @repeated@ or is a @map@,
       -- with the indicated packing preference.
+      --
+      -- We expect a sequence of zero or more values as an argument to 'field'.
 
 -- | The type of a message field, but when the field is repeated, this is the element type.
 --
@@ -143,28 +161,28 @@ data ProtoType
 -- such as @`Proto3.Suite.Form.Encode.Encoding` ('Association' key value)@.
 data Association (key :: ProtoType) (value :: ProtoType)
 
-type instance NamesOf (Association key value) = '[ "key", "value" ]
+type instance NamesOf (Association _ _) = '[ "key", "value" ]
 
-type instance NumberOf (Association key value) "key" = 1
-type instance NumberOf (Association key value) "value" = 2
+type instance NumberOf (Association _ _) "key" = 1
+type instance NumberOf (Association _ _) "value" = 2
 
-type instance ProtoTypeOf (Association key value) "key" = key
-type instance ProtoTypeOf (Association key value) "value" = value
+type instance ProtoTypeOf (Association key _) "key" = key
+type instance ProtoTypeOf (Association _ value) "value" = value
 
-type instance OneOfOf (Association key value) "key" = ""
-type instance OneOfOf (Association key value) "value" = ""
+type instance OneOfOf (Association _ _) "key" = ""
+type instance OneOfOf (Association _ _) "value" = ""
 
-type instance RepetitionOf (Association key value) "key" = 'Singular 'Implicit
-type instance RepetitionOf (Association key value) "value" = 'Singular (MappedPresence value)
+type instance RepetitionOf (Association _ _) "key" = 'Singular 'Implicit
+type instance RepetitionOf (Association _ value) "value" = RepetitionOfMapped value
 
 -- | Yields the field presence of a mapped value of the given protobuf type.
-type family MappedPresence (protoType :: ProtoType) :: Presence
+type family RepetitionOfMapped (protoType :: ProtoType) :: Repetition
   where
-    MappedPresence ('Message _) = 'Optional
-    MappedPresence ('Map k v) = TypeError
+    RepetitionOfMapped ('Message _) = 'Optional
+    RepetitionOfMapped ('Map k v) = TypeError
       ( 'Text "Nested maps are disallowed, so this cannot be a mapped type:"
         ':$$: 'ShowType ('Map k v) )
-    MappedPresence _ = 'Implicit
+    RepetitionOfMapped _ = 'Singular 'Implicit
 
 -- | Indicates the standard protobuf wrapper having
 -- the field type given by the type argument.
@@ -199,11 +217,11 @@ newtype Wrap (a :: Type) = Wrap { unwrap :: a }
 type family RecoverRepetition (haskellType :: Type) :: Repetition
   where
     RecoverRepetition (Commented _ haskellType) = RecoverRepetition haskellType
-    RecoverRepetition (ForceEmit _) = 'Alternative
+    RecoverRepetition (ForceEmit _) = 'Singular 'Alternative
     RecoverRepetition (PackedVec _) = 'Repeated 'Packed
     RecoverRepetition (UnpackedVec _) = 'Repeated 'Unpacked
     RecoverRepetition (NestedVec _) = 'Repeated 'Unpacked
-    RecoverRepetition (Nested _) = 'Singular 'Optional
+    RecoverRepetition (Nested _) = 'Optional
     RecoverRepetition (Enumerated _) = 'Singular 'Implicit
     RecoverRepetition (M.Map _ _) = 'Repeated 'Unpacked
     RecoverRepetition Int32 = 'Singular 'Implicit
@@ -221,7 +239,7 @@ type family RecoverRepetition (haskellType :: Type) :: Repetition
     RecoverRepetition Bool = 'Singular 'Implicit
     RecoverRepetition Float = 'Singular 'Implicit
     RecoverRepetition Double = 'Singular 'Implicit
-    RecoverRepetition _ = 'Alternative  -- Unnested message type implies @oneof@.
+    RecoverRepetition _ = 'Singular 'Alternative  -- Unnested message type implies @oneof@.
 
 -- | Given the Haskell type used by features such as `Proto3.Suite.Class.MessageField`
 -- to indicate the encoding of a message field, returns the corresponding type of kind
@@ -277,28 +295,28 @@ instance MessageFieldType ('Singular 'Implicit) 'Bool Bool
 instance MessageFieldType ('Singular 'Implicit) 'Float Float
 instance MessageFieldType ('Singular 'Implicit) 'Double Double
 instance MessageFieldType ('Singular 'Implicit) ('Enumeration e) (Enumerated e)
-instance MessageFieldType ('Singular 'Optional) ('Message m) (Nested m)
+instance MessageFieldType 'Optional ('Message m) (Nested m)
 
-instance MessageFieldType 'Alternative 'Int32 (ForceEmit Int32)
-instance MessageFieldType 'Alternative 'Int64 (ForceEmit Int64)
-instance MessageFieldType 'Alternative 'SInt32 (ForceEmit (Signed Int32))
-instance MessageFieldType 'Alternative 'SInt64 (ForceEmit (Signed Int64))
-instance MessageFieldType 'Alternative 'UInt32 (ForceEmit (Word32))
-instance MessageFieldType 'Alternative 'UInt64 (ForceEmit (Word64))
-instance MessageFieldType 'Alternative 'Fixed32 (ForceEmit (Fixed Word32))
-instance MessageFieldType 'Alternative 'Fixed64 (ForceEmit (Fixed Word64))
-instance MessageFieldType 'Alternative 'SFixed32 (ForceEmit (Signed (Fixed Int32)))
-instance MessageFieldType 'Alternative 'SFixed64 (ForceEmit (Signed (Fixed Int64)))
-instance MessageFieldType 'Alternative 'String (ForceEmit (String a))
-instance MessageFieldType 'Alternative 'Bytes (ForceEmit (Bytes a))
-instance MessageFieldType 'Alternative 'Bool (ForceEmit Bool)
-instance MessageFieldType 'Alternative 'Float (ForceEmit Float)
-instance MessageFieldType 'Alternative 'Double (ForceEmit Double)
-instance MessageFieldType 'Alternative ('Enumeration e) (ForceEmit (Enumerated e))
-instance ( RecoverRepetition m ~ 'Alternative
+instance MessageFieldType ('Singular 'Alternative) 'Int32 (ForceEmit Int32)
+instance MessageFieldType ('Singular 'Alternative) 'Int64 (ForceEmit Int64)
+instance MessageFieldType ('Singular 'Alternative) 'SInt32 (ForceEmit (Signed Int32))
+instance MessageFieldType ('Singular 'Alternative) 'SInt64 (ForceEmit (Signed Int64))
+instance MessageFieldType ('Singular 'Alternative) 'UInt32 (ForceEmit (Word32))
+instance MessageFieldType ('Singular 'Alternative) 'UInt64 (ForceEmit (Word64))
+instance MessageFieldType ('Singular 'Alternative) 'Fixed32 (ForceEmit (Fixed Word32))
+instance MessageFieldType ('Singular 'Alternative) 'Fixed64 (ForceEmit (Fixed Word64))
+instance MessageFieldType ('Singular 'Alternative) 'SFixed32 (ForceEmit (Signed (Fixed Int32)))
+instance MessageFieldType ('Singular 'Alternative) 'SFixed64 (ForceEmit (Signed (Fixed Int64)))
+instance MessageFieldType ('Singular 'Alternative) 'String (ForceEmit (String a))
+instance MessageFieldType ('Singular 'Alternative) 'Bytes (ForceEmit (Bytes a))
+instance MessageFieldType ('Singular 'Alternative) 'Bool (ForceEmit Bool)
+instance MessageFieldType ('Singular 'Alternative) 'Float (ForceEmit Float)
+instance MessageFieldType ('Singular 'Alternative) 'Double (ForceEmit Double)
+instance MessageFieldType ('Singular 'Alternative) ('Enumeration e) (ForceEmit (Enumerated e))
+instance ( RecoverRepetition m ~ ('Singular 'Alternative)
          , RecoverProtoType m ~ 'Message m
          ) =>
-         MessageFieldType 'Alternative ('Message m) m
+         MessageFieldType ('Singular 'Alternative) ('Message m) m
 
 instance MessageFieldType ('Repeated 'Unpacked) 'Int32 (UnpackedVec Int32)
 instance MessageFieldType ('Repeated 'Unpacked) 'Int64 (UnpackedVec Int64)
@@ -318,7 +336,7 @@ instance MessageFieldType ('Repeated 'Unpacked) 'Double (UnpackedVec Double)
 instance MessageFieldType ('Repeated 'Unpacked) ('Enumeration e) (UnpackedVec (Enumerated e))
 instance MessageFieldType ('Repeated 'Unpacked) ('Message m) (NestedVec m)
 instance ( MessageFieldType ('Singular 'Implicit) k kh
-         , MessageFieldType ('Singular (MappedPresence v)) v vh
+         , MessageFieldType (RepetitionOfMapped v) v vh
          ) =>
          MessageFieldType ('Repeated 'Unpacked) ('Map k v) (M.Map kh vh)
 

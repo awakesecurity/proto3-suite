@@ -899,7 +899,7 @@ dptToFormRepetition ::
   MonadError CompileError m => [DotProtoOption] -> TypeContext -> DotProtoType -> m HsType
 dptToFormRepetition opts ctxt = \case
   Prim (Named tyName)
-    | isMessage ctxt tyName -> pure $ tyApp formSingularT formOptionalT
+    | isMessage ctxt tyName -> pure formOptionalT
   Prim _                    -> pure $ tyApp formSingularT formImplicitT
     -- TO DO: When the @optional@ keyword is supported, check for it here.
   Repeated (Named tyName)
@@ -1248,7 +1248,7 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
         oneOfOf = onFields formOneOfOf oneOfT ++
                   onOneOfs formOneOfOf toSym
         repetitionOf = onFields formRepetitionOf fieldSpecRepetition ++
-                       onOneOfs formRepetitionOf (const formAlternativeT)
+                       onOneOfs formRepetitionOf (const (tyApp formSingularT formAlternativeT))
 
     pure $ namesOf : numberOf ++ protoTypeOf ++ oneOfOf ++ repetitionOf
   where
@@ -1282,10 +1282,9 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
                    { fieldSpecName = subfieldName
                    , fieldSpecNumber = subfieldNum
                    , fieldSpecOneOf = Just oneofName
-                   , fieldSpecRepetition = formAlternativeT
+                   , fieldSpecRepetition = tyApp formSingularT formAlternativeT
                    , fieldSpecProtoType = protoType
                    }
-
 
 -- *** Generate Protobuf 'Message' type class instances
 
