@@ -26,6 +26,8 @@ module Proto3.Suite.Form
   , ProtoTypeOf
   , OneOfOf
   , RepetitionOf
+  , FieldNotFound
+  , FieldOrOneOfNotFound
   , Omission(..)
   , Packing(..)
   , Repetition(..)
@@ -77,6 +79,18 @@ type family OneOfOf (message :: Type) (name :: Symbol) :: Symbol
 -- (Every @oneof@ in the message is mapped to 'OneOf',
 -- as are those fields that are within @oneof@s.)
 type family RepetitionOf (message :: Type) (name :: Symbol) :: Repetition
+
+-- | A compilation error message for when the given message
+-- does not contain a field with the given name.
+type FieldNotFound (message :: Type) (name :: Symbol) =
+  'Text "Field " ':<>: 'ShowType name ':<>:
+  'Text " not found in message:" ':$$: 'ShowType message
+
+-- | A compilation error message for when the given message
+-- does not contain a field or oneof with the given name.
+type FieldOrOneOfNotFound (message :: Type) (name :: Symbol) =
+  'Text "Field or oneof " ':<>: 'ShowType name ':<>:
+  'Text " not found in message:" ':$$: 'ShowType message
 
 -- | The semantics of omission of an encoding of a non-@map@ field
 -- that is neither @optional@ nor @repeated@.

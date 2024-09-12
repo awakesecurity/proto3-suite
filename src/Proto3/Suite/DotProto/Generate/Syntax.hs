@@ -26,9 +26,10 @@ import Control.Arrow ((***))
 import Data.Bool (bool)
 import Data.Ratio ((%))
 import Data.Void (Void)
-import GHC.Hs hiding (HsBind, HsDecl, HsDerivingClause, HsOuterSigTyVarBndrs, HsTyVarBndr, HsType)
-import qualified GHC.Hs as GHC (HsOuterSigTyVarBndrs)
-import GHC.Types.Basic (DoPmc(..))
+import GHC.Hs hiding (HsBind, HsDecl, HsDerivingClause, HsOuterFamEqnTyVarBndrs,
+                      HsOuterSigTyVarBndrs, HsTyVarBndr, HsType)
+import qualified GHC.Hs as GHC (HsOuterFamEqnTyVarBndrs, HsOuterSigTyVarBndrs)
+import GHC.Types.Basic (DoPmc(..), TopLevelFlag(..))
 import GHC.Types.Fixity (LexicalFixity(..))
 import GHC.Types.PkgQual (RawPkgQual(..))
 import GHC.Types.SourceText
@@ -38,8 +39,10 @@ import Control.Arrow ((***))
 import Data.Bool (bool)
 import Data.Ratio ((%))
 import Data.Void (Void)
-import GHC.Hs hiding (HsBind, HsDecl, HsDerivingClause, HsOuterSigTyVarBndrs, HsTyVarBndr, HsType)
-import qualified GHC.Hs as GHC (HsOuterSigTyVarBndrs)
+import GHC.Hs hiding (HsBind, HsDecl, HsDerivingClause, HsOuterFamEqnTyVarBndrs,
+                      HsOuterSigTyVarBndrs, HsTyVarBndr, HsType)
+import qualified GHC.Hs as GHC (HsOuterFamEqnTyVarBndrs, HsOuterSigTyVarBndrs)
+import GHC.Types.Basic (TopLevelFlag(..))
 import GHC.Types.Fixity (LexicalFixity(..))
 import GHC.Types.PkgQual (RawPkgQual(..))
 import GHC.Types.SourceText
@@ -47,9 +50,10 @@ import GHC.Types.SourceText
 #elif MIN_VERSION_ghc(9,4,0)
 import Data.Ratio ((%))
 import Data.Void (Void)
-import GHC.Hs hiding (HsBind, HsDecl, HsDerivingClause, HsOuterSigTyVarBndrs, HsTyVarBndr, HsType)
-import qualified GHC.Hs as GHC (HsOuterSigTyVarBndrs)
-import GHC.Types.Basic (PromotionFlag(..))
+import GHC.Hs hiding (HsBind, HsDecl, HsDerivingClause, HsOuterFamEqnTyVarBndrs,
+                      HsOuterSigTyVarBndrs, HsTyVarBndr, HsType)
+import qualified GHC.Hs as GHC (HsOuterFamEqnTyVarBndrs, HsOuterSigTyVarBndrs)
+import GHC.Types.Basic (PromotionFlag(..), TopLevelFlag(..))
 import GHC.Types.Fixity (LexicalFixity(..))
 import GHC.Types.PkgQual (RawPkgQual(..))
 import GHC.Types.SourceText
@@ -60,9 +64,10 @@ import GHC.Unit.Module (ModuleName, mkModuleName)
 #elif MIN_VERSION_ghc(9,2,0)
 import Data.Ratio ((%))
 import Data.Void (Void)
-import GHC.Hs hiding (HsBind, HsDecl, HsDerivingClause, HsOuterSigTyVarBndrs, HsTyVarBndr, HsType)
-import qualified GHC.Hs as GHC (HsOuterSigTyVarBndrs)
-import GHC.Types.Basic (PromotionFlag(..))
+import GHC.Hs hiding (HsBind, HsDecl, HsDerivingClause, HsOuterFamEqnTyVarBndrs,
+                      HsOuterSigTyVarBndrs, HsTyVarBndr, HsType)
+import qualified GHC.Hs as GHC (HsOuterFamEqnTyVarBndrs, HsOuterSigTyVarBndrs)
+import GHC.Types.Basic (PromotionFlag(..), TopLevelFlag(..))
 import GHC.Types.Fixity (LexicalFixity(..))
 import GHC.Types.SourceText
          (IntegralLit(..), FractionalExponentBase(..), FractionalLit(..), SourceText(..))
@@ -73,7 +78,8 @@ import GHC.Unit.Module (ModuleName, mkModuleName)
 import GHC.Hs hiding (HsBind, HsDecl, HsDerivingClause, HsTyVarBndr, HsType)
 import GHC.Parser.Annotation (IsUnicodeSyntax(..))
 import GHC.Types.Basic
-         (IntegralLit(..), FractionalLit(..), LexicalFixity(..), PromotionFlag(..), SourceText(..))
+         (IntegralLit(..), FractionalLit(..), LexicalFixity(..),
+          PromotionFlag(..), SourceText(..), TopLevelFlag(..))
 import GHC.Types.SrcLoc (LayoutInfo(..), Located, noLoc)
 import GHC.Unit (IsBootInterface(..))
 import GHC.Unit.Module (ModuleName, mkModuleName)
@@ -98,6 +104,12 @@ type HsImportDecl = LImportDecl GhcPs
 type HsImportSpec = LIE GhcPs
 type HsMatch = LMatch GhcPs HsExp
 type HsName = LIdP GhcPs
+type HsOuterFamEqnTyVarBndrs =
+#if MIN_VERSION_ghc(9,2,0)
+  GHC.HsOuterFamEqnTyVarBndrs GhcPs
+#else
+  ()
+#endif
 type HsOuterSigTyVarBndrs =
 #if MIN_VERSION_ghc(9,2,0)
   GHC.HsOuterSigTyVarBndrs GhcPs
@@ -275,12 +287,19 @@ protobufFormNS = mkModuleName "HsProtobufForm"
 protobufFormType :: NameSpace -> String -> HsType
 protobufFormType ns = typeNamed_ . protobufFormName ns
 
+formProtoTypeT :: HsType
+formProtoTypeT = protobufFormType tcName "ProtoType"
+
 formNamesOf, formNumberOf, formOneOfOf, formRepetitionOf, formProtoTypeOf :: HsQName
 formNamesOf = protobufFormName tcName "NamesOf"
 formNumberOf = protobufFormName tcName "NumberOf"
 formOneOfOf = protobufFormName tcName "OneOfOf"
 formRepetitionOf = protobufFormName tcName "RepetitionOf"
 formProtoTypeOf = protobufFormName tcName "ProtoTypeOf"
+
+formFieldNotFound, formFieldOrOneOfNotFound :: HsType
+formFieldNotFound = protobufFormType tcName "FieldNotFound"
+formFieldOrOneOfNotFound = protobufFormType tcName "FieldOrOneOfNotFound"
 
 formImplicitT, formAlternativeT :: HsType
 formImplicitT = protobufFormType dataName "Implicit"
@@ -290,7 +309,8 @@ formUnpackedT, formPackedT :: HsType
 formUnpackedT = protobufFormType dataName "Unpacked"
 formPackedT = protobufFormType dataName "Packed"
 
-formSingularT, formOptionalT, formRepeatedT :: HsType
+formRepetitionT, formSingularT, formOptionalT, formRepeatedT :: HsType
+formRepetitionT = protobufFormType tcName "Repetition"
 formSingularT = protobufFormType dataName "Singular"
 formOptionalT = protobufFormType dataName "Optional"
 formRepeatedT = protobufFormType dataName "Repeated"
@@ -506,7 +526,7 @@ dataDecl_ messageName bndrs constructors derivedInstances = noLocA $ GHC.TyClD N
             noLoc $
 #endif
               maybeToList $ derivingClause_ Nothing $ derivedInstances <&> \className ->
-                (implicitTyVarBinders_, typeNamed_ className)
+                (implicitOuterSigTyVarBinders_, typeNamed_ className)
         }
     }
   where
@@ -618,7 +638,7 @@ instDecl_ className classArgs binds = noLocA $ GHC.InstD NoExtField ClsInstD
 #if MIN_VERSION_ghc(9,2,0)
           noLocA $
 #endif
-            HsSig NoExtField implicitTyVarBinders_ (tyConApply className classArgs)
+            HsSig NoExtField implicitOuterSigTyVarBinders_ (tyConApply className classArgs)
       , cid_binds = listToBag binds
       , cid_sigs = []
       , cid_tyfam_insts = []
@@ -640,8 +660,46 @@ typeOfInstDecl ( L _ ( GHC.InstD _ ClsInstD
 typeOfInstDecl _ =
   Nothing
 
-tyFamInstDecl_ :: HsQName -> [HsType] -> HsType -> HsDecl
-tyFamInstDecl_ tyFamName pats rhs = noLocA $ GHC.InstD NoExtField TyFamInstD
+closedTyFamDecl_ ::
+  HsQName ->
+  [HsTyVarBndr] ->
+  HsType ->
+  [(Maybe [HsTyVarBndr], [HsType], HsType)] ->
+  HsDecl
+closedTyFamDecl_ tyFamName famBndrs resultKind eqns =
+  noLocA $ GHC.TyClD NoExtField $ FamDecl synDef $ FamilyDecl
+    { fdExt = synDef
+    , fdInfo = ClosedTypeFamily (Just (map onEqn eqns))
+#if MIN_VERSION_ghc(9,2,0)
+    , fdTopLevel = TopLevel
+#endif
+    , fdLName = tyFamName
+    , fdTyVars = HsQTvs synDef famBndrs
+    , fdFixity = Prefix
+    , fdResultSig = noLocA $ KindSig synDef resultKind
+    , fdInjectivityAnn = Nothing
+    }
+  where
+    onEqn (eqnBndrs, pats, rhs) = noLocA $
+#if !MIN_VERSION_ghc(9,2,0)
+      HsIB synDef
+#endif
+        FamEqn
+          { feqn_ext = synDef
+          , feqn_tycon = tyFamName
+          , feqn_bndrs =
+#if MIN_VERSION_ghc(9,2,0)
+              maybe (HsOuterImplicit NoExtField) (HsOuterExplicit synDef) eqnBndrs
+#else
+              bndrs
+#endif
+          , feqn_pats = map HsValArg pats
+          , feqn_fixity = Prefix
+          , feqn_rhs = rhs
+          }
+
+tyFamInstDecl_ :: HsQName -> Maybe [HsTyVarBndr] -> [HsType] -> HsType -> HsDecl
+tyFamInstDecl_ tyFamName bndrs pats rhs = noLocA $ GHC.InstD NoExtField TyFamInstD
   { tfid_ext = NoExtField
   , tfid_inst = TyFamInstDecl
       {
@@ -657,9 +715,9 @@ tyFamInstDecl_ tyFamName pats rhs = noLocA $ GHC.InstD NoExtField TyFamInstD
             , feqn_tycon = tyFamName
             , feqn_bndrs =
 #if MIN_VERSION_ghc(9,2,0)
-                HsOuterImplicit NoExtField
+                maybe (HsOuterImplicit NoExtField) (HsOuterExplicit synDef) bndrs
 #else
-                Nothing
+                bndrs
 #endif
             , feqn_pats = map HsValArg pats
             , feqn_fixity = Prefix
@@ -731,8 +789,16 @@ typeSig_ nms bndrs ty = noLocA $ GHC.SigD NoExtField $ TypeSig synDef nms $
 #endif
       HsSig NoExtField bndrs ty
 
-implicitTyVarBinders_ :: HsOuterSigTyVarBndrs
-implicitTyVarBinders_ =
+implicitOuterFamEqnTyVarBinders_ :: HsOuterFamEqnTyVarBndrs
+implicitOuterFamEqnTyVarBinders_ =
+#if MIN_VERSION_ghc(9,2,0)
+  HsOuterImplicit NoExtField
+#else
+  ()
+#endif
+
+implicitOuterSigTyVarBinders_ :: HsOuterSigTyVarBndrs
+implicitOuterSigTyVarBinders_ =
 #if MIN_VERSION_ghc(9,2,0)
   HsOuterImplicit NoExtField
 #else
@@ -863,8 +929,14 @@ typeNamed_ nm@(L _ r) = noLocA $ GHC.HsTyVar synDef promotion nm
 type_ :: String -> HsType
 type_ = typeNamed_ . unqual_ tcName
 
+tvarn_ :: String -> HsName
+tvarn_ = unqual_ tvName
+
 tvar_ :: String -> HsType
-tvar_ = typeNamed_ . unqual_ tvName
+tvar_ = typeNamed_ . tvarn_
+
+kindSig_ :: HsType -> HsType -> HsType
+kindSig_ ty = noLocA . GHC.HsKindSig synDef ty
 
 tupleType_ :: [HsType] -> HsType
 tupleType_ = noLocA . GHC.HsTupleTy synDef HsBoxedOrConstraintTuple
@@ -982,7 +1054,7 @@ dotProtoFieldC, primC, repeatedC, nestedRepeatedC, namedC, mapC,
   justC, forceEmitC, encodeMessageFieldE, fromStringE, decodeMessageFieldE,
   pureE, returnE, mappendE, memptyE, msumE, atE, oneofE, fmapE :: HsExp
 
-justT, nothingT :: HsType
+justT, nothingT, natT, symbolT, typeErrorT :: HsType
 
 dotProtoFieldC       = var_ (protobufASTName tcName "DotProtoField")
 primC                = var_ (protobufASTName dataName "Prim")
@@ -1023,6 +1095,9 @@ mappendE             = var_ (haskellName varName "mappend")
 memptyE              = var_ (haskellName varName "mempty")
 msumE                = var_ (haskellName varName "msum")
 fmapE                = var_ (haskellName varName "fmap")
+natT                 = typeNamed_ (haskellName tcName "Nat")
+symbolT              = typeNamed_ (haskellName tcName "Symbol")
+typeErrorT           = typeNamed_ (haskellName tcName "TypeError")
 
 apOp :: HsQOp
 apOp  = uvar_ "<*>"
@@ -1067,8 +1142,8 @@ intP x = noLocA $ NPat synDef overlit Nothing NoExtField
       , il_value = abs (toInteger x)
       }
 
-natT :: Integral a => a -> HsType
-natT = noLocA . HsTyLit synDef . HsNumTy NoSourceText . toInteger
+natTLit :: Integral a => a -> HsType
+natTLit = noLocA . HsTyLit synDef . HsNumTy NoSourceText . toInteger
 
 floatE :: forall f . RealFloat f => f -> HsExp
 floatE x

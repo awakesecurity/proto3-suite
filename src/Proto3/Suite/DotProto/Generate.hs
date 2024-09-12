@@ -231,7 +231,7 @@ renderHsModuleForDotProto extraInstanceFiles dotProto importCtxt = do
         ghcOptionPragmas = textUnlines $ map (\opt -> "{-# OPTIONS_GHC " <> opt <> " #-}") $ sort options
 
         extensions :: [T.Text]
-        extensions =
+        extensions = nub $
           [ "DataKinds"
           , "DeriveAnyClass"
           , "DeriveGeneric"
@@ -242,7 +242,7 @@ renderHsModuleForDotProto extraInstanceFiles dotProto importCtxt = do
           , "TypeApplications"
           , "TypeOperators"
           ] ++
-          (if ?typeLevelFormat then [ "TypeFamilies" ] else []) ++
+          (if ?typeLevelFormat then [ "TypeFamilies", "UndecidableInstances" ] else []) ++
           case ?recordStyle of
             RegularRecords -> []
             LargeRecords -> [ "ConstraintKinds"
@@ -1227,28 +1227,57 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
       internalError $ "empty field name within message " ++ show msgIdent
 
     let msgNameT = type_ msgName
+        msgNumberOf = unqual_ tcName (msgName ++ "_NumberOf")
+        msgProtoTypeOf = unqual_ tcName (msgName ++ "_ProtoTypeOf")
+        msgOneOfOf = unqual_ tcName (msgName ++ "_OneOfOf")
+        msgRepetitionOf = unqual_ tcName (msgName ++ "_RepetitionOf")
+        fieldNameVar = tvarn_ "name"
+        fieldNameVarT = typeNamed_ fieldNameVar
+        fieldNameVarB = kindedTyVar_ synDef fieldNameVar symbolT
+        err msg =
+          [(Nothing, [fieldNameVarT], tyApp typeErrorT (tyApply msg [msgNameT, fieldNameVarT]))]
         toSym = symT . getFieldName
         fieldNameT = toSym . fieldSpecName
-        fieldNumberT = natT . getFieldNumber . fieldSpecNumber
+        fieldNumberT = natTLit . getFieldNumber . fieldSpecNumber
         oneOfT = maybe (symT "") toSym . fieldSpecOneOf
 
-    let onFields :: HsQName -> (FieldSpec -> HsType) -> [HsDecl]
-        onFields tyFamName rhs = fieldSpecs <&> \f ->
-          tyFamInstDecl_ tyFamName [ msgNameT, fieldNameT f ] (rhs f)
+    let onFields :: (FieldSpec -> HsType) -> [(Maybe [HsTyVarBndr], [HsType], HsType)]
+        onFields rhs = fieldSpecs <&> \f -> (Nothing, [ fieldNameT f ], rhs f)
 
-        onOneOfs :: HsQName -> (FieldName -> HsType) -> [HsDecl]
-        onOneOfs tyFamName rhs = oneOfs <&> \o ->
-          tyFamInstDecl_ tyFamName [ msgNameT, toSym o ] (rhs o)
+        onOneOfs :: (FieldName -> HsType) -> [(Maybe [HsTyVarBndr], [HsType], HsType)]
+        onOneOfs rhs = oneOfs <&> \o -> (Nothing, [ toSym o ], rhs o)
 
     let namesOf :: HsDecl
         numberOf, protoTypeOf, oneOfOf, repetitionOf :: [HsDecl]
-        namesOf = tyFamInstDecl_ formNamesOf [ msgNameT ] (listT_ (map fieldNameT fieldSpecs))
-        numberOf = onFields formNumberOf fieldNumberT
-        protoTypeOf = onFields formProtoTypeOf fieldSpecProtoType
-        oneOfOf = onFields formOneOfOf oneOfT ++
-                  onOneOfs formOneOfOf toSym
-        repetitionOf = onFields formRepetitionOf fieldSpecRepetition ++
-                       onOneOfs formRepetitionOf (const (tyApp formSingularT formAlternativeT))
+        namesOf = tyFamInstDecl_ formNamesOf Nothing [ msgNameT ]
+          (listT_ (map fieldNameT fieldSpecs))
+        numberOf =
+          [ tyFamInstDecl_ formNumberOf Nothing [ msgNameT, fieldNameVarT ]
+              (tyApp (typeNamed_ msgNumberOf) fieldNameVarT)
+          , closedTyFamDecl_ msgNumberOf [ fieldNameVarB ] natT
+              (onFields fieldNumberT ++ err formFieldNotFound)
+          ]
+        protoTypeOf =
+          [ tyFamInstDecl_ formProtoTypeOf Nothing [ msgNameT, fieldNameVarT ]
+              (tyApp (typeNamed_ msgProtoTypeOf) fieldNameVarT)
+          , closedTyFamDecl_ msgProtoTypeOf [ fieldNameVarB ] formProtoTypeT
+              (onFields fieldSpecProtoType ++ err formFieldNotFound)
+          ]
+        oneOfOf =
+          [ tyFamInstDecl_ formOneOfOf Nothing [ msgNameT, fieldNameVarT ]
+              (tyApp (typeNamed_ msgOneOfOf) fieldNameVarT)
+          , closedTyFamDecl_ msgOneOfOf [ fieldNameVarB ] symbolT
+              (onFields oneOfT ++ onOneOfs toSym ++ err formFieldOrOneOfNotFound)
+          ]
+        repetitionOf =
+          [ tyFamInstDecl_ formRepetitionOf Nothing [ msgNameT, fieldNameVarT ]
+              (tyApp (typeNamed_ msgRepetitionOf) fieldNameVarT)
+          , closedTyFamDecl_ msgRepetitionOf [ fieldNameVarB ] formRepetitionT
+              ( onFields fieldSpecRepetition ++
+                onOneOfs (const (tyApp formSingularT formAlternativeT)) ++
+                err formFieldOrOneOfNotFound
+              )
+          ]
 
     pure $ namesOf : numberOf ++ protoTypeOf ++ oneOfOf ++ repetitionOf
   where
@@ -2072,7 +2101,7 @@ dotProtoServiceD pkgSpec ctxt serviceIdent service = do
                            [ serverRequestT, serverResponseT ]
 
      let serviceServerTypeD =
-           typeSig_ [ unqual_ varName serverFuncName ] implicitTyVarBinders_
+           typeSig_ [ unqual_ varName serverFuncName ] implicitOuterSigTyVarBinders_
                     (funTy serverT (funTy serviceOptionsC ioActionT))
 
      let serviceServerD = valDecl_ $
@@ -2142,7 +2171,7 @@ dotProtoServiceD pkgSpec ctxt serviceIdent service = do
      let clientT = tyApply (type_ serviceName) [ clientRequestT, clientResultT ]
 
      let serviceClientTypeD =
-            typeSig_ [ unqual_ varName clientFuncName ] implicitTyVarBinders_
+            typeSig_ [ unqual_ varName clientFuncName ] implicitOuterSigTyVarBinders_
                      (funTy grpcClientT (tyApp ioT clientT))
 
      let serviceClientD = valDecl_ $
@@ -2324,8 +2353,9 @@ defaultImports icUsesGrpc | StringType stringModule stringType <- ?stringType =
     , importDecl_ (m "Network.GRPC.HighLevel.Server.Unregistered") & alias grpcNS & selecting [i"serverLoop"]
     ])
     <>
-    ( if not ?typeLevelFormat then [] else [
-      importDecl_ (m "Proto3.Suite.Form") & qualified protobufFormNS & everything
+    ( if not ?typeLevelFormat then [] else
+    [ importDecl_ (m "Proto3.Suite.Form") & qualified protobufFormNS & everything
+    , importDecl_ (m "GHC.TypeLits")      & qualified haskellNS      & selecting [i"Nat", i"Symbol", i"TypeError"]
     ])
     <>
     case ?recordStyle of
