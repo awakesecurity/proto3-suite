@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
@@ -247,7 +248,16 @@ class Field name a message
     -- See also 'field'.
     field :: forall names . a -> Prefix message names (Occupy message name names)
 
-instance forall (name :: Symbol) r (a :: TYPE r) (message :: Type) .
+instance forall (name :: Symbol)
+#if MIN_VERSION_ghc(9,4,0)
+                r (a :: TYPE r)
+#else
+                (a :: Type)
+                  -- Regarding the call to @coerce@, GHC 9.2.8 would say:
+                  -- "Cannot use function with levity-polymorphic arguments".
+                  -- So we just drop support for unlifted arguments until GHC 9.4.
+#endif
+                (message :: Type) .
          ( KnownFieldNumber message name
          , RawField (RepetitionOf message name) (ProtoTypeOf message name) a
          ) =>
