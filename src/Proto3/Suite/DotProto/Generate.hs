@@ -1241,10 +1241,10 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
         fieldNumberT = natTLit . getFieldNumber . fieldSpecNumber
         oneOfT = maybe (symT "") toSym . fieldSpecOneOf
 
-    let onFields :: (FieldSpec -> HsType) -> [(Maybe [HsTyVarBndr], [HsType], HsType)]
+    let onFields :: (FieldSpec -> HsType) -> [(Maybe [HsTyVarBndrU], [HsType], HsType)]
         onFields rhs = fieldSpecs <&> \f -> (Nothing, [ fieldNameT f ], rhs f)
 
-        onOneOfs :: (FieldName -> HsType) -> [(Maybe [HsTyVarBndr], [HsType], HsType)]
+        onOneOfs :: (FieldName -> HsType) -> [(Maybe [HsTyVarBndrU], [HsType], HsType)]
         onOneOfs rhs = oneOfs <&> \o -> (Nothing, [ toSym o ], rhs o)
 
     let namesOf :: HsDecl

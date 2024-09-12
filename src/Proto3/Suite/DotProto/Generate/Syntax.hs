@@ -78,8 +78,7 @@ import GHC.Unit.Module (ModuleName, mkModuleName)
 import GHC.Hs hiding (HsBind, HsDecl, HsDerivingClause, HsTyVarBndr, HsType)
 import GHC.Parser.Annotation (IsUnicodeSyntax(..))
 import GHC.Types.Basic
-         (IntegralLit(..), FractionalLit(..), LexicalFixity(..),
-          PromotionFlag(..), SourceText(..), TopLevelFlag(..))
+         (IntegralLit(..), FractionalLit(..), LexicalFixity(..), PromotionFlag(..), SourceText(..))
 import GHC.Types.SrcLoc (LayoutInfo(..), Located, noLoc)
 import GHC.Unit (IsBootInterface(..))
 import GHC.Unit.Module (ModuleName, mkModuleName)
@@ -120,13 +119,14 @@ type HsPat = LPat GhcPs
 type HsQName = LIdP GhcPs
 type HsQOp = LHsExpr GhcPs
 type HsSig = LSig GhcPs
-type HsTyVarBndr = LHsTyVarBndr
+type HsTyVarBndrU = LHsTyVarBndr () GhcPs
+type HsTyVarBndrV = LHsTyVarBndr
 #if MIN_VERSION_ghc(9,8,0)
-                                (HsBndrVis GhcPs)
+                                 (HsBndrVis GhcPs)
 #else
-                                ()
+                                 ()
 #endif
-                                   GhcPs
+                                                   GhcPs
 type HsType = LHsType GhcPs
 type Module = ModuleName
 
@@ -500,7 +500,7 @@ ieNameAll_ = noLocA . IEThingAll synDef . noLocA . IEName
                                                           synDef
 #endif
 
-dataDecl_ :: String -> [HsTyVarBndr] -> [HsConDecl] -> [HsQName] -> HsDecl
+dataDecl_ :: String -> [HsTyVarBndrV] -> [HsConDecl] -> [HsQName] -> HsDecl
 dataDecl_ messageName bndrs constructors derivedInstances = noLocA $ GHC.TyClD NoExtField DataDecl
     { tcdDExt = synDef
     , tcdLName = unqual_ tcName messageName
@@ -662,9 +662,9 @@ typeOfInstDecl _ =
 
 closedTyFamDecl_ ::
   HsQName ->
-  [HsTyVarBndr] ->
+  [HsTyVarBndrV] ->
   HsType ->
-  [(Maybe [HsTyVarBndr], [HsType], HsType)] ->
+  [(Maybe [HsTyVarBndrU], [HsType], HsType)] ->
   HsDecl
 closedTyFamDecl_ tyFamName famBndrs resultKind eqns =
   noLocA $ GHC.TyClD NoExtField $ FamDecl synDef $ FamilyDecl
@@ -676,7 +676,13 @@ closedTyFamDecl_ tyFamName famBndrs resultKind eqns =
     , fdLName = tyFamName
     , fdTyVars = HsQTvs synDef famBndrs
     , fdFixity = Prefix
-    , fdResultSig = noLocA $ KindSig synDef resultKind
+    , fdResultSig =
+#if MIN_VERSION_ghc(9,4,0)
+        noLocA $
+#else
+        noLoc $
+#endif
+          KindSig synDef resultKind
     , fdInjectivityAnn = Nothing
     }
   where
@@ -691,14 +697,14 @@ closedTyFamDecl_ tyFamName famBndrs resultKind eqns =
 #if MIN_VERSION_ghc(9,2,0)
               maybe (HsOuterImplicit NoExtField) (HsOuterExplicit synDef) eqnBndrs
 #else
-              bndrs
+              eqnBndrs
 #endif
           , feqn_pats = map HsValArg pats
           , feqn_fixity = Prefix
           , feqn_rhs = rhs
           }
 
-tyFamInstDecl_ :: HsQName -> Maybe [HsTyVarBndr] -> [HsType] -> HsType -> HsDecl
+tyFamInstDecl_ :: HsQName -> Maybe [HsTyVarBndrU] -> [HsType] -> HsType -> HsDecl
 tyFamInstDecl_ tyFamName bndrs pats rhs = noLocA $ GHC.InstD NoExtField TyFamInstD
   { tfid_ext = NoExtField
   , tfid_inst = TyFamInstDecl
