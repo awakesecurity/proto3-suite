@@ -153,5 +153,30 @@ message WrappedTrivial {
 message MapTest {
   map<string, sint32> prim = 1;
   map<int32, WrappedTrivial> trivial = 2;
-  map<sint32, sint32> signed= 3; // both the key and value needs to be wrapped with 'Signed'
+  map<sint32, sint32> signed = 3; // both the key and value needs to be wrapped with 'Signed'
+}
+
+// The protobuf specification requires that the binary encoding of MapTest
+// should be identical to that of this type.  We exploit this equivalence
+// to work around a limitation of the Python generated code: that it seems
+// to provide no way to distinguish between an unset mapped submessage
+// and one that is set but has default values for all of its fields.
+message MapTestEmulation {
+  message Prim {
+    string key = 1;
+    sint32 value = 2;
+  }
+  repeated Prim prim = 1;
+
+  message Trivial {
+    int32 key = 1;
+    WrappedTrivial value = 2;
+  }
+  repeated Trivial trivial = 2;
+
+  message Signed {
+    sint32 key = 1;
+    sint32 value = 2;
+  }
+  repeated Signed signed = 3; // both the key and value needs to be wrapped with 'Signed'
 }
