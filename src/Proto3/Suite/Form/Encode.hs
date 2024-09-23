@@ -20,7 +20,7 @@
 -- /WARNING/: This module is experimental and breaking changes may occur much more
 -- frequently than in the other modules of this package, perhaps even in patch releases.
 module Proto3.Suite.Form.Encode
-  ( MessageEncoding(..)
+  ( MessageEncoder(..)
   , toLazyByteString
   , Prefix(..)
   , Distinct
@@ -160,12 +160,12 @@ instance ( ProtoEnum e
 message ::
   forall (name :: Symbol) (inner :: Type) (outer :: Type) (names :: [Symbol]) .
   ( ProtoTypeOf outer name ~ 'Message inner
-  , Field name (MessageEncoding inner) outer
+  , Field name (MessageEncoder inner) outer
   , KnownFieldNumber outer name
   ) =>
-  MessageEncoding inner ->
+  MessageEncoder inner ->
   Prefix outer names (Occupy outer name names)
-message = field @name @(MessageEncoding inner)
+message = field @name @(MessageEncoder inner)
 
 -- | Specializes the argument type of 'field' to be a sequence of key-value pair encodings,
 -- which can help to avoid ambiguity when the argument expression is polymorphic.
@@ -174,9 +174,9 @@ associations ::
          (message :: Type) (names :: [Symbol]) .
   ( ProtoTypeOf message name ~ 'Map key value
   , RepetitionOf message name ~ 'Repeated 'Unpacked
-  , Field name (t (MessageEncoding (Association key value))) message
+  , Field name (t (MessageEncoder (Association key value))) message
   , KnownFieldNumber message name
   ) =>
-  t (MessageEncoding (Association key value)) ->
+  t (MessageEncoder (Association key value)) ->
   Prefix message names names
-associations = field @name @(t (MessageEncoding (Association key value)))
+associations = field @name @(t (MessageEncoder (Association key value)))

@@ -195,7 +195,7 @@ test-suite tests
     Test.Proto.Generate.Name.Gen
     Test.Proto.Parse.Gen
     Test.Proto.Parse.Option
-    Test.Proto.ToEncoding
+    Test.Proto.ToEncoder
 
   build-depends:
       aeson >= 1.1.1.0 && < 2.2

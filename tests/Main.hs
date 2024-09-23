@@ -53,7 +53,7 @@ import           TestDhall
 
 import qualified Test.Proto.Generate.Name
 import qualified Test.Proto.Parse.Option
-import           Test.Proto.ToEncoding (Iterator(Forward,Reverse,Vector), ToEncoding(..))
+import           Test.Proto.ToEncoder (Iterator(Forward,Reverse,Vector), ToEncoder(..))
 
 -- -----------------------------------------------------------------------------
 
@@ -197,11 +197,11 @@ encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
       -- that adhere to the protobuf specification.  We check that decodability
       -- in other tests that pair a Haskell encoder with a Python decoder.
       assertEqual (show fp ++ ": direct encoding, Forward iterator")
-        goldenEncoding (FormE.toLazyByteString (let ?iterator = Forward in toEncoding v))
+        goldenEncoding (FormE.toLazyByteString (let ?iterator = Forward in toEncoder v))
       assertEqual (show fp ++ ": direct encoding, Reverse iterator")
-        goldenEncoding (FormE.toLazyByteString (let ?iterator = Reverse in toEncoding v))
+        goldenEncoding (FormE.toLazyByteString (let ?iterator = Reverse in toEncoder v))
       assertEqual (show fp ++ ": direct encoding, Vector iterator")
-        goldenEncoding (FormE.toLazyByteString (let ?iterator = Vector in toEncoding v))
+        goldenEncoding (FormE.toLazyByteString (let ?iterator = Vector in toEncoder v))
 
 data TestMessage
        (num :: Nat)

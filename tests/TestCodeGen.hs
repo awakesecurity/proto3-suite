@@ -28,7 +28,9 @@ import           Data.Typeable                  (Typeable, typeRep,
                                                  splitTyConApp, tyConName
 #endif
                                                 )
+#ifdef SWAGGER
 import           GHC.Stack                      (HasCallStack)
+#endif
 import           Google.Protobuf.Timestamp      (Timestamp(..))
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.Class             (def)
@@ -41,7 +43,7 @@ import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  jsonPBOptions)
 import           Proto3.Suite.Types             (Enumerated(..))
 import           System.Exit
-import           Test.Proto.ToEncoding          (Iterator(..))
+import           Test.Proto.ToEncoder           (Iterator(..))
 import           Test.Tasty
 import           Test.Tasty.HUnit               (testCase, (@?=))
 import           Test.Tasty.QuickCheck          (Arbitrary, (===), testProperty)

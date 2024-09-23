@@ -20,7 +20,7 @@ import           System.Environment (getArgs, getProgName)
 import           System.Exit (die)
 
 import qualified Proto3.Suite.Form.Encode as Form
-import           Test.Proto.ToEncoding (Iterator, ToEncoding(..))
+import           Test.Proto.ToEncoder (Iterator, ToEncoder(..))
 
 data Format = Binary | Jsonpb
   deriving (Eq, Read, Show)
@@ -29,7 +29,7 @@ outputMessage ::
   ( Message a
   , JSONPB.ToJSONPB a
 #if TYPE_LEVEL_FORMAT
-  , ToEncoding a
+  , ToEncoder a
 #endif
   , ?iterator :: Iterator
   , ?format :: Format
@@ -41,7 +41,7 @@ outputMessage msg = putStrLn (show (BL.length encoded)) >> BL.putStr encoded
     encoded = case ?format of
       Binary ->
 #if TYPE_LEVEL_FORMAT
-        Form.toLazyByteString (toEncoding msg)
+        Form.toLazyByteString (toEncoder msg)
 #else
         toLazyByteString msg
 #endif

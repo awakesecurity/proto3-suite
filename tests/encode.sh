@@ -15,7 +15,7 @@ ghc                                         \
     $hsTmpDir/TestProtoOneofImport.hs       \
     $hsTmpDir/TestProtoWrappers.hs          \
     tests/Test/Dhall/Orphan.hs              \
-    tests/Test/Proto/ToEncoding.hs          \
+    tests/Test/Proto/ToEncoder.hs           \
     tests/SimpleEncodeDotProto.hs           \
     >/dev/null
 

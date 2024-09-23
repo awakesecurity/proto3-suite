@@ -10,9 +10,9 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Test.Proto.ToEncoding
+module Test.Proto.ToEncoder
   ( Iterator(..)
-  , ToEncoding(..)
+  , ToEncoder(..)
   ) where
 
 import Control.Category ((.))
@@ -39,9 +39,9 @@ data Iterator
   | Vector
   deriving stock (Bounded, Enum, Eq, Read, Show)
 
-class ToEncoding a
+class ToEncoder a
   where
-    toEncoding :: (?iterator :: Iterator) => a -> FormE.MessageEncoding a
+    toEncoder :: (?iterator :: Iterator) => a -> FormE.MessageEncoder a
 
 #if TYPE_LEVEL_FORMAT
 
@@ -68,13 +68,13 @@ associations ::
   ( Form.ProtoTypeOf message name ~ 'Form.Map key value
   , Form.RepetitionOf message name ~ 'Form.Repeated 'Form.Unpacked
   , ?iterator :: Iterator
-  , FormE.Field name (Functor.Identity (FormE.MessageEncoding (Form.Association key value))) message
-  , FormE.Field name (FormE.Forward (FormE.MessageEncoding (Form.Association key value))) message
-  , FormE.Field name (FormE.Reverse (FormE.MessageEncoding (Form.Association key value))) message
-  , FormE.Field name (FormE.Vector (FormE.MessageEncoding (Form.Association key value))) message
+  , FormE.Field name (Functor.Identity (FormE.MessageEncoder (Form.Association key value))) message
+  , FormE.Field name (FormE.Forward (FormE.MessageEncoder (Form.Association key value))) message
+  , FormE.Field name (FormE.Reverse (FormE.MessageEncoder (Form.Association key value))) message
+  , FormE.Field name (FormE.Vector (FormE.MessageEncoder (Form.Association key value))) message
   , FormE.KnownFieldNumber message name
   ) =>
-  ((k, v) -> FormE.MessageEncoding (Form.Association key value)) ->
+  ((k, v) -> FormE.MessageEncoder (Form.Association key value)) ->
   M.Map k v ->
   FormE.Prefix message names names
 associations f = case ?iterator of
@@ -83,14 +83,14 @@ associations f = case ?iterator of
   Reverse -> FormE.associations @name . FormE.Reverse f . M.toDescList
   Vector -> FormE.associations @name . FormE.Vector f . Data.Vector.fromList . M.toAscList
 
-instance ToEncoding Trivial
+instance ToEncoder Trivial
   where
-    toEncoding (Trivial f1) = FormE.fieldsToMessage @Trivial @'["trivialField"] $
+    toEncoder (Trivial f1) = FormE.fieldsToMessage @Trivial @'["trivialField"] $
       FormE.field @"trivialField" f1
 
-instance ToEncoding MultipleFields
+instance ToEncoder MultipleFields
   where
-    toEncoding (MultipleFields f1 f2 f3 f4 f5 f6) = FormE.fieldsToMessage $
+    toEncoder (MultipleFields f1 f2 f3 f4 f5 f6) = FormE.fieldsToMessage $
       FormE.field @"multiFieldDouble" f1 .
       FormE.field @"multiFieldFloat" f2 .
       FormE.field @"multiFieldInt32" f3 .
@@ -98,88 +98,88 @@ instance ToEncoding MultipleFields
       FormE.field @"multiFieldString" f5 .
       FormE.field @"multiFieldBool" f6
 
-instance ToEncoding SignedInts
+instance ToEncoder SignedInts
   where
-    toEncoding (SignedInts f1 f2) = FormE.fieldsToMessage $
+    toEncoder (SignedInts f1 f2) = FormE.fieldsToMessage $
       FormE.field @"signed32" f1 .
       FormE.field @"signed64" f2
 
-instance ToEncoding WithEnum
+instance ToEncoder WithEnum
   where
-    toEncoding (WithEnum f1) = FormE.fieldsToMessage $
+    toEncoder (WithEnum f1) = FormE.fieldsToMessage $
       FormE.field @"enumField" f1
 
-instance ToEncoding WithNesting_Nested
+instance ToEncoder WithNesting_Nested
   where
-    toEncoding (WithNesting_Nested f1 f2 f3 f4) = FormE.fieldsToMessage $
+    toEncoder (WithNesting_Nested f1 f2 f3 f4) = FormE.fieldsToMessage $
       FormE.field @"nestedField1" f1 .
       FormE.field @"nestedField2" f2 .
       repeated @"nestedPacked" id f3 .
       repeated @"nestedUnpacked" id f4
 
-instance ToEncoding WithNesting
+instance ToEncoder WithNesting
   where
-    toEncoding (WithNesting f1) = FormE.fieldsToMessage $
-      FormE.field @"nestedMessage" (fmap @Maybe toEncoding f1)
+    toEncoder (WithNesting f1) = FormE.fieldsToMessage $
+      FormE.field @"nestedMessage" (fmap @Maybe toEncoder f1)
 
-instance ToEncoding WithNestingRepeated_Nested
+instance ToEncoder WithNestingRepeated_Nested
   where
-    toEncoding (WithNestingRepeated_Nested f1 f2 f3 f4) = FormE.fieldsToMessage $
+    toEncoder (WithNestingRepeated_Nested f1 f2 f3 f4) = FormE.fieldsToMessage $
       FormE.field @"nestedField1" f1 .
       FormE.field @"nestedField2" f2 .
       repeated @"nestedPacked" id f3 .
       repeated @"nestedUnpacked" id f4
 
-instance ToEncoding WithNestingRepeated
+instance ToEncoder WithNestingRepeated
   where
-    toEncoding (WithNestingRepeated f1) = FormE.fieldsToMessage $
-      repeated @"nestedMessages" toEncoding f1
+    toEncoder (WithNestingRepeated f1) = FormE.fieldsToMessage $
+      repeated @"nestedMessages" toEncoder f1
 
-instance ToEncoding NestedInts
+instance ToEncoder NestedInts
   where
-    toEncoding (NestedInts f1 f2) = FormE.fieldsToMessage $
+    toEncoder (NestedInts f1 f2) = FormE.fieldsToMessage $
       FormE.field @"nestedInt1" f1 .
       FormE.field @"nestedInt2" f2
 
-instance ToEncoding WithNestingRepeatedInts
+instance ToEncoder WithNestingRepeatedInts
   where
-    toEncoding (WithNestingRepeatedInts f1) = FormE.fieldsToMessage $
-      repeated @"nestedInts" toEncoding f1
+    toEncoder (WithNestingRepeatedInts f1) = FormE.fieldsToMessage $
+      repeated @"nestedInts" toEncoder f1
 
-instance ToEncoding WithRepetition
+instance ToEncoder WithRepetition
   where
-    toEncoding (WithRepetition f1) = FormE.fieldsToMessage $
+    toEncoder (WithRepetition f1) = FormE.fieldsToMessage $
       repeated @"repeatedField1" id f1
 
-instance ToEncoding WithRepeatedSigned
+instance ToEncoder WithRepeatedSigned
   where
-    toEncoding (WithRepeatedSigned f1 f2) = FormE.fieldsToMessage $
+    toEncoder (WithRepeatedSigned f1 f2) = FormE.fieldsToMessage $
       repeated @"r32" id f1 .
       repeated @"r64" id f2
 
-instance ToEncoding WithFixed
+instance ToEncoder WithFixed
   where
-    toEncoding (WithFixed f1 f2 f3 f4) = FormE.fieldsToMessage $
+    toEncoder (WithFixed f1 f2 f3 f4) = FormE.fieldsToMessage $
       FormE.field @"fixed1" f1 .
       FormE.field @"fixed2" f2 .
       FormE.field @"fixed3" f3 .
       FormE.field @"fixed4" f4
 
-instance ToEncoding WithBytes
+instance ToEncoder WithBytes
   where
-    toEncoding (WithBytes f1 f2) = FormE.fieldsToMessage $
+    toEncoder (WithBytes f1 f2) = FormE.fieldsToMessage $
       FormE.field @"bytes1" f1 .
       repeated @"bytes2" id f2
 
-instance ToEncoding WithPacking
+instance ToEncoder WithPacking
   where
-    toEncoding (WithPacking f1 f2) = FormE.fieldsToMessage $
+    toEncoder (WithPacking f1 f2) = FormE.fieldsToMessage $
       repeated @"packing1" id f1 .
       repeated @"packing2" id f2
 
-instance ToEncoding AllPackedTypes
+instance ToEncoder AllPackedTypes
   where
-    toEncoding (AllPackedTypes f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13) = FormE.fieldsToMessage $
+    toEncoder (AllPackedTypes f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13) = FormE.fieldsToMessage $
       repeated @"packedWord32" id f1 .
       repeated @"packedWord64" id f2 .
       repeated @"packedInt32" id f3 .
@@ -194,70 +194,70 @@ instance ToEncoding AllPackedTypes
       repeated @"packedEnum" id f12 .
       repeated @"unpackedEnum" id f13
 
-instance ToEncoding OutOfOrderFields
+instance ToEncoder OutOfOrderFields
   where
-    toEncoding (OutOfOrderFields f1 f2 f3 f4) = FormE.fieldsToMessage $
+    toEncoder (OutOfOrderFields f1 f2 f3 f4) = FormE.fieldsToMessage $
       repeated @"field1" id f1 .
       FormE.field @"field2" f2 .
       FormE.field @"field3" f3 .
       repeated @"field4" id f4
 
-instance ToEncoding ShadowedMessage
+instance ToEncoder ShadowedMessage
   where
-    toEncoding (ShadowedMessage f1 f2) = FormE.fieldsToMessage $
+    toEncoder (ShadowedMessage f1 f2) = FormE.fieldsToMessage $
       FormE.field @"name" f1 .
       FormE.field @"value" f2
 
-instance ToEncoding MessageShadower_ShadowedMessage
+instance ToEncoder MessageShadower_ShadowedMessage
   where
-    toEncoding (MessageShadower_ShadowedMessage f1 f2) = FormE.fieldsToMessage $
+    toEncoder (MessageShadower_ShadowedMessage f1 f2) = FormE.fieldsToMessage $
       FormE.field @"name" f1 .
       FormE.field @"value" f2
 
-instance ToEncoding MessageShadower
+instance ToEncoder MessageShadower
   where
-    toEncoding (MessageShadower f1 f2) = FormE.fieldsToMessage $
-      FormE.field @"shadowed_message" (fmap @Maybe toEncoding f1) .
+    toEncoder (MessageShadower f1 f2) = FormE.fieldsToMessage $
+      FormE.field @"shadowed_message" (fmap @Maybe toEncoder f1) .
       FormE.field @"name" f2
 
-instance ToEncoding WithQualifiedName
+instance ToEncoder WithQualifiedName
   where
-    toEncoding (WithQualifiedName f1 f2) = FormE.fieldsToMessage $
-      FormE.field @"qname1" (fmap @Maybe toEncoding f1) .
-      FormE.field @"qname2" (fmap @Maybe toEncoding f2)
+    toEncoder (WithQualifiedName f1 f2) = FormE.fieldsToMessage $
+      FormE.field @"qname1" (fmap @Maybe toEncoder f1) .
+      FormE.field @"qname2" (fmap @Maybe toEncoder f2)
 
-instance ToEncoding TestProtoImport.WithNesting_Nested
+instance ToEncoder TestProtoImport.WithNesting_Nested
   where
-    toEncoding (TestProtoImport.WithNesting_Nested f1 f2) = FormE.fieldsToMessage $
+    toEncoder (TestProtoImport.WithNesting_Nested f1 f2) = FormE.fieldsToMessage $
       FormE.field @"nestedField1" f1 .
       FormE.field @"nestedField2" f2
 
-instance ToEncoding TestProtoImport.WithNesting
+instance ToEncoder TestProtoImport.WithNesting
   where
-    toEncoding (TestProtoImport.WithNesting f1 f2) = FormE.fieldsToMessage $
-      FormE.field @"nestedMessage1" (fmap @Maybe toEncoding f1) .
-      FormE.field @"nestedMessage2" (fmap @Maybe toEncoding f2)
+    toEncoder (TestProtoImport.WithNesting f1 f2) = FormE.fieldsToMessage $
+      FormE.field @"nestedMessage1" (fmap @Maybe toEncoder f1) .
+      FormE.field @"nestedMessage2" (fmap @Maybe toEncoder f2)
 
-instance ToEncoding UsingImported
+instance ToEncoder UsingImported
   where
-    toEncoding (UsingImported f1 f2) = FormE.fieldsToMessage $
-      FormE.field @"importedNesting" (fmap @Maybe toEncoding f1) .
-      FormE.field @"localNesting" (fmap @Maybe toEncoding f2)
+    toEncoder (UsingImported f1 f2) = FormE.fieldsToMessage $
+      FormE.field @"importedNesting" (fmap @Maybe toEncoder f1) .
+      FormE.field @"localNesting" (fmap @Maybe toEncoder f2)
 
-instance ToEncoding TestProtoOneof.DummyMsg
+instance ToEncoder TestProtoOneof.DummyMsg
   where
-    toEncoding (TestProtoOneof.DummyMsg f1) = FormE.fieldsToMessage $
+    toEncoder (TestProtoOneof.DummyMsg f1) = FormE.fieldsToMessage $
       FormE.field @"dummy" f1
 
-instance ToEncoding TestProtoOneofImport.AMessage
+instance ToEncoder TestProtoOneofImport.AMessage
   where
-    toEncoding (TestProtoOneofImport.AMessage f1 f2) = FormE.fieldsToMessage $
+    toEncoder (TestProtoOneofImport.AMessage f1 f2) = FormE.fieldsToMessage $
       FormE.field @"x" f1 .
       FormE.field @"y" f2
 
-instance ToEncoding TestProtoOneofImport.WithOneof
+instance ToEncoder TestProtoOneofImport.WithOneof
   where
-    toEncoding (TestProtoOneofImport.WithOneof f1) = FormE.fieldsToMessage $
+    toEncoder (TestProtoOneofImport.WithOneof f1) = FormE.fieldsToMessage $
       case f1 of
         Nothing ->
           FormE.omitted
@@ -266,11 +266,11 @@ instance ToEncoding TestProtoOneofImport.WithOneof
         Just (TestProtoOneofImport.WithOneofPickOneB v) ->
           FormE.field @"b" v
         Just (TestProtoOneofImport.WithOneofPickOneC v) ->
-          FormE.field @"c" (toEncoding v)
+          FormE.field @"c" (toEncoder v)
 
-instance ToEncoding TestProtoOneof.Something
+instance ToEncoder TestProtoOneof.Something
   where
-    toEncoding (TestProtoOneof.Something f1 f2 f3) = FormE.fieldsToMessage $
+    toEncoder (TestProtoOneof.Something f1 f2 f3) = FormE.fieldsToMessage $
       FormE.field @"value" f1 .
       FormE.field @"another" f2 .
       case f3 of
@@ -281,26 +281,26 @@ instance ToEncoding TestProtoOneof.Something
         Just (TestProtoOneof.SomethingPickOneSomeid v) ->
           FormE.field @"someid" v
         Just (TestProtoOneof.SomethingPickOneDummyMsg1 v) ->
-          FormE.field @"dummyMsg1" (toEncoding v)
+          FormE.field @"dummyMsg1" (toEncoder v)
         Just (TestProtoOneof.SomethingPickOneDummyMsg2 v) ->
-          FormE.field @"dummyMsg2" (toEncoding v)
+          FormE.field @"dummyMsg2" (toEncoder v)
         Just (TestProtoOneof.SomethingPickOneDummyEnum v) ->
           FormE.field @"dummyEnum" v
 
-instance ToEncoding TestProtoOneof.WithImported
+instance ToEncoder TestProtoOneof.WithImported
   where
-    toEncoding (TestProtoOneof.WithImported f1) = FormE.fieldsToMessage $
+    toEncoder (TestProtoOneof.WithImported f1) = FormE.fieldsToMessage $
       case f1 of
         Nothing ->
           FormE.omitted
         Just (TestProtoOneof.WithImportedPickOneDummyMsg1 v) ->
-          FormE.field @"dummyMsg1" (toEncoding v)
+          FormE.field @"dummyMsg1" (toEncoder v)
         Just (TestProtoOneof.WithImportedPickOneWithOneof v) ->
-          FormE.field @"withOneof" (toEncoding v)
+          FormE.field @"withOneof" (toEncoder v)
 
-instance ToEncoding TestProtoWrappers.TestDoubleValue
+instance ToEncoder TestProtoWrappers.TestDoubleValue
   where
-    toEncoding (TestProtoWrappers.TestDoubleValue f1 f2 f3) = FormE.fieldsToMessage $
+    toEncoder (TestProtoWrappers.TestDoubleValue f1 f2 f3) = FormE.fieldsToMessage $
       FormE.field @"wrapper" (fmap Form.Wrap f1) .
       repeated @"many" Form.Wrap f2 .
       case f3 of
@@ -309,9 +309,9 @@ instance ToEncoding TestProtoWrappers.TestDoubleValue
         Just (TestProtoWrappers.TestDoubleValuePickOneOne v) ->
           FormE.field @"one" (Form.Wrap v)
 
-instance ToEncoding TestProtoWrappers.TestFloatValue
+instance ToEncoder TestProtoWrappers.TestFloatValue
   where
-    toEncoding (TestProtoWrappers.TestFloatValue f1 f2 f3) = FormE.fieldsToMessage $
+    toEncoder (TestProtoWrappers.TestFloatValue f1 f2 f3) = FormE.fieldsToMessage $
       FormE.field @"wrapper" (fmap Form.Wrap f1) .
       repeated @"many" Form.Wrap f2 .
       case f3 of
@@ -320,9 +320,9 @@ instance ToEncoding TestProtoWrappers.TestFloatValue
         Just (TestProtoWrappers.TestFloatValuePickOneOne v) ->
           FormE.field @"one" (Form.Wrap v)
 
-instance ToEncoding TestProtoWrappers.TestInt64Value
+instance ToEncoder TestProtoWrappers.TestInt64Value
   where
-    toEncoding (TestProtoWrappers.TestInt64Value f1 f2 f3) = FormE.fieldsToMessage $
+    toEncoder (TestProtoWrappers.TestInt64Value f1 f2 f3) = FormE.fieldsToMessage $
       FormE.field @"wrapper" (fmap Form.Wrap f1) .
       repeated @"many" Form.Wrap f2 .
       case f3 of
@@ -331,9 +331,9 @@ instance ToEncoding TestProtoWrappers.TestInt64Value
         Just (TestProtoWrappers.TestInt64ValuePickOneOne v) ->
           FormE.field @"one" (Form.Wrap v)
 
-instance ToEncoding TestProtoWrappers.TestUInt64Value
+instance ToEncoder TestProtoWrappers.TestUInt64Value
   where
-    toEncoding (TestProtoWrappers.TestUInt64Value f1 f2 f3) = FormE.fieldsToMessage $
+    toEncoder (TestProtoWrappers.TestUInt64Value f1 f2 f3) = FormE.fieldsToMessage $
       FormE.field @"wrapper" (fmap Form.Wrap f1) .
       repeated @"many" Form.Wrap f2 .
       case f3 of
@@ -342,9 +342,9 @@ instance ToEncoding TestProtoWrappers.TestUInt64Value
         Just (TestProtoWrappers.TestUInt64ValuePickOneOne v) ->
           FormE.field @"one" (Form.Wrap v)
 
-instance ToEncoding TestProtoWrappers.TestInt32Value
+instance ToEncoder TestProtoWrappers.TestInt32Value
   where
-    toEncoding (TestProtoWrappers.TestInt32Value f1 f2 f3) = FormE.fieldsToMessage $
+    toEncoder (TestProtoWrappers.TestInt32Value f1 f2 f3) = FormE.fieldsToMessage $
       FormE.field @"wrapper" (fmap Form.Wrap f1) .
       repeated @"many" Form.Wrap f2 .
       case f3 of
@@ -353,9 +353,9 @@ instance ToEncoding TestProtoWrappers.TestInt32Value
         Just (TestProtoWrappers.TestInt32ValuePickOneOne v) ->
           FormE.field @"one" (Form.Wrap v)
 
-instance ToEncoding TestProtoWrappers.TestUInt32Value
+instance ToEncoder TestProtoWrappers.TestUInt32Value
   where
-    toEncoding (TestProtoWrappers.TestUInt32Value f1 f2 f3) = FormE.fieldsToMessage $
+    toEncoder (TestProtoWrappers.TestUInt32Value f1 f2 f3) = FormE.fieldsToMessage $
       FormE.field @"wrapper" (fmap Form.Wrap f1) .
       repeated @"many" Form.Wrap f2 .
       case f3 of
@@ -364,9 +364,9 @@ instance ToEncoding TestProtoWrappers.TestUInt32Value
         Just (TestProtoWrappers.TestUInt32ValuePickOneOne v) ->
           FormE.field @"one" (Form.Wrap v)
 
-instance ToEncoding TestProtoWrappers.TestBoolValue
+instance ToEncoder TestProtoWrappers.TestBoolValue
   where
-    toEncoding (TestProtoWrappers.TestBoolValue f1 f2 f3) = FormE.fieldsToMessage $
+    toEncoder (TestProtoWrappers.TestBoolValue f1 f2 f3) = FormE.fieldsToMessage $
       FormE.field @"wrapper" (fmap Form.Wrap f1) .
       repeated @"many" Form.Wrap f2 .
       case f3 of
@@ -375,9 +375,9 @@ instance ToEncoding TestProtoWrappers.TestBoolValue
         Just (TestProtoWrappers.TestBoolValuePickOneOne v) ->
           FormE.field @"one" (Form.Wrap v)
 
-instance ToEncoding TestProtoWrappers.TestStringValue
+instance ToEncoder TestProtoWrappers.TestStringValue
   where
-    toEncoding (TestProtoWrappers.TestStringValue f1 f2 f3) = FormE.fieldsToMessage $
+    toEncoder (TestProtoWrappers.TestStringValue f1 f2 f3) = FormE.fieldsToMessage $
       FormE.field @"wrapper" (fmap Form.Wrap f1) .
       repeated @"many" Form.Wrap f2 .
       case f3 of
@@ -386,9 +386,9 @@ instance ToEncoding TestProtoWrappers.TestStringValue
         Just (TestProtoWrappers.TestStringValuePickOneOne v) ->
           FormE.field @"one" (Form.Wrap v)
 
-instance ToEncoding TestProtoWrappers.TestBytesValue
+instance ToEncoder TestProtoWrappers.TestBytesValue
   where
-    toEncoding (TestProtoWrappers.TestBytesValue f1 f2 f3) = FormE.fieldsToMessage $
+    toEncoder (TestProtoWrappers.TestBytesValue f1 f2 f3) = FormE.fieldsToMessage $
       FormE.field @"wrapper" (fmap Form.Wrap f1) .
       repeated @"many" Form.Wrap f2 .
       case f3 of
@@ -397,14 +397,14 @@ instance ToEncoding TestProtoWrappers.TestBytesValue
         Just (TestProtoWrappers.TestBytesValuePickOneOne v) ->
           FormE.field @"one" (Form.Wrap v)
 
-instance ToEncoding WrappedTrivial
+instance ToEncoder WrappedTrivial
   where
-    toEncoding (WrappedTrivial f1) = FormE.fieldsToMessage $
-      FormE.field @"trivial" (fmap @Maybe toEncoding f1)
+    toEncoder (WrappedTrivial f1) = FormE.fieldsToMessage $
+      FormE.field @"trivial" (fmap @Maybe toEncoder f1)
 
-instance ToEncoding MapTest
+instance ToEncoder MapTest
   where
-    toEncoding (MapTest f1 f2 f3) = FormE.fieldsToMessage $
+    toEncoder (MapTest f1 f2 f3) = FormE.fieldsToMessage $
         associations @"prim" assoc1 f1 .
         associations @"trivial" assoc2 f2 .
         associations @"signed" assoc3 f3
@@ -415,7 +415,7 @@ instance ToEncoding MapTest
 
         assoc2 (k, v) = FormE.fieldsToMessage $
           FormE.field @"key" k .
-          FormE.field @"value" (fmap @Maybe toEncoding v)
+          FormE.field @"value" (fmap @Maybe toEncoder v)
 
         assoc3 (k, v) = FormE.fieldsToMessage $
           FormE.field @"key" k .

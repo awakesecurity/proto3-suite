@@ -23,9 +23,12 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Proto3.Suite.Form.Encode.Core
-  ( MessageEncoding(..)
+  ( MessageEncoder(..)
   , toLazyByteString
   , Prefix(..)
+  , Fields
+  , cachePrefix
+  , cachedFields
   , Distinct
   , fieldsToMessage
   , Occupy
@@ -45,6 +48,7 @@ module Proto3.Suite.Form.Encode.Core
   ) where
 
 import Control.Category (Category(..))
+import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
 import Data.Coerce (Coercible, coerce)
 import Data.Functor.Identity (Identity(..))
@@ -69,17 +73,17 @@ import Proto3.Wire.Types (FieldNumber(..))
 
 -- | Annotates 'Encode.MessageBuilder' with the type of protobuf message it encodes.
 -- Prefix a tag and length to turn the message into a submessage of a larger message.
-newtype MessageEncoding (a :: Type) = UnsafeMessageEncoding
-  { untypedMessageEncoding :: Encode.MessageBuilder }
+newtype MessageEncoder (a :: Type) = UnsafeMessageEncoder
+  { untypedMessageEncoder :: Encode.MessageBuilder }
 
-type role MessageEncoding nominal
+type role MessageEncoder nominal
 
 -- | Serialize a message (or portion thereof) as a lazy 'BL.ByteString'.
-toLazyByteString :: forall a . MessageEncoding a -> BL.ByteString
-toLazyByteString = Encode.toLazyByteString . untypedMessageEncoding
+toLazyByteString :: forall a . MessageEncoder a -> BL.ByteString
+toLazyByteString = Encode.toLazyByteString . untypedMessageEncoder
 
 -- | A 'Category' on builders that prefix zero or more fields to a message.
--- Use '.' to accumulate prefixes to create an 'MessageEncoding' for a whole message.
+-- Use '.' to accumulate prefixes to create an 'MessageEncoder' for a whole message.
 --
 -- The first type parameter specifies the type of message being built.
 --
@@ -98,6 +102,8 @@ toLazyByteString = Encode.toLazyByteString . untypedMessageEncoding
 -- Note that this type system permits multiple blocks of the same
 -- packed repeated field.  Though that would be less compact than
 -- a single block, it is allowed by the protobuf standard.
+--
+-- See also: 'cachePrefix'
 newtype Prefix (message :: Type) (possible :: [Symbol]) (following :: [Symbol]) =
   UnsafePrefix { untypedPrefix :: Encode.MessageBuilder }
 
@@ -112,6 +118,26 @@ instance Category (Prefix message)
   where
     id = UnsafePrefix mempty
     f . g = UnsafePrefix (untypedPrefix f <> untypedPrefix g)
+
+-- | The octet sequence that would be prefixed by some 'Prefix' having the same type parameters.
+newtype Fields (message :: Type) (possible :: [Symbol]) (following :: [Symbol]) =
+  UnsafeFields { untypedFields :: B.ByteString }
+
+type role Fields nominal nominal nominal
+
+-- | Precomputes the octet sequence that would be written by the given 'Prefix'.
+-- Do this only if you expect to reuse that specific octet sequence repeatedly.
+--
+-- @'cachedFields' . 'cachedPrefix'@ is functionally equivalent to @id@
+-- but has different performance characteristics.
+cachePrefix :: Prefix message possible following -> Fields message possible following
+cachePrefix = UnsafeFields . BL.toStrict . Encode.toLazyByteString . untypedPrefix
+
+-- | Encodes a precomputed 'Prefix' by copying octets from a memory buffer.
+-- See 'cachePrefix'.
+cachedFields :: Fields message possible following -> Prefix message possible following
+cachedFields = UnsafePrefix . Encode.unsafeFromByteString . untypedFields
+{-# INLINE cachedFields #-}
 
 -- | Yields a satisfied constraint if the given list of names contains
 -- no duplicates after first filtering out the names of repeated fields
@@ -183,8 +209,8 @@ fieldsToMessage ::
   forall (message :: Type) (names :: [Symbol]) .
   Distinct message names =>
   Prefix message '[] names ->
-  MessageEncoding message
-fieldsToMessage = UnsafeMessageEncoding . untypedPrefix
+  MessageEncoder message
+fieldsToMessage = UnsafeMessageEncoder . untypedPrefix
 
 type Occupy (message :: Type) (name :: Symbol) (names :: [Symbol]) =
   Occupy1 message name names (RepetitionOf message name)
@@ -299,30 +325,30 @@ class RawField repetition protoType a
     rawField :: FieldNumber -> a -> Encode.MessageBuilder
 
 instance (omission ~ 'Alternative) =>
-         RawField ('Singular omission) ('Message inner) (MessageEncoding inner)
+         RawField ('Singular omission) ('Message inner) (MessageEncoder inner)
   where
-    rawField !fn e = Encode.embedded fn (untypedMessageEncoding e)
+    rawField !fn e = Encode.embedded fn (untypedMessageEncoder e)
     {-# INLINE rawField #-}
 
-instance RawField 'Optional ('Message inner) (Maybe (MessageEncoding inner))
+instance RawField 'Optional ('Message inner) (Maybe (MessageEncoder inner))
   where
-    rawField !fn = foldMap (Encode.embedded fn . untypedMessageEncoding)
+    rawField !fn = foldMap (Encode.embedded fn . untypedMessageEncoder)
     {-# INLINE rawField #-}
 
 instance ( packing ~ 'Unpacked
          , FoldBuilders t
          ) =>
-         RawField ('Repeated packing) ('Message inner) (t (MessageEncoding inner))
+         RawField ('Repeated packing) ('Message inner) (t (MessageEncoder inner))
   where
-    rawField !fn es = foldBuilders (Encode.embedded fn . untypedMessageEncoding <$> es)
+    rawField !fn es = foldBuilders (Encode.embedded fn . untypedMessageEncoder <$> es)
     {-# INLINE rawField #-}
 
 instance ( repetition ~ 'Repeated 'Unpacked
          , FoldBuilders t
          ) =>
-         RawField repetition ('Map key value) (t (MessageEncoding (Association key value)))
+         RawField repetition ('Map key value) (t (MessageEncoder (Association key value)))
   where
-    rawField !fn es = foldBuilders (Encode.embedded fn . untypedMessageEncoding <$> es)
+    rawField !fn es = foldBuilders (Encode.embedded fn . untypedMessageEncoder <$> es)
     {-# INLINE rawField #-}
 
 instance ( omission ~ 'Alternative
