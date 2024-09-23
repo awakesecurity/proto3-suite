@@ -1011,8 +1011,6 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
        let ident = unqual_ dataName consName
        pure (conDecl_ ident [unbangedTy_ consTy], ident)
 
-    oneOfCons _ DotProtoEmptyField = internalError "field type : empty field"
-
 -- *** Generate Protobuf 'Message' instances
 
 messageInstD

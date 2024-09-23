@@ -58,7 +58,7 @@ instance Show MessageName where
 
 -- | The name of some field
 newtype FieldName = FieldName
-  { getFieldName :: String } 
+  { getFieldName :: String }
   deriving (Data, Eq, Generic, IsString, Ord)
 
 instance Show FieldName where
@@ -66,14 +66,14 @@ instance Show FieldName where
 
 -- | The name of the package
 newtype PackageName = PackageName
-  { getPackageName :: String } 
+  { getPackageName :: String }
   deriving (Data, Eq, Generic, IsString, Ord)
 
 instance Show PackageName where
   show = show . getPackageName
 
-newtype Path = Path 
-  { components :: NE.NonEmpty String } 
+newtype Path = Path
+  { components :: NE.NonEmpty String }
   deriving (Data, Eq, Generic, Ord, Show)
 
 -- Used for testing
@@ -91,7 +91,7 @@ data DotProtoIdentifier
 data DotProtoImport = DotProtoImport
   { dotProtoImportQualifier :: DotProtoImportQualifier
   , dotProtoImportPath      :: FilePath
-  } 
+  }
   deriving (Data, Eq, Generic, Ord, Show)
 
 instance Arbitrary DotProtoImport where
@@ -329,7 +329,7 @@ data RPCMethod = RPCMethod
   , rpcMethodResponseType :: DotProtoIdentifier
   , rpcMethodResponseStreaming :: Streaming
   , rpcMethodOptions :: [DotProtoOption]
-  } 
+  }
   deriving (Data, Eq, Generic, Ord, Show)
 
 instance Arbitrary RPCMethod where
@@ -386,7 +386,6 @@ data DotProtoField = DotProtoField
   , dotProtoFieldOptions :: [DotProtoOption]
   , dotProtoFieldComment :: String
   }
-  | DotProtoEmptyField
   deriving (Data, Eq, Generic, Ord, Show)
 
 instance Arbitrary DotProtoField where
