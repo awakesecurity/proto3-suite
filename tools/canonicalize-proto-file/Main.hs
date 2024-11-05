@@ -150,15 +150,10 @@ instance CanonicalRank [DotProtoField] (Maybe FieldNumber) where
     fmap getMin . foldMap (fmap Min . canonicalRank)
 
 instance Canonicalize [DotProtoField] where
-  canonicalize = canonicalSort . filter keep
-    where
-      keep DotProtoEmptyField = False
-      keep _ = True
+  canonicalize = canonicalSort
 
 instance CanonicalRank DotProtoField (Maybe FieldNumber) where
-  canonicalRank = \case
-    DotProtoField{..} -> Just dotProtoFieldNumber
-    DotProtoEmptyField -> Nothing
+  canonicalRank DotProtoField{..} = Just dotProtoFieldNumber
 
 instance Canonicalize DotProtoField where
   canonicalize DotProtoField{..} = DotProtoField
@@ -169,7 +164,6 @@ instance Canonicalize DotProtoField where
     , dotProtoFieldComment = ""  -- In future we might add a command-line
                                  -- option to preserve comments.
     }
-  canonicalize DotProtoEmptyField = DotProtoEmptyField
 
 instance Canonicalize DotProtoType where canonicalize = id
 
