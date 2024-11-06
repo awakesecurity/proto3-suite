@@ -255,6 +255,7 @@ compileTestDotProtos logger recStyle decodedStringType = do
       protoFiles =
         [ "test_proto.proto"
         , "test_proto_import.proto"
+        , "test_proto_negative_enum.proto"
         , "test_proto_oneof.proto"
         , "test_proto_oneof_import.proto"
         {- These tests have been temporarily removed to pass CI.

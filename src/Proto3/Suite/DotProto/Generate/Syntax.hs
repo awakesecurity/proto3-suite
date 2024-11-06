@@ -968,7 +968,7 @@ intP x = noLocA $ NPat synDef overlit Nothing NoExtField
     overlit = L synDef $ mkHsIntegral $ IL
       { il_text = NoSourceText
       , il_neg = x < 0
-      , il_value = abs (toInteger x)
+      , il_value = toInteger x
       }
 
 floatE :: forall f . RealFloat f => f -> HsExp

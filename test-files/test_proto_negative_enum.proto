@@ -1,0 +1,16 @@
+
+syntax="proto3";
+
+package TestProtoNegativeEnum;
+
+enum NegativeEnum {
+  NEGATIVE_ENUM_0 = 0;
+
+  NEGATIVE_ENUM_NEGATIVE_1 = -1;
+
+  NEGATIVE_ENUM_1 = 1;
+
+  NEGATIVE_ENUM_NEGATIVE_128 = -128;
+
+  NEGATIVE_ENUM_128 = 128;
+}
