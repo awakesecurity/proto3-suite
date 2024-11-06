@@ -14,3 +14,7 @@ enum NegativeEnum {
 
   NEGATIVE_ENUM_128 = 128;
 }
+
+message WithNegativeEnum {
+  NegativeEnum v = 123;
+}
