@@ -959,7 +959,7 @@ intE :: Integral a => a -> HsExp
 intE x = noLocA $ HsOverLit synDef $ mkHsIntegral $ IL
   { il_text = NoSourceText
   , il_neg = x < 0
-  , il_value = abs (toInteger x)
+  , il_value = toInteger x
   }
 
 intP :: Integral a => a -> HsPat
