@@ -147,7 +147,6 @@ prettyPrintProtoDefinition opts = defn where
     <+> optionAnnotation options
     <>  PP.text ";"
     $$  PP.nest 2 (renderComment comments)
-  field _ DotProtoEmptyField = PP.empty
 
   enumPart :: DotProtoIdentifier -> DotProtoEnumPart -> PP.Doc
   enumPart msgName (DotProtoEnumField name value options)

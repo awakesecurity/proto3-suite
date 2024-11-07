@@ -618,7 +618,6 @@ getQualifiedFields msgName msgParts = flip foldMapM msgParts $ \case
             s <- dpIdentUnqualName dotProtoFieldName
             c <- prefixedConName oneofTypeName s
             pure [OneofSubfield dotProtoFieldNumber c (coerce s) dotProtoFieldType dotProtoFieldOptions]
-        mkSubfield DotProtoEmptyField = pure []
 
     fieldElems <- foldMapM mkSubfield fields
 

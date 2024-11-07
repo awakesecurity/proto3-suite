@@ -273,8 +273,8 @@ topLevel modulePath = do
 -- top-level statements
 
 topStatement :: ProtoParser DotProtoStatement
-topStatement = 
-  choice 
+topStatement =
+  choice
     [ DPSImport <$> import_
     , DPSPackage <$> package
     , DPSOption <$> pOptionStmt
@@ -299,8 +299,8 @@ package = do symbol "package"
              return $ DotProtoPackageSpec p
 
 definition :: ProtoParser DotProtoDefinition
-definition = 
-  choice 
+definition =
+  choice
     [ try message
     , try enum
     , service
@@ -309,7 +309,7 @@ definition =
 --------------------------------------------------------------------------------
 -- options
 
--- | Parses a protobuf option that could appear in a service, RPC, message, 
+-- | Parses a protobuf option that could appear in a service, RPC, message,
 -- enumeration, or at the top-level.
 --
 -- @since 0.5.2
@@ -321,7 +321,7 @@ pOptionStmt = token (between pOptionKw (token semi) pFieldOptionStmt)
 -- @since 0.5.2
 pFieldOptions :: ProtoParser [DotProtoOption]
 pFieldOptions = pOptions <|> pure []
-  where 
+  where
     pOptions :: ProtoParser [DotProtoOption]
     pOptions = between lbracket rbracket (commaSep1 (token pFieldOptionStmt))
 
@@ -335,8 +335,8 @@ pFieldOptions = pOptions <|> pure []
 --
 -- @since 0.5.2
 pFieldOptionStmt :: ProtoParser DotProtoOption
-pFieldOptionStmt = token $ do 
-  idt <- pOptionId 
+pFieldOptionStmt = token $ do
+  idt <- pOptionId
   token (char '=')
   val <- value
   pure (DotProtoOption idt val)
@@ -345,23 +345,23 @@ pFieldOptionStmt = token $ do
 --
 -- @since 0.5.2
 pOptionId :: ProtoParser DotProtoIdentifier
-pOptionId = 
-  choice 
+pOptionId =
+  choice
     [ try pOptionQName
     , try (parens pOptionName)
     , pOptionName
     ]
-  where 
+  where
     pOptionName :: ProtoParser DotProtoIdentifier
     pOptionName = token $ do
       nm <- identifierName
       nms <- many (char '.' *> identifierName)
-      if null nms 
+      if null nms
         then pure (Single nm)
         else pure (Dots (Path (nm :| nms)))
 
     pOptionQName :: ProtoParser DotProtoIdentifier
-    pOptionQName = token $ do 
+    pOptionQName = token $ do
       idt <- parens pOptionName
       nms <- char '.' *> pOptionName
       pure (Qualified idt nms)
@@ -419,7 +419,7 @@ message = do symbol "message"
 messageOneOf :: ProtoParser DotProtoMessagePart
 messageOneOf = do symbol "oneof"
                   name <- singleIdentifier
-                  body <- braces $ many (messageField <|> empty $> DotProtoEmptyField)
+                  body <- braces (many messageField)
                   return $ DotProtoMessageOneOf name body
 
 messagePart :: ProtoParser DotProtoMessagePart
@@ -499,7 +499,7 @@ strFieldName =
 -- Message Extensions ----------------------------------------------------------
 
 pExtendStmt :: ProtoParser (DotProtoIdentifier, [DotProtoMessagePart])
-pExtendStmt = do 
+pExtendStmt = do
   pExtendKw
   idt <- identifier
   fxs <- braces (many messagePart)
@@ -510,6 +510,6 @@ pExtendStmt = do
 -- @since 0.5.2
 pExtendKw :: ProtoParser ()
 pExtendKw = do
-  spaces 
-  token (string "extend" >> notFollowedBy alphaNum) 
+  spaces
+  token (string "extend" >> notFollowedBy alphaNum)
     <?> "keyword 'extend'"
