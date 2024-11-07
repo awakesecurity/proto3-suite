@@ -15,6 +15,7 @@ import qualified TestProtoImport
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
 import qualified TestProtoWrappers
+import qualified TestProtoNegativeEnum
 import           Text.Read (readEither)
 import           System.Environment (getArgs, getProgName)
 import           System.Exit (die)
@@ -274,6 +275,15 @@ testCase_BytesValue = do
   emit (Just "")
   emit (Just "012")
 
+testCase_NegativeEnum :: (?format :: Format) => IO ()
+testCase_NegativeEnum = do
+  let emit = outputMessage . TestProtoNegativeEnum.WithNegativeEnum . Enumerated . Right
+  emit TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_0
+  emit TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_NEGATIVE_1
+  emit TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_1
+  emit TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_NEGATIVE_128
+  emit TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_128
+
 
 main :: IO ()
 main = do
@@ -322,5 +332,8 @@ main = do
   testCase_BoolValue
   testCase_StringValue
   testCase_BytesValue
+
+  -- Negative enum codes
+  testCase_NegativeEnum
 
   outputMessage (MultipleFields 0 0 0 0 "All tests complete" False)

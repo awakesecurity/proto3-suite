@@ -264,6 +264,7 @@ compileTestDotProtos logger recStyle decodedStringType = do
         -}
         , "test_proto_nested_message.proto"
         , "test_proto_wrappers.proto"
+        , "test_proto_negative_enum.proto"
         ]
 
   forM_ protoFiles $ \protoFile -> do

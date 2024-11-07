@@ -28,6 +28,7 @@ import qualified TestProtoImport
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
 import qualified TestProtoWrappers
+import qualified TestProtoNegativeEnum
 
 data Format = Binary | Jsonpb
   deriving (Bounded, Enum, Eq, Read, Show)
@@ -59,6 +60,7 @@ tests, testCase1, testCase2, testCaseSignedInts, testCase3, testCase4,
     testCase_DoubleValue, testCase_FloatValue, testCase_Int64Value,
     testCase_UInt64Value, testCase_Int32Value, testCase_UInt32Value,
     testCase_BoolValue, testCase_StringValue, testCase_BytesValue,
+    testCase_NegativeEnum,
     allTestsDone :: (?format :: Format) => TestTree
 tests = testGroup
           ("Decode protobuf messages from Python: format " ++ show ?format)
@@ -71,6 +73,7 @@ tests = testGroup
           , testCase_DoubleValue, testCase_FloatValue, testCase_Int64Value
           , testCase_UInt64Value, testCase_Int32Value, testCase_UInt32Value
           , testCase_BoolValue, testCase_StringValue, testCase_BytesValue
+          , testCase_NegativeEnum
           , allTestsDone -- this should always run last
           ]
 
@@ -398,7 +401,7 @@ testCase_DoubleValue = testCaseInFormat "DoubleValue" $ do
   let w = TestProtoWrappers.TestDoubleValue
   expect (w Nothing)
   expect (w (Just 3.5))
- 
+
 testCase_FloatValue = testCaseInFormat "FloatValue" $ do
   let w = TestProtoWrappers.TestFloatValue
   expect (w Nothing)
@@ -449,6 +452,14 @@ testCase_BytesValue = testCaseInFormat "BytesValue" $ do
   expect (w Nothing)
   expect (w (Just ""))
   expect (w (Just "012"))
+
+testCase_NegativeEnum = testCaseInFormat "NegativeEnum" $ do
+  let w = TestProtoNegativeEnum.WithNegativeEnum . Enumerated . Right
+  expect (w TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_0)
+  expect (w TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_NEGATIVE_1)
+  expect (w TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_1)
+  expect (w TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_NEGATIVE_128)
+  expect (w TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_128)
 
 
 allTestsDone = testCaseInFormat "Receive end of test suite sentinel message" $

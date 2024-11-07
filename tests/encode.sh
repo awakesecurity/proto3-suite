@@ -14,6 +14,7 @@ ghc                                         \
     $hsTmpDir/TestProtoOneof.hs             \
     $hsTmpDir/TestProtoOneofImport.hs       \
     $hsTmpDir/TestProtoWrappers.hs          \
+    $hsTmpDir/TestProtoNegativeEnum.hs      \
     tests/Test/Dhall/Orphan.hs              \
     tests/SimpleEncodeDotProto.hs           \
     >/dev/null
