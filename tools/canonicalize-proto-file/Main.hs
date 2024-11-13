@@ -203,17 +203,13 @@ instance Canonicalize DotProtoEnumPart where
       DotProtoEnumOption (canonicalize option)
 
 instance Canonicalize [DotProtoServicePart] where
-  canonicalize = canonicalSort . filter keep
-    where
-      keep DotProtoServiceEmpty = False
-      keep _ = True
+  canonicalize = canonicalSort
 
 instance CanonicalRank DotProtoServicePart
                        (Either (Maybe DotProtoOption) DotProtoIdentifier) where
   canonicalRank = \case
     DotProtoServiceRPCMethod method -> Right (rpcMethodName method)
     DotProtoServiceOption option -> Left (Just option)
-    DotProtoServiceEmpty -> Left Nothing
 
 instance Canonicalize DotProtoServicePart where
   canonicalize = \case
@@ -221,8 +217,6 @@ instance Canonicalize DotProtoServicePart where
       DotProtoServiceRPCMethod (canonicalize guts)
     DotProtoServiceOption option ->
       DotProtoServiceOption (canonicalize option)
-    DotProtoServiceEmpty ->
-      DotProtoServiceEmpty
 
 instance Canonicalize RPCMethod where
   canonicalize (RPCMethod name reqN reqS rspN rspS options) =

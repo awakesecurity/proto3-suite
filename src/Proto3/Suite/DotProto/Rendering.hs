@@ -169,7 +169,6 @@ instance Pretty DotProtoServicePart where
           [] -> PP.text ";"
           _  -> PP.braces . PP.vcat $ topOption <$> rpcMethodOptions
   pPrint (DotProtoServiceOption option) = topOption option
-  pPrint DotProtoServiceEmpty           = PP.empty
 
 instance Pretty Streaming where
   pPrint Streaming    = PP.text "stream"

@@ -312,7 +312,6 @@ instance Arbitrary Streaming where
 data DotProtoServicePart
   = DotProtoServiceRPCMethod RPCMethod
   | DotProtoServiceOption DotProtoOption
-  | DotProtoServiceEmpty
   deriving (Data, Eq, Generic, Ord, Show)
 
 instance Arbitrary DotProtoServicePart where

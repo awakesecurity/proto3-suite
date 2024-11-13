@@ -383,10 +383,11 @@ pOptionKw = do
 --------------------------------------------------------------------------------
 -- service statements
 
-servicePart :: ProtoParser DotProtoServicePart
-servicePart = DotProtoServiceRPCMethod <$> rpc
-          <|> DotProtoServiceOption <$> pOptionStmt
-          <|> DotProtoServiceEmpty <$ empty
+servicePart :: ProtoParser (Maybe DotProtoServicePart)
+servicePart =
+  (fmap (Just . DotProtoServiceRPCMethod) rpc)
+    <|> (fmap (Just . DotProtoServiceOption) pOptionStmt)
+    <|> Nothing <$ pEmptyStmt
 
 rpcOptions :: ProtoParser [DotProtoOption]
 rpcOptions = braces $ many pOptionStmt
@@ -407,10 +408,13 @@ rpc = do symbol "rpc"
          return RPCMethod{..}
 
 service :: ProtoParser DotProtoDefinition
-service = do symbol "service"
-             name <- singleIdentifier
-             statements <- braces (many servicePart)
-             return $ DotProtoService mempty name statements
+service = do
+  symbol "service"
+  name <- singleIdentifier
+  statements <- braces do
+    results <- many servicePart
+    pure (catMaybes results)
+  return $ DotProtoService mempty name statements
 
 --------------------------------------------------------------------------------
 -- message definitions
