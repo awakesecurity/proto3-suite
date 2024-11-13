@@ -187,17 +187,13 @@ instance Canonicalize [DotProtoReservedField] where
                               | otherwise = FieldRange lo hi
 
 instance Canonicalize [DotProtoEnumPart] where
-  canonicalize = canonicalSort . filter keep
-    where
-      keep DotProtoEnumEmpty = False
-      keep _ = True
+  canonicalize = canonicalSort
 
 instance CanonicalRank DotProtoEnumPart
                        (Either (Maybe DotProtoOption) DotProtoEnumValue) where
   canonicalRank = \case
     DotProtoEnumField _ value _ -> Right value
     DotProtoEnumOption option -> Left (Just option)
-    DotProtoEnumEmpty -> Left Nothing
 
 instance Canonicalize DotProtoEnumPart where
   canonicalize = \case
@@ -205,8 +201,6 @@ instance Canonicalize DotProtoEnumPart where
       DotProtoEnumField (canonicalize name) value (map canonicalize opts)
     DotProtoEnumOption option ->
       DotProtoEnumOption (canonicalize option)
-    DotProtoEnumEmpty ->
-      DotProtoEnumEmpty
 
 instance Canonicalize [DotProtoServicePart] where
   canonicalize = canonicalSort . filter keep

@@ -54,8 +54,8 @@ tests logger = testGroup "Tests"
   , parserUnitTests
   , dotProtoUnitTests
   , codeGenTests logger
-  , Test.Proto.Generate.Name.tests
-  , Test.Proto.Parse.Option.tests
+  , Test.Proto.Generate.Name.testTree
+  , Test.Proto.Parse.Option.testTree
 
 #ifdef DHALL
   , dhallTests

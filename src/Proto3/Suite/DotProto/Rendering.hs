@@ -157,8 +157,6 @@ prettyPrintProtoDefinition opts = defn where
     <> PP.text ";"
   enumPart _       (DotProtoEnumOption opt)
     = PP.text "option" <+> pPrint opt <> PP.text ";"
-  enumPart _       DotProtoEnumEmpty
-    = PP.empty
 
 instance Pretty DotProtoServicePart where
   pPrint (DotProtoServiceRPCMethod RPCMethod{..})

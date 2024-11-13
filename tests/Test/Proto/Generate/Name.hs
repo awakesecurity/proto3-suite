@@ -4,7 +4,7 @@
 
 -- |
 --
-module Test.Proto.Generate.Name (tests) where
+module Test.Proto.Generate.Name (testTree) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
@@ -20,8 +20,8 @@ import Proto3.Suite.DotProto.Generate
 
 -- -----------------------------------------------------------------------------
 
-tests :: TestTree
-tests =
+testTree :: TestTree
+testTree =
   testGroup
     "Test.Proto.Generate.Name"
     [ testProperty "filenames" resolve'protofile
