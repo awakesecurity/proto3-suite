@@ -254,7 +254,6 @@ compileTestDotProtos logger recStyle decodedStringType = do
   let protoFiles :: [Turtle.FilePath]
       protoFiles =
         [ "test_proto.proto"
-        , "test_proto_empty_field.proto"
         , "test_proto_import.proto"
         , "test_proto_oneof.proto"
         , "test_proto_oneof_import.proto"
