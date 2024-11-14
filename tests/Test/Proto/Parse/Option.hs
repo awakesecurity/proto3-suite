@@ -1,27 +1,26 @@
 
-module Test.Proto.Parse.Option (tests) where
+module Test.Proto.Parse.Option (testTree) where
 
-import Hedgehog (Property, PropertyT, forAll, property, (===))
+import Hedgehog (Property, forAll, property, (===))
 import qualified Hedgehog as Hedgehog
 import qualified Hedgehog.Gen as Gen
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
 
+import Test.Proto.Parse.Core (runParseTest, parseTrip)
 import qualified Test.Proto.Parse.Gen as Gen
 
 import qualified Data.Char as Char
 import Data.Either (isLeft)
 import Text.Parsec (ParseError)
-import qualified Text.Parsec as Parsec
-import Text.PrettyPrint (render)
-import Text.PrettyPrint.HughesPJClass (Pretty, pPrint)
 
-import Proto3.Suite.DotProto.Parsing (ProtoParser)
 import qualified Proto3.Suite.DotProto.Parsing as Proto3
 import Proto3.Suite.DotProto.Rendering () -- orphan Pretty DotProtoIdentifier
 
-tests :: TestTree
-tests =
+--------------------------------------------------------------------------------
+
+testTree :: TestTree
+testTree =
   testGroup
     "Test.Proto.Parse.Option"
     [ testProperty "Unqualified Option Identifier" propParseName
@@ -29,12 +28,6 @@ tests =
     , testProperty "Keyword 'Option'" propParseOptionKw
     , testsOptionKw
     ]
-
-runParseTest :: ProtoParser a -> String -> Either ParseError a
-runParseTest p = Parsec.parse (Proto3.runProtoParser p) ""
-
-parseTrip :: (Eq a, Pretty a, Show a) => a -> ProtoParser a -> PropertyT IO ()
-parseTrip x p = Hedgehog.tripping x (render . pPrint) (runParseTest p)
 
 propParseName :: Property
 propParseName = property $ do

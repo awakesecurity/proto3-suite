@@ -1,0 +1,15 @@
+
+syntax = "proto3";
+package TestProtoEmptyField;
+
+enum EnumWithEmptyField {
+  enum_foo = 0;
+  ;
+  enum_bar = 1;
+}
+
+message MessageWithEmptyField {
+  uint32 foo = 1;
+  ;
+  uint32 bar = 2;
+}

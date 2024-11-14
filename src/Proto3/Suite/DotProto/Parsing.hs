@@ -1,6 +1,7 @@
 -- | This module contains a near-direct translation of the proto3 grammar
 --   It uses String for easier compatibility with DotProto.Generator, which needs it for not very good reasons
 
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
@@ -26,6 +27,9 @@ module Proto3.Suite.DotProto.Parsing
     -- * Extension Parsers
   , pExtendStmt
   , pExtendKw
+
+    -- * Empty Statement
+  , pEmptyStmt
   ) where
 
 import Prelude hiding (fail)
@@ -38,6 +42,7 @@ import Control.Monad (fail)
 import Control.Monad.Fail
 #endif
 import qualified Data.Char as Char
+import Data.Maybe (catMaybes)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NE
 import Data.Functor
@@ -302,7 +307,7 @@ definition :: ProtoParser DotProtoDefinition
 definition =
   choice
     [ try message
-    , try enum
+    , try pEnumDefn
     , service
     ]
 
@@ -378,10 +383,11 @@ pOptionKw = do
 --------------------------------------------------------------------------------
 -- service statements
 
-servicePart :: ProtoParser DotProtoServicePart
-servicePart = DotProtoServiceRPCMethod <$> rpc
-          <|> DotProtoServiceOption <$> pOptionStmt
-          <|> DotProtoServiceEmpty <$ empty
+servicePart :: ProtoParser (Maybe DotProtoServicePart)
+servicePart =
+  try (fmap (Just . DotProtoServiceRPCMethod) rpc)
+    <|> try (fmap (Just . DotProtoServiceOption) pOptionStmt)
+    <|> Nothing <$ pEmptyStmt
 
 rpcOptions :: ProtoParser [DotProtoOption]
 rpcOptions = braces $ many pOptionStmt
@@ -402,19 +408,25 @@ rpc = do symbol "rpc"
          return RPCMethod{..}
 
 service :: ProtoParser DotProtoDefinition
-service = do symbol "service"
-             name <- singleIdentifier
-             statements <- braces (many servicePart)
-             return $ DotProtoService mempty name statements
+service = do
+  symbol "service"
+  name <- singleIdentifier
+  statements <- braces do
+    results <- many servicePart
+    pure (catMaybes results)
+  return $ DotProtoService mempty name statements
 
 --------------------------------------------------------------------------------
 -- message definitions
 
 message :: ProtoParser DotProtoDefinition
-message = do symbol "message"
-             name <- singleIdentifier
-             body <- braces (many messagePart)
-             return $ DotProtoMessage mempty name body
+message = do
+  symbol "message"
+  name <- singleIdentifier
+  body <- braces do
+    results <- many messagePart
+    pure (catMaybes results)
+  pure (DotProtoMessage mempty name body)
 
 messageOneOf :: ProtoParser DotProtoMessagePart
 messageOneOf = do symbol "oneof"
@@ -422,13 +434,15 @@ messageOneOf = do symbol "oneof"
                   body <- braces (many messageField)
                   return $ DotProtoMessageOneOf name body
 
-messagePart :: ProtoParser DotProtoMessagePart
-messagePart = try (DotProtoMessageDefinition <$> enum)
-          <|> try (DotProtoMessageReserved   <$> reservedField)
-          <|> try (DotProtoMessageDefinition <$> message)
-          <|> try messageOneOf
-          <|> try (DotProtoMessageField      <$> messageField)
-          <|> try (DotProtoMessageOption     <$> pOptionStmt)
+messagePart :: ProtoParser (Maybe DotProtoMessagePart)
+messagePart =
+  try (Just . DotProtoMessageDefinition <$> pEnumDefn)
+    <|> try (Just . DotProtoMessageReserved   <$> reservedField)
+    <|> try (Just . DotProtoMessageDefinition <$> message)
+    <|> try (fmap Just messageOneOf)
+    <|> try (Just . DotProtoMessageField      <$> messageField)
+    <|> try (Just . DotProtoMessageOption     <$> pOptionStmt)
+    <|> (Nothing <$ pEmptyStmt)
 
 messageType :: ProtoParser DotProtoType
 messageType = try mapType <|> try repType <|> (Prim <$> primType)
@@ -461,16 +475,20 @@ enumField = do fname <- identifier
                return $ DotProtoEnumField fname fpos opts
 
 
-enumStatement :: ProtoParser DotProtoEnumPart
-enumStatement = try (DotProtoEnumOption <$> pOptionStmt)
-            <|> enumField
-            <|> empty $> DotProtoEnumEmpty
+enumStatement :: ProtoParser (Maybe DotProtoEnumPart)
+enumStatement =
+  try (fmap (Just . DotProtoEnumOption) pOptionStmt)
+    <|> try (fmap Just enumField)
+    <|> (Nothing <$ pEmptyStmt)
 
-enum :: ProtoParser DotProtoDefinition
-enum = do symbol "enum"
-          ename <- singleIdentifier
-          ebody <- braces (many enumStatement)
-          return $ DotProtoEnum mempty ename ebody
+pEnumDefn :: ProtoParser DotProtoDefinition
+pEnumDefn = do
+  symbol "enum"
+  ename <- singleIdentifier
+  ebody <- braces do
+    results <- many enumStatement
+    pure (catMaybes results)
+  pure (DotProtoEnum mempty ename ebody)
 
 --------------------------------------------------------------------------------
 -- field reservations
@@ -502,7 +520,9 @@ pExtendStmt :: ProtoParser (DotProtoIdentifier, [DotProtoMessagePart])
 pExtendStmt = do
   pExtendKw
   idt <- identifier
-  fxs <- braces (many messagePart)
+  fxs <- braces do
+    results <- many messagePart
+    pure (catMaybes results)
   pure (idt, fxs)
 
 -- | Parses a single keyword token "extend".
@@ -513,3 +533,11 @@ pExtendKw = do
   spaces
   token (string "extend" >> notFollowedBy alphaNum)
     <?> "keyword 'extend'"
+
+-- Parse - Empty Statements ----------------------------------------------------
+
+-- | Parses a single empty statement (i.e. a semicolon).
+--
+-- See: https://protobuf.dev/reference/protobuf/proto3-spec/#emptystatement
+pEmptyStmt :: ProtoParser ()
+pEmptyStmt = token (() <$ char ';') <?> "empty statement"

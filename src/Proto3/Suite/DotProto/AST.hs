@@ -286,7 +286,6 @@ type DotProtoEnumValue = Int32
 data DotProtoEnumPart
   = DotProtoEnumField DotProtoIdentifier DotProtoEnumValue [DotProtoOption]
   | DotProtoEnumOption DotProtoOption
-  | DotProtoEnumEmpty
   deriving (Data, Eq, Generic, Ord, Show)
 
 instance Arbitrary DotProtoEnumPart where
@@ -313,7 +312,6 @@ instance Arbitrary Streaming where
 data DotProtoServicePart
   = DotProtoServiceRPCMethod RPCMethod
   | DotProtoServiceOption DotProtoOption
-  | DotProtoServiceEmpty
   deriving (Data, Eq, Generic, Ord, Show)
 
 instance Arbitrary DotProtoServicePart where
