@@ -385,8 +385,8 @@ pOptionKw = do
 
 servicePart :: ProtoParser (Maybe DotProtoServicePart)
 servicePart =
-  (fmap (Just . DotProtoServiceRPCMethod) rpc)
-    <|> (fmap (Just . DotProtoServiceOption) pOptionStmt)
+  try (fmap (Just . DotProtoServiceRPCMethod) rpc)
+    <|> try (fmap (Just . DotProtoServiceOption) pOptionStmt)
     <|> Nothing <$ pEmptyStmt
 
 rpcOptions :: ProtoParser [DotProtoOption]
