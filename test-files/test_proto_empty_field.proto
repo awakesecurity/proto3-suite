@@ -1,6 +1,6 @@
 
 syntax = "proto3";
-package TestProtoEmptyFeild;
+package TestProtoEmptyField;
 
 enum EnumWithEmptyField {
   enum_foo = 0;
