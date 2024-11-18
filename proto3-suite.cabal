@@ -175,22 +175,24 @@ test-suite tests
   autogen-modules:
     TestProto
     TestProtoImport
+    TestProtoNegativeEnum
+    TestProtoNestedMessage
     TestProtoOneof
     TestProtoOneofImport
     TestProtoWrappers
-    TestProtoNestedMessage
 
   other-modules:
     ArbitraryGeneratedTestTypes
     TestCodeGen
     TestProto
     TestProtoImport
+    --TestProtoLeadingDot
+    TestProtoNegativeEnum
+    TestProtoNestedMessage
     TestProtoOneof
     TestProtoOneofImport
-    TestProtoWrappers
-    --TestProtoLeadingDot
-    TestProtoNestedMessage
     --TestProtoProtocPlugin
+    TestProtoWrappers
     Test.Proto.Generate.Name
     Test.Proto.Generate.Name.Gen
     Test.Proto.Parse

@@ -322,7 +322,7 @@ testCase_BytesValue = do
   emit (Just "") [] (Just "789")
   emit (Just "012") ["", "", ""] (Just "")
 
-testCase_NegativeEnum :: (?format :: Format) => IO ()
+testCase_NegativeEnum :: (?format :: Format, ?iterator :: Iterator) => IO ()
 testCase_NegativeEnum = do
   let emit = outputMessage . TestProtoNegativeEnum.WithNegativeEnum . Enumerated . Right
   emit TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_0

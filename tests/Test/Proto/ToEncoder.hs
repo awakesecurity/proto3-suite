@@ -27,6 +27,7 @@ import qualified Proto3.Suite.Form.Encode as FormE
 
 import           TestProto
 import qualified TestProtoImport
+import qualified TestProtoNegativeEnum
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
 import qualified TestProtoWrappers
@@ -420,5 +421,10 @@ instance ToEncoder MapTest
         assoc3 (k, v) = FormE.fieldsToMessage $
           FormE.field @"key" k .
           FormE.field @"value" v
+
+instance ToEncoder TestProtoNegativeEnum.WithNegativeEnum
+  where
+    toEncoder (TestProtoNegativeEnum.WithNegativeEnum f1) = FormE.fieldsToMessage $
+      FormE.field @"v" f1
 
 #endif
