@@ -816,12 +816,12 @@ instance MessageField (PackedVec Double) where
 instance (MessageField e, KnownSymbol comments) => MessageField (e // comments) where
   encodeMessageField !fn = encodeMessageField fn . unCommented
   {-# INLINE encodeMessageField #-}
+
   decodeMessageField = coerce @(Parser RawField e)
                               @(Parser RawField (Commented comments e))
                               decodeMessageField
-  protoType p = case field of
-      DotProtoEmptyField -> DotProtoEmptyField
-      f -> f { dotProtoFieldComment = symbolVal (lowerProxy2 p) }
+
+  protoType p = field { dotProtoFieldComment = symbolVal (lowerProxy2 p) }
     where
       field :: DotProtoField
       field = protoType (lowerProxy1 p)
@@ -1015,8 +1015,9 @@ instance (KnownNat (GenericFieldCount f), GenericMessage f, GenericMessage g)
         adjust (genericDotProto (proxy# :: Proxy# g))
       where
         offset = fromIntegral $ natVal (Proxy @(GenericFieldCount f))
+
         adjust = map adjustPart
-        adjustPart DotProtoEmptyField = DotProtoEmptyField
+
         adjustPart part = part
           { dotProtoFieldNumber = FieldNumber . (offset +)
                                   . getFieldNumber . dotProtoFieldNumber
@@ -1036,7 +1037,6 @@ instance (Selector s, GenericMessage f) => GenericMessage (M1 S s f) where
   genericDotProto _                 = map applyName $ genericDotProto (proxy# :: Proxy# f)
     where
       applyName :: DotProtoField -> DotProtoField
-      applyName DotProtoEmptyField = DotProtoEmptyField
       applyName mp = mp { dotProtoFieldName = fromMaybe Anonymous newName}
       -- [issue] this probably doesn't match the intended name generating semantics
 

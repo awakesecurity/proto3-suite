@@ -2,13 +2,14 @@
 import sys
 import os
 # Import protoc generated {de,}serializers (generated from test_proto{,_import}.proto)
-from google.protobuf               import json_format
-from google.protobuf.wrappers_pb2  import *
-from test_proto_pb2                import *
-import test_proto_import_pb2       as test_proto_import
-import test_proto_oneof_pb2        as test_proto_oneof
-import test_proto_oneof_import_pb2 as test_proto_oneof_import
-import test_proto_wrappers_pb2     as test_proto_wrappers
+from google.protobuf                import json_format
+from google.protobuf.wrappers_pb2   import *
+from test_proto_pb2                 import *
+import test_proto_import_pb2        as test_proto_import
+import test_proto_negative_enum_pb2 as test_proto_negative_enum
+import test_proto_oneof_pb2         as test_proto_oneof
+import test_proto_oneof_import_pb2  as test_proto_oneof_import
+import test_proto_wrappers_pb2      as test_proto_wrappers
 
 # Python 3.7 or newer requires this
 sys.stdout.reconfigure(encoding='iso-8859-1')
@@ -404,6 +405,13 @@ write_proto(test_proto_wrappers.TestBytesValue
             (wrapper=BytesValue(value=b"012"),
              many=map(lambda x: BytesValue(value=x), [b"", b"", b""]),
              one=BytesValue(value=b"")))
+
+# Test NegativeEnum
+write_proto(test_proto_negative_enum.WithNegativeEnum(v=test_proto_negative_enum.NEGATIVE_ENUM_0))
+write_proto(test_proto_negative_enum.WithNegativeEnum(v=test_proto_negative_enum.NEGATIVE_ENUM_NEGATIVE_1))
+write_proto(test_proto_negative_enum.WithNegativeEnum(v=test_proto_negative_enum.NEGATIVE_ENUM_1))
+write_proto(test_proto_negative_enum.WithNegativeEnum(v=test_proto_negative_enum.NEGATIVE_ENUM_NEGATIVE_128))
+write_proto(test_proto_negative_enum.WithNegativeEnum(v=test_proto_negative_enum.NEGATIVE_ENUM_128))
 
 # Send the special 'done' message
 write_proto(MultipleFields(multiFieldString = "All tests complete"))

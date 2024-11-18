@@ -1136,7 +1136,7 @@ intE :: Integral a => a -> HsExp
 intE x = noLocA $ HsOverLit synDef $ mkHsIntegral $ IL
   { il_text = NoSourceText
   , il_neg = x < 0
-  , il_value = abs (toInteger x)
+  , il_value = toInteger x
   }
 
 intP :: Integral a => a -> HsPat
@@ -1145,7 +1145,7 @@ intP x = noLocA $ NPat synDef overlit Nothing NoExtField
     overlit = L synDef $ mkHsIntegral $ IL
       { il_text = NoSourceText
       , il_neg = x < 0
-      , il_value = abs (toInteger x)
+      , il_value = toInteger x
       }
 
 natTLit :: Integral a => a -> HsType

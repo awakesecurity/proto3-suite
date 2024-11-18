@@ -626,7 +626,6 @@ getQualifiedFields msgName msgParts = flip foldMapM msgParts $ \case
                      , subfieldOptions      = dotProtoFieldOptions
                      }
                  ]
-        mkSubfield DotProtoEmptyField = pure []
 
     fieldElems <- foldMapM mkSubfield fields
 

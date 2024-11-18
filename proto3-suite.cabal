@@ -49,7 +49,7 @@ source-repository head
 
 common common
   default-extensions:
-    DeriveDataTypeable DeriveGeneric
+    BlockArguments DeriveDataTypeable DeriveGeneric ImportQualifiedPost
 
 library
   import: common
@@ -193,6 +193,8 @@ test-suite tests
     --TestProtoProtocPlugin
     Test.Proto.Generate.Name
     Test.Proto.Generate.Name.Gen
+    Test.Proto.Parse
+    Test.Proto.Parse.Core
     Test.Proto.Parse.Gen
     Test.Proto.Parse.Option
     Test.Proto.ToEncoder

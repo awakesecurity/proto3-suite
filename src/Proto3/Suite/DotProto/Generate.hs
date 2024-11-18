@@ -1183,9 +1183,6 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
        let ident = unqual_ dataName consName
        pure (conDecl_ ident [unbangedTy_ consTy], ident)
 
-    oneOfCons _ DotProtoEmptyField = internalError "field type : empty field"
-
-
 -- *** Generate type family instances providing type-level information about protobuf formats.
 
 type FieldOccurrences = (Histogram FieldName, Histogram FieldNumber)

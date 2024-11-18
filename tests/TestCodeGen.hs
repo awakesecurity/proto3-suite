@@ -275,6 +275,7 @@ compileTestDotProtos logger recStyle decodedStringType typeLevel = do
       protoFiles =
         [ "test_proto.proto"
         , "test_proto_import.proto"
+        , "test_proto_negative_enum.proto"
         , "test_proto_oneof.proto"
         , "test_proto_oneof_import.proto"
         {- These tests have been temporarily removed to pass CI.
@@ -283,6 +284,7 @@ compileTestDotProtos logger recStyle decodedStringType typeLevel = do
         -}
         , "test_proto_nested_message.proto"
         , "test_proto_wrappers.proto"
+        , "test_proto_negative_enum.proto"
         ]
 
   forM_ protoFiles $ \protoFile -> do
