@@ -25,10 +25,12 @@
 module Proto3.Suite.Form.Encode.Core
   ( MessageEncoder(..)
   , toLazyByteString
+  , etaMessageEncoder
   , MessageEncoding
   , cacheMessageEncoder
   , cachedMessageEncoding
   , Prefix(..)
+  , etaPrefix
   , Fields
   , cachePrefix
   , cachedFields
@@ -84,6 +86,10 @@ type role MessageEncoder nominal
 -- | Serialize a message (or portion thereof) as a lazy 'BL.ByteString'.
 toLazyByteString :: forall message . MessageEncoder message -> BL.ByteString
 toLazyByteString = Encode.toLazyByteString . untypedMessageEncoder
+
+-- | Like 'Encode.etaMessageBuilder' but for 'MessageEncoder'.
+etaMessageEncoder :: forall a message . (a -> MessageEncoder message) -> a -> MessageEncoder message
+etaMessageEncoder = coerce (Encode.etaMessageBuilder @a)
 
 -- | The octet sequence that would be emitted by
 -- some 'MessageEncoder' having the same type parameter.
@@ -149,6 +155,13 @@ instance Category (Prefix message)
   where
     id = UnsafePrefix mempty
     f . g = UnsafePrefix (untypedPrefix f <> untypedPrefix g)
+
+-- | Like 'Encode.etaMessageBuilder' but for 'Prefix'.
+etaPrefix ::
+  forall a message possible following .
+  (a -> Prefix message possible following) ->
+  a -> Prefix message possible following
+etaPrefix = coerce (Encode.etaMessageBuilder @a)
 
 -- | The octet sequence that would be prefixed by some 'Prefix' having the same type parameters.
 newtype Fields (message :: Type) (possible :: [Symbol]) (following :: [Symbol]) =
