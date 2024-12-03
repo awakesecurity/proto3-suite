@@ -22,6 +22,9 @@
 module Proto3.Suite.Form.Encode
   ( MessageEncoder(..)
   , toLazyByteString
+  , MessageEncoding
+  , cacheMessageEncoder
+  , cachedMessageEncoding
   , Prefix(..)
   , Distinct
   , fieldsToMessage

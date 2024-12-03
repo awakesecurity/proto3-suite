@@ -25,6 +25,9 @@
 module Proto3.Suite.Form.Encode.Core
   ( MessageEncoder(..)
   , toLazyByteString
+  , MessageEncoding
+  , cacheMessageEncoder
+  , cachedMessageEncoding
   , Prefix(..)
   , Fields
   , cachePrefix
@@ -73,14 +76,42 @@ import Proto3.Wire.Types (FieldNumber(..))
 
 -- | Annotates 'Encode.MessageBuilder' with the type of protobuf message it encodes.
 -- Prefix a tag and length to turn the message into a submessage of a larger message.
-newtype MessageEncoder (a :: Type) = UnsafeMessageEncoder
+newtype MessageEncoder (message :: Type) = UnsafeMessageEncoder
   { untypedMessageEncoder :: Encode.MessageBuilder }
 
 type role MessageEncoder nominal
 
 -- | Serialize a message (or portion thereof) as a lazy 'BL.ByteString'.
-toLazyByteString :: forall a . MessageEncoder a -> BL.ByteString
+toLazyByteString :: forall message . MessageEncoder message -> BL.ByteString
 toLazyByteString = Encode.toLazyByteString . untypedMessageEncoder
+
+-- | The octet sequence that would be emitted by
+-- some 'MessageEncoder' having the same type parameter.
+--
+-- See also: 'cacheMessageEncoder'
+newtype MessageEncoding (message :: Type) =
+  UnsafeMessageEncoding { untypedMessageEncoding :: B.ByteString }
+
+type role MessageEncoding nominal
+
+-- | Precomputes the octet sequence that would be written by the given 'MessageEncoder'.
+-- Do this only if you expect to reuse that specific octet sequence repeatedly.
+--
+-- @'cachedMessageEncoding' . 'cacheMessageEncoder'@ is functionally equivalent to @id@
+-- but has different performance characteristics.
+--
+-- See also: 'cachePrefix'.
+cacheMessageEncoder :: MessageEncoder message -> MessageEncoding message
+cacheMessageEncoder =
+  UnsafeMessageEncoding . BL.toStrict . Encode.toLazyByteString . untypedMessageEncoder
+
+-- | Encodes a precomputed 'MessageEncoder' by copying octets from a memory buffer.
+-- See 'cacheMessageEncoder'.
+--
+-- See also: 'cachedFields'
+cachedMessageEncoding :: MessageEncoding message -> MessageEncoder message
+cachedMessageEncoding = UnsafeMessageEncoder . Encode.unsafeFromByteString . untypedMessageEncoding
+{-# INLINE cachedMessageEncoding #-}
 
 -- | A 'Category' on builders that prefix zero or more fields to a message.
 -- Use '.' to accumulate prefixes to create an 'MessageEncoder' for a whole message.
@@ -128,13 +159,17 @@ type role Fields nominal nominal nominal
 -- | Precomputes the octet sequence that would be written by the given 'Prefix'.
 -- Do this only if you expect to reuse that specific octet sequence repeatedly.
 --
--- @'cachedFields' . 'cachedPrefix'@ is functionally equivalent to @id@
+-- @'cachedFields' . 'cachePrefix'@ is functionally equivalent to @id@
 -- but has different performance characteristics.
+--
+-- See also: 'cacheMessageEncoder'
 cachePrefix :: Prefix message possible following -> Fields message possible following
 cachePrefix = UnsafeFields . BL.toStrict . Encode.toLazyByteString . untypedPrefix
 
 -- | Encodes a precomputed 'Prefix' by copying octets from a memory buffer.
 -- See 'cachePrefix'.
+--
+-- See also: 'cachedMessageEncoding'.
 cachedFields :: Fields message possible following -> Prefix message possible following
 cachedFields = UnsafePrefix . Encode.unsafeFromByteString . untypedFields
 {-# INLINE cachedFields #-}
