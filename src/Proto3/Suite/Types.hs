@@ -2,12 +2,12 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ExplicitNamespaces #-}
 
 module Proto3.Suite.Types
   (
@@ -34,7 +34,7 @@ module Proto3.Suite.Types
 import           Control.Applicative
 import           Control.DeepSeq (NFData)
 import           GHC.Exts (IsList(..))
-import           GHC.Generics
+import           GHC.Generics (Generic)
 import           Data.Function (on)
 import           Data.Int (Int32)
 import qualified Data.Vector as V
