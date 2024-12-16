@@ -2,12 +2,13 @@
 import io
 import sys
 # Import protoc generated {de,}serializers (generated from test_proto{,_import}.proto)
-from google.protobuf             import json_format
-from test_proto_pb2              import *
-from test_proto_import_pb2       import WithNesting as ImportedWithNesting
-from test_proto_oneof_pb2        import Something, WithImported, DUMMY0, DUMMY1
-from test_proto_oneof_import_pb2 import WithOneof
-from test_proto_wrappers_pb2     import *
+from google.protobuf              import json_format
+from test_proto_pb2               import *
+from test_proto_import_pb2        import WithNesting as ImportedWithNesting
+from test_proto_negative_enum_pb2 import *
+from test_proto_oneof_pb2         import Something, WithImported, DUMMY0, DUMMY1
+from test_proto_oneof_import_pb2  import WithOneof
+from test_proto_wrappers_pb2      import *
 
 # Python 3.7 or newer requires this
 sys.stdin.reconfigure(encoding='iso-8859-1', newline='')
@@ -494,6 +495,21 @@ assert case_BytesValue_B.wrapper.value == b""
 case_BytesValue_C = read_proto(TestBytesValue)
 assert case_BytesValue_C.HasField('wrapper')
 assert case_BytesValue_C.wrapper.value == b"012"
+
+case_NegativeEnum_A = read_proto(WithNegativeEnum)
+assert case_NegativeEnum_A.v == NEGATIVE_ENUM_0
+
+case_NegativeEnum_B = read_proto(WithNegativeEnum)
+assert case_NegativeEnum_B.v == NEGATIVE_ENUM_NEGATIVE_1
+
+case_NegativeEnum_C = read_proto(WithNegativeEnum)
+assert case_NegativeEnum_C.v == NEGATIVE_ENUM_1
+
+case_NegativeEnum_D = read_proto(WithNegativeEnum)
+assert case_NegativeEnum_D.v == NEGATIVE_ENUM_NEGATIVE_128
+
+case_NegativeEnum_E = read_proto(WithNegativeEnum)
+assert case_NegativeEnum_E.v == NEGATIVE_ENUM_128
 
 # Wait for the special 'done' messsage
 done_msg = read_proto(MultipleFields)

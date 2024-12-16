@@ -150,15 +150,10 @@ instance CanonicalRank [DotProtoField] (Maybe FieldNumber) where
     fmap getMin . foldMap (fmap Min . canonicalRank)
 
 instance Canonicalize [DotProtoField] where
-  canonicalize = canonicalSort . filter keep
-    where
-      keep DotProtoEmptyField = False
-      keep _ = True
+  canonicalize = canonicalSort
 
 instance CanonicalRank DotProtoField (Maybe FieldNumber) where
-  canonicalRank = \case
-    DotProtoField{..} -> Just dotProtoFieldNumber
-    DotProtoEmptyField -> Nothing
+  canonicalRank DotProtoField{..} = Just dotProtoFieldNumber
 
 instance Canonicalize DotProtoField where
   canonicalize DotProtoField{..} = DotProtoField
@@ -169,7 +164,6 @@ instance Canonicalize DotProtoField where
     , dotProtoFieldComment = ""  -- In future we might add a command-line
                                  -- option to preserve comments.
     }
-  canonicalize DotProtoEmptyField = DotProtoEmptyField
 
 instance Canonicalize DotProtoType where canonicalize = id
 
@@ -193,17 +187,13 @@ instance Canonicalize [DotProtoReservedField] where
                               | otherwise = FieldRange lo hi
 
 instance Canonicalize [DotProtoEnumPart] where
-  canonicalize = canonicalSort . filter keep
-    where
-      keep DotProtoEnumEmpty = False
-      keep _ = True
+  canonicalize = canonicalSort
 
 instance CanonicalRank DotProtoEnumPart
                        (Either (Maybe DotProtoOption) DotProtoEnumValue) where
   canonicalRank = \case
     DotProtoEnumField _ value _ -> Right value
     DotProtoEnumOption option -> Left (Just option)
-    DotProtoEnumEmpty -> Left Nothing
 
 instance Canonicalize DotProtoEnumPart where
   canonicalize = \case
@@ -211,21 +201,15 @@ instance Canonicalize DotProtoEnumPart where
       DotProtoEnumField (canonicalize name) value (map canonicalize opts)
     DotProtoEnumOption option ->
       DotProtoEnumOption (canonicalize option)
-    DotProtoEnumEmpty ->
-      DotProtoEnumEmpty
 
 instance Canonicalize [DotProtoServicePart] where
-  canonicalize = canonicalSort . filter keep
-    where
-      keep DotProtoServiceEmpty = False
-      keep _ = True
+  canonicalize = canonicalSort
 
 instance CanonicalRank DotProtoServicePart
                        (Either (Maybe DotProtoOption) DotProtoIdentifier) where
   canonicalRank = \case
     DotProtoServiceRPCMethod method -> Right (rpcMethodName method)
     DotProtoServiceOption option -> Left (Just option)
-    DotProtoServiceEmpty -> Left Nothing
 
 instance Canonicalize DotProtoServicePart where
   canonicalize = \case
@@ -233,8 +217,6 @@ instance Canonicalize DotProtoServicePart where
       DotProtoServiceRPCMethod (canonicalize guts)
     DotProtoServiceOption option ->
       DotProtoServiceOption (canonicalize option)
-    DotProtoServiceEmpty ->
-      DotProtoServiceEmpty
 
 instance Canonicalize RPCMethod where
   canonicalize (RPCMethod name reqN reqS rspN rspS options) =

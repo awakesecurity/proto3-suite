@@ -54,8 +54,8 @@ tests logger = testGroup "Tests"
   , parserUnitTests
   , dotProtoUnitTests
   , codeGenTests logger
-  , Test.Proto.Generate.Name.tests
-  , Test.Proto.Parse.Option.tests
+  , Test.Proto.Generate.Name.testTree
+  , Test.Proto.Parse.Option.testTree
 
 #ifdef DHALL
   , dhallTests
@@ -269,6 +269,7 @@ dotProtoUnitTests :: TestTree
 dotProtoUnitTests = testGroup ".proto parsing tests"
   [ dotProtoParseTrivial
   , dotProtoPrintTrivial
+  , dotProtoParseEmptyStatement
   , dotProtoRoundtripTrivial
   , dotProtoRoundtripSimpleMessage
   , dotProtoRoundtripExtend
@@ -287,6 +288,44 @@ dotProtoPrintTrivial :: TestTree
 dotProtoPrintTrivial = testCase
   "Print a content-less DotProto" $
   testDotProtoPrint trivialDotProto "syntax = \"proto3\";"
+
+dotProtoParseEmptyStatement :: TestTree
+dotProtoParseEmptyStatement =
+  testCase "Parse empty statements" (testDotProtoParse filePath dotProtoAST)
+  where
+    filePath :: FilePath
+    filePath = testFilesPfx <> "test_proto_empty_field.proto"
+
+    dotProtoAST :: DotProto
+    dotProtoAST =
+      DotProto [] []
+        (DotProtoPackageSpec (Single "TestProtoEmptyField"))
+        [ DotProtoEnum
+            ""
+            (Single "EnumWithEmptyField")
+            [ DotProtoEnumField (Single "enum_foo") 0 []
+            , DotProtoEnumField (Single "enum_bar") 1 []
+            ]
+        , DotProtoMessage
+            ""
+            (Single "MessageWithEmptyField")
+            [ DotProtoMessageField (DotProtoField
+                { dotProtoFieldNumber = 1
+                , dotProtoFieldType = Prim UInt32
+                , dotProtoFieldName = Single "foo"
+                , dotProtoFieldOptions = []
+                , dotProtoFieldComment = ""
+                })
+            , DotProtoMessageField (DotProtoField
+                { dotProtoFieldNumber = 2
+                , dotProtoFieldType = Prim UInt32
+                , dotProtoFieldName = Single "bar"
+                , dotProtoFieldOptions = []
+                , dotProtoFieldComment = ""
+                })
+            ]
+        ]
+        (DotProtoMeta (Path (testFilesPfx NE.:| ["test_proto_empty_field.proto"])))
 
 dotProtoRoundtripTrivial :: TestTree
 dotProtoRoundtripTrivial = testCase

@@ -7,7 +7,7 @@
 #   $ nix-shell --arg fast true
 #
 { fast ? false
-, compiler ? "ghc8107"
+, compiler ? "ghc948"
 , enableDhall ? false
 , enableSwagger ? true
 , swaggerWrapperFormat ? false
@@ -28,6 +28,7 @@ let
 in proto3-suite.env.overrideAttrs (old: {
   buildInputs = (old.buildInputs or []) ++ [
     pkgs.cabal-install
+    pkgs.protobuf
     pkgs.python3Packages.virtualenv
   ];
 })
