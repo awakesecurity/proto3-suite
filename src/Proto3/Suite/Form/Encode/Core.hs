@@ -59,6 +59,7 @@ import Data.Coerce (Coercible, coerce)
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int32, Int64)
 import Data.Kind (Type)
+import Data.Traversable (for)
 import Data.Vector.Generic qualified
 import Data.Word (Word32, Word64)
 import GHC.Exts (Constraint, Proxy#, TYPE, proxy#)
@@ -869,46 +870,82 @@ instantiatePackableField protoType elementType conversion =
 
     |]
 
-instantiateStringOrBytesField :: TH.Q TH.Type -> TH.Q TH.Type -> TH.Q [TH.Dec]
-instantiateStringOrBytesField protoType elementTC =
-  [d|
+instantiateStringOrBytesField :: TH.Q TH.Type -> TH.Q TH.Type -> [TH.Q TH.Type] -> TH.Q [TH.Dec]
+instantiateStringOrBytesField protoType elementTC specializations = do
+  general <-
+    [d|
 
-    instance forall a .
-             Primitive ($elementTC a) =>
-             RawField ('Singular 'Alternative) $protoType a
-      where
-        rawField !fn x =
-          encodeScalarField @('Singular 'Alternative) @($protoType) fn (coerce @a @($elementTC a) x)
-        {-# INLINE rawField #-}
+      instance forall a .
+               Primitive ($elementTC a) =>
+               RawField ('Singular 'Alternative) $protoType ($elementTC a)
+        where
+          rawField !fn x =
+            encodeScalarField @('Singular 'Alternative) @($protoType) fn x
+          {-# INLINE rawField #-}
 
-    instance forall a .
-             ( HasDefault ($elementTC a)
-             , Primitive ($elementTC a)
-             ) =>
-             RawField ('Singular 'Implicit) $protoType a
-      where
-        rawField !fn x =
-          encodeScalarField @('Singular 'Implicit) @($protoType) fn (coerce @a @($elementTC a) x)
-        {-# INLINE rawField #-}
+      instance forall a .
+               ( HasDefault ($elementTC a)
+               , Primitive ($elementTC a)
+               ) =>
+               RawField ('Singular 'Implicit) $protoType ($elementTC a)
+        where
+          rawField !fn x =
+            encodeScalarField @('Singular 'Implicit) @($protoType) fn x
+          {-# INLINE rawField #-}
 
-    instance forall a .
-             Primitive ($elementTC a) =>
-             RawField 'Optional $protoType (Maybe a)
-      where
-        rawField !fn x =
-          encodeScalarField @'Optional @($protoType)
-            fn (coerce @(Maybe a) @(Maybe ($elementTC a)) x)
-        {-# INLINE rawField #-}
+      instance forall a .
+               Primitive ($elementTC a) =>
+               RawField 'Optional $protoType (Maybe ($elementTC a))
+        where
+          rawField !fn x =
+            encodeScalarField @'Optional @($protoType) fn x
+          {-# INLINE rawField #-}
 
-    instance forall t a .
-             ( FoldBuilders t
-             , Primitive ($elementTC a)
-             ) =>
-             RawField ('Repeated 'Unpacked) $protoType (t a)
-      where
-        rawField !fn xs =
-          encodeScalarField @('Repeated 'Unpacked) @($protoType)
-            fn (coerce @a @($elementTC a) <$> xs)
-        {-# INLINE rawField #-}
+      instance forall t a .
+               ( FoldBuilders t
+               , Primitive ($elementTC a)
+               ) =>
+               RawField ('Repeated 'Unpacked) $protoType (t ($elementTC a))
+        where
+          rawField !fn xs =
+            encodeScalarField @('Repeated 'Unpacked) @($protoType) fn xs
+          {-# INLINE rawField #-}
 
-    |]
+      |]
+
+  special <- for specializations $ \spec ->
+    [d|
+
+      instance RawField ('Singular 'Alternative) $protoType $spec
+        where
+          rawField !fn x =
+            encodeScalarField @('Singular 'Alternative) @($protoType)
+                              fn (coerce @($spec) @($elementTC $spec) x)
+          {-# INLINE rawField #-}
+
+      instance RawField ('Singular 'Implicit) $protoType $spec
+        where
+          rawField !fn x =
+            encodeScalarField @('Singular 'Implicit) @($protoType)
+                              fn (coerce @($spec) @($elementTC $spec) x)
+          {-# INLINE rawField #-}
+
+      instance RawField 'Optional $protoType (Maybe $spec)
+        where
+          rawField !fn x =
+            encodeScalarField @'Optional @($protoType)
+              fn (coerce @(Maybe $spec) @(Maybe ($elementTC $spec)) x)
+          {-# INLINE rawField #-}
+
+      instance forall t .
+               FoldBuilders t =>
+               RawField ('Repeated 'Unpacked) $protoType (t $spec)
+        where
+          rawField !fn xs =
+            encodeScalarField @('Repeated 'Unpacked) @($protoType)
+              fn (coerce @($spec) @($elementTC $spec) <$> xs)
+          {-# INLINE rawField #-}
+
+      |]
+
+  pure $ general ++ concat special

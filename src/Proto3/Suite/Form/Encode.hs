@@ -46,15 +46,23 @@ module Proto3.Suite.Form.Encode
 import Control.Category (Category(..))
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Kind (Type)
+import Data.ByteString qualified as B
+import Data.ByteString.Lazy qualified as BL
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as TL
+import Data.Text.Short qualified as TS
 import Data.Word (Word8, Word16, Word32, Word64)
 import GHC.TypeLits (Symbol)
 import Prelude hiding (String, (.), id)
 import Proto3.Suite.Form.Encode.Core
 import Proto3.Suite.Form
-         (Association, Packing(..), Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf)
+         (Association, Omission(..), Packing(..), Repetition(..),
+          RepetitionOf, ProtoType(..), ProtoTypeOf)
 import Proto3.Suite.Types (Enumerated(..), Fixed(..), Signed(..))
 import Proto3.Suite.Types qualified
 import Proto3.Wire.Class (ProtoEnum(..))
+import Proto3.Wire.Encode qualified as Encode
+import Proto3.Wire.Reverse qualified as RB
 
 $(instantiatePackableField [t| 'Int32 |] [t| Int8 |] [| fromIntegral @Int8 @Int32 |])
 $(instantiatePackableField [t| 'Int32 |] [t| Word8 |] [| fromIntegral @Word8 @Int32 |])
@@ -111,8 +119,16 @@ $(instantiatePackableField [t| 'Float |] [t| Float |] [| id |])
 $(instantiatePackableField [t| 'Double |] [t| Float |] [| realToFrac @Float @Double |])
 $(instantiatePackableField [t| 'Double |] [t| Double |] [| id |])
 
-$(instantiateStringOrBytesField [t| 'String |] [t| Proto3.Suite.Types.String |])
-$(instantiateStringOrBytesField [t| 'Bytes |] [t| Proto3.Suite.Types.Bytes |])
+$(instantiateStringOrBytesField
+   [t| 'String |]
+   [t| Proto3.Suite.Types.String |]
+   [ [t| T.Text |], [t| TL.Text |], [t| TS.ShortText |] ]
+ )
+$(instantiateStringOrBytesField
+   [t| 'Bytes |]
+   [t| Proto3.Suite.Types.Bytes |]
+   [ [t| B.ByteString |], [t| BL.ByteString |] ]
+ )
 
 instance ( ProtoEnum e
          , RawField ('Singular omission) 'Int32 Int32
@@ -158,6 +174,27 @@ instance ( ProtoEnum e
          RawField ('Repeated packing) ('Enumeration e) (t (Enumerated e))
   where
     rawField !fn xs = rawField @('Repeated packing) @'Int32 fn (fmap codeFromEnumerated xs)
+    {-# INLINE rawField #-}
+
+instance RawField ('Singular 'Alternative) 'Bytes RB.BuildR
+  where
+    rawField !fn x = Encode.bytes fn x
+    {-# INLINE rawField #-}
+
+instance RawField ('Singular 'Implicit) 'Bytes RB.BuildR
+  where
+    rawField !fn x = Encode.bytesIfNonempty fn x
+    {-# INLINE rawField #-}
+
+instance RawField 'Optional 'Bytes (Maybe RB.BuildR)
+  where
+    rawField !fn = maybe mempty (Encode.bytes fn)
+    {-# INLINE rawField #-}
+
+instance forall t . FoldBuilders t =>
+         RawField ('Repeated 'Unpacked) 'Bytes (t RB.BuildR)
+  where
+    rawField !fn xs = foldBuilders (Encode.bytes fn <$> xs)
     {-# INLINE rawField #-}
 
 -- | Specializes the argument type of 'field' to the encoding of a submessage type,

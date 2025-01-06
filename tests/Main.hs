@@ -10,6 +10,7 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -25,17 +26,20 @@ import           Data.Int                    (Int8, Int16, Int32, Int64)
 import qualified Data.List.NonEmpty          as NE
 import           Data.Proxy                  (Proxy(..))
 import           Data.String
+import qualified Data.Text.Lazy
 import           Data.Typeable               (Typeable, showsTypeRep, typeRep)
 import           Data.Word                   (Word8, Word16, Word32, Word64)
 import qualified Data.Vector                 as V
 import           GHC.Exts                    (fromList, Proxy#)
-import           GHC.TypeLits                (Nat, SomeNat(..), someNatVal)
+import           GHC.TypeLits                (Nat, SomeNat(..), Symbol, TypeError, someNatVal)
 import           Proto3.Suite
 import qualified Proto3.Suite.Form           as Form
 import qualified Proto3.Suite.Form.Encode    as FormE
 import           Proto3.Suite.Haskell.Parser (Logger, initLogger)
+import qualified Proto3.Suite.Types
 import           Proto3.Wire.Decode          (ParseError)
 import qualified Proto3.Wire.Decode          as Decode
+import qualified Proto3.Wire.Reverse         as RB
 import           Proto3.Wire.Types           as P
 import qualified Test.DocTest
 import           Test.QuickCheck             (Arbitrary, Property, (.&&.), arbitrary, choose,
@@ -156,6 +160,9 @@ encodeUnitTests :: TestTree
 encodeUnitTests = testGroup "Encoder unit tests"
   [ encoderMatchesGoldens
   , encoderPromotions
+  , encodeWrappedString
+  , encodeWrappedBytes
+  , encodeBytesFromBuilder
   ]
 
 -- TODO: We should consider generating the reference encodings
@@ -202,6 +209,255 @@ encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
         goldenEncoding (FormE.toLazyByteString (let ?iterator = Reverse in toEncoder v))
       assertEqual (show fp ++ ": direct encoding, Vector iterator")
         goldenEncoding (FormE.toLazyByteString (let ?iterator = Vector in toEncoder v))
+
+-- Simulated protobuf message type having a single field named @myString@ of
+-- type @string@ with field number @8@ and the specified 'Form.Repetition'.
+data MyWithString (r :: Form.Repetition)
+
+type instance Form.NamesOf (MyWithString r) = '["x"]
+
+type instance Form.NumberOf (MyWithString r) name = MyWithString_NumberOf r name
+
+type family MyWithString_NumberOf (r :: Form.Repetition) (name :: Symbol) :: Nat
+  where
+    MyWithString_NumberOf _ "myString" = 8
+    MyWithString_NumberOf r name = TypeError (Form.FieldNotFound (MyWithString r) name)
+
+type instance Form.ProtoTypeOf (MyWithString r) name = MyWithString_ProtoTypeOf r name
+
+type family MyWithString_ProtoTypeOf (r :: Form.Repetition) (name :: Symbol) :: Form.ProtoType
+  where
+    MyWithString_ProtoTypeOf _ "myString" = 'Form.String
+    MyWithString_ProtoTypeOf r name = TypeError (Form.FieldNotFound (MyWithString r) name)
+
+type instance Form.OneOfOf (MyWithString r) name = MyWithString_OneOfOf r name
+
+type family MyWithString_OneOfOf (r :: Form.Repetition) (name :: Symbol) :: Symbol
+  where
+    MyWithString_OneOfOf ('Form.Singular 'Form.Alternative) "myString" = "pickOne"
+    MyWithString_OneOfOf ('Form.Singular 'Form.Alternative) "pickOne" = "pickOne"
+    MyWithString_OneOfOf r "myString" = ""
+    MyWithString_OneOfOf r name = TypeError (Form.FieldOrOneOfNotFound (MyWithString r) name)
+
+type instance Form.RepetitionOf (MyWithString r) name = MyWithString_RepetitionOf r name
+
+type family MyWithString_RepetitionOf (r :: Form.Repetition) (name :: Symbol) :: Form.Repetition
+  where
+    MyWithString_RepetitionOf r "myString" =
+      r
+    MyWithString_RepetitionOf ('Form.Singular 'Form.Alternative) "pickOne" =
+      'Form.Singular 'Form.Alternative
+    MyWithString_RepetitionOf r name =
+      TypeError (Form.FieldOrOneOfNotFound (MyWithString r) name)
+
+-- Simulated protobuf message type having a single field named @myBytes@ of
+-- type @bytes@ with field number @8@ and the specified 'Form.Repetition'.
+data MyWithBytes (r :: Form.Repetition)
+
+type instance Form.NamesOf (MyWithBytes r) = '["x"]
+
+type instance Form.NumberOf (MyWithBytes r) name = MyWithBytes_NumberOf r name
+
+type family MyWithBytes_NumberOf (r :: Form.Repetition) (name :: Symbol) :: Nat
+  where
+    MyWithBytes_NumberOf _ "myBytes" = 8
+    MyWithBytes_NumberOf r name = TypeError (Form.FieldNotFound (MyWithBytes r) name)
+
+type instance Form.ProtoTypeOf (MyWithBytes r) name = MyWithBytes_ProtoTypeOf r name
+
+type family MyWithBytes_ProtoTypeOf (r :: Form.Repetition) (name :: Symbol) :: Form.ProtoType
+  where
+    MyWithBytes_ProtoTypeOf _ "myBytes" = 'Form.Bytes
+    MyWithBytes_ProtoTypeOf r name = TypeError (Form.FieldNotFound (MyWithBytes r) name)
+
+type instance Form.OneOfOf (MyWithBytes r) name = MyWithBytes_OneOfOf r name
+
+type family MyWithBytes_OneOfOf (r :: Form.Repetition) (name :: Symbol) :: Symbol
+  where
+    MyWithBytes_OneOfOf ('Form.Singular 'Form.Alternative) "myBytes" = "pickOne"
+    MyWithBytes_OneOfOf ('Form.Singular 'Form.Alternative) "pickOne" = "pickOne"
+    MyWithBytes_OneOfOf r "myBytes" = ""
+    MyWithBytes_OneOfOf r name = TypeError (Form.FieldOrOneOfNotFound (MyWithBytes r) name)
+
+type instance Form.RepetitionOf (MyWithBytes r) name = MyWithBytes_RepetitionOf r name
+
+type family MyWithBytes_RepetitionOf (r :: Form.Repetition) (name :: Symbol) :: Form.Repetition
+  where
+    MyWithBytes_RepetitionOf r "myBytes" =
+      r
+    MyWithBytes_RepetitionOf ('Form.Singular 'Form.Alternative) "pickOne" =
+      'Form.Singular 'Form.Alternative
+    MyWithBytes_RepetitionOf r name =
+      TypeError (Form.FieldOrOneOfNotFound (MyWithBytes r) name)
+
+type WrappedString = Proto3.Suite.Types.String Data.Text.Lazy.Text
+
+wrappedString :: Data.Text.Lazy.Text -> WrappedString
+wrappedString = Proto3.Suite.Types.String
+
+encodeWrappedString :: TestTree
+encodeWrappedString = testCase "string from wrapped string" $ do
+    assertEqual "empty alternative"
+      (enc @('Form.Singular 'Form.Alternative) (wrappedString mempty)) "B\NUL"
+    assertEqual "nonempty alternative"
+      (enc @('Form.Singular 'Form.Alternative) (wrappedString "xyz")) "B\ETXxyz"
+    assertEqual "implicitly empty"
+      (enc @('Form.Singular 'Form.Implicit) (wrappedString mempty)) ""
+    assertEqual "implicit but nonempty"
+      (enc @('Form.Singular 'Form.Implicit) (wrappedString "xyz")) "B\ETXxyz"
+    assertEqual "unset optional"
+      (enc @('Form.Optional) (Nothing :: Maybe WrappedString)) ""
+    assertEqual "set empty optional"
+      (enc @('Form.Optional) (Just (wrappedString mempty))) "B\NUL"
+    assertEqual "set nonempty optional"
+      (enc @('Form.Optional) (Just (wrappedString "xyz"))) "B\ETXxyz"
+    assertEqual "zero repetitions"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Forward @WrappedString @[] id []))
+      ""
+    assertEqual "single empty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Forward @WrappedString @[] id [wrappedString mempty]))
+      "B\NUL"
+    assertEqual "double empty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Forward @WrappedString @[] id [wrappedString mempty, wrappedString mempty]))
+      "B\NULB\NUL"
+    assertEqual "empty nonempty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Forward @WrappedString @[] id [wrappedString mempty, wrappedString "xyz"]))
+      "B\NULB\ETXxyz"
+    assertEqual "nonempty empty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Reverse @WrappedString @[] id [wrappedString mempty, wrappedString "uv"]))
+      "B\STXuvB\NUL"
+    assertEqual "double nonempty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Reverse @_ @[] id [wrappedString "xyz", wrappedString "uv"]))
+      "B\STXuvB\ETXxyz"
+  where
+    enc ::
+      forall r a .
+      ( FormE.Distinct (MyWithString r) (FormE.Occupy (MyWithString r) "myString" '[])
+      , FormE.Field "myString" a (MyWithString r)
+      ) =>
+      a ->
+      BL.ByteString
+    enc =
+      FormE.toLazyByteString .
+      FormE.fieldsToMessage .
+      FormE.field @"myString" @a @(MyWithString r)
+
+type WrappedBytes = Proto3.Suite.Types.Bytes B.ByteString
+
+wrappedBytes :: B.ByteString -> WrappedBytes
+wrappedBytes = Proto3.Suite.Types.Bytes
+
+encodeWrappedBytes :: TestTree
+encodeWrappedBytes = testCase "bytes from wrapped ByteString" $ do
+    assertEqual "empty alternative"
+      (enc @('Form.Singular 'Form.Alternative) (wrappedBytes mempty)) "B\NUL"
+    assertEqual "nonempty alternative"
+      (enc @('Form.Singular 'Form.Alternative) (wrappedBytes "xyz")) "B\ETXxyz"
+    assertEqual "implicitly empty"
+      (enc @('Form.Singular 'Form.Implicit) (wrappedBytes mempty)) ""
+    assertEqual "implicit but nonempty"
+      (enc @('Form.Singular 'Form.Implicit) (wrappedBytes "xyz")) "B\ETXxyz"
+    assertEqual "unset optional"
+      (enc @('Form.Optional) (Nothing :: Maybe WrappedBytes)) ""
+    assertEqual "set empty optional"
+      (enc @('Form.Optional) (Just (wrappedBytes mempty))) "B\NUL"
+    assertEqual "set nonempty optional"
+      (enc @('Form.Optional) (Just (wrappedBytes "xyz"))) "B\ETXxyz"
+    assertEqual "zero repetitions"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Forward @WrappedBytes @[] id []))
+      ""
+    assertEqual "single empty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Forward @WrappedBytes @[] id [wrappedBytes mempty]))
+      "B\NUL"
+    assertEqual "double empty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Forward @WrappedBytes @[] id [wrappedBytes mempty, wrappedBytes mempty]))
+      "B\NULB\NUL"
+    assertEqual "empty nonempty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Forward @WrappedBytes @[] id [wrappedBytes mempty, wrappedBytes "xyz"]))
+      "B\NULB\ETXxyz"
+    assertEqual "nonempty empty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Reverse @WrappedBytes @[] id [wrappedBytes mempty, wrappedBytes "uv"]))
+      "B\STXuvB\NUL"
+    assertEqual "double nonempty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Reverse @_ @[] id [wrappedBytes "xyz", wrappedBytes "uv"]))
+      "B\STXuvB\ETXxyz"
+  where
+    enc ::
+      forall r a .
+      ( FormE.Distinct (MyWithBytes r) (FormE.Occupy (MyWithBytes r) "myBytes" '[])
+      , FormE.Field "myBytes" a (MyWithBytes r)
+      ) =>
+      a ->
+      BL.ByteString
+    enc =
+      FormE.toLazyByteString .
+      FormE.fieldsToMessage .
+      FormE.field @"myBytes" @a @(MyWithBytes r)
+
+encodeBytesFromBuilder :: TestTree
+encodeBytesFromBuilder = testCase "bytes from builder" $ do
+    assertEqual "empty alternative"
+      (enc @('Form.Singular 'Form.Alternative) (mempty :: RB.BuildR)) "B\NUL"
+    assertEqual "nonempty alternative"
+      (enc @('Form.Singular 'Form.Alternative) (RB.byteString "xyz")) "B\ETXxyz"
+    assertEqual "implicitly empty"
+      (enc @('Form.Singular 'Form.Implicit) (mempty :: RB.BuildR)) ""
+    assertEqual "implicit but nonempty"
+      (enc @('Form.Singular 'Form.Implicit) (RB.byteString "xyz")) "B\ETXxyz"
+    assertEqual "unset optional"
+      (enc @('Form.Optional) (Nothing :: Maybe RB.BuildR)) ""
+    assertEqual "set empty optional"
+      (enc @('Form.Optional) (Just (mempty :: RB.BuildR))) "B\NUL"
+    assertEqual "set nonempty optional"
+      (enc @('Form.Optional) (Just (RB.byteString "xyz"))) "B\ETXxyz"
+    assertEqual "zero repetitions"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Forward @RB.BuildR @[] id []))
+      ""
+    assertEqual "single empty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Forward @RB.BuildR @[] id [mempty]))
+      "B\NUL"
+    assertEqual "double empty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Forward @RB.BuildR @[] id [mempty, mempty]))
+      "B\NULB\NUL"
+    assertEqual "empty nonempty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Forward @RB.BuildR @[] id [mempty, RB.byteString "xyz"]))
+      "B\NULB\ETXxyz"
+    assertEqual "nonempty empty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Reverse @RB.BuildR @[] id [mempty, RB.byteString "uv"]))
+      "B\STXuvB\NUL"
+    assertEqual "double nonempty"
+      (enc @('Form.Repeated 'Form.Unpacked)
+           (FormE.Reverse @_ @[] id [RB.byteString "xyz", RB.byteString "uv"]))
+      "B\STXuvB\ETXxyz"
+  where
+    enc ::
+      forall r a .
+      ( FormE.Distinct (MyWithBytes r) (FormE.Occupy (MyWithBytes r) "myBytes" '[])
+      , FormE.Field "myBytes" a (MyWithBytes r)
+      ) =>
+      a ->
+      BL.ByteString
+    enc =
+      FormE.toLazyByteString .
+      FormE.fieldsToMessage .
+      FormE.field @"myBytes" @a @(MyWithBytes r)
 
 data TestMessage
        (num :: Nat)
