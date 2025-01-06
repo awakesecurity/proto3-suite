@@ -150,6 +150,17 @@ instance SyntaxDefault SrcSpan
   where
     synDef = generatedSrcSpan
 
+#if MIN_VERSION_ghc(9,10,0)
+
+instance SyntaxDefault (EpAnn a)
+  where
+    synDef = noSrcSpanA
+
+pattern PfxCon :: [arg] -> HsConDetails Void arg r
+pattern PfxCon args = PrefixCon [] args
+
+#else
+
 #if MIN_VERSION_ghc(9,8,0)
 
 instance SyntaxDefault (HsBndrVis GhcPs)
@@ -210,6 +221,8 @@ pattern PfxCon args = PrefixCon [] args
 instance SyntaxDefault e => SyntaxDefault (GenLocated SrcSpan e)
   where
     synDef = noLocA synDef
+
+#endif
 
 pattern PfxCon :: [arg] -> HsConDetails arg r
 pattern PfxCon args = PrefixCon args
@@ -355,7 +368,11 @@ module_ moduleName maybeExports imports decls = GHC.HsModule
 #if MIN_VERSION_ghc(9,6,0)
     hsmodExt = XModulePs
       { hsmodAnn = synDef
+#if MIN_VERSION_ghc(9,10,0)
+      , hsmodLayout = EpVirtualBraces 2
+#else
       , hsmodLayout = VirtualBraces 2
+#endif
       , hsmodDeprecMessage = Nothing
       , hsmodHaddockModHeader = Nothing
       }
