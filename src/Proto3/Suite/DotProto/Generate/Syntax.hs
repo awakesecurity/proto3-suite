@@ -21,6 +21,9 @@ import GHC.Types.Name.Occurrence (NameSpace, dataName, mkOccName, tcName, tvName
 import GHC.Types.Name.Reader (mkRdrQual, mkRdrUnqual, rdrNameSpace)
 import GHC.Types.SrcLoc (GenLocated(..), SrcSpan, generatedSrcSpan)
 
+#if MIN_VERSION_ghc(9,10,0)
+import GHC.Types.Basic (GenReason(OtherExpansion))
+#endif
 #if MIN_VERSION_ghc(9,8,0)
 import Control.Arrow ((***))
 import Data.Bool (bool)
@@ -293,8 +296,11 @@ apply f xs = mkHsApps f (map paren xs)
 
 appAt :: HsExp -> HsType -> HsExp
 appAt f t = noLocA (HsAppType synDef f
+#if MIN_VERSION_ghc(9,10,0)
+#else
 #if MIN_VERSION_ghc(9,6,0)
                                        synDef
+#endif
 #endif
                                               (HsWC NoExtField (parenTy t)))
 
@@ -432,13 +438,21 @@ importDecl_ moduleName qualified maybeAs details = noLocA ImportDecl
   }
 
 ieName_ :: HsName -> HsImportSpec
+#if MIN_VERSION_ghc(9,10,0)
+ieName_ = noLocA . (\n -> IEVar synDef n Nothing) . noLocA . IEName
+#else
 ieName_ = noLocA . IEVar synDef . noLocA . IEName
+#endif
 #if MIN_VERSION_ghc(9,6,0)
                                                       synDef
 #endif
 
 ieNameAll_ :: HsName -> HsImportSpec
+#if MIN_VERSION_ghc(9,10,0)
+ieNameAll_ = noLocA . (\n -> IEThingAll synDef n Nothing) . noLocA . IEName
+#else
 ieNameAll_ = noLocA . IEThingAll synDef . noLocA . IEName
+#endif
 #if MIN_VERSION_ghc(9,6,0)
                                                           synDef
 #endif
@@ -644,6 +658,9 @@ functionLike_ strictness name alts = noLocA $ mkFunBind generated name (map matc
   where
     generated :: Origin
     generated = Generated
+#if MIN_VERSION_ghc(9,10,0)
+                          OtherExpansion
+#endif
 #if MIN_VERSION_ghc(9,8,0)
                           DoPmc
 #endif
@@ -851,6 +868,9 @@ case_ e = noLocA . HsCase synDef e . mkMatchGroup generated
   where
     generated :: Origin
     generated = Generated
+#if MIN_VERSION_ghc(9,10,0)
+                          OtherExpansion
+#endif
 #if MIN_VERSION_ghc(9,8,0)
                           DoPmc
 #endif
@@ -858,7 +878,9 @@ case_ e = noLocA . HsCase synDef e . mkMatchGroup generated
 -- | Simple let expression for ordinary bindings.
 let_ :: [HsBind] -> HsExp -> HsExp
 let_ locals e =
-#if MIN_VERSION_ghc(9,4,0)
+#if MIN_VERSION_ghc(9,10,0)
+    noLocA $ HsLet synDef binds e
+#elif MIN_VERSION_ghc(9,4,0)
     noLocA $ HsLet synDef synDef binds synDef e
 #elif MIN_VERSION_ghc(9,2,0)
     noLocA $ HsLet synDef binds e
