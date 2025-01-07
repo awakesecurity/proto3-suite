@@ -41,6 +41,7 @@ module Proto3.Suite.Form.Encode
   , FoldBuilders(..)
   , message
   , associations
+  , Reflection(..)
   ) where
 
 import Control.Category (Category(..))
