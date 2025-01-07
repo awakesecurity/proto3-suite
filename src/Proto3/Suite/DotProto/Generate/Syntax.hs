@@ -155,9 +155,53 @@ instance SyntaxDefault SrcSpan
 
 #if MIN_VERSION_ghc(9,10,0)
 
-instance SyntaxDefault (EpAnn a)
+instance NoAnn a => SyntaxDefault (EpAnn a)
   where
     synDef = noSrcSpanA
+
+instance SyntaxDefault (EpToken tok)
+  where
+    synDef = NoEpTok
+
+instance SyntaxDefault AnnParen
+  where
+    synDef = noAnn
+
+instance SyntaxDefault EpAnnHsCase
+  where
+    synDef = noAnn
+
+instance SyntaxDefault AnnSig
+  where
+    synDef = noAnn
+
+instance SyntaxDefault AnnsIf
+  where
+    synDef = noAnn
+
+instance SyntaxDefault (EpUniToken _a _b)
+  where
+    synDef = noAnn
+
+instance SyntaxDefault (AnnSortKey BindTag)
+  where
+    synDef = mempty
+
+instance SyntaxDefault (Maybe _a, [_b], AnnSortKey _c)
+  where
+    synDef = (Nothing, [], mempty)
+
+instance SyntaxDefault (HsMultAnn GhcPs)
+  where
+    synDef = HsNoMultAnn NoExtField
+
+instance SyntaxDefault GHC.Hs.AnnPragma
+  where
+    synDef = noAnn
+
+instance SyntaxDefault (GHC.Hs.HsBndrVis GHC.Hs.GhcPs)
+  where
+    synDef = HsBndrRequired NoExtField
 
 pattern PfxCon :: [arg] -> HsConDetails Void arg r
 pattern PfxCon args = PrefixCon [] args
@@ -643,6 +687,9 @@ patBind_ pat rhs = noLocA PatBind
 #if !MIN_VERSION_ghc(9,6,0)
   , pat_ticks = synDef
 #endif
+#if MIN_VERSION_ghc(9,10,0)
+  , pat_mult = synDef
+#endif
   }
 
 -- | @'functionS_' = 'function_' . 'unqual_' 'varName'@
@@ -668,7 +715,10 @@ functionLike_ strictness name alts = noLocA $ mkFunBind generated name (map matc
     match :: ([HsPat], HsExp) -> HsMatch
     match (pats, rhs) = mkSimpleMatch ctxt pats rhs
 
+#if MIN_VERSION_ghc(9,10,0)
+#else
     ctxt :: HsMatchContext GhcPs
+#endif
     ctxt = FunRhs
       { mc_fun = name
       , mc_fixity = Prefix
