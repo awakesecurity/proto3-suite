@@ -32,9 +32,20 @@ module Proto3.Suite.Form.Encode
   , cachedMessageEncoding
   , Prefix(..)
   , etaPrefix
+  , Fields
+  , cachePrefix
+  , cachedFields
   , Distinct
+  , DistinctCheck
+  , RepeatedNames
+  , RepeatedNames1
+  , Omits
+  , Strip
+  , OccupiedOnly
+  , OccupiedOnly1
   , fieldsToMessage
   , Occupy
+  , Occupy1
   , omitted
   , KnownFieldNumber
   , Field(..)
@@ -248,6 +259,10 @@ associations = field @name @(t (MessageEncoder (Association key value)))
 -- in some cases.  However, you may find this @newtype@ useful
 -- where a mix of techniques is needed, either for compatibility
 -- or during a gradual transition to use of 'Field'.
+--
+-- Note that for optional submessages you must use `Proto3.Suite.Types.Nested`,
+-- and for repeated submessages you must use `Proto3.Suite.Types.NestedVec`.
+-- (For submessages within a @oneof@ you can use the reflection type directly.)
 --
 -- To encode a top-level message instead of a field, use 'messageReflection'.
 newtype Reflection a = Reflection a

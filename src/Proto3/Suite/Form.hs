@@ -39,11 +39,14 @@ module Proto3.Suite.Form
   , RecoverRepetition
   , RecoverProtoType
   , MessageFieldType
+  , OptionalMessageFieldType
+  , RepeatedMessageFieldType
   ) where
 
 import Data.Int (Int32, Int64)
 import Data.Kind (Type)
 import Data.Word (Word32, Word64)
+import GHC.Exts (Constraint)
 import GHC.Generics (Generic)
 import GHC.TypeLits (ErrorMessage(..), Nat, Symbol, TypeError)
 import Prelude hiding (String)
@@ -309,7 +312,29 @@ instance MessageFieldType ('Singular 'Implicit) 'Bool Bool
 instance MessageFieldType ('Singular 'Implicit) 'Float Float
 instance MessageFieldType ('Singular 'Implicit) 'Double Double
 instance MessageFieldType ('Singular 'Implicit) ('Enumeration e) (Enumerated e)
-instance MessageFieldType 'Optional ('Message m) (Nested m)
+
+-- | Helps to diagnose the absence of an instance for 'MessageFieldType'
+-- for optional submessages by requiring that the second type parameter
+-- be 'Nested' of the first.  Please try to avoid using this type family
+-- directly; it is exported only to help explain compilation errors.
+type family OptionalMessageFieldType (m :: Type) (haskellType :: Type)
+  where
+    OptionalMessageFieldType m (Nested m) = (() :: Constraint)
+    OptionalMessageFieldType m (Nested a) = TypeError
+      ( 'Text "Expected reflected protobuf submessage type " ':<>: 'ShowType m ':$$:
+        'Text "Actual type: " ':<>: 'ShowType a )
+    OptionalMessageFieldType m haskellType = TypeError
+      ( 'Text "When using a Haskell type to specify an optional protobuf submessage" ':$$:
+        'Text "(as opposed to repeated one or a submessage within a oneof)" ':$$:
+        'Text "you must wrap the Haskell reflection type in Proto3.Suite.Nested." ':$$:
+        'Text "Expected reflected protobuf submessage type " ':<>: 'ShowType m ':$$:
+        'Text "Haskell type provided: " ':<>: 'ShowType haskellType )
+
+instance ( OptionalMessageFieldType m haskellType
+         , RecoverRepetition haskellType ~ 'Optional
+         , RecoverProtoType haskellType ~ 'Message m
+         ) =>
+         MessageFieldType 'Optional ('Message m) haskellType
 
 instance MessageFieldType ('Singular 'Alternative) 'Int32 (ForceEmit Int32)
 instance MessageFieldType ('Singular 'Alternative) 'Int64 (ForceEmit Int64)
@@ -327,7 +352,7 @@ instance MessageFieldType ('Singular 'Alternative) 'Bool (ForceEmit Bool)
 instance MessageFieldType ('Singular 'Alternative) 'Float (ForceEmit Float)
 instance MessageFieldType ('Singular 'Alternative) 'Double (ForceEmit Double)
 instance MessageFieldType ('Singular 'Alternative) ('Enumeration e) (ForceEmit (Enumerated e))
-instance ( RecoverRepetition m ~ ('Singular 'Alternative)
+instance ( RecoverRepetition m ~ 'Singular 'Alternative
          , RecoverProtoType m ~ 'Message m
          ) =>
          MessageFieldType ('Singular 'Alternative) ('Message m) m
@@ -348,7 +373,30 @@ instance MessageFieldType ('Repeated 'Unpacked) 'Bool (UnpackedVec Bool)
 instance MessageFieldType ('Repeated 'Unpacked) 'Float (UnpackedVec Float)
 instance MessageFieldType ('Repeated 'Unpacked) 'Double (UnpackedVec Double)
 instance MessageFieldType ('Repeated 'Unpacked) ('Enumeration e) (UnpackedVec (Enumerated e))
-instance MessageFieldType ('Repeated 'Unpacked) ('Message m) (NestedVec m)
+
+-- | Helps to diagnose the absence of an instance for 'MessageFieldType'
+-- for repeated submessages by requiring that the second type parameter
+-- be 'NestedVec' of the first.  Please try to avoid using this type family
+-- directly; it is exported only to help explain compilation errors.
+type family RepeatedMessageFieldType (m :: Type) (haskellType :: Type)
+  where
+    RepeatedMessageFieldType m (NestedVec m) = (() :: Constraint)
+    RepeatedMessageFieldType m (NestedVec a) = TypeError
+      ( 'Text "Expected reflected protobuf submessage type " ':<>: 'ShowType m ':$$:
+        'Text "Actual type: " ':<>: 'ShowType a )
+    RepeatedMessageFieldType m haskellType = TypeError
+      ( 'Text "When using a Haskell type to specify a repeated protobuf submessage" ':$$:
+        'Text "(as opposed to an optional one or a submessage within a oneof)" ':$$:
+        'Text "you must wrap the Haskell reflection type in Proto3.Suite.NestedVec." ':$$:
+        'Text "Expected reflected protobuf submessage type " ':<>: 'ShowType m ':$$:
+        'Text "Haskell type provided: " ':<>: 'ShowType haskellType )
+
+instance ( RepeatedMessageFieldType m haskellType
+         , RecoverRepetition haskellType ~ 'Repeated 'Unpacked
+         , RecoverProtoType haskellType ~ 'Message m
+         ) =>
+         MessageFieldType ('Repeated 'Unpacked) ('Message m) haskellType
+
 instance ( MessageFieldType ('Singular 'Implicit) k kh
          , MessageFieldType (RepetitionOfMapped v) v vh
          ) =>

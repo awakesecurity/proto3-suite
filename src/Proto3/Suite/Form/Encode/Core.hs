@@ -37,8 +37,16 @@ module Proto3.Suite.Form.Encode.Core
   , cachePrefix
   , cachedFields
   , Distinct
+  , DistinctCheck
+  , RepeatedNames
+  , RepeatedNames1
+  , Omits
+  , Strip
+  , OccupiedOnly
+  , OccupiedOnly1
   , fieldsToMessage
   , Occupy
+  , Occupy1
   , omitted
   , KnownFieldNumber
   , fieldNumber
@@ -195,6 +203,11 @@ cachedFields = UnsafePrefix . Encode.unsafeFromByteString . untypedFields
 type Distinct (message :: Type) (names :: [Symbol]) =
   DistinctCheck message (RepeatedNames (OccupiedOnly message names))
 
+-- | Reports nonempty output of 'RepeatedNames' as applied to the result of 'OccupiedOnly'.
+--
+-- This type family is an implementation detail of 'Distinct'
+-- that is subject to change, and is exported only to assist
+-- in understanding of compilation errors.
 type family DistinctCheck (message :: Type) (repeated :: [k]) :: Constraint
   where
     DistinctCheck _ '[] = ()
@@ -204,17 +217,30 @@ type family DistinctCheck (message :: Type) (repeated :: [k]) :: Constraint
 
 -- | Given a list of names, returns the non-repeating list
 -- of names that occur more than once in the given list.
+--
+-- This type family is an implementation detail of 'Distinct'
+-- that is subject to change, and is exported only to assist
+-- in understanding of compilation errors.
 type family RepeatedNames (names :: [k]) :: [k]
   where
     RepeatedNames (name ': names) = RepeatedNames1 name names (Omits name names)
     RepeatedNames '[] = '[]
 
+-- | Helps to implement 'RepeatedNames'.
+--
+-- This type family is an implementation detail of 'Distinct'
+-- that is subject to change, and is exported only to assist
+-- in understanding of compilation errors.
 type family RepeatedNames1 (name :: k) (names :: [k]) (omits :: Bool) :: [k]
   where
     RepeatedNames1 _ names 'True = RepeatedNames names
     RepeatedNames1 name names 'False = name ': RepeatedNames (Strip name names)
 
 -- | Is the given name absent from the given list of names?
+--
+-- This type family is an implementation detail of 'RepeatedNames'
+-- that is subject to change, and is exported only to assist
+-- in understanding of compilation errors.
 type family Omits (name :: k) (names :: [k]) :: Bool
   where
     Omits name (name ': names) = 'False
@@ -222,6 +248,10 @@ type family Omits (name :: k) (names :: [k]) :: Bool
     Omits name '[] = 'True
 
 -- | Strips all occurrences of the given name, leaving behind all other name occurrences.
+--
+-- This type family is an implementation detail of 'RepeatedNames'
+-- that is subject to change, and is exported only to assist
+-- in understanding of compilation errors.
 type family Strip (name :: k) (names :: [k]) :: [k]
   where
     Strip name (name ': names) = Strip name names
@@ -232,6 +262,10 @@ type family Strip (name :: k) (names :: [k]) :: [k]
 --
 -- We do this in case 'omitted' is used to introduce the names of repeated fields
 -- or fields that are contained within @oneof@s; see the explanatory comments there.
+--
+-- This type family is an implementation detail of 'Distinct'
+-- that is subject to change, and is exported only to assist
+-- in understanding of compilation errors.
 type family OccupiedOnly (message :: Type) (names :: [Symbol]) :: [Symbol]
   where
     OccupiedOnly message (name ': names) =
@@ -239,6 +273,11 @@ type family OccupiedOnly (message :: Type) (names :: [Symbol]) :: [Symbol]
     OccupiedOnly _ '[] =
       '[]
 
+-- | Helps to implement 'OccupiedOnly'.
+--
+-- This type family is an implementation detail of 'Distinct'
+-- that is subject to change, and is exported only to assist
+-- in understanding of compilation errors.
 type family OccupiedOnly1 (message :: Type) (name :: Symbol) (names :: [Symbol])
                           (repetition :: Repetition) :: [Symbol]
   where
@@ -274,6 +313,11 @@ fieldsToMessage = UnsafeMessageEncoder . untypedPrefix
 type Occupy (message :: Type) (name :: Symbol) (names :: [Symbol]) =
   Occupy1 message name names (RepetitionOf message name)
 
+-- | Helps to implement 'Occupy'.
+--
+-- This type family is an implementation detail of 'Occupy'
+-- that is subject to change, and is exported only to assist
+-- in understanding of compilation errors.
 type family Occupy1 (message :: Type) (name :: Symbol) (names :: [Symbol])
                     (repetition :: Repetition) :: [Symbol]
   where
