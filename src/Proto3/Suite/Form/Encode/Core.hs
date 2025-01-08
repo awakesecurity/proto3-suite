@@ -22,6 +22,8 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+-- | Implementation details of "Proto3.Suite.Form.Encode" that
+-- must be kept separate for the sake of @TemplateHaskell@.
 module Proto3.Suite.Form.Encode.Core
   ( MessageEncoder(..)
   , toLazyByteString
@@ -47,7 +49,6 @@ module Proto3.Suite.Form.Encode.Core
   , Vector(..)
   , FoldBuilders(..)
   , codeFromEnumerated
-  , Reflection(..)
   , instantiatePackableField
   , instantiateStringOrBytesField
   ) where
@@ -66,10 +67,9 @@ import GHC.Exts (Constraint, Proxy#, TYPE, proxy#)
 import GHC.TypeLits (ErrorMessage(..), KnownNat, Symbol, TypeError, natVal')
 import Language.Haskell.TH qualified as TH
 import Prelude hiding ((.), id)
-import Proto3.Suite.Class
-         (HasDefault(..), MessageField, Primitive(..), encodeMessageField, zigZagEncode)
+import Proto3.Suite.Class (HasDefault(..), Primitive(..), zigZagEncode)
 import Proto3.Suite.Form
-         (Association, MessageFieldType, NumberOf, Omission(..), OneOfOf,
+         (Association, NumberOf, Omission(..), OneOfOf,
           Packing(..), RecoverProtoType, Repetition(..), RepetitionOf,
           ProtoType(..), ProtoTypeOf, Wrap(..), Wrapper)
 import Proto3.Suite.Types (Enumerated(..), Fixed(..), Signed(..))
@@ -261,6 +261,16 @@ fieldsToMessage ::
   MessageEncoder message
 fieldsToMessage = UnsafeMessageEncoder . untypedPrefix
 
+-- | Among the names of the given message, prefixes
+-- the given name with the following exceptions:
+--
+-- * Names of repeatable fields are not prefixed;
+--   there is no need to avoid their repetition.
+--
+-- * When a field of a @oneof@ is named, the name
+--   of the entire @oneof@ is prefixed in order to
+--   prevent further emission of any of its fields.
+--
 type Occupy (message :: Type) (name :: Symbol) (names :: [Symbol]) =
   Occupy1 message name names (RepetitionOf message name)
 
@@ -291,6 +301,8 @@ omitted ::
   Prefix message names moreNames
 omitted = UnsafePrefix mempty
 
+-- | The constraint that provides the (term-level) field number corresponding
+-- to the field of the given message type having the given (type-level) name.
 type KnownFieldNumber (message :: Type) (name :: Symbol) = KnownNat (NumberOf message name)
 
 -- | The term expressing the field number within the specified message type of the named field.
@@ -349,6 +361,25 @@ instance forall (name :: Symbol)
       -- By using a coercion we avoid runtime polymorphism restrictions.
     {-# INLINE field #-}
 
+-- | Implements 'Field' for all fields having the specified repetition,
+-- protobuf type, and type of argument to be encoded within that field.
+--
+-- Design Note:
+--
+-- Importantly, the type parameters of this type class do not mention
+-- the message type, field name, or field number, thus allowing it to
+-- be broadly applicable to all message types.
+--
+-- Furthermore, type class 'Field' has a general-purpose definition
+-- that need not be specialized for particular message types: one that
+-- makes use of 'KnownFieldNumber', 'ProtoTypeOf', and this type class
+-- (though in order to simplify usage, 'Field' is a full type class,
+-- not a mere constraint alias with a related function).
+--
+-- In this way the only message-specific instances are of type classes
+-- defined in "Proto3.Suite.Form", which declare message format without
+-- specifying any policy regarding how to efficiently encode or which
+-- Haskell types may be encoded.
 type RawField :: Repetition -> ProtoType -> forall {r} . TYPE r -> Constraint
 class RawField repetition protoType a
   where
@@ -718,18 +749,43 @@ instance ProtoEnum e => PackedPrimitives (Enumerated e)
     packedPrimitivesV f = packedPrimitivesV (codeFromEnumerated . f)
     {-# INLINE packedPrimitivesV #-}
 
+-- | Combines a 'Foldable' collection with a mapping to be applied
+-- to each element and the request to include the mapped elements
+-- in their presented order.
+--
+-- If your source elements are already in a vector, then consider
+-- using 'Vector' instead, because that will likely encode faster.
+-- But do not create a vector just for this purpose--that would
+-- be slower than using this type or 'Reverse'.
+--
+-- If your source elements are not in a vector, then consider whether
+-- they can be computed in reverse order, in which case you could
+-- then wrap the reversed elements in 'Reverse'.  That is often
+-- faster because we encode to bytes in reverse order, meaning that
+-- encoding of a 'Reverse' value will actually encode the elements
+-- in the order in which they are yielded by the 'Foldable' instance.
+-- But do not create a new source collection just to be able to
+-- use 'Reverse'--that is probably slower than using 'Forward'.
 data Forward a = forall f b . Foldable f => Forward (b -> a) (f b)
 
 instance Functor Forward
   where
     fmap g (Forward f xs) = Forward (g . f) xs
 
+-- | Like 'Forward' but requests that the order be reversed upon usage.
+--
+-- Consider 'Vector' as an alternative--see the comments at 'Forward'.
 data Reverse a = forall f b . Foldable f => Reverse (b -> a) (f b)
 
 instance Functor Reverse
   where
     fmap g (Reverse f xs) = Reverse (g . f) xs
 
+-- | Like 'Forward' but provides a 'Data.Vector.Generic.Vector',
+-- not just any 'Foldable' collection.
+--
+-- Avoid creating a vector just to take advantage of this type;
+-- instead use 'Forward' or 'Reverse'.  See 'Forward' for details.
 data Vector a = forall v b . Data.Vector.Generic.Vector v b => Vector (b -> a) (v b)
 
 instance Functor Vector
@@ -788,32 +844,6 @@ instance FoldBuilders Vector
 codeFromEnumerated :: ProtoEnum e => Enumerated e -> Int32
 codeFromEnumerated = either id fromProtoEnum . enumerated
 {-# INLINE codeFromEnumerated #-}
-
--- | Signals that the argument to 'field' should be treated
--- as a reflection in Haskell of a protobuf construct, both
--- in its type and in its value.
---
--- For example, if the type argument is generated from a protobuf
--- message definition, then 'field' will encode the message whose
--- fields are given by the Haskell data type inside of this @newtype@.
---
--- Repeated fields must be supplied as an appropriately-typed sequence.
---
--- For this @newtype@, 'Field' delegates to 'MessageField' and has
--- its performance characteristics.  The creation of temporary
--- reflections of protobuf messages may decrease efficiency
--- in some cases.  However, you may find this @newtype@ useful
--- where a mix of techniques is needed, either for compatibility
--- or during a gradual transition to use of 'Field'.
-newtype Reflection a = Reflection a
-
-instance ( MessageFieldType repetition protoType a
-         , MessageField a
-         ) =>
-         RawField repetition protoType (Reflection a)
-  where
-    rawField = coerce (encodeMessageField @a)
-    {-# INLINE rawField #-}
 
 instantiatePackableField :: TH.Q TH.Type -> TH.Q TH.Type -> TH.Q TH.Exp -> TH.Q [TH.Dec]
 instantiatePackableField protoType elementType conversion =

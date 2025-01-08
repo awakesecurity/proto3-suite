@@ -17,6 +17,10 @@
 -- | Encodes to protobuf directly from application-specific source data without
 -- an intermediate value of a type generated from protobuf message definitions.
 --
+-- Importantly, code generation does not make use of this module,
+-- instead using only "Proto3.Suite.Form".  Therefore one can replace
+-- this module with another that makes use of the same generated code.
+--
 -- /WARNING/: This module is experimental and breaking changes may occur much more
 -- frequently than in the other modules of this package, perhaps even in patch releases.
 module Proto3.Suite.Form.Encode
@@ -42,9 +46,11 @@ module Proto3.Suite.Form.Encode
   , message
   , associations
   , Reflection(..)
+  , messageReflection
   ) where
 
 import Control.Category (Category(..))
+import Data.Coerce (coerce)
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Kind (Type)
 import Data.ByteString qualified as B
@@ -55,12 +61,14 @@ import Data.Text.Short qualified as TS
 import Data.Word (Word8, Word16, Word32, Word64)
 import GHC.TypeLits (Symbol)
 import Prelude hiding (String, (.), id)
+import Proto3.Suite.Class (Message, MessageField, encodeMessage, encodeMessageField)
 import Proto3.Suite.Form.Encode.Core
 import Proto3.Suite.Form
-         (Association, Omission(..), Packing(..), Repetition(..),
-          RepetitionOf, ProtoType(..), ProtoTypeOf)
+         (Association, MessageFieldType, Omission(..), Packing(..),
+          Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf)
 import Proto3.Suite.Types (Enumerated(..), Fixed(..), Signed(..))
 import Proto3.Suite.Types qualified
+import Proto3.Wire qualified as Wire
 import Proto3.Wire.Class (ProtoEnum(..))
 import Proto3.Wire.Encode qualified as Encode
 import Proto3.Wire.Reverse qualified as RB
@@ -223,3 +231,38 @@ associations ::
   t (MessageEncoder (Association key value)) ->
   Prefix message names names
 associations = field @name @(t (MessageEncoder (Association key value)))
+
+-- | Signals that the argument to 'field' should be treated
+-- as a reflection in Haskell of a protobuf construct, both
+-- in its type and in its value.
+--
+-- For example, if the type argument is generated from a protobuf
+-- message definition, then 'field' will encode the message whose
+-- fields are given by the Haskell data type inside of this @newtype@.
+--
+-- Repeated fields must be supplied as an appropriately-typed sequence.
+--
+-- For this @newtype@, 'Field' delegates to `Proto3.Suite.Class.MessageField`
+-- and has its performance characteristics.  The creation of temporary
+-- reflections of protobuf messages may decrease efficiency
+-- in some cases.  However, you may find this @newtype@ useful
+-- where a mix of techniques is needed, either for compatibility
+-- or during a gradual transition to use of 'Field'.
+--
+-- To encode a top-level message instead of a field, use 'messageReflection'.
+newtype Reflection a = Reflection a
+
+instance ( MessageFieldType repetition protoType a
+         , MessageField a
+         ) =>
+         RawField repetition protoType (Reflection a)
+  where
+    rawField = coerce (encodeMessageField @a)
+    {-# INLINE rawField #-}
+
+-- | Creates a message encoder by means of type class `Proto3.Suite.Class.Message`.
+--
+-- To encode a field instead of a top-level message, use 'Reflection'.
+messageReflection :: forall a . Message a => a -> MessageEncoder a
+messageReflection m = coerce (encodeMessage @a (Wire.fieldNumber 1) m)
+{-# INLINABLE messageReflection #-}

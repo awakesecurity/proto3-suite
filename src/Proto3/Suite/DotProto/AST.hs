@@ -168,7 +168,7 @@ data DotProtoMeta = DotProtoMeta
   { metaModulePath :: Path
     -- ^ The "module path" associated with the .proto file from which this AST
     -- was parsed. The "module path" is derived from the `--includeDir`-relative
-    -- .proto filename passed to 'parseProtoFile'. See
+    -- .proto filename passed to `Proto3.Suite.DotProto.Parsing.parseProtoFile`. See
     -- 'Proto3.Suite.DotProto.Internal.toModulePath' for details on how module
     -- path values are constructed. See
     -- 'Proto3.Suite.DotProto.Generate.modulePathModName' to see how it is used
@@ -199,7 +199,7 @@ instance Arbitrary DotProto where
     protoMeta        <- arbitrary
     return (DotProto {..})
 
--- | Matches the definition of `constant` in the proto3 language spec
+-- | Matches the definition of @constant@ in the proto3 language spec
 --   These are only used as rvalues
 data DotProtoValue
   = Identifier DotProtoIdentifier

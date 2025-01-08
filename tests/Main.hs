@@ -163,6 +163,7 @@ encodeUnitTests = testGroup "Encoder unit tests"
   , encodeWrappedString
   , encodeWrappedBytes
   , encodeBytesFromBuilder
+  , encodeMessageReflection
   ]
 
 -- TODO: We should consider generating the reference encodings
@@ -458,6 +459,11 @@ encodeBytesFromBuilder = testCase "bytes from builder" $ do
       FormE.toLazyByteString .
       FormE.fieldsToMessage .
       FormE.field @"myBytes" @a @(MyWithBytes r)
+
+encodeMessageReflection :: TestTree
+encodeMessageReflection = testCase "messageReflection" $ do
+  let msg = TP.Trivial 123
+  FormE.toLazyByteString (FormE.messageReflection msg) @?= toLazyByteString msg
 
 data TestMessage
        (num :: Nat)

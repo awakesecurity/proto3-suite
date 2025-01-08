@@ -34,7 +34,7 @@
 --
 -- = Strings
 --
--- Use 'TL.Text' instead of 'String' for string types inside messages.
+-- Use 'TL.Text' instead of `Prelude.String` for string types inside messages.
 --
 -- = Example
 --
