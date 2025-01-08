@@ -4,9 +4,15 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MagicHash #-}
@@ -52,6 +58,7 @@ module Proto3.Suite.Form.Encode.Core
   , fieldNumber
   , Field(..)
   , RawField(..)
+  , Wrap(..)
   , Forward(..)
   , Reverse(..)
   , Vector(..)
@@ -72,6 +79,7 @@ import Data.Traversable (for)
 import Data.Vector.Generic qualified
 import Data.Word (Word32, Word64)
 import GHC.Exts (Constraint, Proxy#, TYPE, proxy#)
+import GHC.Generics (Generic)
 import GHC.TypeLits (ErrorMessage(..), KnownNat, Symbol, TypeError, natVal')
 import Language.Haskell.TH qualified as TH
 import Prelude hiding ((.), id)
@@ -79,7 +87,7 @@ import Proto3.Suite.Class (HasDefault(..), Primitive(..), zigZagEncode)
 import Proto3.Suite.Form
          (Association, NumberOf, Omission(..), OneOfOf,
           Packing(..), RecoverProtoType, Repetition(..), RepetitionOf,
-          ProtoType(..), ProtoTypeOf, Wrap(..), Wrapper)
+          ProtoType(..), ProtoTypeOf, Wrapper)
 import Proto3.Suite.Types (Enumerated(..), Fixed(..), Signed(..))
 import Proto3.Wire.Class (ProtoEnum(..))
 import Proto3.Wire.Encode qualified as Encode
@@ -474,6 +482,13 @@ instance ( repetition ~ 'Repeated 'Unpacked
   where
     rawField !fn es = foldBuilders (Encode.embedded fn . untypedMessageEncoder <$> es)
     {-# INLINE rawField #-}
+
+-- | Helps some type classes distinguish wrapped values from encodings of wrapper submessages.
+--
+-- See also 'Wrapper'.
+newtype Wrap (a :: Type) = Wrap { unwrap :: a }
+  deriving stock (Foldable, Functor, Generic, Traversable)
+  deriving newtype (Bounded, Enum, Eq, Fractional, Integral, Ord, Num, Read, Real, Show)
 
 instance ( omission ~ 'Alternative
          , RawField ('Singular 'Implicit) protoType a

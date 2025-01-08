@@ -1,12 +1,6 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -35,7 +29,6 @@ module Proto3.Suite.Form
   , Association
   , RepetitionOfMapped
   , Wrapper
-  , Wrap(..)
   , RecoverRepetition
   , RecoverProtoType
   , MessageFieldType
@@ -47,7 +40,6 @@ import Data.Int (Int32, Int64)
 import Data.Kind (Type)
 import Data.Word (Word32, Word64)
 import GHC.Exts (Constraint)
-import GHC.Generics (Generic)
 import GHC.TypeLits (ErrorMessage(..), Nat, Symbol, TypeError)
 import Prelude hiding (String)
 import Proto3.Suite.Types (Bytes, Enumerated, Commented, Fixed, ForceEmit, Nested,
@@ -206,7 +198,7 @@ type family RepetitionOfMapped (protoType :: ProtoType) :: Repetition
 --
 -- We never need to construct values; instead we construct values of types
 -- such as @`Proto3.Suite.Form.Encode.Encoding` ('Wrapper' protoType)@ or
--- @'Wrap' a@, where @a@ is a corresponding native representation.
+-- @`Proto.Suite.Form.Encode.Wrap` a@, where @a@ is a corresponding native representation.
 --
 -- Note that if Google ever adds wrappers for "sint..." or "...fixed..."
 -- then this type constructor will naturally support such wrappers.
@@ -221,13 +213,6 @@ type instance ProtoTypeOf (Wrapper protoType) "value" = protoType
 type instance OneOfOf (Wrapper protoType) "value" = ""
 
 type instance RepetitionOf (Wrapper protoType) "value" = 'Singular 'Implicit
-
--- | Helps some type classes distinguish wrapped values from encodings of wrapper submessages.
---
--- See also 'Wrapper'.
-newtype Wrap (a :: Type) = Wrap { unwrap :: a }
-  deriving stock (Foldable, Functor, Generic, Traversable)
-  deriving newtype (Bounded, Enum, Eq, Fractional, Integral, Ord, Num, Read, Real, Show)
 
 -- | Given the Haskell type used by features such as `Proto3.Suite.Class.MessageField`
 -- to indicate the encoding of a message field.

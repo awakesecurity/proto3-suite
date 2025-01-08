@@ -302,101 +302,101 @@ instance ToEncoder TestProtoOneof.WithImported
 instance ToEncoder TestProtoWrappers.TestDoubleValue
   where
     toEncoder (TestProtoWrappers.TestDoubleValue f1 f2 f3) = FormE.fieldsToMessage $
-      FormE.field @"wrapper" (fmap Form.Wrap f1) .
-      repeated @"many" Form.Wrap f2 .
+      FormE.field @"wrapper" (fmap FormE.Wrap f1) .
+      repeated @"many" FormE.Wrap f2 .
       case f3 of
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestDoubleValuePickOneOne v) ->
-          FormE.field @"one" (Form.Wrap v)
+          FormE.field @"one" (FormE.Wrap v)
 
 instance ToEncoder TestProtoWrappers.TestFloatValue
   where
     toEncoder (TestProtoWrappers.TestFloatValue f1 f2 f3) = FormE.fieldsToMessage $
-      FormE.field @"wrapper" (fmap Form.Wrap f1) .
-      repeated @"many" Form.Wrap f2 .
+      FormE.field @"wrapper" (fmap FormE.Wrap f1) .
+      repeated @"many" FormE.Wrap f2 .
       case f3 of
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestFloatValuePickOneOne v) ->
-          FormE.field @"one" (Form.Wrap v)
+          FormE.field @"one" (FormE.Wrap v)
 
 instance ToEncoder TestProtoWrappers.TestInt64Value
   where
     toEncoder (TestProtoWrappers.TestInt64Value f1 f2 f3) = FormE.fieldsToMessage $
-      FormE.field @"wrapper" (fmap Form.Wrap f1) .
-      repeated @"many" Form.Wrap f2 .
+      FormE.field @"wrapper" (fmap FormE.Wrap f1) .
+      repeated @"many" FormE.Wrap f2 .
       case f3 of
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestInt64ValuePickOneOne v) ->
-          FormE.field @"one" (Form.Wrap v)
+          FormE.field @"one" (FormE.Wrap v)
 
 instance ToEncoder TestProtoWrappers.TestUInt64Value
   where
     toEncoder (TestProtoWrappers.TestUInt64Value f1 f2 f3) = FormE.fieldsToMessage $
-      FormE.field @"wrapper" (fmap Form.Wrap f1) .
-      repeated @"many" Form.Wrap f2 .
+      FormE.field @"wrapper" (fmap FormE.Wrap f1) .
+      repeated @"many" FormE.Wrap f2 .
       case f3 of
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestUInt64ValuePickOneOne v) ->
-          FormE.field @"one" (Form.Wrap v)
+          FormE.field @"one" (FormE.Wrap v)
 
 instance ToEncoder TestProtoWrappers.TestInt32Value
   where
     toEncoder (TestProtoWrappers.TestInt32Value f1 f2 f3) = FormE.fieldsToMessage $
-      FormE.field @"wrapper" (fmap Form.Wrap f1) .
-      repeated @"many" Form.Wrap f2 .
+      FormE.field @"wrapper" (fmap FormE.Wrap f1) .
+      repeated @"many" FormE.Wrap f2 .
       case f3 of
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestInt32ValuePickOneOne v) ->
-          FormE.field @"one" (Form.Wrap v)
+          FormE.field @"one" (FormE.Wrap v)
 
 instance ToEncoder TestProtoWrappers.TestUInt32Value
   where
     toEncoder (TestProtoWrappers.TestUInt32Value f1 f2 f3) = FormE.fieldsToMessage $
-      FormE.field @"wrapper" (fmap Form.Wrap f1) .
-      repeated @"many" Form.Wrap f2 .
+      FormE.field @"wrapper" (fmap FormE.Wrap f1) .
+      repeated @"many" FormE.Wrap f2 .
       case f3 of
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestUInt32ValuePickOneOne v) ->
-          FormE.field @"one" (Form.Wrap v)
+          FormE.field @"one" (FormE.Wrap v)
 
 instance ToEncoder TestProtoWrappers.TestBoolValue
   where
     toEncoder (TestProtoWrappers.TestBoolValue f1 f2 f3) = FormE.fieldsToMessage $
-      FormE.field @"wrapper" (fmap Form.Wrap f1) .
-      repeated @"many" Form.Wrap f2 .
+      FormE.field @"wrapper" (fmap FormE.Wrap f1) .
+      repeated @"many" FormE.Wrap f2 .
       case f3 of
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestBoolValuePickOneOne v) ->
-          FormE.field @"one" (Form.Wrap v)
+          FormE.field @"one" (FormE.Wrap v)
 
 instance ToEncoder TestProtoWrappers.TestStringValue
   where
     toEncoder (TestProtoWrappers.TestStringValue f1 f2 f3) = FormE.fieldsToMessage $
-      FormE.field @"wrapper" (fmap Form.Wrap f1) .
-      repeated @"many" Form.Wrap f2 .
+      FormE.field @"wrapper" (fmap FormE.Wrap f1) .
+      repeated @"many" FormE.Wrap f2 .
       case f3 of
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestStringValuePickOneOne v) ->
-          FormE.field @"one" (Form.Wrap v)
+          FormE.field @"one" (FormE.Wrap v)
 
 instance ToEncoder TestProtoWrappers.TestBytesValue
   where
     toEncoder (TestProtoWrappers.TestBytesValue f1 f2 f3) = FormE.fieldsToMessage $
-      FormE.field @"wrapper" (fmap Form.Wrap f1) .
-      repeated @"many" Form.Wrap f2 .
+      FormE.field @"wrapper" (fmap FormE.Wrap f1) .
+      repeated @"many" FormE.Wrap f2 .
       case f3 of
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestBytesValuePickOneOne v) ->
-          FormE.field @"one" (Form.Wrap v)
+          FormE.field @"one" (FormE.Wrap v)
 
 instance ToEncoder WrappedTrivial
   where

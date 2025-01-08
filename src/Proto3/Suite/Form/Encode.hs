@@ -50,6 +50,7 @@ module Proto3.Suite.Form.Encode
   , KnownFieldNumber
   , Field(..)
   , RawField(..)
+  , Wrap(..)
   , Forward(..)
   , Reverse(..)
   , Vector(..)
