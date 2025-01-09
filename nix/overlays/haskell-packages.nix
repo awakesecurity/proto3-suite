@@ -58,8 +58,12 @@ in {
 
           # With nixpkgs-23.11 and ghc981, atomic-write wants hspec for testing,
           # which causes problems.
+          #
+          # With nixpkgs-24.11 and our overrides, atomic-write thinks that
+          # filepath is out of bounds.
           atomic-write =
-            pkgsNew.haskell.lib.dontCheck haskellPackagesOld.atomic-write;
+            pkgsNew.haskell.lib.doJailbreak
+              (pkgsNew.haskell.lib.dontCheck haskellPackagesOld.atomic-write);
 
           # With nixpkgs-23.11 and ghc981, base-compat-batteries wants hspec for testing,
           # which causes problems.
@@ -118,12 +122,6 @@ in {
           half =
             pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.half;
 
-          # With nixpkgs-24.05 and ghc982, we observed a non-reproducible
-          # failure of the hedgehog tests.  Rather than risk occasional
-          # failures building this test dependency, we skip its tests.
-          hedgehog =
-            pkgsNew.haskell.lib.dontCheck haskellPackagesOld.hedgehog;
-
           # With nixpkgs-23.11 and ghc981, hourglass does not support the version
           # of the time package that is provided, but that matters only to tests.
           hourglass =
@@ -172,6 +170,10 @@ in {
           large-records =
             pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.large-records;
 
+          # With nixpkgs-24.11 and our overrides, lens thinks that template-haskell is out of bounds.
+          lens =
+            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.lens;
+
           # With nixpkgs-23.11 and ghc981 (or perhaps our customized dependencies),
           # the tests in lifted-base fail.
           lifted-base =
@@ -196,6 +198,14 @@ in {
           network-uri =
             pkgsNew.haskell.lib.dontCheck haskellPackagesOld.network-uri;
 
+          # With nixpkgs-24.11 and our overrides, repline thinks that containers is out of bounds.
+          repline =
+            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.repline;
+
+          # With nixpkgs-24.11 and our overrides, serialise thinks that base is out of bounds.
+          serialise =
+            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.serialise;
+
           # With nixpkgs-23.11 and our overrides, rerebase that rebase is out of bounds.
           rerebase =
             pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.rerebase;
@@ -215,6 +225,14 @@ in {
           swagger2 =
             pkgsNew.haskell.lib.dontCheck
               (pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.swagger2);
+
+          # With nixpkgs-24.11 and our overrides, optics-extras thinks that containers is out of bounds.
+          optics-extra =
+            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.optics-extra;
+
+          # With nixpkgs-24.11 and our overrides, optics-th thinks that containers and template-haskell are out of bounds.
+          optics-th =
+            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.optics-th;
 
           # With nixpkgs-23.11 and ghc981, reflection indirectly depends on hspec for testing,
           # which causes problems.
@@ -255,6 +273,10 @@ in {
           # With nixpkgs-23.11 and our overrides, th-lift thinks that th-abstraction is out of bounds.
           th-lift =
             pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.th-lift;
+
+          # With nixpkgs-24.11 and our overrides, turtle thinks that filepath is out of bounds.
+          turtle =
+            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.turtle;
 
           # With nixpkgs-23.11 and ghc981, unix-compat wants hspec for testing,
           # which causes problems.

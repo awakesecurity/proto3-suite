@@ -6,8 +6,8 @@
 }:
 mkDerivation {
   pname = "rebase";
-  version = "1.20.2";
-  sha256 = "001297a891f30c51fa7f95d97fbb6e47c8dd4a7f13ddb371d5b5780fca7bbb92";
+  version = "1.21.1";
+  sha256 = "c5967b3ace8da2e90f5a39293d2557046943423edf9ce2252918933f5c2b219a";
   libraryHaskellDepends = [
     base bifunctors bytestring comonad containers contravariant deepseq
     dlist either groups hashable invariant mtl profunctors scientific
