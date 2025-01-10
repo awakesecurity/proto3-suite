@@ -80,6 +80,11 @@ in {
           bifunctors =
             pkgsNew.haskell.lib.dontCheck haskellPackagesOld.bifunctors;
 
+          # With nixpkgs-24.11 and our overrides, cabal-install-solver does
+          # not like the version of directory when building with GHC 9.0.
+          cabal-install-solver =
+            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.cabal-install-solver;
+
           # With nixpkgs-23.11 and ghc981, conduit wants hspec for testing,
           # which causes problems.
           conduit =
@@ -205,10 +210,6 @@ in {
           # With nixpkgs-24.11 and our overrides, serialise thinks that base is out of bounds.
           serialise =
             pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.serialise;
-
-          # With nixpkgs-23.11 and our overrides, rerebase that rebase is out of bounds.
-          rerebase =
-            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.rerebase;
 
           # With nixpkgs-23.11 and ghc981, safe-exceptions wants hspec for testing,
           # which causes problems.
