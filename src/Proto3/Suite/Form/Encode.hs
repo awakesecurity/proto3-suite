@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ImportQualifiedPost #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -71,6 +72,7 @@ import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Text.Short qualified as TS
 import Data.Word (Word8, Word16, Word32, Word64)
+import GHC.Exts (Proxy#, proxy#)
 import GHC.TypeLits (Symbol)
 import Prelude hiding (String, (.), id)
 import Proto3.Suite.Class (Message, MessageField, encodeMessage, encodeMessageField)
@@ -156,13 +158,15 @@ instance ( ProtoEnum e
          ) =>
          RawField ('Singular omission) ('Enumeration e) e
   where
-    rawField !fn x = rawField @('Singular omission) @'Int32 fn (fromProtoEnum x)
+    rawField rep _ !fn x =
+      rawField @('Singular omission) @'Int32 rep (proxy# :: Proxy# 'Int32) fn (fromProtoEnum x)
     {-# INLINE rawField #-}
 
 instance ProtoEnum e =>
          RawField 'Optional ('Enumeration e) (Maybe e)
   where
-    rawField !fn x = rawField @'Optional @'Int32 fn (fmap fromProtoEnum x)
+    rawField rep _ !fn x =
+      rawField @'Optional @'Int32 rep (proxy# :: Proxy# 'Int32) fn (fmap fromProtoEnum x)
     {-# INLINE rawField #-}
 
 instance ( ProtoEnum e
@@ -171,7 +175,8 @@ instance ( ProtoEnum e
          ) =>
          RawField ('Repeated packing) ('Enumeration e) (t e)
   where
-    rawField !fn xs = rawField @('Repeated packing) @'Int32 fn (fmap fromProtoEnum xs)
+    rawField rep _ !fn xs =
+      rawField @('Repeated packing) @'Int32 rep (proxy# :: Proxy# 'Int32) fn (fmap fromProtoEnum xs)
     {-# INLINE rawField #-}
 
 instance ( ProtoEnum e
@@ -179,13 +184,15 @@ instance ( ProtoEnum e
          ) =>
          RawField ('Singular omission) ('Enumeration e) (Enumerated e)
   where
-    rawField !fn x = rawField @('Singular omission) @'Int32 fn (codeFromEnumerated x)
+    rawField rep _ !fn x =
+      rawField @('Singular omission) @'Int32 rep (proxy# :: Proxy# 'Int32) fn (codeFromEnumerated x)
     {-# INLINE rawField #-}
 
 instance ProtoEnum e =>
          RawField 'Optional ('Enumeration e) (Maybe (Enumerated e))
   where
-    rawField !fn x = rawField @'Optional @'Int32 fn (fmap codeFromEnumerated x)
+    rawField rep _ !fn x =
+      rawField @'Optional @'Int32 rep (proxy# :: Proxy# 'Int32) fn (fmap codeFromEnumerated x)
     {-# INLINE rawField #-}
 
 instance ( ProtoEnum e
@@ -194,28 +201,30 @@ instance ( ProtoEnum e
          ) =>
          RawField ('Repeated packing) ('Enumeration e) (t (Enumerated e))
   where
-    rawField !fn xs = rawField @('Repeated packing) @'Int32 fn (fmap codeFromEnumerated xs)
+    rawField rep _ !fn xs =
+      rawField @('Repeated packing) @'Int32
+               rep (proxy# :: Proxy# 'Int32) fn (fmap codeFromEnumerated xs)
     {-# INLINE rawField #-}
 
 instance RawField ('Singular 'Alternative) 'Bytes RB.BuildR
   where
-    rawField !fn x = Encode.bytes fn x
+    rawField _ _ !fn x = Encode.bytes fn x
     {-# INLINE rawField #-}
 
 instance RawField ('Singular 'Implicit) 'Bytes RB.BuildR
   where
-    rawField !fn x = Encode.bytesIfNonempty fn x
+    rawField _ _ !fn x = Encode.bytesIfNonempty fn x
     {-# INLINE rawField #-}
 
 instance RawField 'Optional 'Bytes (Maybe RB.BuildR)
   where
-    rawField !fn = maybe mempty (Encode.bytes fn)
+    rawField _ _ !fn = maybe mempty (Encode.bytes fn)
     {-# INLINE rawField #-}
 
 instance forall t . FoldBuilders t =>
          RawField ('Repeated 'Unpacked) 'Bytes (t RB.BuildR)
   where
-    rawField !fn xs = foldBuilders (Encode.bytes fn <$> xs)
+    rawField _ _ !fn xs = foldBuilders (Encode.bytes fn <$> xs)
     {-# INLINE rawField #-}
 
 -- | Specializes the argument type of 'field' to the encoding of a submessage type,
@@ -273,7 +282,7 @@ instance ( MessageFieldType repetition protoType a
          ) =>
          RawField repetition protoType (Reflection a)
   where
-    rawField = coerce (encodeMessageField @a)
+    rawField _ _ = coerce (encodeMessageField @a)
     {-# INLINE rawField #-}
 
 -- | Creates a message encoder by means of type class `Proto3.Suite.Class.Message`.

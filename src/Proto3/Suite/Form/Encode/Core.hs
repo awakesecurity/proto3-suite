@@ -407,7 +407,7 @@ instance forall (name :: Symbol)
       @(a -> Encode.MessageBuilder)
       @(a -> Prefix message names (Occupy message name names))
       (rawField @(RepetitionOf message name) @(ProtoTypeOf message name) @a
-                   (fieldNumber @message @name))
+                proxy# proxy# (fieldNumber @message @name))
       -- Implementation Note: Using the newtype constructor would require us
       -- to bind a variable of kind @TYPE r@, which is runtime-polymorphic.
       -- By using a coercion we avoid runtime polymorphism restrictions.
@@ -454,17 +454,17 @@ class RawField repetition protoType a
     -- automatically based on particular use cases.  Examples:
     -- `Proto3.Suite.Form.Encode.message`,
     -- `Proto3.Suite.Form.Encode.associations`.
-    rawField :: FieldNumber -> a -> Encode.MessageBuilder
+    rawField :: Proxy# repetition -> Proxy# protoType -> FieldNumber -> a -> Encode.MessageBuilder
 
 instance (omission ~ 'Alternative) =>
          RawField ('Singular omission) ('Message inner) (MessageEncoder inner)
   where
-    rawField !fn e = Encode.embedded fn (untypedMessageEncoder e)
+    rawField _ _ !fn e = Encode.embedded fn (untypedMessageEncoder e)
     {-# INLINE rawField #-}
 
 instance RawField 'Optional ('Message inner) (Maybe (MessageEncoder inner))
   where
-    rawField !fn = foldMap (Encode.embedded fn . untypedMessageEncoder)
+    rawField _ _ !fn = foldMap (Encode.embedded fn . untypedMessageEncoder)
     {-# INLINE rawField #-}
 
 instance ( packing ~ 'Unpacked
@@ -472,7 +472,7 @@ instance ( packing ~ 'Unpacked
          ) =>
          RawField ('Repeated packing) ('Message inner) (t (MessageEncoder inner))
   where
-    rawField !fn es = foldBuilders (Encode.embedded fn . untypedMessageEncoder <$> es)
+    rawField _ _ !fn es = foldBuilders (Encode.embedded fn . untypedMessageEncoder <$> es)
     {-# INLINE rawField #-}
 
 instance ( repetition ~ 'Repeated 'Unpacked
@@ -480,7 +480,7 @@ instance ( repetition ~ 'Repeated 'Unpacked
          ) =>
          RawField repetition ('Map key value) (t (MessageEncoder (Association key value)))
   where
-    rawField !fn es = foldBuilders (Encode.embedded fn . untypedMessageEncoder <$> es)
+    rawField _ _ !fn es = foldBuilders (Encode.embedded fn . untypedMessageEncoder <$> es)
     {-# INLINE rawField #-}
 
 -- | Helps some type classes distinguish wrapped values from encodings of wrapper submessages.
@@ -495,25 +495,22 @@ instance ( omission ~ 'Alternative
          ) =>
          RawField ('Singular omission) ('Message (Wrapper protoType)) (Wrap a)
   where
-    rawField !fn (Wrap x) =
-      rawField @('Singular omission) @('Message (Wrapper protoType))
-        fn (fieldsToMessage @(Wrapper protoType) (field @"value" @a x))
+    rawField rep ty !fn (Wrap x) =
+      rawField rep ty fn (fieldsToMessage @(Wrapper protoType) (field @"value" @a x))
     {-# INLINE rawField #-}
 
 instance RawField ('Singular 'Implicit) protoType a =>
          RawField 'Optional ('Message (Wrapper protoType)) (Maybe (Wrap a))
   where
-    rawField !fn m =
-      rawField @'Optional @('Message (Wrapper protoType))
-        fn (fmap @Maybe (\(Wrap x) -> fieldsToMessage @(Wrapper protoType) (field @"value" @a x)) m)
+    rawField rep ty !fn m = rawField rep ty fn
+      (fmap @Maybe (\(Wrap x) -> fieldsToMessage @(Wrapper protoType) (field @"value" @a x)) m)
     {-# INLINE rawField #-}
 
 instance (packing ~ 'Unpacked, FoldBuilders t, RawField ('Singular 'Implicit) protoType a) =>
          RawField ('Repeated packing) ('Message (Wrapper protoType)) (t (Wrap a))
   where
-    rawField !fn es =
-      rawField @('Repeated packing) @('Message (Wrapper protoType))
-        fn (fmap @t (\(Wrap x) -> fieldsToMessage @(Wrapper protoType) (field @"value" @a x)) es)
+    rawField rep ty !fn es = rawField rep ty fn
+      (fmap @t (\(Wrap x) -> fieldsToMessage @(Wrapper protoType) (field @"value" @a x)) es)
     {-# INLINE rawField #-}
 
 -- | Any encoding of the first type can be decoded as the second without
@@ -559,14 +556,15 @@ instance ee ~ ed => CompatibleScalar ('Enumeration ee) ('Enumeration ed)
 type EncodeScalarField :: Repetition -> ProtoType -> forall {r} . TYPE r -> Constraint
 class EncodeScalarField repetition protoType a
   where
-    encodeScalarField :: FieldNumber -> a -> Encode.MessageBuilder
+    encodeScalarField ::
+      Proxy# repetition -> Proxy# protoType -> FieldNumber -> a -> Encode.MessageBuilder
 
 instance ( CompatibleScalar (RecoverProtoType a) protoType
          , Primitive a
          ) =>
          EncodeScalarField ('Singular 'Alternative) protoType a
   where
-    encodeScalarField = encodePrimitive
+    encodeScalarField _ _ = encodePrimitive
     {-# INLINE encodeScalarField #-}
 
 instance ( CompatibleScalar (RecoverProtoType a) protoType
@@ -575,7 +573,7 @@ instance ( CompatibleScalar (RecoverProtoType a) protoType
          ) =>
          EncodeScalarField ('Singular 'Implicit) protoType a
   where
-    encodeScalarField !fn x
+    encodeScalarField _ _ !fn x
       | isDefault x = mempty
       | otherwise = encodePrimitive fn x
     {-# INLINE encodeScalarField #-}
@@ -585,7 +583,7 @@ instance ( CompatibleScalar (RecoverProtoType a) protoType
          ) =>
          EncodeScalarField 'Optional protoType (Maybe a)
   where
-    encodeScalarField !fn = maybe mempty (encodePrimitive fn)
+    encodeScalarField _ _ !fn = maybe mempty (encodePrimitive fn)
     {-# INLINE encodeScalarField #-}
 
 instance ( CompatibleScalar (RecoverProtoType a) protoType
@@ -594,7 +592,7 @@ instance ( CompatibleScalar (RecoverProtoType a) protoType
          ) =>
          EncodeScalarField ('Repeated 'Unpacked) protoType (t a)
   where
-    encodeScalarField !fn xs = foldBuilders (encodePrimitive fn <$> xs)
+    encodeScalarField _ _ !fn xs = foldBuilders (encodePrimitive fn <$> xs)
     {-# INLINE encodeScalarField #-}
 
 -- | Ignores the preference for packed format because there is exactly one element,
@@ -605,7 +603,7 @@ instance ( CompatibleScalar (RecoverProtoType a) protoType
          ) =>
          EncodeScalarField ('Repeated 'Packed) protoType (Identity a)
   where
-    encodeScalarField !fn (Identity x) = encodePrimitive fn x
+    encodeScalarField _ _ !fn (Identity x) = encodePrimitive fn x
     {-# INLINE encodeScalarField #-}
 
 instance ( CompatibleScalar (RecoverProtoType a) protoType
@@ -613,7 +611,7 @@ instance ( CompatibleScalar (RecoverProtoType a) protoType
          ) =>
          EncodeScalarField ('Repeated 'Packed) protoType (Forward a)
   where
-    encodeScalarField !fn (Forward f xs)
+    encodeScalarField _ _ !fn (Forward f xs)
       | null xs = mempty
       | otherwise = packedPrimitivesF f fn xs
     {-# INLINE encodeScalarField #-}
@@ -623,7 +621,7 @@ instance ( CompatibleScalar (RecoverProtoType a) protoType
          ) =>
          EncodeScalarField ('Repeated 'Packed) protoType (Reverse a)
   where
-    encodeScalarField !fn (Reverse f xs)
+    encodeScalarField _ _ !fn (Reverse f xs)
       | null xs = mempty
       | otherwise = packedPrimitivesR f fn xs
     {-# INLINE encodeScalarField #-}
@@ -633,7 +631,7 @@ instance ( CompatibleScalar (RecoverProtoType a) protoType
          ) =>
          EncodeScalarField ('Repeated 'Packed) protoType (Vector a)
   where
-    encodeScalarField !fn (Vector f xs)
+    encodeScalarField _ _ !fn (Vector f xs)
       | Data.Vector.Generic.null xs = mempty
       | otherwise = packedPrimitivesV f fn xs
     {-# INLINE encodeScalarField #-}
@@ -910,51 +908,51 @@ instantiatePackableField protoType elementType conversion =
 
     instance RawField ('Singular 'Alternative) $protoType $elementType
       where
-        rawField !fn x =
-          encodeScalarField @('Singular 'Alternative) @($protoType) fn ($conversion x)
+        rawField rep ty !fn x =
+          encodeScalarField @('Singular 'Alternative) @($protoType) rep ty fn ($conversion x)
         {-# INLINE rawField #-}
 
     instance RawField ('Singular 'Implicit) $protoType $elementType
       where
-        rawField !fn x =
-          encodeScalarField @('Singular 'Implicit) @($protoType) fn ($conversion x)
+        rawField rep ty !fn x =
+          encodeScalarField @('Singular 'Implicit) @($protoType) rep ty fn ($conversion x)
         {-# INLINE rawField #-}
 
     instance RawField 'Optional $protoType (Maybe $elementType)
       where
-        rawField !fn x =
-          encodeScalarField @'Optional @($protoType) fn (fmap $conversion x)
+        rawField rep ty !fn x =
+          encodeScalarField @'Optional @($protoType) rep ty fn (fmap $conversion x)
         {-# INLINE rawField #-}
 
     instance FoldBuilders t =>
              RawField ('Repeated 'Unpacked) $protoType (t $elementType)
       where
-        rawField !fn xs =
-          encodeScalarField @('Repeated 'Unpacked) @($protoType) fn (fmap $conversion xs)
+        rawField rep ty !fn xs =
+          encodeScalarField @('Repeated 'Unpacked) @($protoType) rep ty fn (fmap $conversion xs)
         {-# INLINE rawField #-}
 
     instance RawField ('Repeated 'Packed) $protoType (Identity $elementType)
       where
-        rawField !fn xs =
-          encodeScalarField @('Repeated 'Packed) @($protoType) fn (fmap $conversion xs)
+        rawField rep ty !fn xs =
+          encodeScalarField @('Repeated 'Packed) @($protoType) rep ty fn (fmap $conversion xs)
         {-# INLINE rawField #-}
 
     instance RawField ('Repeated 'Packed) $protoType (Forward $elementType)
       where
-        rawField !fn xs =
-          encodeScalarField @('Repeated 'Packed) @($protoType) fn (fmap $conversion xs)
+        rawField rep ty !fn xs =
+          encodeScalarField @('Repeated 'Packed) @($protoType) rep ty fn (fmap $conversion xs)
         {-# INLINE rawField #-}
 
     instance RawField ('Repeated 'Packed) $protoType (Reverse $elementType)
       where
-        rawField !fn xs =
-          encodeScalarField @('Repeated 'Packed) @($protoType) fn (fmap $conversion xs)
+        rawField rep ty !fn xs =
+          encodeScalarField @('Repeated 'Packed) @($protoType) rep ty fn (fmap $conversion xs)
         {-# INLINE rawField #-}
 
     instance RawField ('Repeated 'Packed) $protoType (Vector $elementType)
       where
-        rawField !fn xs =
-          encodeScalarField @('Repeated 'Packed) @($protoType) fn (fmap $conversion xs)
+        rawField rep ty !fn xs =
+          encodeScalarField @('Repeated 'Packed) @($protoType) rep ty fn (fmap $conversion xs)
         {-# INLINE rawField #-}
 
     |]
@@ -968,8 +966,8 @@ instantiateStringOrBytesField protoType elementTC specializations = do
                Primitive ($elementTC a) =>
                RawField ('Singular 'Alternative) $protoType ($elementTC a)
         where
-          rawField !fn x =
-            encodeScalarField @('Singular 'Alternative) @($protoType) fn x
+          rawField rep ty !fn x =
+            encodeScalarField @('Singular 'Alternative) @($protoType) rep ty fn x
           {-# INLINE rawField #-}
 
       instance forall a .
@@ -978,16 +976,16 @@ instantiateStringOrBytesField protoType elementTC specializations = do
                ) =>
                RawField ('Singular 'Implicit) $protoType ($elementTC a)
         where
-          rawField !fn x =
-            encodeScalarField @('Singular 'Implicit) @($protoType) fn x
+          rawField rep ty !fn x =
+            encodeScalarField @('Singular 'Implicit) @($protoType) rep ty fn x
           {-# INLINE rawField #-}
 
       instance forall a .
                Primitive ($elementTC a) =>
                RawField 'Optional $protoType (Maybe ($elementTC a))
         where
-          rawField !fn x =
-            encodeScalarField @'Optional @($protoType) fn x
+          rawField rep ty !fn x =
+            encodeScalarField @'Optional @($protoType) rep ty fn x
           {-# INLINE rawField #-}
 
       instance forall t a .
@@ -996,8 +994,8 @@ instantiateStringOrBytesField protoType elementTC specializations = do
                ) =>
                RawField ('Repeated 'Unpacked) $protoType (t ($elementTC a))
         where
-          rawField !fn xs =
-            encodeScalarField @('Repeated 'Unpacked) @($protoType) fn xs
+          rawField rep ty !fn xs =
+            encodeScalarField @('Repeated 'Unpacked) @($protoType) rep ty fn xs
           {-# INLINE rawField #-}
 
       |]
@@ -1007,32 +1005,32 @@ instantiateStringOrBytesField protoType elementTC specializations = do
 
       instance RawField ('Singular 'Alternative) $protoType $spec
         where
-          rawField !fn x =
+          rawField rep ty !fn x =
             encodeScalarField @('Singular 'Alternative) @($protoType)
-                              fn (coerce @($spec) @($elementTC $spec) x)
+                              rep ty fn (coerce @($spec) @($elementTC $spec) x)
           {-# INLINE rawField #-}
 
       instance RawField ('Singular 'Implicit) $protoType $spec
         where
-          rawField !fn x =
+          rawField rep ty !fn x =
             encodeScalarField @('Singular 'Implicit) @($protoType)
-                              fn (coerce @($spec) @($elementTC $spec) x)
+                              rep ty fn (coerce @($spec) @($elementTC $spec) x)
           {-# INLINE rawField #-}
 
       instance RawField 'Optional $protoType (Maybe $spec)
         where
-          rawField !fn x =
+          rawField rep ty !fn x =
             encodeScalarField @'Optional @($protoType)
-              fn (coerce @(Maybe $spec) @(Maybe ($elementTC $spec)) x)
+                              rep ty fn (coerce @(Maybe $spec) @(Maybe ($elementTC $spec)) x)
           {-# INLINE rawField #-}
 
       instance forall t .
                FoldBuilders t =>
                RawField ('Repeated 'Unpacked) $protoType (t $spec)
         where
-          rawField !fn xs =
+          rawField rep ty !fn xs =
             encodeScalarField @('Repeated 'Unpacked) @($protoType)
-              fn (coerce @($spec) @($elementTC $spec) <$> xs)
+                              rep ty fn (coerce @($spec) @($elementTC $spec) <$> xs)
           {-# INLINE rawField #-}
 
       |]
