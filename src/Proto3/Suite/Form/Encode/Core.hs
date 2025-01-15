@@ -363,6 +363,11 @@ fieldNumber = FieldNumber (fromInteger (natVal' (proxy# :: Proxy# (NumberOf mess
 
 -- | Provides a way to encode a field with the given name from a given type.
 -- That name is interpreted in the context of a given type of message.
+--
+-- More than one argument type may be supported for any given field;
+-- see further discussion in the comments for 'FieldForm', to which
+-- this type class delegates after determining the repetition and
+-- protobuf type of the field in question.
 type Field :: Symbol -> forall {r} . TYPE r -> Type -> Constraint
 class Field name a message
   where
@@ -415,6 +420,28 @@ instance forall (name :: Symbol)
 
 -- | Implements 'Field' for all fields having the specified repetition,
 -- protobuf type, and type of argument to be encoded within that field.
+--
+-- Argument Type:
+--
+-- For any given repetition and protobuf type there may be multiple
+-- instances of this class for different types of argument.  For example,
+-- a field of protobuf type @sint64@ may be encoded from any of the Haskell
+-- types `Data.Int.Int8`, `Data.Int.Word8`, `Data.Int.Int16`, `Data.Int.Word16`,
+-- `Data.Int.Int32`, `Data.Int.Word32`, or `Data.Int.Int64`.  Note that this
+-- library does /not/ provide an instance for `Data.Int.Word64` because its
+-- values greater than or equal to @2 ^ 63@ cannot be represented by @sint64@.
+--
+-- As another example, for fields of submessage type @m@ there are type
+-- class instances for both @'MessageEncoder' m@ and @'MessageEncoding' m@
+-- (wrapped in a suitable container if repeated or outside of a @oneof@).
+--
+-- Arguments for optional fields are often expressed using 'Maybe',
+-- and arguments for repeated fields are often expressed in using
+-- 'Forward', 'Reverse', and 'Vector'--the choice is up to the user.
+--
+-- Of course, if you add instances of this type class then please be
+-- sure to consider how they might overlap with existing instances,
+-- and try to avoid overly broad instances that might cause ambiguity.
 --
 -- Design Note:
 --
@@ -481,6 +508,33 @@ instance ( repetition ~ 'Repeated 'Unpacked
          FieldForm repetition ('Map key value) (t (MessageEncoder (Association key value)))
   where
     fieldForm _ _ !fn es = foldBuilders (Encode.embedded fn . untypedMessageEncoder <$> es)
+    {-# INLINE fieldForm #-}
+
+instance (omission ~ 'Alternative) =>
+         FieldForm ('Singular omission) ('Message inner) (MessageEncoding inner)
+  where
+    fieldForm rep ty !fn e = fieldForm rep ty fn (cachedMessageEncoding e)
+    {-# INLINE fieldForm #-}
+
+instance FieldForm 'Optional ('Message inner) (Maybe (MessageEncoding inner))
+  where
+    fieldForm rep ty !fn e = fieldForm rep ty fn (fmap @Maybe cachedMessageEncoding e)
+    {-# INLINE fieldForm #-}
+
+instance ( packing ~ 'Unpacked
+         , FoldBuilders t
+         ) =>
+         FieldForm ('Repeated packing) ('Message inner) (t (MessageEncoding inner))
+  where
+    fieldForm rep ty !fn e = fieldForm rep ty fn (fmap @t cachedMessageEncoding e)
+    {-# INLINE fieldForm #-}
+
+instance ( repetition ~ 'Repeated 'Unpacked
+         , FoldBuilders t
+         ) =>
+         FieldForm repetition ('Map key value) (t (MessageEncoding (Association key value)))
+  where
+    fieldForm rep ty !fn e = fieldForm rep ty fn (fmap @t cachedMessageEncoding e)
     {-# INLINE fieldForm #-}
 
 -- | Helps some type classes distinguish wrapped values from encodings of wrapper submessages.

@@ -50,6 +50,8 @@ import           Test.Tasty.HUnit            (Assertion, assertBool, assertEqual
 import           Test.Tasty.QuickCheck       (testProperty, (===))
 import           TestCodeGen
 import qualified TestProto                   as TP
+import qualified TestProtoOneof              as TPO
+import qualified TestProtoOneofImport        as TPOI
 
 #ifdef DHALL
 import           TestDhall
@@ -164,6 +166,7 @@ encodeUnitTests = testGroup "Encoder unit tests"
   , encodeWrappedBytes
   , encodeBytesFromBuilder
   , encodeMessageReflection
+  , encodeCachedSubmessage
   ]
 
 -- TODO: We should consider generating the reference encodings
@@ -464,6 +467,43 @@ encodeMessageReflection :: TestTree
 encodeMessageReflection = testCase "messageReflection" $ do
   let msg = TP.Trivial 123
   FormE.toLazyByteString (FormE.messageReflection msg) @?= toLazyByteString msg
+
+encodeCachedSubmessage :: TestTree
+encodeCachedSubmessage = testGroup "Cached Submessages"
+  [ testOptional
+  , testRepeated
+  , testOneof
+  ]
+  where
+    cacheReflection :: forall a . Message a => a -> FormE.MessageEncoding a
+    cacheReflection = FormE.cacheMessageEncoder . FormE.messageReflection
+
+    testOptional :: TestTree
+    testOptional = testCase "cached optional submessage" $ do
+      let trivial = TP.Trivial 123
+          wrappedTrivial = FormE.fieldsToMessage @TP.WrappedTrivial $
+            FormE.field @"trivial" (Just (cacheReflection trivial))
+      FormE.toLazyByteString wrappedTrivial @?=
+        toLazyByteString (TP.WrappedTrivial (Just trivial))
+
+    testRepeated :: TestTree
+    testRepeated = testCase "cached repeated submessage" $ do
+      let trivials =
+            [ TP.MapTestEmulation_Trivial 15 (Just (TP.WrappedTrivial (Just (TP.Trivial 465))))
+            , TP.MapTestEmulation_Trivial 25 (Just (TP.WrappedTrivial (Just (TP.Trivial 789))))
+            ]
+          mapTestEmulation = FormE.fieldsToMessage @TP.MapTestEmulation $
+            FormE.field @"trivial" (FormE.Reverse cacheReflection (V.reverse trivials))
+      FormE.toLazyByteString mapTestEmulation @?=
+        toLazyByteString (TP.MapTestEmulation mempty trivials mempty)
+
+    testOneof :: TestTree
+    testOneof = testCase "cached submessage within oneof" $ do
+      let withOneof = TPOI.WithOneof (Just (TPOI.WithOneofPickOneB 123))
+          withImported = FormE.fieldsToMessage @TPO.WithImported $
+            FormE.field @"withOneof" (cacheReflection withOneof)
+      FormE.toLazyByteString withImported @?=
+        toLazyByteString (TPO.WithImported (Just (TPO.WithImportedPickOneWithOneof withOneof)))
 
 data TestMessage
        (num :: Nat)

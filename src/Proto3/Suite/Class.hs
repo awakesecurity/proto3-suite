@@ -1066,7 +1066,7 @@ class ZigZag a
     -- NOTE: The two integral types must have the same width both to
     -- correctly encode large @sint32@ values and, during decoding,
     -- to compensate for overlong encodings emitted by versions of
-    -- this library before v0.8.1.  Those older versions incorrectly
+    -- this library before v0.8.2.  Those older versions incorrectly
     -- sign-extended ZigZag-encoded @sint32@ values in packed fields.
     type ZigZagEncoded a :: Type
 
@@ -1086,12 +1086,12 @@ class ZigZag a
     {-# INLINE zigZagEncode #-}
 
     -- | Importantly, the given unsigned integer has the same width as the result type.
-    -- If the encoder was a version of this library before v0.8.1, and the field was
+    -- If the encoder was a version of this library before v0.8.2, and the field was
     -- packed, it would have incorrectly sign-extended between the ZigZag encoding step
     -- and the varint encoding step, rather than zero-padding.  By narrowing before we
     -- ZigZag decode, we exclude the incorrect bits.
     --
-    -- Maintaining compatibility with versions of this library before v0.8.1
+    -- Maintaining compatibility with versions of this library before v0.8.2
     -- does have a curious side effect.  When an @sint64@ value outside the
     -- range of @sint32@ is decoded as type @sint32@, the sign will be
     -- preserved and the magnitude decreased, rather than the more typical
