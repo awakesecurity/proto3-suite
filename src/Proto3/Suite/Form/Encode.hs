@@ -50,7 +50,7 @@ module Proto3.Suite.Form.Encode
   , omitted
   , KnownFieldNumber
   , Field(..)
-  , RawField(..)
+  , FieldForm(..)
   , Wrap(..)
   , Forward(..)
   , Reverse(..)
@@ -154,78 +154,80 @@ $(instantiateStringOrBytesField
  )
 
 instance ( ProtoEnum e
-         , RawField ('Singular omission) 'Int32 Int32
+         , FieldForm ('Singular omission) 'Int32 Int32
          ) =>
-         RawField ('Singular omission) ('Enumeration e) e
+         FieldForm ('Singular omission) ('Enumeration e) e
   where
-    rawField rep _ !fn x =
-      rawField @('Singular omission) @'Int32 rep (proxy# :: Proxy# 'Int32) fn (fromProtoEnum x)
-    {-# INLINE rawField #-}
+    fieldForm rep _ !fn x =
+      fieldForm @('Singular omission) @'Int32 rep (proxy# :: Proxy# 'Int32) fn (fromProtoEnum x)
+    {-# INLINE fieldForm #-}
 
 instance ProtoEnum e =>
-         RawField 'Optional ('Enumeration e) (Maybe e)
+         FieldForm 'Optional ('Enumeration e) (Maybe e)
   where
-    rawField rep _ !fn x =
-      rawField @'Optional @'Int32 rep (proxy# :: Proxy# 'Int32) fn (fmap fromProtoEnum x)
-    {-# INLINE rawField #-}
+    fieldForm rep _ !fn x =
+      fieldForm @'Optional @'Int32 rep (proxy# :: Proxy# 'Int32) fn (fmap fromProtoEnum x)
+    {-# INLINE fieldForm #-}
 
 instance ( ProtoEnum e
          , Functor t
-         , RawField ('Repeated packing) 'Int32 (t Int32)
+         , FieldForm ('Repeated packing) 'Int32 (t Int32)
          ) =>
-         RawField ('Repeated packing) ('Enumeration e) (t e)
+         FieldForm ('Repeated packing) ('Enumeration e) (t e)
   where
-    rawField rep _ !fn xs =
-      rawField @('Repeated packing) @'Int32 rep (proxy# :: Proxy# 'Int32) fn (fmap fromProtoEnum xs)
-    {-# INLINE rawField #-}
+    fieldForm rep _ !fn xs =
+      fieldForm @('Repeated packing) @'Int32
+                rep (proxy# :: Proxy# 'Int32) fn (fmap fromProtoEnum xs)
+    {-# INLINE fieldForm #-}
 
 instance ( ProtoEnum e
-         , RawField ('Singular omission) 'Int32 Int32
+         , FieldForm ('Singular omission) 'Int32 Int32
          ) =>
-         RawField ('Singular omission) ('Enumeration e) (Enumerated e)
+         FieldForm ('Singular omission) ('Enumeration e) (Enumerated e)
   where
-    rawField rep _ !fn x =
-      rawField @('Singular omission) @'Int32 rep (proxy# :: Proxy# 'Int32) fn (codeFromEnumerated x)
-    {-# INLINE rawField #-}
+    fieldForm rep _ !fn x =
+      fieldForm @('Singular omission) @'Int32
+                rep (proxy# :: Proxy# 'Int32) fn (codeFromEnumerated x)
+    {-# INLINE fieldForm #-}
 
 instance ProtoEnum e =>
-         RawField 'Optional ('Enumeration e) (Maybe (Enumerated e))
+         FieldForm 'Optional ('Enumeration e) (Maybe (Enumerated e))
   where
-    rawField rep _ !fn x =
-      rawField @'Optional @'Int32 rep (proxy# :: Proxy# 'Int32) fn (fmap codeFromEnumerated x)
-    {-# INLINE rawField #-}
+    fieldForm rep _ !fn x =
+      fieldForm @'Optional @'Int32 rep (proxy# :: Proxy# 'Int32) fn (fmap codeFromEnumerated x)
+    {-# INLINE fieldForm #-}
 
 instance ( ProtoEnum e
          , Functor t
-         , RawField ('Repeated packing) 'Int32 (t Int32)
+         , FieldForm ('Repeated packing) 'Int32 (t Int32)
          ) =>
-         RawField ('Repeated packing) ('Enumeration e) (t (Enumerated e))
+         FieldForm ('Repeated packing) ('Enumeration e) (t (Enumerated e))
   where
-    rawField rep _ !fn xs =
-      rawField @('Repeated packing) @'Int32
-               rep (proxy# :: Proxy# 'Int32) fn (fmap codeFromEnumerated xs)
-    {-# INLINE rawField #-}
+    fieldForm rep _ !fn xs =
+      fieldForm @('Repeated packing) @'Int32
+                rep (proxy# :: Proxy# 'Int32) fn (fmap codeFromEnumerated xs)
+    {-# INLINE fieldForm #-}
 
-instance RawField ('Singular 'Alternative) 'Bytes RB.BuildR
+instance FieldForm ('Singular 'Alternative) 'Bytes RB.BuildR
   where
-    rawField _ _ !fn x = Encode.bytes fn x
-    {-# INLINE rawField #-}
+    fieldForm _ _ !fn x = Encode.bytes fn x
+    {-# INLINE fieldForm #-}
 
-instance RawField ('Singular 'Implicit) 'Bytes RB.BuildR
+instance FieldForm ('Singular 'Implicit) 'Bytes RB.BuildR
   where
-    rawField _ _ !fn x = Encode.bytesIfNonempty fn x
-    {-# INLINE rawField #-}
+    fieldForm _ _ !fn x = Encode.bytesIfNonempty fn x
+    {-# INLINE fieldForm #-}
 
-instance RawField 'Optional 'Bytes (Maybe RB.BuildR)
+instance FieldForm 'Optional 'Bytes (Maybe RB.BuildR)
   where
-    rawField _ _ !fn = maybe mempty (Encode.bytes fn)
-    {-# INLINE rawField #-}
+    fieldForm _ _ !fn = maybe mempty (Encode.bytes fn)
+    {-# INLINE fieldForm #-}
 
 instance forall t . FoldBuilders t =>
-         RawField ('Repeated 'Unpacked) 'Bytes (t RB.BuildR)
+         FieldForm ('Repeated 'Unpacked) 'Bytes (t RB.BuildR)
   where
-    rawField _ _ !fn xs = foldBuilders (Encode.bytes fn <$> xs)
-    {-# INLINE rawField #-}
+    fieldForm _ _ !fn xs = foldBuilders (Encode.bytes fn <$> xs)
+    {-# INLINE fieldForm #-}
 
 -- | Specializes the argument type of 'field' to the encoding of a submessage type,
 -- which can help to avoid ambiguity when the argument expression is polymorphic.
@@ -280,10 +282,10 @@ newtype Reflection a = Reflection a
 instance ( MessageFieldType repetition protoType a
          , MessageField a
          ) =>
-         RawField repetition protoType (Reflection a)
+         FieldForm repetition protoType (Reflection a)
   where
-    rawField _ _ = coerce (encodeMessageField @a)
-    {-# INLINE rawField #-}
+    fieldForm _ _ = coerce (encodeMessageField @a)
+    {-# INLINE fieldForm #-}
 
 -- | Creates a message encoder by means of type class `Proto3.Suite.Class.Message`.
 --

@@ -536,28 +536,28 @@ encoderPromotions = testGroup "Encoder promotes types correctly"
       , Typeable b
       , Arbitrary a
       , Show a
-      , FormE.RawField ('Form.Singular 'Form.Alternative) protoType a
-      , FormE.RawField ('Form.Singular 'Form.Alternative) protoType b
-      , FormE.RawField ('Form.Singular 'Form.Implicit) protoType a
-      , FormE.RawField ('Form.Singular 'Form.Implicit) protoType b
-      , FormE.RawField 'Form.Optional protoType (Maybe a)
-      , FormE.RawField 'Form.Optional protoType (Maybe b)
-      , FormE.RawField ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
-      , FormE.RawField ('Form.Repeated 'Form.Unpacked) protoType (Identity b)
-      , FormE.RawField ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward a)
-      , FormE.RawField ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward b)
-      , FormE.RawField ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse a)
-      , FormE.RawField ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse b)
-      , FormE.RawField ('Form.Repeated 'Form.Unpacked) protoType (FormE.Vector a)
-      , FormE.RawField ('Form.Repeated 'Form.Unpacked) protoType (FormE.Vector b)
-      , FormE.RawField ('Form.Repeated 'Form.Packed) protoType (Identity a)
-      , FormE.RawField ('Form.Repeated 'Form.Packed) protoType (Identity b)
-      , FormE.RawField ('Form.Repeated 'Form.Packed) protoType (FormE.Forward a)
-      , FormE.RawField ('Form.Repeated 'Form.Packed) protoType (FormE.Forward b)
-      , FormE.RawField ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse a)
-      , FormE.RawField ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse b)
-      , FormE.RawField ('Form.Repeated 'Form.Packed) protoType (FormE.Vector a)
-      , FormE.RawField ('Form.Repeated 'Form.Packed) protoType (FormE.Vector b)
+      , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType a
+      , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType b
+      , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType a
+      , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType b
+      , FormE.FieldForm 'Form.Optional protoType (Maybe a)
+      , FormE.FieldForm 'Form.Optional protoType (Maybe b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Vector a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Vector b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Identity a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Identity b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Forward a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Forward b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Vector a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Vector b)
       ) =>
       String ->
       (a -> b) ->
