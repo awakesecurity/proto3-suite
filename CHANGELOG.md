@@ -1,4 +1,6 @@
 # 0.8.2
+* Support GHC 9.10.
+* Test with nixpkgs-24.11.
 * Fix overlong encoding of packed "sint32" fields containing elements in
   [-0x80000000, -0x40000001] or [0x40000000, 0x7FFFFFFF], which increased
   message size and hindered forward compatibility of "sint32" with "sint64".
