@@ -7,17 +7,17 @@ packages:
 - completed:
     name: proto3-wire
     pantry-tree:
-      sha256: 435441c5b8a677353e3c6566f3e6e7d9c1947ff75ade51ce1bc8d66e4ae329eb
-      size: 2648
-    sha256: 5a695d66823f50b74dc0a1d8a3da52391b2f7d75c8964fa6dff69254deef24ce
-    size: 54131
-    url: https://github.com/awakesecurity/proto3-wire/archive/2d48ee3446858f08a8c75130c90d770c377569bd.tar.gz
-    version: 1.4.3
+      sha256: 2a9f52ebbba545c86af905dd0e0aa18435cce9b1fa662765b91c6c71fc3c2fea
+      size: 2524
+    sha256: 1d9853d782a57b71f007450fb73007ab9c79bb5057abb56c20b9bd261f598fe2
+    size: 53571
+    url: https://github.com/awakesecurity/proto3-wire/archive/6fdf0eb93b2028ade0e3e011ce8429c94546839e.tar.gz
+    version: 1.4.4
   original:
-    url: https://github.com/awakesecurity/proto3-wire/archive/2d48ee3446858f08a8c75130c90d770c377569bd.tar.gz
+    url: https://github.com/awakesecurity/proto3-wire/archive/6fdf0eb93b2028ade0e3e011ce8429c94546839e.tar.gz
 snapshots:
 - completed:
-    sha256: f594be174cb2b7ca5a2e22adc85de4838e45d2e590791417ad04f9017b9215bf
-    size: 654063
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/nightly/2024/7/12.yaml
-  original: nightly-2024-07-12
+    sha256: 4a200d54cdf4e8af189ffe64c0618cba44f1a2b9d42ed88b62d575ab93a041ea
+    size: 629580
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/nightly/2025/1/16.yaml
+  original: nightly-2025-01-16

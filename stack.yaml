@@ -1,5 +1,4 @@
-resolver: nightly-2024-07-12
-# url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/0.yaml
+resolver: nightly-2025-01-16
 
 allow-newer: true
 
@@ -8,7 +7,7 @@ packages:
 
 extra-deps:
   - github: awakesecurity/proto3-wire
-    commit: 2d48ee3446858f08a8c75130c90d770c377569bd 
+    commit: 6fdf0eb93b2028ade0e3e011ce8429c94546839e
 
 nix:
   packages:
