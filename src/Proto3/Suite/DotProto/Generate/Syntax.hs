@@ -21,6 +21,9 @@ import GHC.Types.Name.Occurrence (NameSpace, dataName, mkOccName, tcName, tvName
 import GHC.Types.Name.Reader (mkRdrQual, mkRdrUnqual, rdrNameSpace)
 import GHC.Types.SrcLoc (GenLocated(..), SrcSpan, generatedSrcSpan)
 
+#if MIN_VERSION_ghc(9,10,0)
+import GHC.Types.Basic (GenReason(OtherExpansion))
+#endif
 #if MIN_VERSION_ghc(9,8,0)
 import Control.Arrow ((***))
 import Data.Bool (bool)
@@ -118,6 +121,13 @@ type HsTyVarBndr = LHsTyVarBndr
 type HsType = LHsType GhcPs
 type Module = ModuleName
 
+#if MIN_VERSION_ghc(9,10,0)
+
+pattern VirtualBraces :: Int -> EpLayout
+pattern VirtualBraces indentation = EpVirtualBraces indentation
+
+#endif
+
 class SyntaxDefault a
   where
     synDef :: a
@@ -125,6 +135,10 @@ class SyntaxDefault a
 instance SyntaxDefault ()
   where
     synDef = ()
+
+instance (SyntaxDefault a, SyntaxDefault b, SyntaxDefault c) => SyntaxDefault (a, b, c)
+  where
+    synDef = (synDef, synDef, synDef)
 
 instance SyntaxDefault (Maybe a)
   where
@@ -150,7 +164,51 @@ instance SyntaxDefault SrcSpan
   where
     synDef = generatedSrcSpan
 
-#if MIN_VERSION_ghc(9,8,0)
+#if MIN_VERSION_ghc(9,10,0)
+
+instance SyntaxDefault AnnParen
+  where
+    synDef = noAnn
+
+instance SyntaxDefault AnnPragma
+  where
+    synDef = noAnn
+
+instance SyntaxDefault AnnSig
+  where
+    synDef = noAnn
+
+instance SyntaxDefault AnnsIf
+  where
+    synDef = noAnn
+
+instance SyntaxDefault (AnnSortKey tag)
+  where
+    synDef = NoAnnSortKey
+
+instance NoAnn a => SyntaxDefault (EpAnn a)
+  where
+    synDef = noAnn
+
+instance SyntaxDefault EpAnnHsCase
+  where
+    synDef = noAnn
+
+instance SyntaxDefault (EpToken token)
+  where
+    synDef = NoEpTok
+
+instance SyntaxDefault (EpUniToken token utoken)
+  where
+    synDef = NoEpUniTok
+
+instance SyntaxDefault (HsBndrVis GhcPs)
+  where
+    synDef = HsBndrRequired synDef
+
+#endif
+
+#if MIN_VERSION_ghc(9,8,0) && !MIN_VERSION_ghc(9,10,0)
 
 instance SyntaxDefault (HsBndrVis GhcPs)
   where
@@ -160,13 +218,17 @@ instance SyntaxDefault (HsBndrVis GhcPs)
 
 #if MIN_VERSION_ghc(9,4,0)
 
-instance SyntaxDefault (SrcAnn a)
-  where
-    synDef = noSrcSpanA
-
 instance SyntaxDefault a => SyntaxDefault (GenLocated TokenLocation a)
   where
     synDef = L NoTokenLoc synDef
+
+#endif
+
+#if MIN_VERSION_ghc(9,4,0) && !MIN_VERSION_ghc(9,10,0)
+
+instance SyntaxDefault (SrcAnn a)
+  where
+    synDef = noSrcSpanA
 
 instance SyntaxDefault (HsToken tok)
   where
@@ -186,6 +248,13 @@ instance SyntaxDefault IsUnicodeSyntax
 
 #if MIN_VERSION_ghc(9,2,0)
 
+pattern PfxCon :: [arg] -> HsConDetails Void arg r
+pattern PfxCon args = PrefixCon [] args
+
+#endif
+
+#if MIN_VERSION_ghc(9,2,0) && !MIN_VERSION_ghc(9,10,0)
+
 instance SyntaxDefault e => SyntaxDefault (GenLocated (SrcAnn a) e)
   where
     synDef = noLocA synDef
@@ -202,10 +271,9 @@ instance SyntaxDefault AnnSortKey
   where
     synDef = NoAnnSortKey
 
-pattern PfxCon :: [arg] -> HsConDetails Void arg r
-pattern PfxCon args = PrefixCon [] args
+#endif
 
-#else
+#if !MIN_VERSION_ghc(9,2,0)
 
 instance SyntaxDefault e => SyntaxDefault (GenLocated SrcSpan e)
   where
@@ -280,7 +348,7 @@ apply f xs = mkHsApps f (map paren xs)
 
 appAt :: HsExp -> HsType -> HsExp
 appAt f t = noLocA (HsAppType synDef f
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_ghc(9,6,0) && !MIN_VERSION_ghc(9,10,0)
                                        synDef
 #endif
                                               (HsWC NoExtField (parenTy t)))
@@ -314,14 +382,15 @@ applicativeApply f = foldl snoc nil
     snoc g x = noLocA (OpApp synDef g apOp x)
 
 tyApp :: HsType -> HsType -> HsType
-tyApp = mkHsAppTy
+tyApp f = parenTy . mkHsAppTy (parenTy f) . parenTy
 
 tyApply :: HsType -> [HsType] -> HsType
-tyApply f = parenTy . foldl tyApp f
+tyApply = foldl tyApp
 
 -- | Whenever @f@ is not itself a type application,
 -- @'splitTyApp' ('tyApply' f as) = (f, as)@.
 splitTyApp :: HsType -> (HsType, [HsType])
+splitTyApp (L _ (GHC.HsParTy _ x)) = splitTyApp x
 splitTyApp (L _ (GHC.HsAppTy NoExtField x y)) = (++ [y]) <$> splitTyApp x
 splitTyApp x = (x, [])
 
@@ -415,15 +484,31 @@ importDecl_ moduleName qualified maybeAs details = noLocA ImportDecl
   }
 
 ieName_ :: HsName -> HsImportSpec
-ieName_ = noLocA . IEVar synDef . noLocA . IEName
+ieName_ =
+  noLocA .
+#if MIN_VERSION_ghc(9,10,0)
+  flip (IEVar synDef) Nothing .
+#else
+  IEVar synDef .
+#endif
+  noLocA .
+  IEName
 #if MIN_VERSION_ghc(9,6,0)
-                                                      synDef
+         synDef
 #endif
 
 ieNameAll_ :: HsName -> HsImportSpec
-ieNameAll_ = noLocA . IEThingAll synDef . noLocA . IEName
+ieNameAll_ =
+  noLocA .
+#if MIN_VERSION_ghc(9,10,0)
+  flip (IEThingAll synDef) Nothing .
+#else
+  (IEThingAll synDef) .
+#endif
+  noLocA .
+  IEName
 #if MIN_VERSION_ghc(9,6,0)
-                                                          synDef
+         synDef
 #endif
 
 dataDecl_ :: String -> [HsTyVarBndr] -> [HsConDecl] -> [HsQName] -> HsDecl
@@ -603,6 +688,9 @@ patBind_ (L _ (LazyPat _ (L _ (VarPat _ nm)))) rhs =
 patBind_ pat rhs = noLocA PatBind
   { pat_ext = synDef
   , pat_lhs = pat
+#if MIN_VERSION_ghc(9,10,0)
+  , pat_mult = HsNoMultAnn synDef
+#endif
   , pat_rhs =
 #if MIN_VERSION_ghc(9,2,0)
       unguardedGRHSs synDef rhs synDef
@@ -627,14 +715,16 @@ functionLike_ strictness name alts = noLocA $ mkFunBind generated name (map matc
   where
     generated :: Origin
     generated = Generated
+#if MIN_VERSION_ghc(9,10,0)
+                          OtherExpansion
+#endif
 #if MIN_VERSION_ghc(9,8,0)
-                          DoPmc
+                                         DoPmc
 #endif
 
     match :: ([HsPat], HsExp) -> HsMatch
     match (pats, rhs) = mkSimpleMatch ctxt pats rhs
 
-    ctxt :: HsMatchContext GhcPs
     ctxt = FunRhs
       { mc_fun = name
       , mc_fixity = Prefix
@@ -834,14 +924,19 @@ case_ e = noLocA . HsCase synDef e . mkMatchGroup generated
   where
     generated :: Origin
     generated = Generated
+#if MIN_VERSION_ghc(9,10,0)
+                          OtherExpansion
+#endif
 #if MIN_VERSION_ghc(9,8,0)
-                          DoPmc
+                                         DoPmc
 #endif
 
 -- | Simple let expression for ordinary bindings.
 let_ :: [HsBind] -> HsExp -> HsExp
 let_ locals e =
-#if MIN_VERSION_ghc(9,4,0)
+#if MIN_VERSION_ghc(9,10,0)
+    noLocA $ HsLet synDef binds e
+#elif MIN_VERSION_ghc(9,4,0)
     noLocA $ HsLet synDef synDef binds synDef e
 #elif MIN_VERSION_ghc(9,2,0)
     noLocA $ HsLet synDef binds e

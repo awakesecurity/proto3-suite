@@ -1,3 +1,7 @@
+# 0.8.2
+* Support GHC 9.10.
+* Test with nixpkgs-24.11.
+
 # 0.8.1
 * Fix support for dhall-1.42.
 * Support dhall on GHC 9.8.

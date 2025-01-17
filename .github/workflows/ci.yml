@@ -17,6 +17,7 @@ jobs:
           - ghc948
           - ghc965
           - ghc982
+          - ghc9101
         dhall:
           - false
           - true
@@ -35,6 +36,8 @@ jobs:
           - compiler: ghc965
             largeRecords: true
           - compiler: ghc982
+            largeRecords: true
+          - compiler: ghc9101
             largeRecords: true
           - compiler: ghc902
             os: macos-latest
