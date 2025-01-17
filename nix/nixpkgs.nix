@@ -2,10 +2,10 @@ args:
 
 let
   nixpkgs = builtins.fetchTarball {
-    # from: https://hydra.nixos.org/job/nixos/release-24.05/nixpkgs.tarball
-    # build: https://hydra.nixos.org/build/262713240
-    # commit: cc54fb41d13736e92229c21627ea4f22199fee6b
-    url = "https://hydra.nixos.org/build/262713240/download/2/nixpkgs-24.05pre631579.cc54fb41d137.tar.xz";
-    sha256 = "01jgwy8ixfnl7dig5qhih34lrx2g9xpj64yr49n0lyvpwj44s475";
+    # from: https://hydra.nixos.org/job/nixos/release-24.11/nixpkgs.tarball
+    # build: https://hydra.nixos.org/build/284195557
+    # commit: cbd8ec4de4469333c82ff40d057350c30e9f7d36
+    url = "https://hydra.nixos.org/build/284195557/download/2/nixpkgs-24.11pre712431.cbd8ec4de446.tar.xz";
+    sha256 = "0ljq084fq784fgvm7n9081dmnjhksz20vwzca2zics0kkkzjxh5k";
   };
 in import nixpkgs ({ config = { }; } // args)
