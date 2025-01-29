@@ -784,7 +784,12 @@ closedTyFamDecl_ tyFamName famBndrs resultKind eqns =
 #else
               eqnBndrs
 #endif
-          , feqn_pats = map HsValArg pats
+          , feqn_pats = map
+              (HsValArg
+#if MIN_VERSION_ghc(9,10,0)
+                        synDef
+#endif
+              ) pats
           , feqn_fixity = Prefix
           , feqn_rhs = rhs
           }
@@ -810,7 +815,12 @@ tyFamInstDecl_ tyFamName bndrs pats rhs = noLocA $ GHC.InstD NoExtField TyFamIns
 #else
                 bndrs
 #endif
-            , feqn_pats = map HsValArg pats
+            , feqn_pats = map
+                (HsValArg
+#if MIN_VERSION_ghc(9,10,0)
+                          synDef
+#endif
+                ) pats
             , feqn_fixity = Prefix
             , feqn_rhs = rhs
             }
