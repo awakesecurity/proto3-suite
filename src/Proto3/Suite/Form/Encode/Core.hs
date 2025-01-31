@@ -443,6 +443,10 @@ instance forall (name :: Symbol)
 -- sure to consider how they might overlap with existing instances,
 -- and try to avoid overly broad instances that might cause ambiguity.
 --
+-- However, this library does provide general instances for 'Optional'
+-- and @'Repeated' 'Unpacked'@ that delegate to instances for
+-- @'Singular' 'Alternative'@ for the same protobuf type.
+--
 -- Design Note:
 --
 -- Importantly, the type parameters of this type class do not mention
@@ -483,31 +487,26 @@ class FieldForm repetition protoType a
     -- `Proto3.Suite.Form.Encode.associations`.
     fieldForm :: Proxy# repetition -> Proxy# protoType -> FieldNumber -> a -> Encode.MessageBuilder
 
+instance FieldForm ('Singular 'Alternative) protoType a =>
+         FieldForm 'Optional protoType (Maybe a)
+  where
+    fieldForm _ ty !fn me =
+      foldMap @Maybe (fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn) me
+    {-# INLINE fieldForm #-}
+
+instance ( FoldBuilders t
+         , FieldForm ('Singular 'Alternative) protoType a
+         ) =>
+         FieldForm ('Repeated 'Unpacked) protoType (t a)
+  where
+    fieldForm _ ty !fn es =
+      foldBuilders (fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn <$> es)
+    {-# INLINE fieldForm #-}
+
 instance (omission ~ 'Alternative) =>
          FieldForm ('Singular omission) ('Message inner) (MessageEncoder inner)
   where
     fieldForm _ _ !fn e = Encode.embedded fn (untypedMessageEncoder e)
-    {-# INLINE fieldForm #-}
-
-instance FieldForm 'Optional ('Message inner) (Maybe (MessageEncoder inner))
-  where
-    fieldForm _ _ !fn = foldMap (Encode.embedded fn . untypedMessageEncoder)
-    {-# INLINE fieldForm #-}
-
-instance ( packing ~ 'Unpacked
-         , FoldBuilders t
-         ) =>
-         FieldForm ('Repeated packing) ('Message inner) (t (MessageEncoder inner))
-  where
-    fieldForm _ _ !fn es = foldBuilders (Encode.embedded fn . untypedMessageEncoder <$> es)
-    {-# INLINE fieldForm #-}
-
-instance ( repetition ~ 'Repeated 'Unpacked
-         , FoldBuilders t
-         ) =>
-         FieldForm repetition ('Map key value) (t (MessageEncoder (Association key value)))
-  where
-    fieldForm _ _ !fn es = foldBuilders (Encode.embedded fn . untypedMessageEncoder <$> es)
     {-# INLINE fieldForm #-}
 
 instance (omission ~ 'Alternative) =>
@@ -516,25 +515,28 @@ instance (omission ~ 'Alternative) =>
     fieldForm rep ty !fn e = fieldForm rep ty fn (cachedMessageEncoding e)
     {-# INLINE fieldForm #-}
 
-instance FieldForm 'Optional ('Message inner) (Maybe (MessageEncoding inner))
+-- | This instance is rather artificial because maps are automatically
+-- repeated and unpacked, with no option to specify a single key-value
+-- pair as a field of a @oneof@.  Hence the code generator should never
+-- directly make use of this instance, but it will do so indirectly via
+-- the general instance for repeated unpacked fields, which will then
+-- delegate to this instance.
+instance (omission ~ 'Alternative) =>
+         FieldForm ('Singular omission) ('Map key value) (MessageEncoder (Association key value))
   where
-    fieldForm rep ty !fn e = fieldForm rep ty fn (fmap @Maybe cachedMessageEncoding e)
+    fieldForm _ _ !fn a = Encode.embedded fn (untypedMessageEncoder a)
     {-# INLINE fieldForm #-}
 
-instance ( packing ~ 'Unpacked
-         , FoldBuilders t
-         ) =>
-         FieldForm ('Repeated packing) ('Message inner) (t (MessageEncoding inner))
+-- | This instance is rather artificial because maps are automatically
+-- repeated and unpacked, with no option to specify a single key-value
+-- pair as a field of a @oneof@.  Hence the code generator should never
+-- directly make use of this instance, but it will do so indirectly via
+-- the general instance for repeated unpacked fields, which will then
+-- delegate to this instance.
+instance (omission ~ 'Alternative) =>
+         FieldForm ('Singular omission) ('Map key value) (MessageEncoding (Association key value))
   where
-    fieldForm rep ty !fn e = fieldForm rep ty fn (fmap @t cachedMessageEncoding e)
-    {-# INLINE fieldForm #-}
-
-instance ( repetition ~ 'Repeated 'Unpacked
-         , FoldBuilders t
-         ) =>
-         FieldForm repetition ('Map key value) (t (MessageEncoding (Association key value)))
-  where
-    fieldForm rep ty !fn e = fieldForm rep ty fn (fmap @t cachedMessageEncoding e)
+    fieldForm rep ty !fn e = fieldForm rep ty fn (cachedMessageEncoding e)
     {-# INLINE fieldForm #-}
 
 -- | Helps some type classes distinguish wrapped values from encodings of wrapper submessages.
@@ -551,20 +553,6 @@ instance ( omission ~ 'Alternative
   where
     fieldForm rep ty !fn (Wrap x) =
       fieldForm rep ty fn (fieldsToMessage @(Wrapper protoType) (field @"value" @a x))
-    {-# INLINE fieldForm #-}
-
-instance FieldForm ('Singular 'Implicit) protoType a =>
-         FieldForm 'Optional ('Message (Wrapper protoType)) (Maybe (Wrap a))
-  where
-    fieldForm rep ty !fn m = fieldForm rep ty fn
-      (fmap @Maybe (\(Wrap x) -> fieldsToMessage @(Wrapper protoType) (field @"value" @a x)) m)
-    {-# INLINE fieldForm #-}
-
-instance (packing ~ 'Unpacked, FoldBuilders t, FieldForm ('Singular 'Implicit) protoType a) =>
-         FieldForm ('Repeated packing) ('Message (Wrapper protoType)) (t (Wrap a))
-  where
-    fieldForm rep ty !fn es = fieldForm rep ty fn
-      (fmap @t (\(Wrap x) -> fieldsToMessage @(Wrapper protoType) (field @"value" @a x)) es)
     {-# INLINE fieldForm #-}
 
 -- | Any encoding of the first type can be decoded as the second without
@@ -630,23 +618,6 @@ instance ( CompatibleScalar (RecoverProtoType a) protoType
     encodeScalarField _ _ !fn x
       | isDefault x = mempty
       | otherwise = encodePrimitive fn x
-    {-# INLINE encodeScalarField #-}
-
-instance ( CompatibleScalar (RecoverProtoType a) protoType
-         , Primitive a
-         ) =>
-         EncodeScalarField 'Optional protoType (Maybe a)
-  where
-    encodeScalarField _ _ !fn = maybe mempty (encodePrimitive fn)
-    {-# INLINE encodeScalarField #-}
-
-instance ( CompatibleScalar (RecoverProtoType a) protoType
-         , FoldBuilders t
-         , Primitive a
-         ) =>
-         EncodeScalarField ('Repeated 'Unpacked) protoType (t a)
-  where
-    encodeScalarField _ _ !fn xs = foldBuilders (encodePrimitive fn <$> xs)
     {-# INLINE encodeScalarField #-}
 
 -- | Ignores the preference for packed format because there is exactly one element,
@@ -962,51 +933,32 @@ instantiatePackableField protoType elementType conversion =
 
     instance FieldForm ('Singular 'Alternative) $protoType $elementType
       where
-        fieldForm rep ty !fn x =
-          encodeScalarField @('Singular 'Alternative) @($protoType) rep ty fn ($conversion x)
+        fieldForm rep ty !fn x = encodeScalarField rep ty fn ($conversion x)
         {-# INLINE fieldForm #-}
 
     instance FieldForm ('Singular 'Implicit) $protoType $elementType
       where
-        fieldForm rep ty !fn x =
-          encodeScalarField @('Singular 'Implicit) @($protoType) rep ty fn ($conversion x)
-        {-# INLINE fieldForm #-}
-
-    instance FieldForm 'Optional $protoType (Maybe $elementType)
-      where
-        fieldForm rep ty !fn x =
-          encodeScalarField @'Optional @($protoType) rep ty fn (fmap $conversion x)
-        {-# INLINE fieldForm #-}
-
-    instance FoldBuilders t =>
-             FieldForm ('Repeated 'Unpacked) $protoType (t $elementType)
-      where
-        fieldForm rep ty !fn xs =
-          encodeScalarField @('Repeated 'Unpacked) @($protoType) rep ty fn (fmap $conversion xs)
+        fieldForm rep ty !fn x = encodeScalarField rep ty fn ($conversion x)
         {-# INLINE fieldForm #-}
 
     instance FieldForm ('Repeated 'Packed) $protoType (Identity $elementType)
       where
-        fieldForm rep ty !fn xs =
-          encodeScalarField @('Repeated 'Packed) @($protoType) rep ty fn (fmap $conversion xs)
+        fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
         {-# INLINE fieldForm #-}
 
     instance FieldForm ('Repeated 'Packed) $protoType (Forward $elementType)
       where
-        fieldForm rep ty !fn xs =
-          encodeScalarField @('Repeated 'Packed) @($protoType) rep ty fn (fmap $conversion xs)
+        fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
         {-# INLINE fieldForm #-}
 
     instance FieldForm ('Repeated 'Packed) $protoType (Reverse $elementType)
       where
-        fieldForm rep ty !fn xs =
-          encodeScalarField @('Repeated 'Packed) @($protoType) rep ty fn (fmap $conversion xs)
+        fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
         {-# INLINE fieldForm #-}
 
     instance FieldForm ('Repeated 'Packed) $protoType (Vector $elementType)
       where
-        fieldForm rep ty !fn xs =
-          encodeScalarField @('Repeated 'Packed) @($protoType) rep ty fn (fmap $conversion xs)
+        fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
         {-# INLINE fieldForm #-}
 
     |]
@@ -1020,8 +972,7 @@ instantiateStringOrBytesField protoType elementTC specializations = do
                Primitive ($elementTC a) =>
                FieldForm ('Singular 'Alternative) $protoType ($elementTC a)
         where
-          fieldForm rep ty !fn x =
-            encodeScalarField @('Singular 'Alternative) @($protoType) rep ty fn x
+          fieldForm rep ty !fn x = encodeScalarField rep ty fn x
           {-# INLINE fieldForm #-}
 
       instance forall a .
@@ -1030,26 +981,7 @@ instantiateStringOrBytesField protoType elementTC specializations = do
                ) =>
                FieldForm ('Singular 'Implicit) $protoType ($elementTC a)
         where
-          fieldForm rep ty !fn x =
-            encodeScalarField @('Singular 'Implicit) @($protoType) rep ty fn x
-          {-# INLINE fieldForm #-}
-
-      instance forall a .
-               Primitive ($elementTC a) =>
-               FieldForm 'Optional $protoType (Maybe ($elementTC a))
-        where
-          fieldForm rep ty !fn x =
-            encodeScalarField @'Optional @($protoType) rep ty fn x
-          {-# INLINE fieldForm #-}
-
-      instance forall t a .
-               ( FoldBuilders t
-               , Primitive ($elementTC a)
-               ) =>
-               FieldForm ('Repeated 'Unpacked) $protoType (t ($elementTC a))
-        where
-          fieldForm rep ty !fn xs =
-            encodeScalarField @('Repeated 'Unpacked) @($protoType) rep ty fn xs
+          fieldForm rep ty !fn x = encodeScalarField rep ty fn x
           {-# INLINE fieldForm #-}
 
       |]
@@ -1060,31 +992,13 @@ instantiateStringOrBytesField protoType elementTC specializations = do
       instance FieldForm ('Singular 'Alternative) $protoType $spec
         where
           fieldForm rep ty !fn x =
-            encodeScalarField @('Singular 'Alternative) @($protoType)
-                              rep ty fn (coerce @($spec) @($elementTC $spec) x)
+            encodeScalarField rep ty fn (coerce @($spec) @($elementTC $spec) x)
           {-# INLINE fieldForm #-}
 
       instance FieldForm ('Singular 'Implicit) $protoType $spec
         where
           fieldForm rep ty !fn x =
-            encodeScalarField @('Singular 'Implicit) @($protoType)
-                              rep ty fn (coerce @($spec) @($elementTC $spec) x)
-          {-# INLINE fieldForm #-}
-
-      instance FieldForm 'Optional $protoType (Maybe $spec)
-        where
-          fieldForm rep ty !fn x =
-            encodeScalarField @'Optional @($protoType)
-                              rep ty fn (coerce @(Maybe $spec) @(Maybe ($elementTC $spec)) x)
-          {-# INLINE fieldForm #-}
-
-      instance forall t .
-               FoldBuilders t =>
-               FieldForm ('Repeated 'Unpacked) $protoType (t $spec)
-        where
-          fieldForm rep ty !fn xs =
-            encodeScalarField @('Repeated 'Unpacked) @($protoType)
-                              rep ty fn (coerce @($spec) @($elementTC $spec) <$> xs)
+            encodeScalarField rep ty fn (coerce @($spec) @($elementTC $spec) x)
           {-# INLINE fieldForm #-}
 
       |]
