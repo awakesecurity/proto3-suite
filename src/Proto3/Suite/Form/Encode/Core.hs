@@ -552,7 +552,7 @@ instance ( omission ~ 'Alternative
          FieldForm ('Singular omission) ('Message (Wrapper protoType)) (Wrap a)
   where
     fieldForm rep ty !fn (Wrap x) =
-      fieldForm rep ty fn (fieldsToMessage @(Wrapper protoType) (field @"value" @a x))
+      fieldForm rep ty fn (fieldsToMessage @(Wrapper protoType) (field @"value" x))
     {-# INLINE fieldForm #-}
 
 -- | Any encoding of the first type can be decoded as the second without
