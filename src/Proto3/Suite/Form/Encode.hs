@@ -189,12 +189,12 @@ instance ( ProtoEnum e
 
 instance FieldForm ('Singular 'Alternative) 'Bytes RB.BuildR
   where
-    fieldForm _ _ !fn x = Encode.bytes fn x
+    fieldForm _ _ = Encode.bytes
     {-# INLINE fieldForm #-}
 
 instance FieldForm ('Singular 'Implicit) 'Bytes RB.BuildR
   where
-    fieldForm _ _ !fn x = Encode.bytesIfNonempty fn x
+    fieldForm _ _ = Encode.bytesIfNonempty
     {-# INLINE fieldForm #-}
 
 -- | Specializes the argument type of 'field' to the encoding of a submessage type,

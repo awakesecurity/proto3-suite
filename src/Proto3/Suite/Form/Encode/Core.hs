@@ -974,7 +974,8 @@ instantiatePackableField protoType elementType conversion hasWrapper = do
       instance (omission ~ 'Alternative) =>
                FieldForm ('Singular omission) ('Message (Wrapper $protoType)) $elementType
         where
-          fieldForm rep ty !fn x = fieldForm rep ty fn (Wrap x)
+          fieldForm = coerce
+            (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap $elementType))
           {-# INLINE fieldForm #-}
 
       |]
@@ -990,7 +991,7 @@ instantiateStringOrBytesField protoType elementTC specializations = do
                Primitive ($elementTC a) =>
                FieldForm ('Singular 'Alternative) $protoType ($elementTC a)
         where
-          fieldForm rep ty !fn x = encodeScalarField rep ty fn x
+          fieldForm = encodeScalarField
           {-# INLINE fieldForm #-}
 
       instance forall a .
@@ -999,7 +1000,7 @@ instantiateStringOrBytesField protoType elementTC specializations = do
                ) =>
                FieldForm ('Singular 'Implicit) $protoType ($elementTC a)
         where
-          fieldForm rep ty !fn x = encodeScalarField rep ty fn x
+          fieldForm = encodeScalarField
           {-# INLINE fieldForm #-}
 
       instance forall a omission .
@@ -1009,7 +1010,8 @@ instantiateStringOrBytesField protoType elementTC specializations = do
                ) =>
                FieldForm ('Singular omission) ('Message (Wrapper $protoType)) ($elementTC a)
         where
-          fieldForm rep ty !fn x = fieldForm rep ty fn (Wrap x)
+          fieldForm = coerce
+            (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap ($elementTC a)))
           {-# INLINE fieldForm #-}
 
       |]
@@ -1019,20 +1021,21 @@ instantiateStringOrBytesField protoType elementTC specializations = do
 
       instance FieldForm ('Singular 'Alternative) $protoType $spec
         where
-          fieldForm rep ty !fn x =
-            encodeScalarField rep ty fn (coerce @($spec) @($elementTC $spec) x)
+          fieldForm = coerce
+            (encodeScalarField @('Singular 'Alternative) @($protoType) @($elementTC $spec))
           {-# INLINE fieldForm #-}
 
       instance FieldForm ('Singular 'Implicit) $protoType $spec
         where
-          fieldForm rep ty !fn x =
-            encodeScalarField rep ty fn (coerce @($spec) @($elementTC $spec) x)
+          fieldForm = coerce
+            (encodeScalarField @('Singular 'Implicit) @($protoType) @($elementTC $spec))
           {-# INLINE fieldForm #-}
 
       instance (omission ~ 'Alternative) =>
                FieldForm ('Singular omission) ('Message (Wrapper $protoType)) $spec
         where
-          fieldForm rep ty !fn x = fieldForm rep ty fn (Wrap x)
+          fieldForm = coerce
+            (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap $spec))
           {-# INLINE fieldForm #-}
 
       |]
