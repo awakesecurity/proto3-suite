@@ -59,7 +59,8 @@ import           TestDhall
 
 import qualified Test.Proto.Generate.Name
 import qualified Test.Proto.Parse.Option
-import           Test.Proto.ToEncoder (Iterator(Forward,Reverse,Vector), ToEncoder(..))
+import           Test.Proto.ToEncoder        (Iterator(Forward,Reverse,Vector),
+                                              Stripping(Keep, Strip), ToEncoder(..))
 
 -- -----------------------------------------------------------------------------
 
@@ -207,12 +208,36 @@ encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
       -- Though suboptimal, the resulting encoding remains decodable by parsers
       -- that adhere to the protobuf specification.  We check that decodability
       -- in other tests that pair a Haskell encoder with a Python decoder.
-      assertEqual (show fp ++ ": direct encoding, Forward iterator")
-        goldenEncoding (FormE.toLazyByteString (let ?iterator = Forward in toEncoder v))
-      assertEqual (show fp ++ ": direct encoding, Reverse iterator")
-        goldenEncoding (FormE.toLazyByteString (let ?iterator = Reverse in toEncoder v))
-      assertEqual (show fp ++ ": direct encoding, Vector iterator")
-        goldenEncoding (FormE.toLazyByteString (let ?iterator = Vector in toEncoder v))
+      assertEqual (show fp ++ ": direct encoding, Forward iterator, keep wrappers")
+        goldenEncoding $ FormE.toLazyByteString $
+          let ?iterator = Forward
+              ?stripping = Keep
+          in toEncoder v
+      assertEqual (show fp ++ ": direct encoding, Forward iterator, strip wrappers")
+        goldenEncoding $ FormE.toLazyByteString $
+          let ?iterator = Forward
+              ?stripping = Strip
+          in toEncoder v
+      assertEqual (show fp ++ ": direct encoding, Reverse iterator, keep wrappers")
+        goldenEncoding $ FormE.toLazyByteString $
+          let ?iterator = Reverse
+              ?stripping = Keep
+          in toEncoder v
+      assertEqual (show fp ++ ": direct encoding, Reverse iterator, strip wrappers")
+        goldenEncoding $ FormE.toLazyByteString $
+          let ?iterator = Reverse
+              ?stripping = Strip
+          in toEncoder v
+      assertEqual (show fp ++ ": direct encoding, Vector iterator, keep wrappers")
+        goldenEncoding $ FormE.toLazyByteString $
+          let ?iterator = Vector
+              ?stripping = Keep
+          in toEncoder v
+      assertEqual (show fp ++ ": direct encoding, Vector iterator, strip wrappers")
+        goldenEncoding $ FormE.toLazyByteString $
+          let ?iterator = Vector
+              ?stripping = Strip
+          in toEncoder v
 
 -- Simulated protobuf message type having a single field named @myString@ of
 -- type @string@ with field number @8@ and the specified 'Form.Repetition'.

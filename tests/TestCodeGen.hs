@@ -43,7 +43,7 @@ import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  jsonPBOptions)
 import           Proto3.Suite.Types             (Enumerated(..))
 import           System.Exit
-import           Test.Proto.ToEncoder           (Iterator(..))
+import           Test.Proto.ToEncoder           (Iterator(..), Stripping(..))
 import           Test.Tasty
 import           Test.Tasty.HUnit               (testCase, (@?=))
 import           Test.Tasty.QuickCheck          (Arbitrary, (===), testProperty)
@@ -221,14 +221,20 @@ simpleEncodeDotProto direct logger recStyle chosenStringType format =
          let iterators :: [Iterator]
              iterators
                | direct = [minBound .. maxBound]
-               | otherwise = [Identity]  -- Just an unused placeholder
+               | otherwise = [minBound]  -- Just an unused placeholder
+             strippings :: [Stripping]
+             strippings
+               | direct = [minBound .. maxBound]
+               | otherwise = [minBound]  -- Just an unused placeholder
          forM_ iterators $ \(iterator :: Iterator) -> do
-           when direct $
-             putStrLn $ "        iterator: " ++ show iterator
-           let cmd = hsTmpDir <> "/simpleEncodeDotProto " <> format <>
-                     " " <> T.pack (show iterator) <>
-                     " | python tests/check_simple_dot_proto.py " <> format
-           Turtle.shell cmd empty >>= (@?= ExitFailure 12)
+           forM_ strippings $ \(stripping :: Stripping) -> do
+             when direct $ do
+               putStrLn $ "        iterator: " ++ show iterator
+               putStrLn $ "        stripping: " ++ show stripping
+             let cmd = hsTmpDir <> "/simpleEncodeDotProto " <> format <>
+                       " " <> T.pack (show iterator) <> " " <> T.pack (show stripping) <>
+                       " | python tests/check_simple_dot_proto.py " <> format
+             Turtle.shell cmd empty >>= (@?= ExitFailure 12)
 
          -- Not using bracket so that we can inspect the output to fix the tests
          Turtle.rmtree hsTmpDir

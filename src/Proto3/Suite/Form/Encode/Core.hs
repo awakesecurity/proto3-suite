@@ -539,7 +539,11 @@ instance (omission ~ 'Alternative) =>
     fieldForm rep ty !fn e = fieldForm rep ty fn (cachedMessageEncoding e)
     {-# INLINE fieldForm #-}
 
--- | Helps some type classes distinguish wrapped values from encodings of wrapper submessages.
+-- | Indicates that a wrapper type should be emitted by encoding its field,
+-- as opposed to by supplying 'MessageEncoder' for the wrapper as a whole.
+--
+-- We also provide specific instances of 'FieldForm' that avoid the need
+-- to 'Wrap' certain commonly-used argument types, such as 'Int32'.
 --
 -- See also 'Wrapper'.
 newtype Wrap (a :: Type) = Wrap { unwrap :: a }
@@ -927,41 +931,55 @@ codeFromEnumerated :: ProtoEnum e => Enumerated e -> Int32
 codeFromEnumerated = either id fromProtoEnum . enumerated
 {-# INLINE codeFromEnumerated #-}
 
-instantiatePackableField :: TH.Q TH.Type -> TH.Q TH.Type -> TH.Q TH.Exp -> TH.Q [TH.Dec]
-instantiatePackableField protoType elementType conversion =
-  [d|
+instantiatePackableField :: TH.Q TH.Type -> TH.Q TH.Type -> TH.Q TH.Exp -> Bool -> TH.Q [TH.Dec]
+instantiatePackableField protoType elementType conversion hasWrapper = do
+  direct <-
+    [d|
 
-    instance FieldForm ('Singular 'Alternative) $protoType $elementType
-      where
-        fieldForm rep ty !fn x = encodeScalarField rep ty fn ($conversion x)
-        {-# INLINE fieldForm #-}
+      instance FieldForm ('Singular 'Alternative) $protoType $elementType
+        where
+          fieldForm rep ty !fn x = encodeScalarField rep ty fn ($conversion x)
+          {-# INLINE fieldForm #-}
 
-    instance FieldForm ('Singular 'Implicit) $protoType $elementType
-      where
-        fieldForm rep ty !fn x = encodeScalarField rep ty fn ($conversion x)
-        {-# INLINE fieldForm #-}
+      instance FieldForm ('Singular 'Implicit) $protoType $elementType
+        where
+          fieldForm rep ty !fn x = encodeScalarField rep ty fn ($conversion x)
+          {-# INLINE fieldForm #-}
 
-    instance FieldForm ('Repeated 'Packed) $protoType (Identity $elementType)
-      where
-        fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
-        {-# INLINE fieldForm #-}
+      instance FieldForm ('Repeated 'Packed) $protoType (Identity $elementType)
+        where
+          fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
+          {-# INLINE fieldForm #-}
 
-    instance FieldForm ('Repeated 'Packed) $protoType (Forward $elementType)
-      where
-        fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
-        {-# INLINE fieldForm #-}
+      instance FieldForm ('Repeated 'Packed) $protoType (Forward $elementType)
+        where
+          fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
+          {-# INLINE fieldForm #-}
 
-    instance FieldForm ('Repeated 'Packed) $protoType (Reverse $elementType)
-      where
-        fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
-        {-# INLINE fieldForm #-}
+      instance FieldForm ('Repeated 'Packed) $protoType (Reverse $elementType)
+        where
+          fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
+          {-# INLINE fieldForm #-}
 
-    instance FieldForm ('Repeated 'Packed) $protoType (Vector $elementType)
-      where
-        fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
-        {-# INLINE fieldForm #-}
+      instance FieldForm ('Repeated 'Packed) $protoType (Vector $elementType)
+        where
+          fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
+          {-# INLINE fieldForm #-}
 
-    |]
+      |]
+
+  wrapped <- if not hasWrapper then pure [] else
+    [d|
+
+      instance (omission ~ 'Alternative) =>
+               FieldForm ('Singular omission) ('Message (Wrapper $protoType)) $elementType
+        where
+          fieldForm rep ty !fn x = fieldForm rep ty fn (Wrap x)
+          {-# INLINE fieldForm #-}
+
+      |]
+
+  pure $ direct ++ wrapped
 
 instantiateStringOrBytesField :: TH.Q TH.Type -> TH.Q TH.Type -> [TH.Q TH.Type] -> TH.Q [TH.Dec]
 instantiateStringOrBytesField protoType elementTC specializations = do
@@ -984,6 +1002,16 @@ instantiateStringOrBytesField protoType elementTC specializations = do
           fieldForm rep ty !fn x = encodeScalarField rep ty fn x
           {-# INLINE fieldForm #-}
 
+      instance forall a omission .
+               ( omission ~ 'Alternative
+               , HasDefault ($elementTC a)
+               , Primitive ($elementTC a)
+               ) =>
+               FieldForm ('Singular omission) ('Message (Wrapper $protoType)) ($elementTC a)
+        where
+          fieldForm rep ty !fn x = fieldForm rep ty fn (Wrap x)
+          {-# INLINE fieldForm #-}
+
       |]
 
   special <- for specializations $ \spec ->
@@ -999,6 +1027,12 @@ instantiateStringOrBytesField protoType elementTC specializations = do
         where
           fieldForm rep ty !fn x =
             encodeScalarField rep ty fn (coerce @($spec) @($elementTC $spec) x)
+          {-# INLINE fieldForm #-}
+
+      instance (omission ~ 'Alternative) =>
+               FieldForm ('Singular omission) ('Message (Wrapper $protoType)) $spec
+        where
+          fieldForm rep ty !fn x = fieldForm rep ty fn (Wrap x)
           {-# INLINE fieldForm #-}
 
       |]
