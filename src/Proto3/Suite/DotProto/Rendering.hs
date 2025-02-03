@@ -214,7 +214,7 @@ instance Pretty DotProtoPrimType where
 instance Pretty FieldNumber where
   pPrint = PP.text . show . getFieldNumber
 
-instance Pretty DotProtoReservedField where
+instance Pretty DotProtoReserved where
   pPrint (SingleField num)      = PP.text $ show num
   pPrint (FieldRange start end) = (PP.text $ show start) <+> PP.text "to" <+> (PP.text $ show end)
   pPrint (ReservedIdentifier i) = PP.text $ show i
