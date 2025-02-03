@@ -167,7 +167,7 @@ instance Canonicalize DotProtoField where
 
 instance Canonicalize DotProtoType where canonicalize = id
 
-instance Canonicalize [DotProtoReserved] where
+instance Canonicalize [DotProtoReservedField] where
   canonicalize fields = numbers ++ names
     where
       (rangeList, nameList) = flip foldMap fields $ \case
