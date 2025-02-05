@@ -84,7 +84,7 @@ newtype Reverse a = Reverse (Forward a)
 --
 -- If the elements have variable width then the element count
 -- prediction may go unused, though there are no guarantees.
-data ReverseN a = UnsafeReverseN {-# UNPACK #-}!Int (Forward a)
+data ReverseN a = UnsafeReverseN Int (Forward a)
   -- ^ The fields are the element count prediction
   -- and the element sequence /in reverse order/.
   --
