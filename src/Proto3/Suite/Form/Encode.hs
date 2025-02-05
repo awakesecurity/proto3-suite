@@ -52,10 +52,13 @@ module Proto3.Suite.Form.Encode
   , Field(..)
   , FieldForm(..)
   , Wrap(..)
+  , FoldBuilders(..)
   , Forward(..)
   , Reverse(..)
-  , Vector(..)
-  , FoldBuilders(..)
+  , ReverseN(..)
+  , MapToRepeated(..)
+  , ToRepeated(..)
+  , foldPrefixes
   , message
   , associations
   , Reflection(..)
@@ -77,6 +80,9 @@ import GHC.TypeLits (Symbol)
 import Prelude hiding (String, (.), id)
 import Proto3.Suite.Class (Message, MessageField, encodeMessage, encodeMessageField)
 import Proto3.Suite.Form.Encode.Core
+import Proto3.Suite.Form.Encode.Repeated
+         (FoldBuilders(..), Forward(..), Reverse(..), ReverseN(..),
+          MapToRepeated(..), ToRepeated(..))
 import Proto3.Suite.Form
          (Association, MessageFieldType, Omission(..), Packing(..),
           Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf)
@@ -196,6 +202,15 @@ instance FieldForm ('Singular 'Implicit) 'Bytes RB.BuildR
   where
     fieldForm _ _ = Encode.bytesIfNonempty
     {-# INLINE fieldForm #-}
+
+-- | Combines 'Prefix' builders for zero or more repeated fields.
+foldPrefixes ::
+  forall t message names .
+  FoldBuilders t =>
+  t (Prefix message names names) ->
+  Prefix message names names
+foldPrefixes prefixes = UnsafePrefix (foldBuilders @t (fmap @t untypedPrefix prefixes))
+{-# INLINE foldPrefixes #-}
 
 -- | Specializes the argument type of 'field' to the encoding of a submessage type,
 -- which can help to avoid ambiguity when the argument expression is polymorphic.

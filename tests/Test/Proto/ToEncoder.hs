@@ -110,32 +110,36 @@ repeated ::
   , FormE.Field name (Functor.Identity b) message
   , FormE.Field name (FormE.Forward b) message
   , FormE.Field name (FormE.Reverse b) message
-  , FormE.Field name (FormE.Vector b) message
+  , FormE.Field name (FormE.ReverseN b) message
   , FormE.Field name (Functor.Identity c) message
   , FormE.Field name (FormE.Forward c) message
   , FormE.Field name (FormE.Reverse c) message
-  , FormE.Field name (FormE.Vector c) message
+  , FormE.Field name (FormE.ReverseN c) message
   ) =>
   (a -> b) ->
   Data.Vector.Vector a ->
   FormE.Prefix message names names
 repeated f = case (?iterator, ?stripping) of
   (Identity, Keep) ->
-    FormE.foldPrefixes . FormE.Vector (FormE.field @name . Functor.Identity . f)
+    -- We use 'Identity' to indicate we should emit the field elements one at a time,
+    -- without the potential for packing, though in any case not all types support packing.
+    FormE.foldPrefixes . FormE.mapToRepeated (FormE.field @name . Functor.Identity . f)
   (Identity, Strip) ->
-    FormE.foldPrefixes . FormE.Vector (FormE.field @name . Functor.Identity . strip . f)
+    -- We use 'Identity' to indicate we should emit the field elements one at a time,
+    -- without the potential for packing, though in any case not all types support packing.
+    FormE.foldPrefixes . FormE.mapToRepeated (FormE.field @name . Functor.Identity . strip . f)
   (Forward, Keep) ->
-    FormE.field @name . FormE.Forward f . toList
+    FormE.field @name . FormE.mapToRepeated f . toList
   (Forward, Strip) ->
-    FormE.field @name . FormE.Forward (strip . f) . toList
+    FormE.field @name . FormE.mapToRepeated (strip . f) . toList
   (Reverse, Keep) ->
-    FormE.field @name . FormE.Reverse f . reverse . toList
+    FormE.field @name . FormE.Reverse . FormE.mapToRepeated f . reverse . toList
   (Reverse, Strip) ->
-    FormE.field @name . FormE.Reverse (strip . f) . reverse . toList
+    FormE.field @name . FormE.Reverse . FormE.mapToRepeated (strip . f) . reverse . toList
   (Vector, Keep) ->
-    FormE.field @name . FormE.Vector f
+    FormE.field @name . FormE.mapToRepeated f
   (Vector, Strip) ->
-    FormE.field @name . FormE.Vector (strip . f)
+    FormE.field @name . FormE.mapToRepeated f
 
 associations ::
   forall name k v key value message names .
@@ -145,17 +149,19 @@ associations ::
   , FormE.Field name (Functor.Identity (FormE.MessageEncoder (Form.Association key value))) message
   , FormE.Field name (FormE.Forward (FormE.MessageEncoder (Form.Association key value))) message
   , FormE.Field name (FormE.Reverse (FormE.MessageEncoder (Form.Association key value))) message
-  , FormE.Field name (FormE.Vector (FormE.MessageEncoder (Form.Association key value))) message
+  , FormE.Field name (FormE.ReverseN (FormE.MessageEncoder (Form.Association key value))) message
   , FormE.KnownFieldNumber message name
   ) =>
   ((k, v) -> FormE.MessageEncoder (Form.Association key value)) ->
   M.Map k v ->
   FormE.Prefix message names names
 associations f = case ?iterator of
-  Identity -> FormE.foldPrefixes . FormE.Forward (FormE.associations @name . Functor.Identity . f) . M.toAscList
-  Forward -> FormE.associations @name . FormE.Forward f . M.toAscList
-  Reverse -> FormE.associations @name . FormE.Reverse f . M.toDescList
-  Vector -> FormE.associations @name . FormE.Vector f . Data.Vector.fromList . M.toAscList
+  Identity -> FormE.foldPrefixes .
+              FormE.mapToRepeated (FormE.associations @name . Functor.Identity . f) .
+              M.toAscList
+  Forward -> FormE.associations @name . FormE.mapToRepeated f . M.toAscList
+  Reverse -> FormE.associations @name . FormE.Reverse . FormE.mapToRepeated f . M.toDescList
+  Vector -> FormE.associations @name . FormE.mapToRepeated f . Data.Vector.fromList . M.toAscList
 
 instance ToEncoder Trivial
   where

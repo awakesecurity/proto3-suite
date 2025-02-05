@@ -3,13 +3,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -59,10 +54,6 @@ module Proto3.Suite.Form.Encode.Core
   , Field(..)
   , FieldForm(..)
   , Wrap(..)
-  , Forward(..)
-  , Reverse(..)
-  , Vector(..)
-  , FoldBuilders(..)
   , codeFromEnumerated
   , instantiatePackableField
   , instantiateStringOrBytesField
@@ -71,12 +62,11 @@ module Proto3.Suite.Form.Encode.Core
 import Control.Category (Category(..))
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
-import Data.Coerce (Coercible, coerce)
+import Data.Coerce (coerce)
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int32, Int64)
 import Data.Kind (Type)
 import Data.Traversable (for)
-import Data.Vector.Generic qualified
 import Data.Word (Word32, Word64)
 import GHC.Exts (Constraint, Proxy#, TYPE, proxy#)
 import GHC.Generics (Generic)
@@ -88,6 +78,7 @@ import Proto3.Suite.Form
          (Association, NumberOf, Omission(..), OneOfOf,
           Packing(..), RecoverProtoType, Repetition(..), RepetitionOf,
           ProtoType(..), ProtoTypeOf, Wrapper)
+import Proto3.Suite.Form.Encode.Repeated (FoldBuilders(..), Forward(..), Reverse(..), ReverseN(..))
 import Proto3.Suite.Types (Enumerated(..), Fixed(..), Signed(..))
 import Proto3.Wire.Class (ProtoEnum(..))
 import Proto3.Wire.Encode qualified as Encode
@@ -437,7 +428,7 @@ instance forall (name :: Symbol)
 --
 -- Arguments for optional fields are often expressed using 'Maybe',
 -- and arguments for repeated fields are often expressed in using
--- 'Forward', 'Reverse', and 'Vector'--the choice is up to the user.
+-- 'Forward', 'Reverse', and 'Reverse'--the choice is up to the user.
 --
 -- Of course, if you add instances of this type class then please be
 -- sure to consider how they might overlap with existing instances,
@@ -640,9 +631,9 @@ instance ( CompatibleScalar (RecoverProtoType a) protoType
          ) =>
          EncodeScalarField ('Repeated 'Packed) protoType (Forward a)
   where
-    encodeScalarField _ _ !fn (Forward f xs)
+    encodeScalarField _ _ !fn xs
       | null xs = mempty
-      | otherwise = packedPrimitivesF f fn xs
+      | otherwise = packedPrimitivesF id fn xs
     {-# INLINE encodeScalarField #-}
 
 instance ( CompatibleScalar (RecoverProtoType a) protoType
@@ -650,19 +641,19 @@ instance ( CompatibleScalar (RecoverProtoType a) protoType
          ) =>
          EncodeScalarField ('Repeated 'Packed) protoType (Reverse a)
   where
-    encodeScalarField _ _ !fn (Reverse f xs)
+    encodeScalarField _ _ !fn (Reverse xs)
       | null xs = mempty
-      | otherwise = packedPrimitivesR f fn xs
+      | otherwise = packedPrimitivesR id fn xs
     {-# INLINE encodeScalarField #-}
 
 instance ( CompatibleScalar (RecoverProtoType a) protoType
          , PackedPrimitives a
          ) =>
-         EncodeScalarField ('Repeated 'Packed) protoType (Vector a)
+         EncodeScalarField ('Repeated 'Packed) protoType (ReverseN a)
   where
-    encodeScalarField _ _ !fn (Vector f xs)
-      | Data.Vector.Generic.null xs = mempty
-      | otherwise = packedPrimitivesV f fn xs
+    encodeScalarField _ _ !fn (ReverseN count xs)
+      | null xs = mempty
+      | otherwise = unsafePackedPrimitivesRN id fn count xs
     {-# INLINE encodeScalarField #-}
 
 -- | Handles encoding of packed repeated fields.
@@ -684,21 +675,25 @@ class PackedPrimitives (a :: Type)
     -- because 'Encode.MessageBuilder' encodes in reverse.
     packedPrimitivesR :: Foldable f => (b -> a) -> FieldNumber -> f b -> Encode.MessageBuilder
 
-    -- | A faster but more specialized variant of 'packedPrimitivesF'.
-    packedPrimitivesV ::
-      Data.Vector.Generic.Vector v b => (b -> a) -> FieldNumber -> v b -> Encode.MessageBuilder
+    -- | A faster but more specialized variant of 'packedPrimitivesR'.
+    --
+    -- Unsafe because the predicted number of elements must be at
+    -- least the actual number in order to avoid a crash, and because
+    -- overapproximation leads to overallocation of the output buffer.
+    unsafePackedPrimitivesRN ::
+      Foldable f => (b -> a) -> FieldNumber -> Int -> f b -> Encode.MessageBuilder
 
 instance PackedPrimitives Bool
   where
     packedPrimitivesF = Encode.packedBoolsF
     packedPrimitivesR = Encode.packedBoolsR
-    packedPrimitivesV = Encode.packedBoolsV
+    unsafePackedPrimitivesRN = Encode.unsafePackedBoolsRN
 
 instance PackedPrimitives Word64
   where
     packedPrimitivesF = Encode.packedVarintsF
     packedPrimitivesR = Encode.packedVarintsR
-    packedPrimitivesV = Encode.packedVarintsV
+    unsafePackedPrimitivesRN f !fn _ = Encode.packedVarintsR f fn
 
 instance PackedPrimitives Word32
   where
@@ -708,8 +703,8 @@ instance PackedPrimitives Word32
     packedPrimitivesR f = packedPrimitivesR (fromIntegral @Word32 @Word64 . f)
     {-# INLINE packedPrimitivesR #-}
 
-    packedPrimitivesV f = packedPrimitivesV (fromIntegral @Word32 @Word64 . f)
-    {-# INLINE packedPrimitivesV #-}
+    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (fromIntegral @Word32 @Word64 . f)
+    {-# INLINE unsafePackedPrimitivesRN #-}
 
 -- | NOTE: Converts to 'Word64' as before encoding, which is correct.
 -- To quote <https://protobuf.dev/programming-guides/encoding/#signed-ints>,
@@ -724,8 +719,8 @@ instance PackedPrimitives Int32
     packedPrimitivesR f = packedPrimitivesR (fromIntegral @Int32 @Word64 . f)
     {-# INLINE packedPrimitivesR #-}
 
-    packedPrimitivesV f = packedPrimitivesV (fromIntegral @Int32 @Word64 . f)
-    {-# INLINE packedPrimitivesV #-}
+    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (fromIntegral @Int32 @Word64 . f)
+    {-# INLINE unsafePackedPrimitivesRN #-}
 
 instance PackedPrimitives Int64
   where
@@ -735,8 +730,8 @@ instance PackedPrimitives Int64
     packedPrimitivesR f = packedPrimitivesR (fromIntegral @Int64 @Word64 . f)
     {-# INLINE packedPrimitivesR #-}
 
-    packedPrimitivesV f = packedPrimitivesV (fromIntegral @Int64 @Word64 . f)
-    {-# INLINE packedPrimitivesV #-}
+    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (fromIntegral @Int64 @Word64 . f)
+    {-# INLINE unsafePackedPrimitivesRN #-}
 
 instance PackedPrimitives (Signed Int32)
   where
@@ -746,8 +741,8 @@ instance PackedPrimitives (Signed Int32)
     packedPrimitivesR f = packedPrimitivesR (zigZagEncode . f)
     {-# INLINE packedPrimitivesR #-}
 
-    packedPrimitivesV f = packedPrimitivesV (zigZagEncode . f)
-    {-# INLINE packedPrimitivesV #-}
+    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (zigZagEncode . f)
+    {-# INLINE unsafePackedPrimitivesRN #-}
 
 instance PackedPrimitives (Signed Int64)
   where
@@ -757,8 +752,8 @@ instance PackedPrimitives (Signed Int64)
     packedPrimitivesR f = packedPrimitivesR (zigZagEncode . f)
     {-# INLINE packedPrimitivesR #-}
 
-    packedPrimitivesV f = packedPrimitivesV (zigZagEncode . f)
-    {-# INLINE packedPrimitivesV #-}
+    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (zigZagEncode . f)
+    {-# INLINE unsafePackedPrimitivesRN #-}
 
 instance PackedPrimitives (Fixed Word32)
   where
@@ -768,8 +763,8 @@ instance PackedPrimitives (Fixed Word32)
     packedPrimitivesR f = Encode.packedFixed32R (fixed . f)
     {-# INLINE packedPrimitivesR #-}
 
-    packedPrimitivesV f = Encode.packedFixed32V (fixed . f)
-    {-# INLINE packedPrimitivesV #-}
+    unsafePackedPrimitivesRN f = Encode.unsafePackedFixed32RN (fixed . f)
+    {-# INLINE unsafePackedPrimitivesRN #-}
 
 instance PackedPrimitives (Fixed Word64)
   where
@@ -779,8 +774,8 @@ instance PackedPrimitives (Fixed Word64)
     packedPrimitivesR f = Encode.packedFixed64R (fixed . f)
     {-# INLINE packedPrimitivesR #-}
 
-    packedPrimitivesV f = Encode.packedFixed64V (fixed . f)
-    {-# INLINE packedPrimitivesV #-}
+    unsafePackedPrimitivesRN f = Encode.unsafePackedFixed64RN (fixed . f)
+    {-# INLINE unsafePackedPrimitivesRN #-}
 
 instance PackedPrimitives (Signed (Fixed Int32))
   where
@@ -790,8 +785,8 @@ instance PackedPrimitives (Signed (Fixed Int32))
     packedPrimitivesR f = packedPrimitivesR (fixed32ToUnsigned . f)
     {-# INLINE packedPrimitivesR #-}
 
-    packedPrimitivesV f = packedPrimitivesV (fixed32ToUnsigned . f)
-    {-# INLINE packedPrimitivesV #-}
+    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (fixed32ToUnsigned . f)
+    {-# INLINE unsafePackedPrimitivesRN #-}
 
 fixed32ToUnsigned :: Signed (Fixed Int32) -> Fixed Word32
 fixed32ToUnsigned = Fixed . fromIntegral @Int32 @Word32 . fixed . signed
@@ -805,8 +800,8 @@ instance PackedPrimitives (Signed (Fixed Int64))
     packedPrimitivesR f = packedPrimitivesR (fixed64ToUnsigned . f)
     {-# INLINE packedPrimitivesR #-}
 
-    packedPrimitivesV f = packedPrimitivesV (fixed64ToUnsigned . f)
-    {-# INLINE packedPrimitivesV #-}
+    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (fixed64ToUnsigned . f)
+    {-# INLINE unsafePackedPrimitivesRN #-}
 
 fixed64ToUnsigned :: Signed (Fixed Int64) -> Fixed Word64
 fixed64ToUnsigned = Fixed . fromIntegral @Int64 @Word64 . fixed . signed
@@ -816,13 +811,13 @@ instance PackedPrimitives Float
   where
     packedPrimitivesF = Encode.packedFloatsF
     packedPrimitivesR = Encode.packedFloatsR
-    packedPrimitivesV = Encode.packedFloatsV
+    unsafePackedPrimitivesRN = Encode.unsafePackedFloatsRN
 
 instance PackedPrimitives Double
   where
     packedPrimitivesF = Encode.packedDoublesF
     packedPrimitivesR = Encode.packedDoublesR
-    packedPrimitivesV = Encode.packedDoublesV
+    unsafePackedPrimitivesRN = Encode.unsafePackedDoublesRN
 
 instance ProtoEnum e => PackedPrimitives (Enumerated e)
   where
@@ -832,98 +827,8 @@ instance ProtoEnum e => PackedPrimitives (Enumerated e)
     packedPrimitivesR f = packedPrimitivesR (codeFromEnumerated . f)
     {-# INLINE packedPrimitivesR #-}
 
-    packedPrimitivesV f = packedPrimitivesV (codeFromEnumerated . f)
-    {-# INLINE packedPrimitivesV #-}
-
--- | Combines a 'Foldable' collection with a mapping to be applied
--- to each element and the request to include the mapped elements
--- in their presented order.
---
--- If your source elements are already in a vector, then consider
--- using 'Vector' instead, because that will likely encode faster.
--- But do not create a vector just for this purpose--that would
--- be slower than using this type or 'Reverse'.
---
--- If your source elements are not in a vector, then consider whether
--- they can be computed in reverse order, in which case you could
--- then wrap the reversed elements in 'Reverse'.  That is often
--- faster because we encode to bytes in reverse order, meaning that
--- encoding of a 'Reverse' value will actually encode the elements
--- in the order in which they are yielded by the 'Foldable' instance.
--- But do not create a new source collection just to be able to
--- use 'Reverse'--that is probably slower than using 'Forward'.
-data Forward a = forall f b . Foldable f => Forward (b -> a) (f b)
-
-instance Functor Forward
-  where
-    fmap g (Forward f xs) = Forward (g . f) xs
-
--- | Like 'Forward' but requests that the order be reversed upon usage.
---
--- Consider 'Vector' as an alternative--see the comments at 'Forward'.
-data Reverse a = forall f b . Foldable f => Reverse (b -> a) (f b)
-
-instance Functor Reverse
-  where
-    fmap g (Reverse f xs) = Reverse (g . f) xs
-
--- | Like 'Forward' but provides a 'Data.Vector.Generic.Vector',
--- not just any 'Foldable' collection.
---
--- Avoid creating a vector just to take advantage of this type;
--- instead use 'Forward' or 'Reverse'.  See 'Forward' for details.
-data Vector a = forall v b . Data.Vector.Generic.Vector v b => Vector (b -> a) (v b)
-
-instance Functor Vector
-  where
-    fmap g (Vector f xs) = Vector (g . f) xs
-
--- | Inhabited by type constructors providing an efficient way to fold over
--- contained builders and an 'fmap' that is efficient when followed by that
--- operation.  For example, 'Vector' does not immediately create a new vector
--- when 'fmap' is applied; instead it tracks the overall mapping to be applied,
--- then applies it to each element during the fold.
-class Functor t =>
-      FoldBuilders t
-  where
-    foldBuilders :: t Encode.MessageBuilder -> Encode.MessageBuilder
-
-    foldPrefixes ::
-      forall message names . t (Prefix message names names) -> Prefix message names names
-    default foldPrefixes ::
-      forall message names .
-      Coercible (t Encode.MessageBuilder) (t (Prefix message names names)) =>
-      t (Prefix message names names) -> Prefix message names names
-    foldPrefixes = coerce (foldBuilders @t)
-    {-# INLINE foldPrefixes #-}
-
-instance FoldBuilders Identity
-  where
-    foldBuilders = coerce
-    {-# INLINE foldBuilders #-}
-
-instance FoldBuilders Forward
-  where
-    -- | Concatenates the specified encodings in order.
-    --
-    -- For efficiency, consider using 'Reverse' or 'Vector' instead.
-    foldBuilders (Forward f xs) = Encode.etaMessageBuilder (foldr ((<>) . f) mempty) xs
-    {-# INLINE foldBuilders #-}
-
-instance FoldBuilders Reverse
-  where
-    -- | Concatenates the specified encodings in the /reverse/ order specified by the argument.
-    --
-    -- For vectors consider 'Vector', but do not create a temporary vector just for that purpose.
-    foldBuilders (Reverse f xs) = Encode.etaMessageBuilder (foldr (flip (<>) . f) mempty) xs
-    {-# INLINE foldBuilders #-}
-
-instance FoldBuilders Vector
-  where
-    -- | Produces the same result as would the 'Forward' instance, but exploits
-    -- the vector representation to iterates right to left for efficiency.
-    foldBuilders (Vector f xs) = Encode.vectorMessageBuilder f xs
-    {-# INLINE foldBuilders #-}
+    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (codeFromEnumerated . f)
+    {-# INLINE unsafePackedPrimitivesRN #-}
 
 -- | Pass through those values that are outside the enum range;
 -- this is for forward compatibility as enumerations are extended.
@@ -961,7 +866,7 @@ instantiatePackableField protoType elementType conversion hasWrapper = do
           fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
           {-# INLINE fieldForm #-}
 
-      instance FieldForm ('Repeated 'Packed) $protoType (Vector $elementType)
+      instance FieldForm ('Repeated 'Packed) $protoType (ReverseN $elementType)
         where
           fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
           {-# INLINE fieldForm #-}

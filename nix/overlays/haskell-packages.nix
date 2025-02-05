@@ -331,8 +331,8 @@ in {
               source = pkgsNew.fetchFromGitHub {
                 owner = "awakesecurity";
                 repo = "proto3-wire";
-                rev = "2a8e434b1b7686a26c9848cc6906c07389658a04"; # 1.4.4
-                sha256 = "92dcADQg7bSD3zGPfLXzyHQndGMKRTFLPt0Pei2ZTws=";
+                rev = "cba037c1d562ce32a4ec27ff3a426c1349ad3241"; # 1.4.4
+                sha256 = "NpyC1QlL65bhmiCaMKth6Q6BZZ4J6LBty1mRbfAQzWA=";
               };
             in
               pkgsNew.haskell.lib.doJailbreak
