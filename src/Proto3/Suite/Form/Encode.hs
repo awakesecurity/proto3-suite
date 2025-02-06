@@ -47,6 +47,7 @@ module Proto3.Suite.Form.Encode
   , fieldsToMessage
   , Occupy
   , Occupy1
+  , NameSublist
   , omitted
   , KnownFieldNumber
   , Field(..)

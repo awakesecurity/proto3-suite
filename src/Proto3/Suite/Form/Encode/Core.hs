@@ -48,6 +48,7 @@ module Proto3.Suite.Form.Encode.Core
   , fieldsToMessage
   , Occupy
   , Occupy1
+  , NameSublist
   , omitted
   , KnownFieldNumber
   , fieldNumber
@@ -325,6 +326,16 @@ type family Occupy1 (message :: Type) (name :: Symbol) (names :: [Symbol])
     Occupy1 message name names 'Optional = name ': names
     Occupy1 message name names ('Repeated _) = names
 
+-- | The constraint that 'moreNames' is 'names', but possibly with additional
+-- names inserted.  For simplicity, reordering is not currently allowed.
+type family NameSublist (names :: [Symbol]) (moreNames :: [Symbol]) :: Constraint
+  where
+    NameSublist '[] _ = (() :: Constraint)
+    NameSublist (n ': ns) (n ': ms) = NameSublist ns ms
+    NameSublist ns (_ ': ms) = NameSublist ns ms
+    NameSublist (n ': _) '[] = TypeError
+      ( 'Text "NameSublist: name disappeared: " ':<>: ShowType n )
+
 -- | Uses an empty encoding for the @oneof@s and non-@oneof@ message fields
 -- that appear in the final type parameter of 'Prefix' but not the previous
 -- type parameter, thereby implicitly emitting their default values.
@@ -341,6 +352,7 @@ type family Occupy1 (message :: Type) (name :: Symbol) (names :: [Symbol])
 -- fields and replacing @oneof@ fields with their @oneof@ names.
 omitted ::
   forall (message :: Type) (names :: [Symbol]) (moreNames :: [Symbol]) .
+  NameSublist names moreNames =>
   Prefix message names moreNames
 omitted = UnsafePrefix mempty
 
