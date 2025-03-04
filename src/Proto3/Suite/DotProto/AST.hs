@@ -286,7 +286,6 @@ type DotProtoEnumValue = Int32
 data DotProtoEnumPart
   = DotProtoEnumField DotProtoIdentifier DotProtoEnumValue [DotProtoOption]
   | DotProtoEnumOption DotProtoOption
-  | DotProtoEnumReserved   [DotProtoReservedField]
   deriving (Data, Eq, Generic, Ord, Show)
 
 instance Arbitrary DotProtoEnumPart where
