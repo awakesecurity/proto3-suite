@@ -155,6 +155,8 @@ prettyPrintProtoDefinition opts = defn where
     <+> pPrint (fromIntegral value :: Int)
     <+> optionAnnotation options
     <> PP.text ";"
+  enumPart _       (DotProtoEnumReserved reservedFields) 
+    = PP.text "reserved" <+> (PP.hcat . PP.punctuate (PP.text ", ") $ pPrint <$> reservedFields)
   enumPart _       (DotProtoEnumOption opt)
     = PP.text "option" <+> pPrint opt <> PP.text ";"
 

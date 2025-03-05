@@ -194,6 +194,7 @@ instance CanonicalRank DotProtoEnumPart
   canonicalRank = \case
     DotProtoEnumField _ value _ -> Right value
     DotProtoEnumOption option -> Left (Just option)
+    DotProtoEnumReserved _ -> Left Nothing
 
 instance Canonicalize DotProtoEnumPart where
   canonicalize = \case
@@ -201,6 +202,8 @@ instance Canonicalize DotProtoEnumPart where
       DotProtoEnumField (canonicalize name) value (map canonicalize opts)
     DotProtoEnumOption option ->
       DotProtoEnumOption (canonicalize option)
+    DotProtoEnumReserved reservedFields ->
+      DotProtoEnumReserved (canonicalize reservedFields)
 
 instance Canonicalize [DotProtoServicePart] where
   canonicalize = canonicalSort

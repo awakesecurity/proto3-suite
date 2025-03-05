@@ -505,10 +505,11 @@ ranges :: ProtoParser [DotProtoReservedField]
 ranges = commaSep1 (try range <|> (SingleField . fromInteger <$> integer))
 
 pReserved :: ProtoParser [DotProtoReservedField]
-pReserved = do symbol "reserved"
-              v <- ranges <|> commaSep1 (ReservedIdentifier <$> strFieldName)
-              semi
-              return v
+pReserved = do 
+  symbol "reserved"
+  v <- ranges <|> commaSep1 (ReservedIdentifier <$> strFieldName)
+  semi
+  return v
 
 strFieldName :: ProtoParser String
 strFieldName =
