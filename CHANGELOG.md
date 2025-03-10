@@ -1,6 +1,14 @@
 # 0.8.2
 * Support GHC 9.10.
 * Test with nixpkgs-24.11.
+* Fix overlong encoding of packed "sint32" fields containing elements in
+  [-0x80000000, -0x40000001] or [0x40000000, 0x7FFFFFFF], which increased
+  message size and hindered forward compatibility of "sint32" with "sint64".
+* Add --stringType as a preferred spelling of --string-type
+  because its style matches that of other options.
+* Add an experimental feature to encode without using
+  intermediate data structures; see Proto3.Suite.Form and
+  the new compile-proto-file option --typeLevelFormat
 
 # 0.8.1
 * Fix support for dhall-1.42.

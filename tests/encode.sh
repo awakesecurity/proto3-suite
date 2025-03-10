@@ -11,11 +11,12 @@ ghc                                         \
     "$@"                                    \
     $hsTmpDir/TestProto.hs                  \
     $hsTmpDir/TestProtoImport.hs            \
+    $hsTmpDir/TestProtoNegativeEnum.hs      \
     $hsTmpDir/TestProtoOneof.hs             \
     $hsTmpDir/TestProtoOneofImport.hs       \
     $hsTmpDir/TestProtoWrappers.hs          \
-    $hsTmpDir/TestProtoNegativeEnum.hs      \
     tests/Test/Dhall/Orphan.hs              \
+    tests/Test/Proto/ToEncoder.hs           \
     tests/SimpleEncodeDotProto.hs           \
     >/dev/null
 

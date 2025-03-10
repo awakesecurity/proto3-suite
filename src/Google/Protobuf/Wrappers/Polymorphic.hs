@@ -5,6 +5,7 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+-- | Haskell types used to express standard protobuf wrapper message types.
 module Google.Protobuf.Wrappers.Polymorphic
   ( Wrapped(..)
   ) where
