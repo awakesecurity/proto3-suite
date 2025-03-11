@@ -334,7 +334,7 @@ type family NameSublist (names :: [Symbol]) (moreNames :: [Symbol]) :: Constrain
     NameSublist (n ': ns) (n ': ms) = NameSublist ns ms
     NameSublist ns (_ ': ms) = NameSublist ns ms
     NameSublist (n ': _) '[] = TypeError
-      ( 'Text "NameSublist: name disappeared: " ':<>: ShowType n )
+      ( 'Text "NameSublist: name disappeared: " ':<>: 'ShowType n )
 
 -- | Uses an empty encoding for the @oneof@s and non-@oneof@ message fields
 -- that appear in the final type parameter of 'Prefix' but not the previous

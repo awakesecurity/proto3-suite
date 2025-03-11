@@ -153,8 +153,8 @@ class MapToRepeated (container :: TYPE cr)
     -- | Returns @(->) a@, where @a@ is the possibly-unlifted
     -- type of item that is found within the container.
     -- See 'mapToRepeated' for how we use this type family.
-    type MapElementTo container :: Type -> Type
-    type MapElementTo container = (->) (RepeatedElement container)
+    type MapElementTo (container :: TYPE cr) :: Type -> Type
+    type MapElementTo (container :: TYPE cr) = (->) (RepeatedElement container)
 
     -- | Similar to 'fmap' but yields the associated
     -- emittable sequence type specified by 'RepeaterFor'.

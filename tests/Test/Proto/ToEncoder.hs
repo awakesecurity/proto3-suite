@@ -58,8 +58,8 @@ class ToEncoder a
 
 type family IsWrapped (a :: Type) :: Bool
   where
-    IsWrapped (FormE.Wrap _) = True
-    IsWrapped _ = False
+    IsWrapped (FormE.Wrap _) = 'True
+    IsWrapped _ = 'False
 
 class (IsWrapped a ~ w) =>
       Strip a b w | a w -> b
