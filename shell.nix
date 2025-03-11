@@ -27,7 +27,6 @@ let
 
 in proto3-suite.env.overrideAttrs (old: {
   buildInputs = (old.buildInputs or []) ++ [
-    pkgs.cabal-install
     pkgs.protobuf
     pkgs.python3Packages.virtualenv
   ];
