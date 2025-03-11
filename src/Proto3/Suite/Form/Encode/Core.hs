@@ -386,13 +386,16 @@ class Field name a message
     -- an integer literal, or a string literal if you use @OverloadedStrings@.
     -- (The runtime representation of the argument type is found by unification.)
     --
-    -- If the argument type is too verbose, then we recommend
-    -- wrapping calls to 'field' in helper functions select it
-    -- automatically based on particular use cases.  Examples:
+    -- If the argument type is too verbose, or should be chosen automatically
+    -- in order to avoid accidentally using a narrower type that cannot represent
+    -- all possible field values, then we recommend wrapping call to 'field' in
+    -- a helper function in order to automatically select the argument type best
+    -- suited to your particular use case.  Examples:
     -- `Proto3.Suite.Form.Encode.message`,
-    -- `Proto3.Suite.Form.Encode.associations`.
+    -- `Proto3.Suite.Form.Encode.associations`,
+    -- `Proto3.Suite.Form.Encode.number`.
     --
-    -- See also 'field'.
+    -- See also 'fieldForm'.
     field :: forall names . a -> Prefix message names (Occupy message name names)
 
 instance forall (name :: Symbol)

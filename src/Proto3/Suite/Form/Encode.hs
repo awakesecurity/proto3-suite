@@ -1,17 +1,22 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ImportQualifiedPost #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -64,6 +69,8 @@ module Proto3.Suite.Form.Encode
   , associations
   , Reflection(..)
   , messageReflection
+  , Number(..)
+  , NumberForm(..)
   ) where
 
 import Control.Category (Category(..))
@@ -76,7 +83,7 @@ import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Text.Short qualified as TS
 import Data.Word (Word8, Word16, Word32, Word64)
-import GHC.Exts (Proxy#, proxy#)
+import GHC.Exts (Constraint, Proxy#, TYPE, proxy#)
 import GHC.TypeLits (Symbol)
 import Prelude hiding (String, (.), id)
 import Proto3.Suite.Class (Message, MessageField, encodeMessage, encodeMessageField)
@@ -85,7 +92,7 @@ import Proto3.Suite.Form.Encode.Repeated
          (FoldBuilders(..), Forward(..), Reverse(..), ReverseN(..),
           MapToRepeated(..), ToRepeated(..))
 import Proto3.Suite.Form
-         (Association, MessageFieldType, Omission(..), Packing(..),
+         (Association, MessageFieldType, NumericType, Omission(..), Packing(..),
           Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf)
 import Proto3.Suite.Types (Enumerated(..), Fixed(..), Signed(..))
 import Proto3.Suite.Types qualified
@@ -93,6 +100,7 @@ import Proto3.Wire qualified as Wire
 import Proto3.Wire.Class (ProtoEnum(..))
 import Proto3.Wire.Encode qualified as Encode
 import Proto3.Wire.Reverse qualified as RB
+import Proto3.Wire.Types (FieldNumber(..))
 
 $(instantiatePackableField [t| 'Int32 |] [t| Int8 |] [| fromIntegral @Int8 @Int32 |] True)
 $(instantiatePackableField [t| 'Int32 |] [t| Word8 |] [| fromIntegral @Word8 @Int32 |] True)
@@ -277,3 +285,65 @@ instance ( MessageFieldType repetition protoType a
 messageReflection :: forall a . Message a => a -> MessageEncoder a
 messageReflection m = coerce (encodeMessage @a (Wire.fieldNumber 1) m)
 {-# INLINABLE messageReflection #-}
+
+-- | Like 'Field' but for numeric types that are to be encoded using
+-- the narrowest Haskell type that can represent all values of the field,
+-- which can resolve ambiguities when converting from some possibly-wider
+-- type such as 'Int' or 'Word' in order to obtain the value to be encoded.
+type Number :: Symbol -> forall {r} . TYPE r -> Type -> Constraint
+class Number name a message
+  where
+    -- | Like 'field' but more restricted in argument type.
+    number :: forall names . a -> Prefix message names (Occupy message name names)
+
+instance forall (name :: Symbol)
+#if MIN_VERSION_ghc(9,4,0)
+                r (a :: TYPE r)
+#else
+                (a :: Type)
+#endif
+                (message :: Type) .
+         ( KnownFieldNumber message name
+         , NumberForm (RepetitionOf message name) (ProtoTypeOf message name) a
+         ) =>
+         Number name a message
+  where
+    number :: forall names . a -> Prefix message names (Occupy message name names)
+    number = coerce
+      @(a -> Encode.MessageBuilder)
+      @(a -> Prefix message names (Occupy message name names))
+      (numberForm @(RepetitionOf message name) @(ProtoTypeOf message name) @a
+                  proxy# proxy# (fieldNumber @message @name))
+    {-# INLINE number #-}
+
+-- | Implements 'Number' for all fields having the specified repetition,
+-- protobuf type, and type of argument to be encoded within that field.
+type NumberForm :: Repetition -> ProtoType -> forall {r} . TYPE r -> Constraint
+class NumberForm repetition protoType a
+  where
+    -- | Like 'fieldForm' but more restricted in argument type.
+    numberForm :: Proxy# repetition -> Proxy# protoType -> FieldNumber -> a -> Encode.MessageBuilder
+
+instance ( NumericType protoType ~ a
+         , FieldForm ('Singular omission) protoType a
+         ) =>
+         NumberForm ('Singular omission) protoType a
+  where
+    numberForm = fieldForm
+    {-# INLINE numberForm #-}
+
+instance ( NumericType protoType ~ a
+         , FieldForm 'Optional protoType (t a)
+         ) =>
+         NumberForm 'Optional protoType (t a)
+  where
+    numberForm = fieldForm
+    {-# INLINE numberForm #-}
+
+instance ( NumericType protoType ~ a
+         , FieldForm ('Repeated packing) protoType (t a)
+         ) =>
+         NumberForm ('Repeated packing) protoType (t a)
+  where
+    numberForm = fieldForm
+    {-# INLINE numberForm #-}

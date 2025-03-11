@@ -34,6 +34,7 @@ module Proto3.Suite.Form
   , MessageFieldType
   , OptionalMessageFieldType
   , RepeatedMessageFieldType
+  , NumericType
   ) where
 
 import Data.Int (Int32, Int64)
@@ -401,3 +402,21 @@ instance MessageFieldType ('Repeated 'Packed) 'Bool (PackedVec Bool)
 instance MessageFieldType ('Repeated 'Packed) 'Float (PackedVec Float)
 instance MessageFieldType ('Repeated 'Packed) 'Double (PackedVec Double)
 instance MessageFieldType ('Repeated 'Packed) ('Enumeration e) (PackedVec (Enumerated e))
+
+-- | Chooses the narrowest Haskell type that can express the full
+-- range of possible values of the given protobuf numeric type.
+type family NumericType (protoType :: ProtoType) :: Type
+  where
+    NumericType 'Int32 = Int32
+    NumericType 'Int64 = Int64
+    NumericType 'SInt32 = Int32
+    NumericType 'SInt64 = Int64
+    NumericType 'UInt32 = Word32
+    NumericType 'UInt64 = Word64
+    NumericType 'Fixed32 = Word32
+    NumericType 'Fixed64 = Word64
+    NumericType 'SFixed32 = Int32
+    NumericType 'SFixed64 = Int64
+    NumericType 'Bool = Bool
+    NumericType 'Float = Float
+    NumericType 'Double = Double
