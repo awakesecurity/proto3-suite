@@ -419,6 +419,9 @@ instance MessageFieldType ('Repeated 'Packed) ('Enumeration e) (PackedVec (Enume
 -- If your application of this library requires a different choice, then
 -- please note that use of this type family is optional; there should
 -- always be alternative features that do not default to these choices.
+--
+-- At least for now, we support only lifted result types.  (Varying
+-- the result kind appears to be difficult, perhaps impractical.)
 type family ScalarType (protoType :: ProtoType) :: Type
   where
     ScalarType 'Int32 = Int32

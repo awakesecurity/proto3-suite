@@ -1,6 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -84,7 +83,7 @@ import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Text.Short qualified as TS
 import Data.Word (Word8, Word16, Word32, Word64)
-import GHC.Exts (Constraint, Proxy#, TYPE, proxy#)
+import GHC.Exts (Constraint, Proxy#, proxy#)
 import GHC.TypeLits (Symbol)
 import Prelude hiding (String, (.), id)
 import Proto3.Suite.Class (Message, MessageField, encodeMessage, encodeMessageField)
@@ -297,19 +296,15 @@ messageReflection m = coerce (encodeMessage @a (Wire.fieldNumber 1) m)
 -- We hope that the integer encoders are written in such a way that small
 -- integer literals will be encoded cheaply even when expressed with wide types
 -- such as 'Int64', thanks to inlining and subsequent compiler optimization.
-type Scalar :: Symbol -> forall {r} . TYPE r -> Type -> Constraint
+type Scalar :: Symbol -> Type -> Type -> Constraint
 class Scalar name a message
   where
     -- | Like 'field' but more restricted in argument type.
+    --
+    -- See also 'wrappedScalar'.
     scalar :: forall names . a -> Prefix message names (Occupy message name names)
 
-instance forall (name :: Symbol)
-#if MIN_VERSION_ghc(9,4,0)
-                r (a :: TYPE r)
-#else
-                (a :: Type)
-#endif
-                (message :: Type) .
+instance forall (name :: Symbol) (a :: Type) (message :: Type) .
          ( KnownFieldNumber message name
          , ScalarForm (RepetitionOf message name) (ProtoTypeOf message name) a
          ) =>
@@ -325,11 +320,27 @@ instance forall (name :: Symbol)
 
 -- | Implements 'Scalar' for all fields having the specified repetition,
 -- protobuf type, and type of argument to be encoded within that field.
-type ScalarForm :: Repetition -> ProtoType -> forall {r} . TYPE r -> Constraint
+type ScalarForm :: Repetition -> ProtoType -> Type -> Constraint
 class ScalarForm repetition protoType a
   where
     -- | Like 'fieldForm' but more restricted in argument type.
     scalarForm :: Proxy# repetition -> Proxy# protoType -> FieldNumber -> a -> Encode.MessageBuilder
+
+instance ScalarForm ('Singular 'Alternative) protoType a =>
+         ScalarForm 'Optional protoType (Maybe a)
+  where
+    scalarForm _ ty !fn me =
+      foldMap @Maybe (scalarForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn) me
+    {-# INLINE scalarForm #-}
+
+instance ( FoldBuilders t
+         , ScalarForm ('Singular 'Alternative) protoType a
+         ) =>
+         ScalarForm ('Repeated 'Unpacked) protoType (t a)
+  where
+    scalarForm _ ty !fn es =
+      foldBuilders (scalarForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn <$> es)
+    {-# INLINE scalarForm #-}
 
 instance ( ScalarType protoType ~ a
          , FieldForm ('Singular omission) protoType a
@@ -340,17 +351,9 @@ instance ( ScalarType protoType ~ a
     {-# INLINE scalarForm #-}
 
 instance ( ScalarType protoType ~ a
-         , FieldForm 'Optional protoType (t a)
+         , FieldForm ('Repeated 'Packed) protoType (t a)
          ) =>
-         ScalarForm 'Optional protoType (t a)
-  where
-    scalarForm = fieldForm
-    {-# INLINE scalarForm #-}
-
-instance ( ScalarType protoType ~ a
-         , FieldForm ('Repeated packing) protoType (t a)
-         ) =>
-         ScalarForm ('Repeated packing) protoType (t a)
+         ScalarForm ('Repeated 'Packed) protoType (t a)
   where
     scalarForm = fieldForm
     {-# INLINE scalarForm #-}
