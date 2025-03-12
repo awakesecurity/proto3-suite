@@ -35,14 +35,11 @@ module Proto3.Suite.Form
   , MessageFieldType
   , OptionalMessageFieldType
   , RepeatedMessageFieldType
-  , ScalarType
   ) where
 
-import Data.ByteString.Short qualified as BS
 import Data.Int (Int32, Int64)
 import Data.Kind (Type)
 import Data.Map qualified as M
-import Data.Text.Short qualified as TS
 import Data.Word (Word32, Word64)
 import GHC.Exts (Constraint)
 import GHC.TypeLits (ErrorMessage(..), Nat, Symbol, TypeError)
@@ -404,38 +401,3 @@ instance MessageFieldType ('Repeated 'Packed) 'Bool (PackedVec Bool)
 instance MessageFieldType ('Repeated 'Packed) 'Float (PackedVec Float)
 instance MessageFieldType ('Repeated 'Packed) 'Double (PackedVec Double)
 instance MessageFieldType ('Repeated 'Packed) ('Enumeration e) (PackedVec (Enumerated e))
-
--- | Chooses the most efficient Haskell type that can express the
--- full range of possible values of the given protobuf scalar type.
---
--- This choice can be used to resolve ambiguity around polymorphic
--- literal values, or when performing a polymorphic conversion from
--- or to some type that is not directly supported, such as 'Int'.
---
--- Currently we choose 'TS.ShortText' for @string@ and 'BS.ShortByteString'
--- for @bytes@ because of their low overhead (and because before version 2
--- the `Data.Text.Text` type used a UTF-16 representation internally,
--- requiring conversion).  However, experience may change these choices.
--- If your application of this library requires a different choice, then
--- please note that use of this type family is optional; there should
--- always be alternative features that do not default to these choices.
---
--- At least for now, we support only lifted result types.  (Varying
--- the result kind appears to be difficult, perhaps impractical.)
-type family ScalarType (protoType :: ProtoType) :: Type
-  where
-    ScalarType 'Int32 = Int32
-    ScalarType 'Int64 = Int64
-    ScalarType 'SInt32 = Int32
-    ScalarType 'SInt64 = Int64
-    ScalarType 'UInt32 = Word32
-    ScalarType 'UInt64 = Word64
-    ScalarType 'Fixed32 = Word32
-    ScalarType 'Fixed64 = Word64
-    ScalarType 'SFixed32 = Int32
-    ScalarType 'SFixed64 = Int64
-    ScalarType 'String = TS.ShortText
-    ScalarType 'Bytes = BS.ShortByteString
-    ScalarType 'Bool = Bool
-    ScalarType 'Float = Float
-    ScalarType 'Double = Double

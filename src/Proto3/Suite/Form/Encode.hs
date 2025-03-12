@@ -4,18 +4,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ImportQualifiedPost #-}
-{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -57,6 +53,7 @@ module Proto3.Suite.Form.Encode
   , Field(..)
   , FieldForm(..)
   , Wrap(..)
+  , Auto(..)
   , FoldBuilders(..)
   , Forward(..)
   , Reverse(..)
@@ -68,8 +65,6 @@ module Proto3.Suite.Form.Encode
   , associations
   , Reflection(..)
   , messageReflection
-  , Scalar(..)
-  , ScalarForm(..)
   ) where
 
 import Control.Category (Category(..))
@@ -83,7 +78,7 @@ import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Text.Short qualified as TS
 import Data.Word (Word8, Word16, Word32, Word64)
-import GHC.Exts (Constraint, Proxy#, proxy#)
+import GHC.Exts (Proxy#, proxy#)
 import GHC.TypeLits (Symbol)
 import Prelude hiding (String, (.), id)
 import Proto3.Suite.Class (Message, MessageField, encodeMessage, encodeMessageField)
@@ -93,79 +88,78 @@ import Proto3.Suite.Form.Encode.Repeated
           MapToRepeated(..), ToRepeated(..))
 import Proto3.Suite.Form
          (Association, MessageFieldType, Omission(..), Packing(..),
-          Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf, ScalarType)
+          Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf)
 import Proto3.Suite.Types (Enumerated(..), Fixed(..), Signed(..))
 import Proto3.Suite.Types qualified
 import Proto3.Wire qualified as Wire
 import Proto3.Wire.Class (ProtoEnum(..))
 import Proto3.Wire.Encode qualified as Encode
 import Proto3.Wire.Reverse qualified as RB
-import Proto3.Wire.Types (FieldNumber(..))
 
-$(instantiatePackableField [t| 'Int32 |] [t| Int8 |] [| fromIntegral @Int8 @Int32 |] True)
-$(instantiatePackableField [t| 'Int32 |] [t| Word8 |] [| fromIntegral @Word8 @Int32 |] True)
-$(instantiatePackableField [t| 'Int32 |] [t| Int16 |] [| fromIntegral @Int16 @Int32 |] True)
-$(instantiatePackableField [t| 'Int32 |] [t| Word16 |] [| fromIntegral @Word16 @Int32 |] True)
-$(instantiatePackableField [t| 'Int32 |] [t| Int32 |] [| id |] True)
-$(instantiatePackableField [t| 'Int64 |] [t| Int8 |] [| fromIntegral @Int8 @Int32 |] True)
-$(instantiatePackableField [t| 'Int64 |] [t| Word8 |] [| fromIntegral @Word8 @Int32 |] True)
-$(instantiatePackableField [t| 'Int64 |] [t| Int16 |] [| fromIntegral @Int16 @Int32 |] True)
-$(instantiatePackableField [t| 'Int64 |] [t| Word16 |] [| fromIntegral @Word16 @Int32 |] True)
-$(instantiatePackableField [t| 'Int64 |] [t| Int32 |] [| id |] True)
-$(instantiatePackableField [t| 'Int64 |] [t| Word32 |] [| fromIntegral @Word32 @Int64 |] True)
-$(instantiatePackableField [t| 'Int64 |] [t| Int64 |] [| id |] True)
-$(instantiatePackableField [t| 'SInt32 |] [t| Int8 |] [| Signed . fromIntegral @Int8 @Int32 |] False)
-$(instantiatePackableField [t| 'SInt32 |] [t| Word8 |] [| Signed . fromIntegral @Word8 @Int32 |] False)
-$(instantiatePackableField [t| 'SInt32 |] [t| Int16 |] [| Signed . fromIntegral @Int16 @Int32 |] False)
-$(instantiatePackableField [t| 'SInt32 |] [t| Word16 |] [| Signed . fromIntegral @Word16 @Int32 |] False)
-$(instantiatePackableField [t| 'SInt32 |] [t| Int32 |] [| Signed |] False)
-$(instantiatePackableField [t| 'SInt64 |] [t| Int8 |] [| Signed . fromIntegral @Int8 @Int32 |] False)
-$(instantiatePackableField [t| 'SInt64 |] [t| Word8 |] [| Signed . fromIntegral @Word8 @Int32 |] False)
-$(instantiatePackableField [t| 'SInt64 |] [t| Int16 |] [| Signed . fromIntegral @Int16 @Int32 |] False)
-$(instantiatePackableField [t| 'SInt64 |] [t| Word16 |] [| Signed . fromIntegral @Word16 @Int32 |] False)
-$(instantiatePackableField [t| 'SInt64 |] [t| Int32 |] [| Signed |] False)
-$(instantiatePackableField [t| 'SInt64 |] [t| Word32 |] [| Signed . fromIntegral @Word32 @Int64 |] False)
-$(instantiatePackableField [t| 'SInt64 |] [t| Int64 |] [| Signed |] False)
-$(instantiatePackableField [t| 'UInt32 |] [t| Word8 |] [| fromIntegral @Word8 @Word32 |] True)
-$(instantiatePackableField [t| 'UInt32 |] [t| Word16 |] [| fromIntegral @Word16 @Word32 |] True)
-$(instantiatePackableField [t| 'UInt32 |] [t| Word32 |] [| id |] True)
-$(instantiatePackableField [t| 'UInt64 |] [t| Word8 |] [| fromIntegral @Word8 @Word32 |] True)
-$(instantiatePackableField [t| 'UInt64 |] [t| Word16 |] [| fromIntegral @Word16 @Word32 |] True)
-$(instantiatePackableField [t| 'UInt64 |] [t| Word32 |] [| id |] True)
-$(instantiatePackableField [t| 'UInt64 |] [t| Word64 |] [| id |] True)
-$(instantiatePackableField [t| 'Fixed32 |] [t| Word8 |] [| Fixed . fromIntegral @Word8 @Word32 |] False)
-$(instantiatePackableField [t| 'Fixed32 |] [t| Word16 |] [| Fixed . fromIntegral @Word16 @Word32 |] False)
-$(instantiatePackableField [t| 'Fixed32 |] [t| Word32 |] [| Fixed |] False)
-$(instantiatePackableField [t| 'Fixed64 |] [t| Word8 |] [| Fixed . fromIntegral @Word8 @Word64 |] False)
-$(instantiatePackableField [t| 'Fixed64 |] [t| Word16 |] [| Fixed . fromIntegral @Word16 @Word64 |] False)
-$(instantiatePackableField [t| 'Fixed64 |] [t| Word32 |] [| Fixed . fromIntegral @Word32 @Word64 |] False)
-$(instantiatePackableField [t| 'Fixed64 |] [t| Word64 |] [| Fixed |] False)
-$(instantiatePackableField [t| 'SFixed32 |] [t| Int8 |] [| Signed . Fixed . fromIntegral @Int8 @Int32 |] False)
-$(instantiatePackableField [t| 'SFixed32 |] [t| Word8 |] [| Signed . Fixed . fromIntegral @Word8 @Int32 |] False)
-$(instantiatePackableField [t| 'SFixed32 |] [t| Int16 |] [| Signed . Fixed . fromIntegral @Int16 @Int32 |] False)
-$(instantiatePackableField [t| 'SFixed32 |] [t| Word16 |] [| Signed . Fixed . fromIntegral @Word16 @Int32 |] False)
-$(instantiatePackableField [t| 'SFixed32 |] [t| Int32 |] [| Signed . Fixed |] False)
-$(instantiatePackableField [t| 'SFixed64 |] [t| Int8 |] [| Signed . Fixed . fromIntegral @Int8 @Int64 |] False)
-$(instantiatePackableField [t| 'SFixed64 |] [t| Word8 |] [| Signed . Fixed . fromIntegral @Word8 @Int64 |] False)
-$(instantiatePackableField [t| 'SFixed64 |] [t| Int16 |] [| Signed . Fixed . fromIntegral @Int16 @Int64 |] False)
-$(instantiatePackableField [t| 'SFixed64 |] [t| Word16 |] [| Signed . Fixed . fromIntegral @Word16 @Int64 |] False)
-$(instantiatePackableField [t| 'SFixed64 |] [t| Int32 |] [| Signed . Fixed . fromIntegral @Int32 @Int64 |] False)
-$(instantiatePackableField [t| 'SFixed64 |] [t| Word32 |] [| Signed . Fixed . fromIntegral @Word32 @Int64 |] False)
-$(instantiatePackableField [t| 'SFixed64 |] [t| Int64 |] [| Signed . Fixed |] False)
-$(instantiatePackableField [t| 'Bool |] [t| Bool |] [| id |] True)
-$(instantiatePackableField [t| 'Float |] [t| Float |] [| id |] True)
-$(instantiatePackableField [t| 'Double |] [t| Float |] [| realToFrac @Float @Double |] True)
-$(instantiatePackableField [t| 'Double |] [t| Double |] [| id |] True)
+$(instantiatePackableField [t| 'Int32 |] [t| Int8 |] [| fromIntegral @Int8 @Int32 |] True False)
+$(instantiatePackableField [t| 'Int32 |] [t| Word8 |] [| fromIntegral @Word8 @Int32 |] True False)
+$(instantiatePackableField [t| 'Int32 |] [t| Int16 |] [| fromIntegral @Int16 @Int32 |] True False)
+$(instantiatePackableField [t| 'Int32 |] [t| Word16 |] [| fromIntegral @Word16 @Int32 |] True False)
+$(instantiatePackableField [t| 'Int32 |] [t| Int32 |] [| id |] True True)
+$(instantiatePackableField [t| 'Int64 |] [t| Int8 |] [| fromIntegral @Int8 @Int32 |] True False)
+$(instantiatePackableField [t| 'Int64 |] [t| Word8 |] [| fromIntegral @Word8 @Int32 |] True False)
+$(instantiatePackableField [t| 'Int64 |] [t| Int16 |] [| fromIntegral @Int16 @Int32 |] True False)
+$(instantiatePackableField [t| 'Int64 |] [t| Word16 |] [| fromIntegral @Word16 @Int32 |] True False)
+$(instantiatePackableField [t| 'Int64 |] [t| Int32 |] [| id |] True False)
+$(instantiatePackableField [t| 'Int64 |] [t| Word32 |] [| fromIntegral @Word32 @Int64 |] True False)
+$(instantiatePackableField [t| 'Int64 |] [t| Int64 |] [| id |] True True)
+$(instantiatePackableField [t| 'SInt32 |] [t| Int8 |] [| Signed . fromIntegral @Int8 @Int32 |] False False)
+$(instantiatePackableField [t| 'SInt32 |] [t| Word8 |] [| Signed . fromIntegral @Word8 @Int32 |] False False)
+$(instantiatePackableField [t| 'SInt32 |] [t| Int16 |] [| Signed . fromIntegral @Int16 @Int32 |] False False)
+$(instantiatePackableField [t| 'SInt32 |] [t| Word16 |] [| Signed . fromIntegral @Word16 @Int32 |] False False)
+$(instantiatePackableField [t| 'SInt32 |] [t| Int32 |] [| Signed |] False True)
+$(instantiatePackableField [t| 'SInt64 |] [t| Int8 |] [| Signed . fromIntegral @Int8 @Int32 |] False False)
+$(instantiatePackableField [t| 'SInt64 |] [t| Word8 |] [| Signed . fromIntegral @Word8 @Int32 |] False False)
+$(instantiatePackableField [t| 'SInt64 |] [t| Int16 |] [| Signed . fromIntegral @Int16 @Int32 |] False False)
+$(instantiatePackableField [t| 'SInt64 |] [t| Word16 |] [| Signed . fromIntegral @Word16 @Int32 |] False False)
+$(instantiatePackableField [t| 'SInt64 |] [t| Int32 |] [| Signed |] False False)
+$(instantiatePackableField [t| 'SInt64 |] [t| Word32 |] [| Signed . fromIntegral @Word32 @Int64 |] False False)
+$(instantiatePackableField [t| 'SInt64 |] [t| Int64 |] [| Signed |] False True)
+$(instantiatePackableField [t| 'UInt32 |] [t| Word8 |] [| fromIntegral @Word8 @Word32 |] True False)
+$(instantiatePackableField [t| 'UInt32 |] [t| Word16 |] [| fromIntegral @Word16 @Word32 |] True False)
+$(instantiatePackableField [t| 'UInt32 |] [t| Word32 |] [| id |] True True)
+$(instantiatePackableField [t| 'UInt64 |] [t| Word8 |] [| fromIntegral @Word8 @Word32 |] True False)
+$(instantiatePackableField [t| 'UInt64 |] [t| Word16 |] [| fromIntegral @Word16 @Word32 |] True False)
+$(instantiatePackableField [t| 'UInt64 |] [t| Word32 |] [| id |] True False)
+$(instantiatePackableField [t| 'UInt64 |] [t| Word64 |] [| id |] True True)
+$(instantiatePackableField [t| 'Fixed32 |] [t| Word8 |] [| Fixed . fromIntegral @Word8 @Word32 |] False False)
+$(instantiatePackableField [t| 'Fixed32 |] [t| Word16 |] [| Fixed . fromIntegral @Word16 @Word32 |] False False)
+$(instantiatePackableField [t| 'Fixed32 |] [t| Word32 |] [| Fixed |] False True)
+$(instantiatePackableField [t| 'Fixed64 |] [t| Word8 |] [| Fixed . fromIntegral @Word8 @Word64 |] False False)
+$(instantiatePackableField [t| 'Fixed64 |] [t| Word16 |] [| Fixed . fromIntegral @Word16 @Word64 |] False False)
+$(instantiatePackableField [t| 'Fixed64 |] [t| Word32 |] [| Fixed . fromIntegral @Word32 @Word64 |] False False)
+$(instantiatePackableField [t| 'Fixed64 |] [t| Word64 |] [| Fixed |] False True)
+$(instantiatePackableField [t| 'SFixed32 |] [t| Int8 |] [| Signed . Fixed . fromIntegral @Int8 @Int32 |] False False)
+$(instantiatePackableField [t| 'SFixed32 |] [t| Word8 |] [| Signed . Fixed . fromIntegral @Word8 @Int32 |] False False)
+$(instantiatePackableField [t| 'SFixed32 |] [t| Int16 |] [| Signed . Fixed . fromIntegral @Int16 @Int32 |] False False)
+$(instantiatePackableField [t| 'SFixed32 |] [t| Word16 |] [| Signed . Fixed . fromIntegral @Word16 @Int32 |] False False)
+$(instantiatePackableField [t| 'SFixed32 |] [t| Int32 |] [| Signed . Fixed |] False True)
+$(instantiatePackableField [t| 'SFixed64 |] [t| Int8 |] [| Signed . Fixed . fromIntegral @Int8 @Int64 |] False False)
+$(instantiatePackableField [t| 'SFixed64 |] [t| Word8 |] [| Signed . Fixed . fromIntegral @Word8 @Int64 |] False False)
+$(instantiatePackableField [t| 'SFixed64 |] [t| Int16 |] [| Signed . Fixed . fromIntegral @Int16 @Int64 |] False False)
+$(instantiatePackableField [t| 'SFixed64 |] [t| Word16 |] [| Signed . Fixed . fromIntegral @Word16 @Int64 |] False False)
+$(instantiatePackableField [t| 'SFixed64 |] [t| Int32 |] [| Signed . Fixed . fromIntegral @Int32 @Int64 |] False False)
+$(instantiatePackableField [t| 'SFixed64 |] [t| Word32 |] [| Signed . Fixed . fromIntegral @Word32 @Int64 |] False False)
+$(instantiatePackableField [t| 'SFixed64 |] [t| Int64 |] [| Signed . Fixed |] False True)
+$(instantiatePackableField [t| 'Bool |] [t| Bool |] [| id |] True True)
+$(instantiatePackableField [t| 'Float |] [t| Float |] [| id |] True True)
+$(instantiatePackableField [t| 'Double |] [t| Float |] [| realToFrac @Float @Double |] True False)
+$(instantiatePackableField [t| 'Double |] [t| Double |] [| id |] True True)
 
 $(instantiateStringOrBytesField
    [t| 'String |]
    [t| Proto3.Suite.Types.String |]
-   [ [t| T.Text |], [t| TL.Text |], [t| TS.ShortText |] ]
+   [ [t| TS.ShortText |], [t| T.Text |], [t| TL.Text |] ]
  )
 $(instantiateStringOrBytesField
    [t| 'Bytes |]
    [t| Proto3.Suite.Types.Bytes |]
-   [ [t| B.ByteString |], [t| BL.ByteString |], [t| BS.ShortByteString |] ]
+   [ [t| BS.ShortByteString |], [t| B.ByteString |], [t| BL.ByteString |] ]
  )
 
 instance ( ProtoEnum e
@@ -285,75 +279,3 @@ instance ( MessageFieldType repetition protoType a
 messageReflection :: forall a . Message a => a -> MessageEncoder a
 messageReflection m = coerce (encodeMessage @a (Wire.fieldNumber 1) m)
 {-# INLINABLE messageReflection #-}
-
--- | Like 'Field' but always encodes from the type chosen by 'ScalarType',
--- which can resolve ambiguities when converting from some possibly-wider
--- type such as 'Int' or 'Word' in order to obtain the value to be encoded,
--- or when encoding from a literal value.
---
--- Design Note:
---
--- We hope that the integer encoders are written in such a way that small
--- integer literals will be encoded cheaply even when expressed with wide types
--- such as 'Int64', thanks to inlining and subsequent compiler optimization.
-type Scalar :: Symbol -> Type -> Type -> Constraint
-class Scalar name a message
-  where
-    -- | Like 'field' but more restricted in argument type.
-    --
-    -- See also 'wrappedScalar'.
-    scalar :: forall names . a -> Prefix message names (Occupy message name names)
-
-instance forall (name :: Symbol) (a :: Type) (message :: Type) .
-         ( KnownFieldNumber message name
-         , ScalarForm (RepetitionOf message name) (ProtoTypeOf message name) a
-         ) =>
-         Scalar name a message
-  where
-    scalar :: forall names . a -> Prefix message names (Occupy message name names)
-    scalar = coerce
-      @(a -> Encode.MessageBuilder)
-      @(a -> Prefix message names (Occupy message name names))
-      (scalarForm @(RepetitionOf message name) @(ProtoTypeOf message name) @a
-                  proxy# proxy# (fieldNumber @message @name))
-    {-# INLINE scalar #-}
-
--- | Implements 'Scalar' for all fields having the specified repetition,
--- protobuf type, and type of argument to be encoded within that field.
-type ScalarForm :: Repetition -> ProtoType -> Type -> Constraint
-class ScalarForm repetition protoType a
-  where
-    -- | Like 'fieldForm' but more restricted in argument type.
-    scalarForm :: Proxy# repetition -> Proxy# protoType -> FieldNumber -> a -> Encode.MessageBuilder
-
-instance ScalarForm ('Singular 'Alternative) protoType a =>
-         ScalarForm 'Optional protoType (Maybe a)
-  where
-    scalarForm _ ty !fn me =
-      foldMap @Maybe (scalarForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn) me
-    {-# INLINE scalarForm #-}
-
-instance ( FoldBuilders t
-         , ScalarForm ('Singular 'Alternative) protoType a
-         ) =>
-         ScalarForm ('Repeated 'Unpacked) protoType (t a)
-  where
-    scalarForm _ ty !fn es =
-      foldBuilders (scalarForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn <$> es)
-    {-# INLINE scalarForm #-}
-
-instance ( ScalarType protoType ~ a
-         , FieldForm ('Singular omission) protoType a
-         ) =>
-         ScalarForm ('Singular omission) protoType a
-  where
-    scalarForm = fieldForm
-    {-# INLINE scalarForm #-}
-
-instance ( ScalarType protoType ~ a
-         , FieldForm ('Repeated 'Packed) protoType (t a)
-         ) =>
-         ScalarForm ('Repeated 'Packed) protoType (t a)
-  where
-    scalarForm = fieldForm
-    {-# INLINE scalarForm #-}

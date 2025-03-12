@@ -10,8 +10,6 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeOperators         #-}
-{-# LANGUAGE UndecidableInstances  #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -21,6 +19,7 @@ import           ArbitraryGeneratedTestTypes ()
 import qualified Data.ByteString             as B
 import qualified Data.ByteString.Char8       as BC
 import qualified Data.ByteString.Lazy        as BL
+import qualified Data.ByteString.Short       as BS
 import           Data.Either                 (isRight)
 import           Data.Functor.Identity       (Identity(..))
 import           Data.Int                    (Int8, Int16, Int32, Int64)
@@ -28,6 +27,7 @@ import qualified Data.List.NonEmpty          as NE
 import           Data.Proxy                  (Proxy(..))
 import           Data.String
 import qualified Data.Text.Lazy
+import qualified Data.Text.Short
 import           Data.Typeable               (Typeable, showsTypeRep, typeRep)
 import           Data.Word                   (Word8, Word16, Word32, Word64)
 import qualified Data.Vector                 as V
@@ -163,8 +163,7 @@ qcPropDecEncId = testGroup "Property: (decode . encode = id) for various message
 encodeUnitTests :: TestTree
 encodeUnitTests = testGroup "Encoder unit tests"
   [ encoderMatchesGoldens
-  , encoderPromotions
-  , encoderScalarWidth
+  , encoderPromotionsAndAuto
   , encodeWrappedString
   , encodeWrappedBytes
   , encodeBytesFromBuilder
@@ -558,49 +557,68 @@ type instance Form.OneOfOf (TestMessage num ('Form.Repeated packing) protoType) 
 type instance Form.RepetitionOf (TestMessage num repetition protoType) "name" = repetition
 type instance Form.RepetitionOf (TestMessage num ('Form.Singular 'Form.Alternative) protoType) "pickOne" = 'Form.Singular 'Form.Alternative
 
-encoderPromotions :: TestTree
-encoderPromotions = testGroup "Encoder promotes types correctly"
-  [ check @'Form.Int32 @Int8 @Int32 "int32" (fromIntegral @Int8 @Int32)
-  , check @'Form.Int32 @Word8 @Int32 "int32" (fromIntegral @Word8 @Int32)
-  , check @'Form.Int32 @Int16 @Int32 "int32" (fromIntegral @Int16 @Int32)
-  , check @'Form.Int32 @Word16 @Int32 "int32" (fromIntegral @Word16 @Int32)
-  , check @'Form.Int64 @Int8 @Int64 "int64" (fromIntegral @Int8 @Int64)
-  , check @'Form.Int64 @Word8 @Int64 "int64" (fromIntegral @Word8 @Int64)
-  , check @'Form.Int64 @Int16 @Int64 "int64"(fromIntegral @Int16 @Int64)
-  , check @'Form.Int64 @Word16 @Int64 "int64"(fromIntegral @Word16 @Int64)
-  , check @'Form.Int64 @Int32 @Int64 "int64"(fromIntegral @Int32 @Int64)
-  , check @'Form.Int64 @Word32 @Int64 "int64"(fromIntegral @Word32 @Int64)
-  , check @'Form.SInt32 @Int8 @Int32 "sint32" (fromIntegral @Int8 @Int32)
-  , check @'Form.SInt32 @Word8 @Int32 "sint32" (fromIntegral @Word8 @Int32)
-  , check @'Form.SInt32 @Int16 @Int32 "sint32" (fromIntegral @Int16 @Int32)
-  , check @'Form.SInt32 @Word16 @Int32 "sint32" (fromIntegral @Word16 @Int32)
-  , check @'Form.SInt64 @Int8 @Int64 "sint64" (fromIntegral @Int8 @Int64)
-  , check @'Form.SInt64 @Word8 @Int64 "sint64" (fromIntegral @Word8 @Int64)
-  , check @'Form.SInt64 @Int16 @Int64 "sint64" (fromIntegral @Int16 @Int64)
-  , check @'Form.SInt64 @Word16 @Int64 "sint64" (fromIntegral @Word16 @Int64)
-  , check @'Form.SInt64 @Int32 @Int64 "sint64" (fromIntegral @Int32 @Int64)
-  , check @'Form.SInt64 @Word32 @Int64 "sint64" (fromIntegral @Word32 @Int64)
-  , check @'Form.UInt32 @Word8 @Word32 "uint32" (fromIntegral @Word8 @Word32)
-  , check @'Form.UInt32 @Word16 @Word32 "uint32" (fromIntegral @Word16 @Word32)
-  , check @'Form.UInt64 @Word8 @Word64 "uint64" (fromIntegral @Word8 @Word64)
-  , check @'Form.UInt64 @Word16 @Word64 "uint64" (fromIntegral @Word16 @Word64)
-  , check @'Form.UInt64 @Word32 @Word64 "uint64" (fromIntegral @Word32 @Word64)
-  , check @'Form.Fixed32 @Word8 @Word32 "fixed32" (fromIntegral @Word8 @Word32)
-  , check @'Form.Fixed32 @Word16 @Word32 "fixed32" (fromIntegral @Word16 @Word32)
-  , check @'Form.Fixed64 @Word8 @Word64 "fixed64" (fromIntegral @Word8 @Word64)
-  , check @'Form.Fixed64 @Word16 @Word64 "fixed64" (fromIntegral @Word16 @Word64)
-  , check @'Form.Fixed64 @Word32 @Word64 "fixed64" (fromIntegral @Word32 @Word64)
-  , check @'Form.SFixed32 @Int8 @Int32 "sfixed32" (fromIntegral @Int8 @Int32)
-  , check @'Form.SFixed32 @Word8 @Int32 "sfixed32" (fromIntegral @Word8 @Int32)
-  , check @'Form.SFixed32 @Int16 @Int32 "sfixed32" (fromIntegral @Int16 @Int32)
-  , check @'Form.SFixed32 @Word16 @Int32 "sfixed32" (fromIntegral @Word16 @Int32)
-  , check @'Form.SFixed64 @Int8 @Int64 "sfixed64" (fromIntegral @Int8 @Int64)
-  , check @'Form.SFixed64 @Word8 @Int64 "sfixed64" (fromIntegral @Word8 @Int64)
-  , check @'Form.SFixed64 @Int16 @Int64 "sfixed64" (fromIntegral @Int16 @Int64)
-  , check @'Form.SFixed64 @Word16 @Int64 "sfixed64" (fromIntegral @Word16 @Int64)
-  , check @'Form.SFixed64 @Int32 @Int64 "sfixed64" (fromIntegral @Int32 @Int64)
-  , check @'Form.SFixed64 @Word32 @Int64 "sfixed64" (fromIntegral @Word32 @Int64)
-  , check @'Form.Double @Float @Double "double" (realToFrac @Float @Double)
+encoderPromotionsAndAuto :: TestTree
+encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-selection works"
+  [ testGroup "Encoder promotes types correctly"
+      [ check @'Form.Int32 @Int8 @Int32 "int32" (fromIntegral @Int8 @Int32)
+      , check @'Form.Int32 @Word8 @Int32 "int32" (fromIntegral @Word8 @Int32)
+      , check @'Form.Int32 @Int16 @Int32 "int32" (fromIntegral @Int16 @Int32)
+      , check @'Form.Int32 @Word16 @Int32 "int32" (fromIntegral @Word16 @Int32)
+      , check @'Form.Int64 @Int8 @Int64 "int64" (fromIntegral @Int8 @Int64)
+      , check @'Form.Int64 @Word8 @Int64 "int64" (fromIntegral @Word8 @Int64)
+      , check @'Form.Int64 @Int16 @Int64 "int64"(fromIntegral @Int16 @Int64)
+      , check @'Form.Int64 @Word16 @Int64 "int64"(fromIntegral @Word16 @Int64)
+      , check @'Form.Int64 @Int32 @Int64 "int64"(fromIntegral @Int32 @Int64)
+      , check @'Form.Int64 @Word32 @Int64 "int64"(fromIntegral @Word32 @Int64)
+      , check @'Form.SInt32 @Int8 @Int32 "sint32" (fromIntegral @Int8 @Int32)
+      , check @'Form.SInt32 @Word8 @Int32 "sint32" (fromIntegral @Word8 @Int32)
+      , check @'Form.SInt32 @Int16 @Int32 "sint32" (fromIntegral @Int16 @Int32)
+      , check @'Form.SInt32 @Word16 @Int32 "sint32" (fromIntegral @Word16 @Int32)
+      , check @'Form.SInt64 @Int8 @Int64 "sint64" (fromIntegral @Int8 @Int64)
+      , check @'Form.SInt64 @Word8 @Int64 "sint64" (fromIntegral @Word8 @Int64)
+      , check @'Form.SInt64 @Int16 @Int64 "sint64" (fromIntegral @Int16 @Int64)
+      , check @'Form.SInt64 @Word16 @Int64 "sint64" (fromIntegral @Word16 @Int64)
+      , check @'Form.SInt64 @Int32 @Int64 "sint64" (fromIntegral @Int32 @Int64)
+      , check @'Form.SInt64 @Word32 @Int64 "sint64" (fromIntegral @Word32 @Int64)
+      , check @'Form.UInt32 @Word8 @Word32 "uint32" (fromIntegral @Word8 @Word32)
+      , check @'Form.UInt32 @Word16 @Word32 "uint32" (fromIntegral @Word16 @Word32)
+      , check @'Form.UInt64 @Word8 @Word64 "uint64" (fromIntegral @Word8 @Word64)
+      , check @'Form.UInt64 @Word16 @Word64 "uint64" (fromIntegral @Word16 @Word64)
+      , check @'Form.UInt64 @Word32 @Word64 "uint64" (fromIntegral @Word32 @Word64)
+      , check @'Form.Fixed32 @Word8 @Word32 "fixed32" (fromIntegral @Word8 @Word32)
+      , check @'Form.Fixed32 @Word16 @Word32 "fixed32" (fromIntegral @Word16 @Word32)
+      , check @'Form.Fixed64 @Word8 @Word64 "fixed64" (fromIntegral @Word8 @Word64)
+      , check @'Form.Fixed64 @Word16 @Word64 "fixed64" (fromIntegral @Word16 @Word64)
+      , check @'Form.Fixed64 @Word32 @Word64 "fixed64" (fromIntegral @Word32 @Word64)
+      , check @'Form.SFixed32 @Int8 @Int32 "sfixed32" (fromIntegral @Int8 @Int32)
+      , check @'Form.SFixed32 @Word8 @Int32 "sfixed32" (fromIntegral @Word8 @Int32)
+      , check @'Form.SFixed32 @Int16 @Int32 "sfixed32" (fromIntegral @Int16 @Int32)
+      , check @'Form.SFixed32 @Word16 @Int32 "sfixed32" (fromIntegral @Word16 @Int32)
+      , check @'Form.SFixed64 @Int8 @Int64 "sfixed64" (fromIntegral @Int8 @Int64)
+      , check @'Form.SFixed64 @Word8 @Int64 "sfixed64" (fromIntegral @Word8 @Int64)
+      , check @'Form.SFixed64 @Int16 @Int64 "sfixed64" (fromIntegral @Int16 @Int64)
+      , check @'Form.SFixed64 @Word16 @Int64 "sfixed64" (fromIntegral @Word16 @Int64)
+      , check @'Form.SFixed64 @Int32 @Int64 "sfixed64" (fromIntegral @Int32 @Int64)
+      , check @'Form.SFixed64 @Word32 @Int64 "sfixed64" (fromIntegral @Word32 @Int64)
+      , check @'Form.Double @Float @Double "double" (realToFrac @Float @Double)
+      ]
+  , testGroup "Encoder Auto wrapper does not change format"
+      [ check @'Form.Int32 @Int32 @(FormE.Auto Int32) "int32" FormE.Auto
+      , check @'Form.Int64 @Int64 @(FormE.Auto Int64) "int64" FormE.Auto
+      , check @'Form.SInt32 @Int32 @(FormE.Auto Int32) "sint32" FormE.Auto
+      , check @'Form.SInt64 @Int64 @(FormE.Auto Int64) "sint64" FormE.Auto
+      , check @'Form.UInt32 @Word32 @(FormE.Auto Word32) "uint32" FormE.Auto
+      , check @'Form.UInt64 @Word64 @(FormE.Auto Word64) "uint64" FormE.Auto
+      , check @'Form.Fixed32 @Word32 @(FormE.Auto Word32) "fixed32" FormE.Auto
+      , check @'Form.Fixed64 @Word64 @(FormE.Auto Word64) "fixed64" FormE.Auto
+      , check @'Form.SFixed32 @Int32 @(FormE.Auto Int32) "sfixed32" FormE.Auto
+      , check @'Form.SFixed64 @Int64 @(FormE.Auto Int64) "sfixed64" FormE.Auto
+      , check @'Form.Bool @Bool @(FormE.Auto Bool) "bool" FormE.Auto
+      , check @'Form.Float @Float @(FormE.Auto Float) "float" FormE.Auto
+      , check @'Form.Double @Double @(FormE.Auto Double) "double" FormE.Auto
+      , checkNotPacked @'Form.String @Data.Text.Short.ShortText @(FormE.Auto Data.Text.Short.ShortText) "string" FormE.Auto
+      , checkNotPacked @'Form.Bytes @BS.ShortByteString @(FormE.Auto BS.ShortByteString) "bytes" FormE.Auto
+      ]
   ]
   where
     check ::
@@ -638,41 +656,127 @@ encoderPromotions = testGroup "Encoder promotes types correctly"
     check protoTypeName convert =
       testProperty (showString protoTypeName $ showString ": " $
                     showsType @a $ showString " -> " $ showsType @b "") $
-        forAll (choose (1, 536870911)) $ \fieldNum ->
-        case someNatVal fieldNum of
-          Nothing ->
-            property False  -- Should never happen.
-          Just (SomeNat (_ :: Proxy num)) ->
-            forAll arbitrary $ \a ->
-            forAll arbitrary $ \(as :: [a])->
-            let b :: b
-                b = convert a
-                bs :: [b]
-                bs = map convert as in
-            counterexample "Implicit"
-              (check1 @num @('Form.Singular 'Form.Implicit) @protoType a b) .&&.
-            counterexample "Optional - Nothing"
-              (check1 @num @'Form.Optional @protoType (Nothing @a) (Nothing @b)) .&&.
-            counterexample "Optional - Just"
-              (check1 @num @'Form.Optional @protoType (Just a) (Just b)) .&&.
-            counterexample "Alternative"
-              (check1 @num @('Form.Singular 'Form.Alternative) @protoType a b) .&&.
-            counterexample "Unpacked Identity"
-              (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (Identity a) (Identity b)) .&&.
-            counterexample "Unpacked Forward"
-              (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (FormE.toRepeated as) (FormE.toRepeated bs)) .&&.
-            counterexample "Unpacked Reverse"
-              (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (FormE.Reverse (FormE.toRepeated (reverse as))) (FormE.Reverse (FormE.toRepeated (reverse bs)))) .&&.
-            counterexample "Unpacked Vector"
-              (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (FormE.toRepeated (V.fromList as)) (FormE.toRepeated (V.fromList bs))) .&&.
-            counterexample "Packed Identity"
-              (check1 @num @('Form.Repeated 'Form.Packed) @protoType (Identity a) (Identity b)) .&&.
-            counterexample "Packed Forward"
-              (check1 @num @('Form.Repeated 'Form.Packed) @protoType (FormE.toRepeated as) (FormE.toRepeated bs)) .&&.
-            counterexample "Packed Reverse"
-              (check1 @num @('Form.Repeated 'Form.Packed) @protoType (FormE.Reverse (FormE.toRepeated (reverse as))) (FormE.Reverse (FormE.toRepeated (reverse bs)))) .&&.
-            counterexample "Packed Vector"
-              (check1 @num @('Form.Repeated 'Form.Packed) @protoType (FormE.toRepeated (V.fromList as)) (FormE.toRepeated (V.fromList bs)))
+        propNotPacked @protoType convert .&&.
+        propPacked @protoType convert
+
+    checkNotPacked ::
+      forall (protoType :: Form.ProtoType) a b .
+      ( Typeable a
+      , Typeable b
+      , Arbitrary a
+      , Show a
+      , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType a
+      , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType b
+      , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType a
+      , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType b
+      , FormE.FieldForm 'Form.Optional protoType (Maybe a)
+      , FormE.FieldForm 'Form.Optional protoType (Maybe b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN b)
+      ) =>
+      String ->
+      (a -> b) ->
+      TestTree
+    checkNotPacked protoTypeName convert =
+      testProperty (showString protoTypeName $ showString ": " $
+                    showsType @a $ showString " -> " $ showsType @b "") $
+        propNotPacked @protoType convert
+
+    propNotPacked ::
+      forall (protoType :: Form.ProtoType) a b .
+      ( Typeable a
+      , Typeable b
+      , Arbitrary a
+      , Show a
+      , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType a
+      , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType b
+      , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType a
+      , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType b
+      , FormE.FieldForm 'Form.Optional protoType (Maybe a)
+      , FormE.FieldForm 'Form.Optional protoType (Maybe b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN b)
+      ) =>
+      (a -> b) ->
+      Property
+    propNotPacked convert =
+      forAll (choose (1, 536870911)) $ \fieldNum ->
+      case someNatVal fieldNum of
+        Nothing ->
+          property False  -- Should never happen.
+        Just (SomeNat (_ :: Proxy num)) ->
+          forAll arbitrary $ \a ->
+          forAll arbitrary $ \(as :: [a])->
+          let b :: b
+              b = convert a
+              bs :: [b]
+              bs = map convert as in
+          counterexample "Implicit"
+            (check1 @num @('Form.Singular 'Form.Implicit) @protoType a b) .&&.
+          counterexample "Optional - Nothing"
+            (check1 @num @'Form.Optional @protoType (Nothing @a) (Nothing @b)) .&&.
+          counterexample "Optional - Just"
+            (check1 @num @'Form.Optional @protoType (Just a) (Just b)) .&&.
+          counterexample "Alternative"
+            (check1 @num @('Form.Singular 'Form.Alternative) @protoType a b) .&&.
+          counterexample "Unpacked Identity"
+            (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (Identity a) (Identity b)) .&&.
+          counterexample "Unpacked Forward"
+            (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (FormE.toRepeated as) (FormE.toRepeated bs)) .&&.
+          counterexample "Unpacked Reverse"
+            (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (FormE.Reverse (FormE.toRepeated (reverse as))) (FormE.Reverse (FormE.toRepeated (reverse bs)))) .&&.
+          counterexample "Unpacked Vector"
+            (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (FormE.toRepeated (V.fromList as)) (FormE.toRepeated (V.fromList bs)))
+
+    propPacked ::
+      forall (protoType :: Form.ProtoType) a b .
+      ( Typeable a
+      , Typeable b
+      , Arbitrary a
+      , Show a
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Identity a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Identity b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Forward a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Forward b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.ReverseN a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.ReverseN b)
+      ) =>
+      (a -> b) ->
+      Property
+    propPacked convert =
+      forAll (choose (1, 536870911)) $ \fieldNum ->
+      case someNatVal fieldNum of
+        Nothing ->
+          property False  -- Should never happen.
+        Just (SomeNat (_ :: Proxy num)) ->
+          forAll arbitrary $ \a ->
+          forAll arbitrary $ \(as :: [a])->
+          let b :: b
+              b = convert a
+              bs :: [b]
+              bs = map convert as in
+          counterexample "Packed Identity"
+            (check1 @num @('Form.Repeated 'Form.Packed) @protoType (Identity a) (Identity b)) .&&.
+          counterexample "Packed Forward"
+            (check1 @num @('Form.Repeated 'Form.Packed) @protoType (FormE.toRepeated as) (FormE.toRepeated bs)) .&&.
+          counterexample "Packed Reverse"
+            (check1 @num @('Form.Repeated 'Form.Packed) @protoType (FormE.Reverse (FormE.toRepeated (reverse as))) (FormE.Reverse (FormE.toRepeated (reverse bs)))) .&&.
+          counterexample "Packed Vector"
+            (check1 @num @('Form.Repeated 'Form.Packed) @protoType (FormE.toRepeated (V.fromList as)) (FormE.toRepeated (V.fromList bs)))
 
     check1 ::
       forall (num :: Nat) (repetition :: Form.Repetition) (protoType :: Form.ProtoType) a b .
@@ -690,107 +794,6 @@ encoderPromotions = testGroup "Encoder promotes types correctly"
       ===
       FormE.toLazyByteString
         (FormE.fieldsToMessage (FormE.field @"name" @b @(TestMessage num repetition protoType) b))
-
-    showsType :: forall a . Typeable a => ShowS
-    showsType = showsTypeRep (typeRep (Proxy :: Proxy a))
-
-encoderScalarWidth :: TestTree
-encoderScalarWidth = testGroup "Encoder restricted to particular numeric widths"
-  [ check @'Form.Int32 @Int32 "int32"
-  , check @'Form.Int64 @Int64 "int64"
-  , check @'Form.SInt32 @Int32 "sint32"
-  , check @'Form.SInt64 @Int64 "sint64"
-  , check @'Form.UInt32 @Word32 "uint32"
-  , check @'Form.UInt64 @Word64 "uint64"
-  , check @'Form.Fixed32 @Word32 "fixed32"
-  , check @'Form.Fixed64 @Word64 "fixed64"
-  , check @'Form.SFixed32 @Int32 "sfixed32"
-  , check @'Form.SFixed64 @Int64 "sfixed64"
-  , check @'Form.Bool @Bool "bool"
-  , check @'Form.Float @Float "float"
-  , check @'Form.Double @Double "double"
-  ]
-  where
-    check ::
-      forall (protoType :: Form.ProtoType) a .
-      ( Form.ScalarType protoType ~ a
-      , Typeable a
-      , Arbitrary a
-      , Show a
-      , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType a
-      , FormE.ScalarForm ('Form.Singular 'Form.Alternative) protoType a
-      , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType a
-      , FormE.ScalarForm ('Form.Singular 'Form.Implicit) protoType a
-      , FormE.FieldForm 'Form.Optional protoType (Maybe a)
-      , FormE.ScalarForm 'Form.Optional protoType (Maybe a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
-      , FormE.ScalarForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward a)
-      , FormE.ScalarForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse a)
-      , FormE.ScalarForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN a)
-      , FormE.ScalarForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Identity a)
-      , FormE.ScalarForm ('Form.Repeated 'Form.Packed) protoType (Identity a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Forward a)
-      , FormE.ScalarForm ('Form.Repeated 'Form.Packed) protoType (FormE.Forward a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse a)
-      , FormE.ScalarForm ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.ReverseN a)
-      , FormE.ScalarForm ('Form.Repeated 'Form.Packed) protoType (FormE.ReverseN a)
-      ) =>
-      String ->
-      TestTree
-    check protoTypeName =
-      testProperty (showString protoTypeName $ showString ": " $ showsType @a "") $
-        forAll (choose (1, 536870911)) $ \fieldNum ->
-        case someNatVal fieldNum of
-          Nothing ->
-            property False  -- Should never happen.
-          Just (SomeNat (_ :: Proxy num)) ->
-            forAll arbitrary $ \(a :: a) ->
-            forAll arbitrary $ \(as :: [a])->
-            counterexample "Implicit"
-              (check1 @num @('Form.Singular 'Form.Implicit) @protoType a) .&&.
-            counterexample "Optional - Nothing"
-              (check1 @num @'Form.Optional @protoType (Nothing @a)) .&&.
-            counterexample "Optional - Just"
-              (check1 @num @'Form.Optional @protoType (Just a)) .&&.
-            counterexample "Alternative"
-              (check1 @num @('Form.Singular 'Form.Alternative) @protoType a) .&&.
-            counterexample "Unpacked Identity"
-              (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (Identity a)) .&&.
-            counterexample "Unpacked Forward"
-              (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (FormE.toRepeated as)) .&&.
-            counterexample "Unpacked Reverse"
-              (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (FormE.Reverse (FormE.toRepeated (reverse as)))) .&&.
-            counterexample "Unpacked Vector"
-              (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (FormE.toRepeated (V.fromList as))) .&&.
-            counterexample "Packed Identity"
-              (check1 @num @('Form.Repeated 'Form.Packed) @protoType (Identity a)) .&&.
-            counterexample "Packed Forward"
-              (check1 @num @('Form.Repeated 'Form.Packed) @protoType (FormE.toRepeated as)) .&&.
-            counterexample "Packed Reverse"
-              (check1 @num @('Form.Repeated 'Form.Packed) @protoType (FormE.Reverse (FormE.toRepeated (reverse as)))) .&&.
-            counterexample "Packed Vector"
-              (check1 @num @('Form.Repeated 'Form.Packed) @protoType (FormE.toRepeated (V.fromList as)))
-
-    check1 ::
-      forall (num :: Nat) (repetition :: Form.Repetition) (protoType :: Form.ProtoType) a .
-      ( FormE.Field "name" a (TestMessage num repetition protoType)
-      , FormE.Scalar "name" a (TestMessage num repetition protoType)
-      , FormE.Distinct (TestMessage num repetition protoType)
-                       (FormE.Occupy (TestMessage num repetition protoType) "name" '[])
-      ) =>
-      a ->
-      Property
-    check1 a =
-      FormE.toLazyByteString
-        (FormE.fieldsToMessage (FormE.field @"name" @a @(TestMessage num repetition protoType) a))
-      ===
-      FormE.toLazyByteString
-        (FormE.fieldsToMessage (FormE.scalar @"name" @a @(TestMessage num repetition protoType) a))
 
     showsType :: forall a . Typeable a => ShowS
     showsType = showsTypeRep (typeRep (Proxy :: Proxy a))

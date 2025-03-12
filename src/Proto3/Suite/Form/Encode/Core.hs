@@ -55,6 +55,7 @@ module Proto3.Suite.Form.Encode.Core
   , Field(..)
   , FieldForm(..)
   , Wrap(..)
+  , Auto(..)
   , codeFromEnumerated
   , instantiatePackableField
   , instantiateStringOrBytesField
@@ -386,14 +387,12 @@ class Field name a message
     -- an integer literal, or a string literal if you use @OverloadedStrings@.
     -- (The runtime representation of the argument type is found by unification.)
     --
-    -- If the argument type is too verbose, or should be chosen based on the
-    -- protobuf type in order to avoid accidentally using a narrower type that
-    -- cannot represent all possible field values, then we recommend wrapping
-    -- the call to 'field' in a helper function in order to automatically select
-    -- the argument type best suited to your particular use case.  Examples:
+    -- If the argument type is too verbose, or is ambiguous due to polymorphism,
+    -- then we recommend using 'Auto' or wrapping the call to 'field' in a helper
+    -- function in order to automatically select the argument type best suited to
+    -- your particular use case.  Examples:
     -- `Proto3.Suite.Form.Encode.message`,
-    -- `Proto3.Suite.Form.Encode.associations`,
-    -- `Proto3.Suite.Form.Encode.scalar`.
+    -- `Proto3.Suite.Form.Encode.associations`.
     --
     -- See also 'fieldForm'.
     field :: forall names . a -> Prefix message names (Occupy message name names)
@@ -564,6 +563,16 @@ instance ( omission ~ 'Alternative
     fieldForm rep ty !fn (Wrap x) =
       fieldForm rep ty fn (fieldsToMessage @(Wrapper protoType) (field @"value" x))
     {-# INLINE fieldForm #-}
+
+-- | Asks that its type parameter be chosen to be the most efficient Haskell type
+-- that expresses the full range of possible values of the relevant protobuf field.
+--
+-- This choice can be used to resolve ambiguity around polymorphic
+-- literal values, or when performing a polymorphic conversion
+-- from a type that is not directly encodable, such as 'Int'.
+newtype Auto (a :: Type) = Auto { unauto :: a }
+  deriving stock (Foldable, Functor, Generic, Traversable)
+  deriving newtype (Bounded, Enum, Eq, Fractional, Integral, Ord, Num, Read, Real, Show)
 
 -- | Any encoding of the first type can be decoded as the second without
 -- changing semantics.  This relation is more strict than the compatibilities
@@ -851,8 +860,9 @@ codeFromEnumerated :: ProtoEnum e => Enumerated e -> Int32
 codeFromEnumerated = either id fromProtoEnum . enumerated
 {-# INLINE codeFromEnumerated #-}
 
-instantiatePackableField :: TH.Q TH.Type -> TH.Q TH.Type -> TH.Q TH.Exp -> Bool -> TH.Q [TH.Dec]
-instantiatePackableField protoType elementType conversion hasWrapper = do
+instantiatePackableField ::
+  TH.Q TH.Type -> TH.Q TH.Type -> TH.Q TH.Exp -> Bool -> Bool -> TH.Q [TH.Dec]
+instantiatePackableField protoType elementType conversion hasWrapper isAuto = do
   direct <-
     [d|
 
@@ -900,7 +910,47 @@ instantiatePackableField protoType elementType conversion hasWrapper = do
 
       |]
 
-  pure $ direct ++ wrapped
+  auto <- if not isAuto then pure [] else
+    [d|
+
+      instance (a ~ $elementType) =>
+               FieldForm ('Singular 'Alternative) $protoType (Auto a)
+        where
+          fieldForm = coerce
+            (fieldForm @('Singular 'Alternative) @($protoType) @a)
+          {-# INLINE fieldForm #-}
+
+      instance (a ~ $elementType) =>
+               FieldForm ('Singular 'Implicit) $protoType (Auto a)
+        where
+          fieldForm = coerce
+            (fieldForm @('Singular 'Implicit) @($protoType) @a)
+          {-# INLINE fieldForm #-}
+
+      instance ( a ~ $elementType
+               , Functor t
+               , FieldForm ('Repeated 'Packed) $protoType (t a)
+               ) =>
+               FieldForm ('Repeated 'Packed) $protoType (t (Auto a))
+        where
+          fieldForm rep ty !fn xs = fieldForm rep ty fn (fmap unauto xs)
+          {-# INLINE fieldForm #-}
+
+      |]
+
+  wrappedAuto <- if not (hasWrapper && isAuto) then pure [] else
+    [d|
+
+      instance (omission ~ 'Alternative, a ~ $elementType) =>
+               FieldForm ('Singular omission) ('Message (Wrapper $protoType)) (Auto a)
+        where
+          fieldForm = coerce
+            (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @a)
+          {-# INLINE fieldForm #-}
+
+      |]
+
+  pure $ direct ++ wrapped ++ auto ++ wrappedAuto
 
 instantiateStringOrBytesField :: TH.Q TH.Type -> TH.Q TH.Type -> [TH.Q TH.Type] -> TH.Q [TH.Dec]
 instantiateStringOrBytesField protoType elementTC specializations = do
@@ -960,4 +1010,33 @@ instantiateStringOrBytesField protoType elementTC specializations = do
 
       |]
 
-  pure $ general ++ concat special
+  auto <- case specializations of
+    [] ->
+      pure []
+    (spec : _) ->
+      [d|
+
+        instance (a ~ $spec) =>
+                 FieldForm ('Singular 'Alternative) $protoType (Auto a)
+          where
+            fieldForm = coerce
+              (fieldForm @('Singular 'Alternative) @($protoType) @a)
+            {-# INLINE fieldForm #-}
+
+        instance (a ~ $spec) =>
+                 FieldForm ('Singular 'Implicit) $protoType (Auto a)
+          where
+            fieldForm = coerce
+              (fieldForm @('Singular 'Implicit) @($protoType) @a)
+            {-# INLINE fieldForm #-}
+
+        instance (omission ~ 'Alternative, a ~ $spec) =>
+                 FieldForm ('Singular omission) ('Message (Wrapper $protoType)) (Auto a)
+          where
+            fieldForm = coerce
+              (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @a)
+            {-# INLINE fieldForm #-}
+
+        |]
+
+  pure $ general ++ concat special ++ auto
