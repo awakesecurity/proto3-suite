@@ -69,8 +69,8 @@ module Proto3.Suite.Form.Encode
   , associations
   , Reflection(..)
   , messageReflection
-  , Number(..)
-  , NumberForm(..)
+  , Scalar(..)
+  , ScalarForm(..)
   ) where
 
 import Control.Category (Category(..))
@@ -79,6 +79,7 @@ import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Kind (Type)
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
+import Data.ByteString.Short qualified as BS
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Text.Short qualified as TS
@@ -92,8 +93,8 @@ import Proto3.Suite.Form.Encode.Repeated
          (FoldBuilders(..), Forward(..), Reverse(..), ReverseN(..),
           MapToRepeated(..), ToRepeated(..))
 import Proto3.Suite.Form
-         (Association, MessageFieldType, NumericType, Omission(..), Packing(..),
-          Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf)
+         (Association, MessageFieldType, Omission(..), Packing(..),
+          Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf, ScalarType)
 import Proto3.Suite.Types (Enumerated(..), Fixed(..), Signed(..))
 import Proto3.Suite.Types qualified
 import Proto3.Wire qualified as Wire
@@ -165,7 +166,7 @@ $(instantiateStringOrBytesField
 $(instantiateStringOrBytesField
    [t| 'Bytes |]
    [t| Proto3.Suite.Types.Bytes |]
-   [ [t| B.ByteString |], [t| BL.ByteString |] ]
+   [ [t| B.ByteString |], [t| BL.ByteString |], [t| BS.ShortByteString |] ]
  )
 
 instance ( ProtoEnum e
@@ -286,15 +287,21 @@ messageReflection :: forall a . Message a => a -> MessageEncoder a
 messageReflection m = coerce (encodeMessage @a (Wire.fieldNumber 1) m)
 {-# INLINABLE messageReflection #-}
 
--- | Like 'Field' but for numeric types that are to be encoded using
--- the narrowest Haskell type that can represent all values of the field,
+-- | Like 'Field' but always encodes from the type chosen by 'ScalarType',
 -- which can resolve ambiguities when converting from some possibly-wider
--- type such as 'Int' or 'Word' in order to obtain the value to be encoded.
-type Number :: Symbol -> forall {r} . TYPE r -> Type -> Constraint
-class Number name a message
+-- type such as 'Int' or 'Word' in order to obtain the value to be encoded,
+-- or when encoding from a literal value.
+--
+-- Design Note:
+--
+-- We hope that the integer encoders are written in such a way that small
+-- integer literals will be encoded cheaply even when expressed with wide types
+-- such as 'Int64', thanks to inlining and subsequent compiler optimization.
+type Scalar :: Symbol -> forall {r} . TYPE r -> Type -> Constraint
+class Scalar name a message
   where
     -- | Like 'field' but more restricted in argument type.
-    number :: forall names . a -> Prefix message names (Occupy message name names)
+    scalar :: forall names . a -> Prefix message names (Occupy message name names)
 
 instance forall (name :: Symbol)
 #if MIN_VERSION_ghc(9,4,0)
@@ -304,46 +311,46 @@ instance forall (name :: Symbol)
 #endif
                 (message :: Type) .
          ( KnownFieldNumber message name
-         , NumberForm (RepetitionOf message name) (ProtoTypeOf message name) a
+         , ScalarForm (RepetitionOf message name) (ProtoTypeOf message name) a
          ) =>
-         Number name a message
+         Scalar name a message
   where
-    number :: forall names . a -> Prefix message names (Occupy message name names)
-    number = coerce
+    scalar :: forall names . a -> Prefix message names (Occupy message name names)
+    scalar = coerce
       @(a -> Encode.MessageBuilder)
       @(a -> Prefix message names (Occupy message name names))
-      (numberForm @(RepetitionOf message name) @(ProtoTypeOf message name) @a
+      (scalarForm @(RepetitionOf message name) @(ProtoTypeOf message name) @a
                   proxy# proxy# (fieldNumber @message @name))
-    {-# INLINE number #-}
+    {-# INLINE scalar #-}
 
--- | Implements 'Number' for all fields having the specified repetition,
+-- | Implements 'Scalar' for all fields having the specified repetition,
 -- protobuf type, and type of argument to be encoded within that field.
-type NumberForm :: Repetition -> ProtoType -> forall {r} . TYPE r -> Constraint
-class NumberForm repetition protoType a
+type ScalarForm :: Repetition -> ProtoType -> forall {r} . TYPE r -> Constraint
+class ScalarForm repetition protoType a
   where
     -- | Like 'fieldForm' but more restricted in argument type.
-    numberForm :: Proxy# repetition -> Proxy# protoType -> FieldNumber -> a -> Encode.MessageBuilder
+    scalarForm :: Proxy# repetition -> Proxy# protoType -> FieldNumber -> a -> Encode.MessageBuilder
 
-instance ( NumericType protoType ~ a
+instance ( ScalarType protoType ~ a
          , FieldForm ('Singular omission) protoType a
          ) =>
-         NumberForm ('Singular omission) protoType a
+         ScalarForm ('Singular omission) protoType a
   where
-    numberForm = fieldForm
-    {-# INLINE numberForm #-}
+    scalarForm = fieldForm
+    {-# INLINE scalarForm #-}
 
-instance ( NumericType protoType ~ a
+instance ( ScalarType protoType ~ a
          , FieldForm 'Optional protoType (t a)
          ) =>
-         NumberForm 'Optional protoType (t a)
+         ScalarForm 'Optional protoType (t a)
   where
-    numberForm = fieldForm
-    {-# INLINE numberForm #-}
+    scalarForm = fieldForm
+    {-# INLINE scalarForm #-}
 
-instance ( NumericType protoType ~ a
+instance ( ScalarType protoType ~ a
          , FieldForm ('Repeated packing) protoType (t a)
          ) =>
-         NumberForm ('Repeated packing) protoType (t a)
+         ScalarForm ('Repeated packing) protoType (t a)
   where
-    numberForm = fieldForm
-    {-# INLINE numberForm #-}
+    scalarForm = fieldForm
+    {-# INLINE scalarForm #-}

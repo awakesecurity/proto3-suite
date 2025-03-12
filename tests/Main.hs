@@ -164,7 +164,7 @@ encodeUnitTests :: TestTree
 encodeUnitTests = testGroup "Encoder unit tests"
   [ encoderMatchesGoldens
   , encoderPromotions
-  , encoderNumberWidth
+  , encoderScalarWidth
   , encodeWrappedString
   , encodeWrappedBytes
   , encodeBytesFromBuilder
@@ -694,8 +694,8 @@ encoderPromotions = testGroup "Encoder promotes types correctly"
     showsType :: forall a . Typeable a => ShowS
     showsType = showsTypeRep (typeRep (Proxy :: Proxy a))
 
-encoderNumberWidth :: TestTree
-encoderNumberWidth = testGroup "Encoder restricted to particular numeric widths"
+encoderScalarWidth :: TestTree
+encoderScalarWidth = testGroup "Encoder restricted to particular numeric widths"
   [ check @'Form.Int32 @Int32 "int32"
   , check @'Form.Int64 @Int64 "int64"
   , check @'Form.SInt32 @Int32 "sint32"
@@ -713,32 +713,32 @@ encoderNumberWidth = testGroup "Encoder restricted to particular numeric widths"
   where
     check ::
       forall (protoType :: Form.ProtoType) a .
-      ( Form.NumericType protoType ~ a
+      ( Form.ScalarType protoType ~ a
       , Typeable a
       , Arbitrary a
       , Show a
       , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType a
-      , FormE.NumberForm ('Form.Singular 'Form.Alternative) protoType a
+      , FormE.ScalarForm ('Form.Singular 'Form.Alternative) protoType a
       , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType a
-      , FormE.NumberForm ('Form.Singular 'Form.Implicit) protoType a
+      , FormE.ScalarForm ('Form.Singular 'Form.Implicit) protoType a
       , FormE.FieldForm 'Form.Optional protoType (Maybe a)
-      , FormE.NumberForm 'Form.Optional protoType (Maybe a)
+      , FormE.ScalarForm 'Form.Optional protoType (Maybe a)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
-      , FormE.NumberForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
+      , FormE.ScalarForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward a)
-      , FormE.NumberForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward a)
+      , FormE.ScalarForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward a)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse a)
-      , FormE.NumberForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse a)
+      , FormE.ScalarForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse a)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN a)
-      , FormE.NumberForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN a)
+      , FormE.ScalarForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN a)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Identity a)
-      , FormE.NumberForm ('Form.Repeated 'Form.Packed) protoType (Identity a)
+      , FormE.ScalarForm ('Form.Repeated 'Form.Packed) protoType (Identity a)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Forward a)
-      , FormE.NumberForm ('Form.Repeated 'Form.Packed) protoType (FormE.Forward a)
+      , FormE.ScalarForm ('Form.Repeated 'Form.Packed) protoType (FormE.Forward a)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse a)
-      , FormE.NumberForm ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse a)
+      , FormE.ScalarForm ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse a)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.ReverseN a)
-      , FormE.NumberForm ('Form.Repeated 'Form.Packed) protoType (FormE.ReverseN a)
+      , FormE.ScalarForm ('Form.Repeated 'Form.Packed) protoType (FormE.ReverseN a)
       ) =>
       String ->
       TestTree
@@ -779,7 +779,7 @@ encoderNumberWidth = testGroup "Encoder restricted to particular numeric widths"
     check1 ::
       forall (num :: Nat) (repetition :: Form.Repetition) (protoType :: Form.ProtoType) a .
       ( FormE.Field "name" a (TestMessage num repetition protoType)
-      , FormE.Number "name" a (TestMessage num repetition protoType)
+      , FormE.Scalar "name" a (TestMessage num repetition protoType)
       , FormE.Distinct (TestMessage num repetition protoType)
                        (FormE.Occupy (TestMessage num repetition protoType) "name" '[])
       ) =>
@@ -790,7 +790,7 @@ encoderNumberWidth = testGroup "Encoder restricted to particular numeric widths"
         (FormE.fieldsToMessage (FormE.field @"name" @a @(TestMessage num repetition protoType) a))
       ===
       FormE.toLazyByteString
-        (FormE.fieldsToMessage (FormE.number @"name" @a @(TestMessage num repetition protoType) a))
+        (FormE.fieldsToMessage (FormE.scalar @"name" @a @(TestMessage num repetition protoType) a))
 
     showsType :: forall a . Typeable a => ShowS
     showsType = showsTypeRep (typeRep (Proxy :: Proxy a))

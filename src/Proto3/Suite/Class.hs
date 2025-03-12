@@ -108,6 +108,7 @@ import           Data.Bits              (Bits, FiniteBits)
 import qualified Data.ByteString        as B
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy   as BL
+import qualified Data.ByteString.Short  as BS
 import           Data.Coerce            (Coercible, coerce)
 import qualified Data.Foldable          as Foldable
 import           Data.Functor           (($>))
@@ -229,6 +230,11 @@ instance HasDefault BL.ByteString where
   def = mempty
 
 deriving via BL.ByteString instance HasDefault (Proto3.Suite.Types.Bytes BL.ByteString)
+
+instance HasDefault BS.ShortByteString where
+  def = mempty
+
+deriving via BS.ShortByteString instance HasDefault (Proto3.Suite.Types.Bytes BS.ShortByteString)
 
 instance ProtoEnum e => HasDefault (Enumerated e) where
   def = codeToEnumerated 0
@@ -548,6 +554,14 @@ instance Primitive BL.ByteString where
 
 deriving via BL.ByteString instance Primitive (Proto3.Suite.Types.Bytes BL.ByteString)
 
+instance Primitive BS.ShortByteString where
+  encodePrimitive !num = Encode.shortByteString num
+  {-# INLINE encodePrimitive #-}
+  decodePrimitive = Decode.shortByteString
+  primType _ = Bytes
+
+deriving via BS.ShortByteString instance Primitive (Proto3.Suite.Types.Bytes BS.ShortByteString)
+
 instance forall e. (Named e, ProtoEnum e) => Primitive (Enumerated e) where
   encodePrimitive !num = either (Encode.int32 num) (Encode.enum num) . enumerated
   {-# INLINE encodePrimitive #-}
@@ -626,6 +640,8 @@ instance MessageField B.ByteString
 deriving via B.ByteString instance MessageField (Proto3.Suite.Types.Bytes B.ByteString)
 instance MessageField BL.ByteString
 deriving via BL.ByteString instance MessageField (Proto3.Suite.Types.Bytes BL.ByteString)
+instance MessageField BS.ShortByteString
+deriving via BS.ShortByteString instance MessageField (Proto3.Suite.Types.Bytes BS.ShortByteString)
 instance (Named e, ProtoEnum e) => MessageField (Enumerated e)
 
 instance (Ord k, Primitive k, MessageField k, Primitive v, MessageField v) => MessageField (M.Map k v) where
@@ -974,6 +990,11 @@ instance Message B.ByteString where
   dotProto = dotProtoWrapper
 
 instance Message BL.ByteString where
+  encodeMessage = encodeWrapperMessage
+  decodeMessage = decodeWrapperMessage
+  dotProto = dotProtoWrapper
+
+instance Message BS.ShortByteString where
   encodeMessage = encodeWrapperMessage
   decodeMessage = decodeWrapperMessage
   dotProto = dotProtoWrapper
