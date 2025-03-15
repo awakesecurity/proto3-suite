@@ -9,6 +9,7 @@
 * Add an experimental feature to encode without using
   intermediate data structures; see Proto3.Suite.Form and
   the new compile-proto-file option --typeLevelFormat
+* Export codeFromEnumerated and codeToEnumerated.
 
 # 0.8.1
 * Fix support for dhall-1.42.

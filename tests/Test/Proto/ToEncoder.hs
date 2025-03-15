@@ -21,13 +21,16 @@ module Test.Proto.ToEncoder
 import Control.Category ((.))
 import Prelude hiding ((.))
 
+import qualified Acc
 import Data.Foldable (toList)
 import qualified Data.Functor.Identity as Functor (Identity(..))
 import Data.Kind (Type)
 import qualified Data.Map as M
 import qualified Data.Vector
+import qualified GHC.Exts
 import qualified Proto3.Suite.Form as Form
 import qualified Proto3.Suite.Form.Encode as FormE
+import Proto3.Wire.Encode.Repeated (mapRepeated)
 
 import           TestProto
 import qualified TestProtoImport
@@ -108,13 +111,13 @@ repeated ::
   , Strip b c (IsWrapped b)
   , FormE.Occupy message name names ~ names
   , FormE.Field name (Functor.Identity b) message
-  , FormE.Field name (FormE.Forward b) message
-  , FormE.Field name (FormE.Reverse b) message
-  , FormE.Field name (FormE.ReverseN b) message
+  , FormE.Field name ([b]) message
+  , FormE.Field name (Acc.Acc b) message
+  , FormE.Field name (Data.Vector.Vector b) message
   , FormE.Field name (Functor.Identity c) message
-  , FormE.Field name (FormE.Forward c) message
-  , FormE.Field name (FormE.Reverse c) message
-  , FormE.Field name (FormE.ReverseN c) message
+  , FormE.Field name ([c]) message
+  , FormE.Field name (Acc.Acc c) message
+  , FormE.Field name (Data.Vector.Vector c) message
   ) =>
   (a -> b) ->
   Data.Vector.Vector a ->
@@ -123,23 +126,23 @@ repeated f = case (?iterator, ?stripping) of
   (Identity, Keep) ->
     -- We use 'Identity' to indicate we should emit the field elements one at a time,
     -- without the potential for packing, though in any case not all types support packing.
-    FormE.foldPrefixes . FormE.mapToRepeated (FormE.field @name . Functor.Identity . f)
+    FormE.foldPrefixes . fmap (FormE.field @name . Functor.Identity . f)
   (Identity, Strip) ->
     -- We use 'Identity' to indicate we should emit the field elements one at a time,
     -- without the potential for packing, though in any case not all types support packing.
-    FormE.foldPrefixes . FormE.mapToRepeated (FormE.field @name . Functor.Identity . strip . f)
+    FormE.foldPrefixes . fmap (FormE.field @name . Functor.Identity . strip . f)
   (Forward, Keep) ->
-    FormE.field @name . FormE.mapToRepeated f . toList
+    FormE.field @name . map f . toList
   (Forward, Strip) ->
-    FormE.field @name . FormE.mapToRepeated (strip . f) . toList
+    FormE.field @name . map (strip . f) . toList
   (Reverse, Keep) ->
-    FormE.field @name . FormE.Reverse . FormE.mapToRepeated f . reverse . toList
+    FormE.field @name . fmap @Acc.Acc f . GHC.Exts.fromList @(Acc.Acc a) . toList
   (Reverse, Strip) ->
-    FormE.field @name . FormE.Reverse . FormE.mapToRepeated (strip . f) . reverse . toList
+    FormE.field @name . fmap @Acc.Acc (strip . f) . GHC.Exts.fromList @(Acc.Acc a) . toList
   (Vector, Keep) ->
-    FormE.field @name . FormE.mapToRepeated f
+    FormE.field @name . Data.Vector.map f
   (Vector, Strip) ->
-    FormE.field @name . FormE.mapToRepeated f
+    FormE.field @name . Data.Vector.map f
 
 associations ::
   forall name k v key value message names .
@@ -147,9 +150,9 @@ associations ::
   , Form.RepetitionOf message name ~ 'Form.Repeated 'Form.Unpacked
   , ?iterator :: Iterator
   , FormE.Field name (Functor.Identity (FormE.MessageEncoder (Form.Association key value))) message
-  , FormE.Field name (FormE.Forward (FormE.MessageEncoder (Form.Association key value))) message
-  , FormE.Field name (FormE.Reverse (FormE.MessageEncoder (Form.Association key value))) message
-  , FormE.Field name (FormE.ReverseN (FormE.MessageEncoder (Form.Association key value))) message
+  , FormE.Field name [FormE.MessageEncoder (Form.Association key value)] message
+  , FormE.Field name (Acc.Acc (FormE.MessageEncoder (Form.Association key value))) message
+  , FormE.Field name (Data.Vector.Vector (FormE.MessageEncoder (Form.Association key value))) message
   , FormE.KnownFieldNumber message name
   ) =>
   ((k, v) -> FormE.MessageEncoder (Form.Association key value)) ->
@@ -157,11 +160,11 @@ associations ::
   FormE.Prefix message names names
 associations f = case ?iterator of
   Identity -> FormE.foldPrefixes .
-              FormE.mapToRepeated (FormE.associations @name . Functor.Identity . f) .
+              mapRepeated (FormE.associations @name . Functor.Identity . f) .
               M.toAscList
-  Forward -> FormE.associations @name . FormE.mapToRepeated f . M.toAscList
-  Reverse -> FormE.associations @name . FormE.Reverse . FormE.mapToRepeated f . M.toDescList
-  Vector -> FormE.associations @name . FormE.mapToRepeated f . Data.Vector.fromList . M.toAscList
+  Forward -> FormE.associations @name . map f . M.toAscList
+  Reverse -> FormE.associations @name . fmap @Acc.Acc f . Acc.fromReverseList . M.toDescList
+  Vector -> FormE.associations @name . Data.Vector.map f . Data.Vector.fromList . M.toAscList
 
 instance ToEncoder Trivial
   where

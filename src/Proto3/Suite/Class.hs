@@ -144,19 +144,6 @@ import qualified Data.Record.Generic.GHC as LG
 import qualified Data.Record.Generic.Rep as LG
 #endif
 
--- | Pass through those values that are outside the enum range;
--- this is for forward compatibility as enumerations are extended.
-codeFromEnumerated :: ProtoEnum e => Enumerated e -> Int32
-codeFromEnumerated = either id fromProtoEnum . enumerated
-{-# INLINE codeFromEnumerated #-}
-
--- | Values inside the enum range are in Right, the rest in Left;
--- this is for forward compatibility as enumerations are extended.
-codeToEnumerated :: ProtoEnum e => Int32 -> Enumerated e
-codeToEnumerated code =
-  Enumerated $ maybe (Left code) Right (toProtoEnumMay code)
-{-# INLINE codeToEnumerated #-}
-
 -- | A class for types with default values per the protocol buffers spec.
 class HasDefault a where
   -- | The default value for this type.

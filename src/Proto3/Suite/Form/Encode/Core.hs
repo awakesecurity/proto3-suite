@@ -22,6 +22,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- | Implementation details of "Proto3.Suite.Form.Encode" that
 -- must be kept separate for the sake of @TemplateHaskell@.
@@ -54,9 +55,9 @@ module Proto3.Suite.Form.Encode.Core
   , fieldNumber
   , Field(..)
   , FieldForm(..)
+  , PackedFieldForm(..)
   , Wrap(..)
   , Auto(..)
-  , codeFromEnumerated
   , instantiatePackableField
   , instantiateStringOrBytesField
   ) where
@@ -65,25 +66,19 @@ import Control.Category (Category(..))
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
 import Data.Coerce (coerce)
-import Data.Functor.Identity (Identity(..))
-import Data.Int (Int32, Int64)
 import Data.Kind (Type)
 import Data.Traversable (for)
-import Data.Word (Word32, Word64)
 import GHC.Exts (Constraint, Proxy#, TYPE, proxy#)
 import GHC.Generics (Generic)
 import GHC.TypeLits (ErrorMessage(..), KnownNat, Symbol, TypeError, natVal')
 import Language.Haskell.TH qualified as TH
 import Prelude hiding ((.), id)
-import Proto3.Suite.Class (HasDefault(..), Primitive(..), zigZagEncode)
+import Proto3.Suite.Class (isDefault)
 import Proto3.Suite.Form
-         (Association, NumberOf, Omission(..), OneOfOf,
-          Packing(..), RecoverProtoType, Repetition(..), RepetitionOf,
-          ProtoType(..), ProtoTypeOf, Wrapper)
-import Proto3.Suite.Form.Encode.Repeated (FoldBuilders(..), Forward(..), Reverse(..), ReverseN(..))
-import Proto3.Suite.Types (Enumerated(..), Fixed(..), Signed(..))
-import Proto3.Wire.Class (ProtoEnum(..))
+         (Association, NumberOf, Omission(..), OneOfOf, Packing(..),
+          Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf, Wrapper)
 import Proto3.Wire.Encode qualified as Encode
+import Proto3.Wire.Encode.Repeated (Repeated(..), ToRepeated(..), mapRepeated)
 import Proto3.Wire.Types (FieldNumber(..))
 
 -- | Annotates 'Encode.MessageBuilder' with the type of protobuf message it encodes.
@@ -450,7 +445,8 @@ instance forall (name :: Symbol)
 --
 -- However, this library does provide general instances for 'Optional'
 -- and @'Repeated' 'Unpacked'@ that delegate to instances for
--- @'Singular' 'Alternative'@ for the same protobuf type.
+-- @'Singular' 'Alternative'@ for the same protobuf type, and an
+-- instance for @'Repeated' 'Packed'@ that delegates to 'PackedFieldForm'.
 --
 -- Design Note:
 --
@@ -495,18 +491,45 @@ class FieldForm repetition protoType a
 instance FieldForm ('Singular 'Alternative) protoType a =>
          FieldForm 'Optional protoType (Maybe a)
   where
-    fieldForm _ ty !fn me =
-      foldMap @Maybe (fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn) me
+    fieldForm _ ty !fn = Encode.etaMessageBuilder $
+      foldMap @Maybe (fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn)
     {-# INLINE fieldForm #-}
 
-instance ( FoldBuilders t
-         , FieldForm ('Singular 'Alternative) protoType a
+instance ( ToRepeated c e
+         , FieldForm ('Singular 'Alternative) protoType e
          ) =>
-         FieldForm ('Repeated 'Unpacked) protoType (t a)
+         FieldForm ('Repeated 'Unpacked) protoType c
   where
-    fieldForm _ ty !fn es =
-      foldBuilders (fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn <$> es)
+    fieldForm _ ty !fn = Encode.etaMessageBuilder $
+      Encode.repeatedMessageBuilder .
+      mapRepeated (fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn)
     {-# INLINE fieldForm #-}
+
+-- | Ignores the preference for packed format when there is exactly one element,
+-- and therefore packed format would be more verbose.  (Conforming parsers must
+-- accept both packed and unpacked primitives regardless of packing preference.)
+instance ( ToRepeated c e
+         , PackedFieldForm protoType e
+         , FieldForm ('Singular 'Alternative) protoType e
+         ) =>
+         FieldForm ('Repeated 'Packed) protoType c
+  where
+    fieldForm _ ty !fn (toRepeated -> !xs@(ReverseRepeated prediction reversed)) =
+        case prediction of
+          Just count
+            | 2 <= count -> packedFieldForm ty fn xs  -- multiple packed elements
+            | otherwise -> fieldForm (proxy# :: Proxy# ('Repeated 'Unpacked)) ty fn xs  -- 0 or 1
+          Nothing -> case foldr singletonOp Empty reversed of
+            Empty -> mempty  -- 0 elements can be expressed implicitly
+            Singleton x -> fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn x -- unpacked
+            Multiple -> packedFieldForm ty fn xs  -- multiple packed elements
+      where
+        singletonOp :: a -> Singleton a -> Singleton a
+        singletonOp x Empty = Singleton x
+        singletonOp _ _ = Multiple
+    {-# INLINE fieldForm #-}
+
+data Singleton a = Empty | Singleton a | Multiple
 
 instance (omission ~ 'Alternative) =>
          FieldForm ('Singular omission) ('Message inner) (MessageEncoder inner)
@@ -544,6 +567,15 @@ instance (omission ~ 'Alternative) =>
     fieldForm rep ty !fn e = fieldForm rep ty fn (cachedMessageEncoding e)
     {-# INLINE fieldForm #-}
 
+-- | 'FieldForm' delegates to this type class when encoding
+-- packed repeated fields containing two or more elements.
+type PackedFieldForm :: ProtoType -> forall {r} . TYPE r -> Constraint
+class PackedFieldForm protoType a
+  where
+    -- | 'fieldForm' delegates to this method when encoding
+    -- packed repeated fields containing two or more elements.
+    packedFieldForm :: Proxy# protoType -> FieldNumber -> Repeated a -> Encode.MessageBuilder
+
 -- | Indicates that a wrapper type should be emitted by encoding its field,
 -- as opposed to by supplying 'MessageEncoder' for the wrapper as a whole.
 --
@@ -574,327 +606,94 @@ newtype Auto (a :: Type) = Auto { unauto :: a }
   deriving stock (Foldable, Functor, Generic, Traversable)
   deriving newtype (Bounded, Enum, Eq, Fractional, Integral, Ord, Num, Read, Real, Show)
 
--- | Any encoding of the first type can be decoded as the second without
--- changing semantics.  This relation is more strict than the compatibilities
--- listed in <https://protobuf.dev/programming-guides/proto3/#updating>.
---
--- We do not use this class for message or map fields.  It exists for
--- integer compatibility checking, though for uniformity it extends
--- to any scalar.  Currently we disallow use of @string@ encodings
--- as @bytes@ encodings for fear of accidental misuse, and though we
--- allow use of @bool@ encodings as non-ZigZag integers as specified
--- by protobuf documentation, we do not yet exploit that compatibility.
-class CompatibleScalar (encodeType :: ProtoType) (decodeType :: ProtoType)
-
-instance CompatibleScalar 'Int32 'Int32
-instance CompatibleScalar 'Int32 'Int64
-instance CompatibleScalar 'Int64 'Int64
-instance CompatibleScalar 'SInt32 'SInt32
-instance CompatibleScalar 'SInt32 'SInt64
-instance CompatibleScalar 'SInt64 'SInt64
-instance CompatibleScalar 'UInt32 'UInt32
-instance CompatibleScalar 'UInt32 'Int64
-instance CompatibleScalar 'UInt32 'UInt64
-instance CompatibleScalar 'UInt64 'UInt64
-instance CompatibleScalar 'Fixed32 'Fixed32
-instance CompatibleScalar 'Fixed64 'Fixed64
-instance CompatibleScalar 'SFixed32 'SFixed32
-instance CompatibleScalar 'SFixed64 'SFixed64
-instance CompatibleScalar 'String 'String
-instance CompatibleScalar 'Bytes 'Bytes
-instance CompatibleScalar 'Bool 'Bool
-instance CompatibleScalar 'Bool 'Int32
-instance CompatibleScalar 'Bool 'Int64
-instance CompatibleScalar 'Bool 'UInt32
-instance CompatibleScalar 'Bool 'UInt64
-instance CompatibleScalar 'Float 'Float
-instance CompatibleScalar 'Double 'Double
-instance ee ~ ed => CompatibleScalar ('Enumeration ee) ('Enumeration ed)
-
--- | Implements 'FieldForm' for scalar types.
---
--- This implementation detail should be invisible to package clients.
-type EncodeScalarField :: Repetition -> ProtoType -> forall {r} . TYPE r -> Constraint
-class EncodeScalarField repetition protoType a
-  where
-    encodeScalarField ::
-      Proxy# repetition -> Proxy# protoType -> FieldNumber -> a -> Encode.MessageBuilder
-
-instance ( CompatibleScalar (RecoverProtoType a) protoType
-         , Primitive a
-         ) =>
-         EncodeScalarField ('Singular 'Alternative) protoType a
-  where
-    encodeScalarField _ _ = encodePrimitive
-    {-# INLINE encodeScalarField #-}
-
-instance ( CompatibleScalar (RecoverProtoType a) protoType
-         , HasDefault a
-         , Primitive a
-         ) =>
-         EncodeScalarField ('Singular 'Implicit) protoType a
-  where
-    encodeScalarField _ _ !fn x
-      | isDefault x = mempty
-      | otherwise = encodePrimitive fn x
-    {-# INLINE encodeScalarField #-}
-
--- | Ignores the preference for packed format because there is exactly one element,
--- and therefore packed format would be more verbose.  Conforming parsers must
--- accept both packed and unpacked primitives regardless of packing preference.
-instance ( CompatibleScalar (RecoverProtoType a) protoType
-         , Primitive a
-         ) =>
-         EncodeScalarField ('Repeated 'Packed) protoType (Identity a)
-  where
-    encodeScalarField _ _ !fn (Identity x) = encodePrimitive fn x
-    {-# INLINE encodeScalarField #-}
-
-instance ( CompatibleScalar (RecoverProtoType a) protoType
-         , PackedPrimitives a
-         ) =>
-         EncodeScalarField ('Repeated 'Packed) protoType (Forward a)
-  where
-    encodeScalarField _ _ !fn xs
-      | null xs = mempty
-      | otherwise = packedPrimitivesF id fn xs
-    {-# INLINE encodeScalarField #-}
-
-instance ( CompatibleScalar (RecoverProtoType a) protoType
-         , PackedPrimitives a
-         ) =>
-         EncodeScalarField ('Repeated 'Packed) protoType (Reverse a)
-  where
-    encodeScalarField _ _ !fn (Reverse xs)
-      | null xs = mempty
-      | otherwise = packedPrimitivesR id fn xs
-    {-# INLINE encodeScalarField #-}
-
-instance ( CompatibleScalar (RecoverProtoType a) protoType
-         , PackedPrimitives a
-         ) =>
-         EncodeScalarField ('Repeated 'Packed) protoType (ReverseN a)
-  where
-    encodeScalarField _ _ !fn (ReverseN count xs)
-      | null xs = mempty
-      | otherwise = unsafePackedPrimitivesRN id fn count xs
-    {-# INLINE encodeScalarField #-}
-
--- | Handles encoding of packed repeated fields.
---
--- This implementation detail should be invisible to package clients.
-class PackedPrimitives (a :: Type)
-  where
-    -- | Encode the elements of the given foldable container as a packed repeated field.
-    --
-    -- It is ASSUMED that the caller already excluded the empty-sequence case.
-    --
-    -- NOTE: 'packedPrimitivesR' is probably faster than 'packedPrimitivesF'
-    -- because 'Encode.MessageBuilder' encodes in reverse.
-    packedPrimitivesF :: Foldable f => (b -> a) -> FieldNumber -> f b -> Encode.MessageBuilder
-
-    -- | Like 'packedPrimitivesF' but reverses the order of the elements.
-    --
-    -- NOTE: 'packedPrimitivesR' is probably faster than 'packedPrimitivesF'
-    -- because 'Encode.MessageBuilder' encodes in reverse.
-    packedPrimitivesR :: Foldable f => (b -> a) -> FieldNumber -> f b -> Encode.MessageBuilder
-
-    -- | A faster but more specialized variant of 'packedPrimitivesR'.
-    --
-    -- Unsafe because the predicted number of elements must be at
-    -- least the actual number in order to avoid a crash, and because
-    -- overapproximation leads to overallocation of the output buffer.
-    unsafePackedPrimitivesRN ::
-      Foldable f => (b -> a) -> FieldNumber -> Int -> f b -> Encode.MessageBuilder
-
-instance PackedPrimitives Bool
-  where
-    packedPrimitivesF = Encode.packedBoolsF
-    packedPrimitivesR = Encode.packedBoolsR
-    unsafePackedPrimitivesRN = Encode.unsafePackedBoolsRN
-
-instance PackedPrimitives Word64
-  where
-    packedPrimitivesF = Encode.packedVarintsF
-    packedPrimitivesR = Encode.packedVarintsR
-    unsafePackedPrimitivesRN f !fn _ = Encode.packedVarintsR f fn
-
-instance PackedPrimitives Word32
-  where
-    packedPrimitivesF f = packedPrimitivesF (fromIntegral @Word32 @Word64 . f)
-    {-# INLINE packedPrimitivesF #-}
-
-    packedPrimitivesR f = packedPrimitivesR (fromIntegral @Word32 @Word64 . f)
-    {-# INLINE packedPrimitivesR #-}
-
-    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (fromIntegral @Word32 @Word64 . f)
-    {-# INLINE unsafePackedPrimitivesRN #-}
-
--- | NOTE: Converts to 'Word64' as before encoding, which is correct.
--- To quote <https://protobuf.dev/programming-guides/encoding/#signed-ints>,
--- "The intN types encode negative numbers as two’s complement,
--- which means that, as unsigned, 64-bit integers, they have their highest
--- bit set.  As a result, this means that all ten bytes must be used."
-instance PackedPrimitives Int32
-  where
-    packedPrimitivesF f = packedPrimitivesF (fromIntegral @Int32 @Word64 . f)
-    {-# INLINE packedPrimitivesF #-}
-
-    packedPrimitivesR f = packedPrimitivesR (fromIntegral @Int32 @Word64 . f)
-    {-# INLINE packedPrimitivesR #-}
-
-    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (fromIntegral @Int32 @Word64 . f)
-    {-# INLINE unsafePackedPrimitivesRN #-}
-
-instance PackedPrimitives Int64
-  where
-    packedPrimitivesF f = packedPrimitivesF (fromIntegral @Int64 @Word64 . f)
-    {-# INLINE packedPrimitivesF #-}
-
-    packedPrimitivesR f = packedPrimitivesR (fromIntegral @Int64 @Word64 . f)
-    {-# INLINE packedPrimitivesR #-}
-
-    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (fromIntegral @Int64 @Word64 . f)
-    {-# INLINE unsafePackedPrimitivesRN #-}
-
-instance PackedPrimitives (Signed Int32)
-  where
-    packedPrimitivesF f = packedPrimitivesF (zigZagEncode . f)
-    {-# INLINE packedPrimitivesF #-}
-
-    packedPrimitivesR f = packedPrimitivesR (zigZagEncode . f)
-    {-# INLINE packedPrimitivesR #-}
-
-    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (zigZagEncode . f)
-    {-# INLINE unsafePackedPrimitivesRN #-}
-
-instance PackedPrimitives (Signed Int64)
-  where
-    packedPrimitivesF f = packedPrimitivesF (zigZagEncode . f)
-    {-# INLINE packedPrimitivesF #-}
-
-    packedPrimitivesR f = packedPrimitivesR (zigZagEncode . f)
-    {-# INLINE packedPrimitivesR #-}
-
-    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (zigZagEncode . f)
-    {-# INLINE unsafePackedPrimitivesRN #-}
-
-instance PackedPrimitives (Fixed Word32)
-  where
-    packedPrimitivesF f = Encode.packedFixed32F (fixed . f)
-    {-# INLINE packedPrimitivesF #-}
-
-    packedPrimitivesR f = Encode.packedFixed32R (fixed . f)
-    {-# INLINE packedPrimitivesR #-}
-
-    unsafePackedPrimitivesRN f = Encode.unsafePackedFixed32RN (fixed . f)
-    {-# INLINE unsafePackedPrimitivesRN #-}
-
-instance PackedPrimitives (Fixed Word64)
-  where
-    packedPrimitivesF f = Encode.packedFixed64F (fixed . f)
-    {-# INLINE packedPrimitivesF #-}
-
-    packedPrimitivesR f = Encode.packedFixed64R (fixed . f)
-    {-# INLINE packedPrimitivesR #-}
-
-    unsafePackedPrimitivesRN f = Encode.unsafePackedFixed64RN (fixed . f)
-    {-# INLINE unsafePackedPrimitivesRN #-}
-
-instance PackedPrimitives (Signed (Fixed Int32))
-  where
-    packedPrimitivesF f = packedPrimitivesF (fixed32ToUnsigned . f)
-    {-# INLINE packedPrimitivesF #-}
-
-    packedPrimitivesR f = packedPrimitivesR (fixed32ToUnsigned . f)
-    {-# INLINE packedPrimitivesR #-}
-
-    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (fixed32ToUnsigned . f)
-    {-# INLINE unsafePackedPrimitivesRN #-}
-
-fixed32ToUnsigned :: Signed (Fixed Int32) -> Fixed Word32
-fixed32ToUnsigned = Fixed . fromIntegral @Int32 @Word32 . fixed . signed
-{-# INLINE fixed32ToUnsigned #-}
-
-instance PackedPrimitives (Signed (Fixed Int64))
-  where
-    packedPrimitivesF f = packedPrimitivesF (fixed64ToUnsigned . f)
-    {-# INLINE packedPrimitivesF #-}
-
-    packedPrimitivesR f = packedPrimitivesR (fixed64ToUnsigned . f)
-    {-# INLINE packedPrimitivesR #-}
-
-    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (fixed64ToUnsigned . f)
-    {-# INLINE unsafePackedPrimitivesRN #-}
-
-fixed64ToUnsigned :: Signed (Fixed Int64) -> Fixed Word64
-fixed64ToUnsigned = Fixed . fromIntegral @Int64 @Word64 . fixed . signed
-{-# INLINE fixed64ToUnsigned #-}
-
-instance PackedPrimitives Float
-  where
-    packedPrimitivesF = Encode.packedFloatsF
-    packedPrimitivesR = Encode.packedFloatsR
-    unsafePackedPrimitivesRN = Encode.unsafePackedFloatsRN
-
-instance PackedPrimitives Double
-  where
-    packedPrimitivesF = Encode.packedDoublesF
-    packedPrimitivesR = Encode.packedDoublesR
-    unsafePackedPrimitivesRN = Encode.unsafePackedDoublesRN
-
-instance ProtoEnum e => PackedPrimitives (Enumerated e)
-  where
-    packedPrimitivesF f = packedPrimitivesF (codeFromEnumerated . f)
-    {-# INLINE packedPrimitivesF #-}
-
-    packedPrimitivesR f = packedPrimitivesR (codeFromEnumerated . f)
-    {-# INLINE packedPrimitivesR #-}
-
-    unsafePackedPrimitivesRN f = unsafePackedPrimitivesRN (codeFromEnumerated . f)
-    {-# INLINE unsafePackedPrimitivesRN #-}
-
--- | Pass through those values that are outside the enum range;
--- this is for forward compatibility as enumerations are extended.
-codeFromEnumerated :: ProtoEnum e => Enumerated e -> Int32
-codeFromEnumerated = either id fromProtoEnum . enumerated
-{-# INLINE codeFromEnumerated #-}
-
 instantiatePackableField ::
-  TH.Q TH.Type -> TH.Q TH.Type -> TH.Q TH.Exp -> Bool -> Bool -> TH.Q [TH.Dec]
-instantiatePackableField protoType elementType conversion hasWrapper isAuto = do
+  -- | Protobuf type of kind 'ProtoType'.
+  TH.Q TH.Type ->
+  -- | 'fieldForm' argument type.
+  TH.Q TH.Type ->
+  -- | The encoder for non-repeated or unpacked fields
+  -- of the specified protobuf type and argument type.
+  TH.Q TH.Exp ->
+  -- | The encoder for packed fields of the specified protobuf type and argument type.
+  TH.Q TH.Exp ->
+  -- | For every promotion to this type of field:
+  --  1. The argument type to before promotion.
+  --  2. The conversion from that type to an argument type.
+  --  3. The compatible protobuf type whose encoder we should use;
+  --     it must support the post-conversion type of the argument.
+  --
+  -- NOTE: Do not convert when some source values have no semantically-equivalent
+  -- value to which to convert.  Specifically, do not convert from signed integers
+  -- to unsigned integers (because negative values become positive ones), and only
+  -- convert from unsigned to signed when widening (because otherwise some positive
+  -- values become will negative ones).
+  --
+  -- These are /not/ selected by 'Auto'.
+  [(TH.Q TH.Type, TH.Q TH.Exp, TH.Q TH.Type)] ->
+  -- | Is there a standard wrapper type?
+  Bool ->
+  TH.Q [TH.Dec]
+instantiatePackableField protoType elementType encoder packedEncoder promotions hasWrapper = do
   direct <-
     [d|
 
       instance FieldForm ('Singular 'Alternative) $protoType $elementType
         where
-          fieldForm rep ty !fn x = encodeScalarField rep ty fn ($conversion x)
+          fieldForm _ _ = $encoder
           {-# INLINE fieldForm #-}
 
       instance FieldForm ('Singular 'Implicit) $protoType $elementType
         where
-          fieldForm rep ty !fn x = encodeScalarField rep ty fn ($conversion x)
+          fieldForm _ ty !fn x
+            | isDefault x = mempty
+            | otherwise = fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn x
           {-# INLINE fieldForm #-}
 
-      instance FieldForm ('Repeated 'Packed) $protoType (Identity $elementType)
+      instance (a ~ $elementType) =>
+               FieldForm ('Singular 'Alternative) $protoType (Auto a)
         where
-          fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
+          fieldForm = coerce (fieldForm @('Singular 'Alternative) @($protoType) @a)
           {-# INLINE fieldForm #-}
 
-      instance FieldForm ('Repeated 'Packed) $protoType (Forward $elementType)
+      instance (a ~ $elementType) =>
+               FieldForm ('Singular 'Implicit) $protoType (Auto a)
         where
-          fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
+          fieldForm = coerce (fieldForm @('Singular 'Implicit) @($protoType) @a)
           {-# INLINE fieldForm #-}
 
-      instance FieldForm ('Repeated 'Packed) $protoType (Reverse $elementType)
+      instance PackedFieldForm $protoType $elementType
         where
-          fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
+          packedFieldForm _ = $packedEncoder
+          {-# INLINE packedFieldForm #-}
+
+      instance (a ~ $elementType) =>
+               PackedFieldForm $protoType (Auto a)
+        where
+          packedFieldForm = coerce (packedFieldForm @($protoType) @a)
+          {-# INLINE packedFieldForm #-}
+
+      |]
+
+  promoted <- for promotions $ \(supportedType, conversion, compatibleProtoType) ->
+    [d|
+
+      instance FieldForm ('Singular 'Alternative) $protoType $supportedType
+        where
+          fieldForm rep _ !fn x =
+            fieldForm rep (proxy# :: Proxy# $compatibleProtoType) fn ($conversion x)
           {-# INLINE fieldForm #-}
 
-      instance FieldForm ('Repeated 'Packed) $protoType (ReverseN $elementType)
+      instance FieldForm ('Singular 'Implicit) $protoType $supportedType
         where
-          fieldForm rep ty !fn xs = encodeScalarField rep ty fn (fmap $conversion xs)
+          fieldForm rep _ !fn x =
+            fieldForm rep (proxy# :: Proxy# $compatibleProtoType) fn ($conversion x)
           {-# INLINE fieldForm #-}
+
+      instance PackedFieldForm $protoType $supportedType
+        where
+          packedFieldForm _ !fn xs =
+            packedFieldForm (proxy# :: Proxy# $compatibleProtoType) fn (fmap $conversion xs)
+          {-# INLINE packedFieldForm #-}
 
       |]
 
@@ -908,135 +707,105 @@ instantiatePackableField protoType elementType conversion hasWrapper isAuto = do
             (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap $elementType))
           {-# INLINE fieldForm #-}
 
-      |]
-
-  auto <- if not isAuto then pure [] else
-    [d|
-
-      instance (a ~ $elementType) =>
-               FieldForm ('Singular 'Alternative) $protoType (Auto a)
-        where
-          fieldForm = coerce
-            (fieldForm @('Singular 'Alternative) @($protoType) @a)
-          {-# INLINE fieldForm #-}
-
-      instance (a ~ $elementType) =>
-               FieldForm ('Singular 'Implicit) $protoType (Auto a)
-        where
-          fieldForm = coerce
-            (fieldForm @('Singular 'Implicit) @($protoType) @a)
-          {-# INLINE fieldForm #-}
-
-      instance ( a ~ $elementType
-               , Functor t
-               , FieldForm ('Repeated 'Packed) $protoType (t a)
-               ) =>
-               FieldForm ('Repeated 'Packed) $protoType (t (Auto a))
-        where
-          fieldForm rep ty !fn xs = fieldForm rep ty fn (fmap unauto xs)
-          {-# INLINE fieldForm #-}
-
-      |]
-
-  wrappedAuto <- if not (hasWrapper && isAuto) then pure [] else
-    [d|
-
       instance (omission ~ 'Alternative, a ~ $elementType) =>
                FieldForm ('Singular omission) ('Message (Wrapper $protoType)) (Auto a)
         where
           fieldForm = coerce
-            (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @a)
+            (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap a))
           {-# INLINE fieldForm #-}
 
       |]
 
-  pure $ direct ++ wrapped ++ auto ++ wrappedAuto
-
-instantiateStringOrBytesField :: TH.Q TH.Type -> TH.Q TH.Type -> [TH.Q TH.Type] -> TH.Q [TH.Dec]
-instantiateStringOrBytesField protoType elementTC specializations = do
-  general <-
-    [d|
-
-      instance forall a .
-               Primitive ($elementTC a) =>
-               FieldForm ('Singular 'Alternative) $protoType ($elementTC a)
-        where
-          fieldForm = encodeScalarField
-          {-# INLINE fieldForm #-}
-
-      instance forall a .
-               ( HasDefault ($elementTC a)
-               , Primitive ($elementTC a)
-               ) =>
-               FieldForm ('Singular 'Implicit) $protoType ($elementTC a)
-        where
-          fieldForm = encodeScalarField
-          {-# INLINE fieldForm #-}
-
-      instance forall a omission .
-               ( omission ~ 'Alternative
-               , HasDefault ($elementTC a)
-               , Primitive ($elementTC a)
-               ) =>
-               FieldForm ('Singular omission) ('Message (Wrapper $protoType)) ($elementTC a)
-        where
-          fieldForm = coerce
-            (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap ($elementTC a)))
-          {-# INLINE fieldForm #-}
-
-      |]
-
-  special <- for specializations $ \spec ->
-    [d|
-
-      instance FieldForm ('Singular 'Alternative) $protoType $spec
-        where
-          fieldForm = coerce
-            (encodeScalarField @('Singular 'Alternative) @($protoType) @($elementTC $spec))
-          {-# INLINE fieldForm #-}
-
-      instance FieldForm ('Singular 'Implicit) $protoType $spec
-        where
-          fieldForm = coerce
-            (encodeScalarField @('Singular 'Implicit) @($protoType) @($elementTC $spec))
-          {-# INLINE fieldForm #-}
-
-      instance (omission ~ 'Alternative) =>
-               FieldForm ('Singular omission) ('Message (Wrapper $protoType)) $spec
-        where
-          fieldForm = coerce
-            (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap $spec))
-          {-# INLINE fieldForm #-}
-
-      |]
-
-  auto <- case specializations of
-    [] ->
-      pure []
-    (spec : _) ->
+  wrappedPromoted <- if not hasWrapper then pure [] else
+    for promotions $ \(supportedType, _, _) -> do
       [d|
 
-        instance (a ~ $spec) =>
-                 FieldForm ('Singular 'Alternative) $protoType (Auto a)
+        instance (omission ~ 'Alternative) =>
+                 FieldForm ('Singular omission) ('Message (Wrapper $protoType)) $supportedType
           where
             fieldForm = coerce
-              (fieldForm @('Singular 'Alternative) @($protoType) @a)
-            {-# INLINE fieldForm #-}
-
-        instance (a ~ $spec) =>
-                 FieldForm ('Singular 'Implicit) $protoType (Auto a)
-          where
-            fieldForm = coerce
-              (fieldForm @('Singular 'Implicit) @($protoType) @a)
-            {-# INLINE fieldForm #-}
-
-        instance (omission ~ 'Alternative, a ~ $spec) =>
-                 FieldForm ('Singular omission) ('Message (Wrapper $protoType)) (Auto a)
-          where
-            fieldForm = coerce
-              (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @a)
+              (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap $supportedType))
             {-# INLINE fieldForm #-}
 
         |]
 
-  pure $ general ++ concat special ++ auto
+  pure $ direct ++ concat promoted ++ wrapped ++ concat wrappedPromoted
+
+instantiateStringOrBytesField ::
+  -- | Protobuf type of kind 'ProtoType'.
+  TH.Q TH.Type ->
+  -- | 'fieldForm' argument type.
+  TH.Q TH.Type ->
+  -- | The encoder for fields of the specified protobuf type and argument type.
+  TH.Q TH.Exp ->
+  -- | Additional argument types and their associated encoders.
+  -- These are /not/ selected by 'Auto'.
+  [(TH.Q TH.Type, TH.Q TH.Exp)] ->
+  TH.Q [TH.Dec]
+instantiateStringOrBytesField protoType argumentType encoder additional = do
+  preferred <- [d|
+
+    instance FieldForm ('Singular 'Alternative) $protoType $argumentType
+      where
+        fieldForm _ _ = $encoder
+        {-# INLINE fieldForm #-}
+
+    instance FieldForm ('Singular 'Implicit) $protoType $argumentType
+      where
+        fieldForm _ ty !fn x
+          | isDefault x = mempty
+          | otherwise = fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn x
+        {-# INLINE fieldForm #-}
+
+    instance (a ~ $argumentType) =>
+             FieldForm ('Singular 'Alternative) $protoType (Auto a)
+      where
+        fieldForm = coerce (fieldForm @('Singular 'Alternative) @($protoType) @a)
+        {-# INLINE fieldForm #-}
+
+    instance (a ~ $argumentType) =>
+             FieldForm ('Singular 'Implicit) $protoType (Auto a)
+      where
+        fieldForm = coerce (fieldForm @('Singular 'Implicit) @($protoType) @a)
+        {-# INLINE fieldForm #-}
+
+    instance (omission ~ 'Alternative) =>
+             FieldForm ('Singular omission) ('Message (Wrapper $protoType)) $argumentType
+      where
+        fieldForm = coerce
+          (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap $argumentType))
+        {-# INLINE fieldForm #-}
+
+    instance (omission ~ 'Alternative, a ~ $argumentType) =>
+             FieldForm ('Singular omission) ('Message (Wrapper $protoType)) (Auto a)
+      where
+        fieldForm = coerce
+          (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap a))
+        {-# INLINE fieldForm #-}
+
+    |]
+
+  supported <- for additional $ \(supportedType, additionalEncoder) -> [d|
+
+    instance FieldForm ('Singular 'Alternative) $protoType $supportedType
+      where
+        fieldForm _ _ = $additionalEncoder
+        {-# INLINE fieldForm #-}
+
+    instance FieldForm ('Singular 'Implicit) $protoType $supportedType
+      where
+        fieldForm _ ty !fn x
+          | isDefault x = mempty
+          | otherwise = fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn x
+        {-# INLINE fieldForm #-}
+
+    instance (omission ~ 'Alternative) =>
+             FieldForm ('Singular omission) ('Message (Wrapper $protoType)) $supportedType
+      where
+        fieldForm = coerce
+          (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap $supportedType))
+        {-# INLINE fieldForm #-}
+
+    |]
+
+  pure $ preferred ++ concat supported

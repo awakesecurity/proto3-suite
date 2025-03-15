@@ -16,6 +16,7 @@
 module Main where
 
 import           ArbitraryGeneratedTestTypes ()
+import qualified Acc
 import qualified Data.ByteString             as B
 import qualified Data.ByteString.Char8       as BC
 import qualified Data.ByteString.Lazy        as BL
@@ -26,7 +27,6 @@ import           Data.Int                    (Int8, Int16, Int32, Int64)
 import qualified Data.List.NonEmpty          as NE
 import           Data.Proxy                  (Proxy(..))
 import           Data.String
-import qualified Data.Text.Lazy
 import qualified Data.Text.Short
 import           Data.Typeable               (Typeable, showsTypeRep, typeRep)
 import           Data.Word                   (Word8, Word16, Word32, Word64)
@@ -37,7 +37,6 @@ import           Proto3.Suite
 import qualified Proto3.Suite.Form           as Form
 import qualified Proto3.Suite.Form.Encode    as FormE
 import           Proto3.Suite.Haskell.Parser (Logger, initLogger)
-import qualified Proto3.Suite.Types
 import           Proto3.Wire.Decode          (ParseError)
 import qualified Proto3.Wire.Decode          as Decode
 import qualified Proto3.Wire.Reverse         as RB
@@ -164,8 +163,6 @@ encodeUnitTests :: TestTree
 encodeUnitTests = testGroup "Encoder unit tests"
   [ encoderMatchesGoldens
   , encoderPromotionsAndAuto
-  , encodeWrappedString
-  , encodeWrappedBytes
   , encodeBytesFromBuilder
   , encodeMessageReflection
   , encodeCachedSubmessage
@@ -240,46 +237,6 @@ encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
               ?stripping = Strip
           in toEncoder v
 
--- Simulated protobuf message type having a single field named @myString@ of
--- type @string@ with field number @8@ and the specified 'Form.Repetition'.
-data MyWithString (r :: Form.Repetition)
-
-type instance Form.NamesOf (MyWithString r) = '["x"]
-
-type instance Form.NumberOf (MyWithString r) name = MyWithString_NumberOf r name
-
-type family MyWithString_NumberOf (r :: Form.Repetition) (name :: Symbol) :: Nat
-  where
-    MyWithString_NumberOf _ "myString" = 8
-    MyWithString_NumberOf r name = TypeError (Form.FieldNotFound (MyWithString r) name)
-
-type instance Form.ProtoTypeOf (MyWithString r) name = MyWithString_ProtoTypeOf r name
-
-type family MyWithString_ProtoTypeOf (r :: Form.Repetition) (name :: Symbol) :: Form.ProtoType
-  where
-    MyWithString_ProtoTypeOf _ "myString" = 'Form.String
-    MyWithString_ProtoTypeOf r name = TypeError (Form.FieldNotFound (MyWithString r) name)
-
-type instance Form.OneOfOf (MyWithString r) name = MyWithString_OneOfOf r name
-
-type family MyWithString_OneOfOf (r :: Form.Repetition) (name :: Symbol) :: Symbol
-  where
-    MyWithString_OneOfOf ('Form.Singular 'Form.Alternative) "myString" = "pickOne"
-    MyWithString_OneOfOf ('Form.Singular 'Form.Alternative) "pickOne" = "pickOne"
-    MyWithString_OneOfOf r "myString" = ""
-    MyWithString_OneOfOf r name = TypeError (Form.FieldOrOneOfNotFound (MyWithString r) name)
-
-type instance Form.RepetitionOf (MyWithString r) name = MyWithString_RepetitionOf r name
-
-type family MyWithString_RepetitionOf (r :: Form.Repetition) (name :: Symbol) :: Form.Repetition
-  where
-    MyWithString_RepetitionOf r "myString" =
-      r
-    MyWithString_RepetitionOf ('Form.Singular 'Form.Alternative) "pickOne" =
-      'Form.Singular 'Form.Alternative
-    MyWithString_RepetitionOf r name =
-      TypeError (Form.FieldOrOneOfNotFound (MyWithString r) name)
-
 -- Simulated protobuf message type having a single field named @myBytes@ of
 -- type @bytes@ with field number @8@ and the specified 'Form.Repetition'.
 data MyWithBytes (r :: Form.Repetition)
@@ -320,126 +277,6 @@ type family MyWithBytes_RepetitionOf (r :: Form.Repetition) (name :: Symbol) :: 
     MyWithBytes_RepetitionOf r name =
       TypeError (Form.FieldOrOneOfNotFound (MyWithBytes r) name)
 
-type WrappedString = Proto3.Suite.Types.String Data.Text.Lazy.Text
-
-wrappedString :: Data.Text.Lazy.Text -> WrappedString
-wrappedString = Proto3.Suite.Types.String
-
-encodeWrappedString :: TestTree
-encodeWrappedString = testCase "string from wrapped string" $ do
-    assertEqual "empty alternative"
-      (enc @('Form.Singular 'Form.Alternative) (wrappedString mempty)) "B\NUL"
-    assertEqual "nonempty alternative"
-      (enc @('Form.Singular 'Form.Alternative) (wrappedString "xyz")) "B\ETXxyz"
-    assertEqual "implicitly empty"
-      (enc @('Form.Singular 'Form.Implicit) (wrappedString mempty)) ""
-    assertEqual "implicit but nonempty"
-      (enc @('Form.Singular 'Form.Implicit) (wrappedString "xyz")) "B\ETXxyz"
-    assertEqual "unset optional"
-      (enc @('Form.Optional) (Nothing :: Maybe WrappedString)) ""
-    assertEqual "set empty optional"
-      (enc @('Form.Optional) (Just (wrappedString mempty))) "B\NUL"
-    assertEqual "set nonempty optional"
-      (enc @('Form.Optional) (Just (wrappedString "xyz"))) "B\ETXxyz"
-    assertEqual "zero repetitions"
-      (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.toRepeated @[WrappedString] []))
-      ""
-    assertEqual "single empty"
-      (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.toRepeated @[WrappedString] [wrappedString mempty]))
-      "B\NUL"
-    assertEqual "double empty"
-      (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.toRepeated @[WrappedString] [wrappedString mempty, wrappedString mempty]))
-      "B\NULB\NUL"
-    assertEqual "empty nonempty"
-      (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.toRepeated @[WrappedString] [wrappedString mempty, wrappedString "xyz"]))
-      "B\NULB\ETXxyz"
-    assertEqual "nonempty empty"
-      (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.Reverse (FormE.toRepeated @[WrappedString]
-                            [wrappedString mempty, wrappedString "uv"])))
-      "B\STXuvB\NUL"
-    assertEqual "double nonempty"
-      (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.Reverse (FormE.toRepeated @[WrappedString]
-                            [wrappedString "xyz", wrappedString "uv"])))
-      "B\STXuvB\ETXxyz"
-  where
-    enc ::
-      forall r a .
-      ( FormE.Distinct (MyWithString r) (FormE.Occupy (MyWithString r) "myString" '[])
-      , FormE.Field "myString" a (MyWithString r)
-      ) =>
-      a ->
-      BL.ByteString
-    enc =
-      FormE.toLazyByteString .
-      FormE.fieldsToMessage .
-      FormE.field @"myString" @a @(MyWithString r)
-
-type WrappedBytes = Proto3.Suite.Types.Bytes B.ByteString
-
-wrappedBytes :: B.ByteString -> WrappedBytes
-wrappedBytes = Proto3.Suite.Types.Bytes
-
-encodeWrappedBytes :: TestTree
-encodeWrappedBytes = testCase "bytes from wrapped ByteString" $ do
-    assertEqual "empty alternative"
-      (enc @('Form.Singular 'Form.Alternative) (wrappedBytes mempty)) "B\NUL"
-    assertEqual "nonempty alternative"
-      (enc @('Form.Singular 'Form.Alternative) (wrappedBytes "xyz")) "B\ETXxyz"
-    assertEqual "implicitly empty"
-      (enc @('Form.Singular 'Form.Implicit) (wrappedBytes mempty)) ""
-    assertEqual "implicit but nonempty"
-      (enc @('Form.Singular 'Form.Implicit) (wrappedBytes "xyz")) "B\ETXxyz"
-    assertEqual "unset optional"
-      (enc @('Form.Optional) (Nothing :: Maybe WrappedBytes)) ""
-    assertEqual "set empty optional"
-      (enc @('Form.Optional) (Just (wrappedBytes mempty))) "B\NUL"
-    assertEqual "set nonempty optional"
-      (enc @('Form.Optional) (Just (wrappedBytes "xyz"))) "B\ETXxyz"
-    assertEqual "zero repetitions"
-      (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.toRepeated @[WrappedBytes] []))
-      ""
-    assertEqual "single empty"
-      (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.toRepeated @[WrappedBytes] [wrappedBytes mempty]))
-      "B\NUL"
-    assertEqual "double empty"
-      (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.toRepeated @[WrappedBytes] [wrappedBytes mempty, wrappedBytes mempty]))
-      "B\NULB\NUL"
-    assertEqual "empty nonempty"
-      (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.toRepeated @[WrappedBytes] [wrappedBytes mempty, wrappedBytes "xyz"]))
-      "B\NULB\ETXxyz"
-    assertEqual "nonempty empty"
-      (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.Reverse (FormE.toRepeated @[WrappedBytes]
-                            [wrappedBytes mempty, wrappedBytes "uv"])))
-      "B\STXuvB\NUL"
-    assertEqual "double nonempty"
-      (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.Reverse (FormE.toRepeated @[WrappedBytes]
-                            [wrappedBytes "xyz", wrappedBytes "uv"])))
-      "B\STXuvB\ETXxyz"
-  where
-    enc ::
-      forall r a .
-      ( FormE.Distinct (MyWithBytes r) (FormE.Occupy (MyWithBytes r) "myBytes" '[])
-      , FormE.Field "myBytes" a (MyWithBytes r)
-      ) =>
-      a ->
-      BL.ByteString
-    enc =
-      FormE.toLazyByteString .
-      FormE.fieldsToMessage .
-      FormE.field @"myBytes" @a @(MyWithBytes r)
-
 encodeBytesFromBuilder :: TestTree
 encodeBytesFromBuilder = testCase "bytes from builder" $ do
     assertEqual "empty alternative"
@@ -458,28 +295,27 @@ encodeBytesFromBuilder = testCase "bytes from builder" $ do
       (enc @('Form.Optional) (Just (RB.byteString "xyz"))) "B\ETXxyz"
     assertEqual "zero repetitions"
       (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.toRepeated @[RB.BuildR] []))
+           ([] :: [RB.BuildR]))
       ""
     assertEqual "single empty"
       (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.toRepeated @[RB.BuildR] [mempty]))
+           ([mempty] :: [RB.BuildR]))
       "B\NUL"
     assertEqual "double empty"
       (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.toRepeated @[RB.BuildR] [mempty, mempty]))
+           ([mempty, mempty] :: [RB.BuildR]))
       "B\NULB\NUL"
     assertEqual "empty nonempty"
       (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.toRepeated @[RB.BuildR] [mempty, RB.byteString "xyz"]))
+           ([mempty, RB.byteString "xyz"] :: [RB.BuildR]))
       "B\NULB\ETXxyz"
     assertEqual "nonempty empty"
       (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.Reverse (FormE.toRepeated @[RB.BuildR] [mempty, RB.byteString "uv"])))
+           (Acc.fromReverseList [mempty, RB.byteString "uv"]))
       "B\STXuvB\NUL"
     assertEqual "double nonempty"
       (enc @('Form.Repeated 'Form.Unpacked)
-           (FormE.Reverse (FormE.toRepeated @[RB.BuildR]
-                            [RB.byteString "xyz", RB.byteString "uv"])))
+           (Acc.fromReverseList [RB.byteString "xyz", RB.byteString "uv"]))
       "B\STXuvB\ETXxyz"
   where
     enc ::
@@ -525,7 +361,7 @@ encodeCachedSubmessage = testGroup "Cached Submessages"
             , TP.MapTestEmulation_Trivial 25 (Just (TP.WrappedTrivial (Just (TP.Trivial 789))))
             ]
           mapTestEmulation = FormE.fieldsToMessage @TP.MapTestEmulation $
-            FormE.field @"trivial" (FormE.mapToRepeated cacheReflection trivials)
+            FormE.field @"trivial" (V.map cacheReflection trivials)
       FormE.toLazyByteString mapTestEmulation @?=
         toLazyByteString (TP.MapTestEmulation mempty trivials mempty)
 
@@ -635,20 +471,20 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
       , FormE.FieldForm 'Form.Optional protoType (Maybe b)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType [a]
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType [b]
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Acc.Acc a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Acc.Acc b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (V.Vector a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (V.Vector b)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Identity a)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Identity b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Forward a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Forward b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.ReverseN a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.ReverseN b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType [a]
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType [b]
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Acc.Acc a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Acc.Acc b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (V.Vector a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (V.Vector b)
       ) =>
       String ->
       (a -> b) ->
@@ -673,12 +509,12 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
       , FormE.FieldForm 'Form.Optional protoType (Maybe b)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType [a]
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType [b]
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Acc.Acc a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Acc.Acc b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (V.Vector a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (V.Vector b)
       ) =>
       String ->
       (a -> b) ->
@@ -702,12 +538,12 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
       , FormE.FieldForm 'Form.Optional protoType (Maybe b)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Forward b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.Reverse b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (FormE.ReverseN b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType [a]
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType [b]
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Acc.Acc a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Acc.Acc b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (V.Vector a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (V.Vector b)
       ) =>
       (a -> b) ->
       Property
@@ -722,7 +558,16 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
           let b :: b
               b = convert a
               bs :: [b]
-              bs = map convert as in
+              bs = map convert as
+              asAcc :: Acc.Acc a
+              asAcc = fromList as
+              bsAcc :: Acc.Acc b
+              bsAcc = fromList bs
+              asVec :: V.Vector a
+              asVec = V.fromList as
+              bsVec :: V.Vector b
+              bsVec = V.fromList bs
+          in
           counterexample "Implicit"
             (check1 @num @('Form.Singular 'Form.Implicit) @protoType a b) .&&.
           counterexample "Optional - Nothing"
@@ -734,11 +579,11 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
           counterexample "Unpacked Identity"
             (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (Identity a) (Identity b)) .&&.
           counterexample "Unpacked Forward"
-            (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (FormE.toRepeated as) (FormE.toRepeated bs)) .&&.
+            (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType as bs) .&&.
           counterexample "Unpacked Reverse"
-            (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (FormE.Reverse (FormE.toRepeated (reverse as))) (FormE.Reverse (FormE.toRepeated (reverse bs)))) .&&.
+            (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType asAcc bsAcc) .&&.
           counterexample "Unpacked Vector"
-            (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (FormE.toRepeated (V.fromList as)) (FormE.toRepeated (V.fromList bs)))
+            (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType asVec bsVec)
 
     propPacked ::
       forall (protoType :: Form.ProtoType) a b .
@@ -748,12 +593,12 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
       , Show a
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Identity a)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Identity b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Forward a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Forward b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.Reverse b)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.ReverseN a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (FormE.ReverseN b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType [a]
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType [b]
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Acc.Acc a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Acc.Acc b)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (V.Vector a)
+      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (V.Vector b)
       ) =>
       (a -> b) ->
       Property
@@ -768,15 +613,24 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
           let b :: b
               b = convert a
               bs :: [b]
-              bs = map convert as in
+              bs = map convert as
+              asAcc :: Acc.Acc a
+              asAcc = fromList as
+              bsAcc :: Acc.Acc b
+              bsAcc = fromList bs
+              asVec :: V.Vector a
+              asVec = V.fromList as
+              bsVec :: V.Vector b
+              bsVec = V.fromList bs
+          in
           counterexample "Packed Identity"
             (check1 @num @('Form.Repeated 'Form.Packed) @protoType (Identity a) (Identity b)) .&&.
           counterexample "Packed Forward"
-            (check1 @num @('Form.Repeated 'Form.Packed) @protoType (FormE.toRepeated as) (FormE.toRepeated bs)) .&&.
+            (check1 @num @('Form.Repeated 'Form.Packed) @protoType as bs) .&&.
           counterexample "Packed Reverse"
-            (check1 @num @('Form.Repeated 'Form.Packed) @protoType (FormE.Reverse (FormE.toRepeated (reverse as))) (FormE.Reverse (FormE.toRepeated (reverse bs)))) .&&.
+            (check1 @num @('Form.Repeated 'Form.Packed) @protoType asAcc bsAcc) .&&.
           counterexample "Packed Vector"
-            (check1 @num @('Form.Repeated 'Form.Packed) @protoType (FormE.toRepeated (V.fromList as)) (FormE.toRepeated (V.fromList bs)))
+            (check1 @num @('Form.Repeated 'Form.Packed) @protoType asVec bsVec)
 
     check1 ::
       forall (num :: Nat) (repetition :: Form.Repetition) (protoType :: Form.ProtoType) a b .

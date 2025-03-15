@@ -17,6 +17,8 @@ module Proto3.Suite.Types
 
   -- * Enumerable Types
   , Enumerated(..)
+  , codeFromEnumerated
+  , codeToEnumerated
 
   -- * String and Bytes Types
   , String(..)
@@ -72,6 +74,18 @@ instance ProtoEnum a => Arbitrary (Enumerated a) where
   arbitrary = do
     i <- arbitrary
     return . Enumerated $ maybe (Left i) Right (toProtoEnumMay i)
+
+-- | Pass through those values that are outside the enum range;
+-- this is for forward compatibility as enumerations are extended.
+codeFromEnumerated :: ProtoEnum e => Enumerated e -> Int32
+codeFromEnumerated = either id fromProtoEnum . enumerated
+{-# INLINE codeFromEnumerated #-}
+
+-- | Values inside the enum range are in Right, the rest in Left;
+-- this is for forward compatibility as enumerations are extended.
+codeToEnumerated :: ProtoEnum e => Int32 -> Enumerated e
+codeToEnumerated code = Enumerated (maybe (Left code) Right (toProtoEnumMay code))
+{-# INLINE codeToEnumerated #-}
 
 -- | 'String' provides a way to indicate that the given type expresses
 -- a Protobuf string scalar.  @'String' a@ may have type class instances
