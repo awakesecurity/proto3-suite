@@ -16,7 +16,6 @@
 module Main where
 
 import           ArbitraryGeneratedTestTypes ()
-import qualified Acc
 import qualified Data.ByteString             as B
 import qualified Data.ByteString.Char8       as BC
 import qualified Data.ByteString.Lazy        as BL
@@ -59,7 +58,7 @@ import           TestDhall
 
 import qualified Test.Proto.Generate.Name
 import qualified Test.Proto.Parse.Option
-import           Test.Proto.ToEncoder        (Iterator(Forward,Reverse,Vector),
+import           Test.Proto.ToEncoder        (Iterator(Forward, Vector),
                                               Stripping(Keep, Strip), ToEncoder(..))
 
 -- -----------------------------------------------------------------------------
@@ -216,16 +215,6 @@ encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
           let ?iterator = Forward
               ?stripping = Strip
           in toEncoder v
-      assertEqual (show fp ++ ": direct encoding, Reverse iterator, keep wrappers")
-        goldenEncoding $ FormE.toLazyByteString $
-          let ?iterator = Reverse
-              ?stripping = Keep
-          in toEncoder v
-      assertEqual (show fp ++ ": direct encoding, Reverse iterator, strip wrappers")
-        goldenEncoding $ FormE.toLazyByteString $
-          let ?iterator = Reverse
-              ?stripping = Strip
-          in toEncoder v
       assertEqual (show fp ++ ": direct encoding, Vector iterator, keep wrappers")
         goldenEncoding $ FormE.toLazyByteString $
           let ?iterator = Vector
@@ -311,11 +300,11 @@ encodeBytesFromBuilder = testCase "bytes from builder" $ do
       "B\NULB\ETXxyz"
     assertEqual "nonempty empty"
       (enc @('Form.Repeated 'Form.Unpacked)
-           (Acc.fromReverseList [mempty, RB.byteString "uv"]))
+           (V.fromList [RB.byteString "uv", mempty]))
       "B\STXuvB\NUL"
     assertEqual "double nonempty"
       (enc @('Form.Repeated 'Form.Unpacked)
-           (Acc.fromReverseList [RB.byteString "xyz", RB.byteString "uv"]))
+           (V.fromList [RB.byteString "uv", RB.byteString "xyz"]))
       "B\STXuvB\ETXxyz"
   where
     enc ::
@@ -473,16 +462,12 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity b)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType [a]
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType [b]
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Acc.Acc a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Acc.Acc b)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (V.Vector a)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (V.Vector b)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Identity a)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Identity b)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType [a]
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType [b]
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Acc.Acc a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Acc.Acc b)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (V.Vector a)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (V.Vector b)
       ) =>
@@ -511,8 +496,6 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity b)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType [a]
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType [b]
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Acc.Acc a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Acc.Acc b)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (V.Vector a)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (V.Vector b)
       ) =>
@@ -540,8 +523,6 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity b)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType [a]
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType [b]
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Acc.Acc a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Acc.Acc b)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (V.Vector a)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (V.Vector b)
       ) =>
@@ -559,10 +540,6 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
               b = convert a
               bs :: [b]
               bs = map convert as
-              asAcc :: Acc.Acc a
-              asAcc = fromList as
-              bsAcc :: Acc.Acc b
-              bsAcc = fromList bs
               asVec :: V.Vector a
               asVec = V.fromList as
               bsVec :: V.Vector b
@@ -580,8 +557,6 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
             (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (Identity a) (Identity b)) .&&.
           counterexample "Unpacked Forward"
             (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType as bs) .&&.
-          counterexample "Unpacked Reverse"
-            (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType asAcc bsAcc) .&&.
           counterexample "Unpacked Vector"
             (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType asVec bsVec)
 
@@ -595,8 +570,6 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Identity b)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType [a]
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType [b]
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Acc.Acc a)
-      , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (Acc.Acc b)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (V.Vector a)
       , FormE.FieldForm ('Form.Repeated 'Form.Packed) protoType (V.Vector b)
       ) =>
@@ -614,10 +587,6 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
               b = convert a
               bs :: [b]
               bs = map convert as
-              asAcc :: Acc.Acc a
-              asAcc = fromList as
-              bsAcc :: Acc.Acc b
-              bsAcc = fromList bs
               asVec :: V.Vector a
               asVec = V.fromList as
               bsVec :: V.Vector b
@@ -627,8 +596,6 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
             (check1 @num @('Form.Repeated 'Form.Packed) @protoType (Identity a) (Identity b)) .&&.
           counterexample "Packed Forward"
             (check1 @num @('Form.Repeated 'Form.Packed) @protoType as bs) .&&.
-          counterexample "Packed Reverse"
-            (check1 @num @('Form.Repeated 'Form.Packed) @protoType asAcc bsAcc) .&&.
           counterexample "Packed Vector"
             (check1 @num @('Form.Repeated 'Form.Packed) @protoType asVec bsVec)
 

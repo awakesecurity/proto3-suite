@@ -21,13 +21,11 @@ module Test.Proto.ToEncoder
 import Control.Category ((.))
 import Prelude hiding ((.))
 
-import qualified Acc
 import Data.Foldable (toList)
 import qualified Data.Functor.Identity as Functor (Identity(..))
 import Data.Kind (Type)
 import qualified Data.Map as M
 import qualified Data.Vector
-import qualified GHC.Exts
 import qualified Proto3.Suite.Form as Form
 import qualified Proto3.Suite.Form.Encode as FormE
 import Proto3.Wire.Encode.Repeated (mapRepeated)
@@ -43,11 +41,11 @@ import qualified TestProtoWrappers
 data Iterator
   = Identity
   | Forward
-  | Reverse
   | Vector
   deriving stock (Bounded, Enum, Eq, Read, Show)
 
--- | Which kind of iteration we should test for repeated fields.
+-- | Whether we should strip 'FormE.Wrap' from the types of the values to be contained
+-- in standard wrappers; either approach should be supported for typically-used types.
 data Stripping
   = Keep
   | Strip
@@ -112,11 +110,9 @@ repeated ::
   , FormE.Occupy message name names ~ names
   , FormE.Field name (Functor.Identity b) message
   , FormE.Field name ([b]) message
-  , FormE.Field name (Acc.Acc b) message
   , FormE.Field name (Data.Vector.Vector b) message
   , FormE.Field name (Functor.Identity c) message
   , FormE.Field name ([c]) message
-  , FormE.Field name (Acc.Acc c) message
   , FormE.Field name (Data.Vector.Vector c) message
   ) =>
   (a -> b) ->
@@ -135,10 +131,6 @@ repeated f = case (?iterator, ?stripping) of
     FormE.field @name . map f . toList
   (Forward, Strip) ->
     FormE.field @name . map (strip . f) . toList
-  (Reverse, Keep) ->
-    FormE.field @name . fmap @Acc.Acc f . GHC.Exts.fromList @(Acc.Acc a) . toList
-  (Reverse, Strip) ->
-    FormE.field @name . fmap @Acc.Acc (strip . f) . GHC.Exts.fromList @(Acc.Acc a) . toList
   (Vector, Keep) ->
     FormE.field @name . Data.Vector.map f
   (Vector, Strip) ->
@@ -151,7 +143,6 @@ associations ::
   , ?iterator :: Iterator
   , FormE.Field name (Functor.Identity (FormE.MessageEncoder (Form.Association key value))) message
   , FormE.Field name [FormE.MessageEncoder (Form.Association key value)] message
-  , FormE.Field name (Acc.Acc (FormE.MessageEncoder (Form.Association key value))) message
   , FormE.Field name (Data.Vector.Vector (FormE.MessageEncoder (Form.Association key value))) message
   , FormE.KnownFieldNumber message name
   ) =>
@@ -163,7 +154,6 @@ associations f = case ?iterator of
               mapRepeated (FormE.associations @name . Functor.Identity . f) .
               M.toAscList
   Forward -> FormE.associations @name . map f . M.toAscList
-  Reverse -> FormE.associations @name . fmap @Acc.Acc f . Acc.fromReverseList . M.toDescList
   Vector -> FormE.associations @name . Data.Vector.map f . Data.Vector.fromList . M.toAscList
 
 instance ToEncoder Trivial

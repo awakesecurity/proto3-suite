@@ -43,7 +43,7 @@ import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  jsonPBOptions)
 import           Proto3.Suite.Types             (Enumerated(..))
 import           System.Exit
-import           Test.Proto.ToEncoder           (Iterator(..), Stripping(..))
+import           Test.Proto.ToEncoder           (Iterator, Stripping)
 import           Test.Tasty
 import           Test.Tasty.HUnit               (testCase, (@?=))
 import           Test.Tasty.QuickCheck          (Arbitrary, (===), testProperty)
