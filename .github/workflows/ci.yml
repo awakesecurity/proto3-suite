@@ -47,7 +47,7 @@ jobs:
         name: Checkout
       - uses: cachix/install-nix-action@v31
         name: Install Nix
-      - uses: cachix/cachix-action@v12
+      - uses: cachix/cachix-action@v16
         name: Set up Cachix
         with:
           name: awakesecurity
