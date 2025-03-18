@@ -51,6 +51,12 @@ write_proto(SignedInts(signed32 = (-42), signed64 = (-84)))
 write_proto(SignedInts(signed32 = -(2**31), signed64 = -(2**63)))
 write_proto(SignedInts(signed32 = (2**32 - 1) // 2, signed64 = (2**64 - 1) // 2))
 
+# Test case: RepeatedSignedInts
+write_proto(WithRepeatedSigned(r32 = [], r64 = []))
+write_proto(WithRepeatedSigned(r32 = [0], r64 = [0]))
+write_proto(WithRepeatedSigned(r32 = [0, 42, -42, 2**30 - 1, -(2**30), 2**31 - 1, -(2**31)],
+                               r64 = [0, 84, -84, 2**62 - 1, -(2**62), 2**63 - 1, -(2**63)]))
+
 # Test case 3: Nested enumeration
 write_proto(WithEnum(enumField = WithEnum.ENUM1))
 write_proto(WithEnum(enumField = WithEnum.ENUM2))
@@ -65,6 +71,12 @@ write_proto(
                                    nestedPacked   = [],
                                    nestedUnpacked = [])))
 write_proto(WithNesting())
+write_proto(
+    WithNesting(nestedMessage=
+                WithNesting.Nested(nestedField1   = "",
+                                   nestedField2   = 0,
+                                   nestedPacked   = [],
+                                   nestedUnpacked = [])))
 
 # Test case 5: Nested repeated message
 write_proto(WithNestingRepeated(nestedMessages =
@@ -229,62 +241,170 @@ write_proto(test_proto_oneof.WithImported())
 
 
 # Test case 19: Maps
-write_proto(MapTest( prim={'foo': 1, 'bar': 42, 'baz': 1234567 },
-                     trivial={ 1: WrappedTrivial(trivial=Trivial(trivialField=1)),
-                               2: WrappedTrivial(trivial=Trivial(trivialField=42)),
-                               101: WrappedTrivial(trivial=Trivial(trivialField=1234567)),
-                               79: WrappedTrivial()
-                             },
-                    signed={ 1: 2, 3: 4, 5: 6 }
-                  )
-          )
+if format == jsonpb:
+    case19Map = MapTest(
+        prim={'foo': 1, 'bar': 42, 'baz': 1234567 },
+        trivial={ 1: WrappedTrivial(trivial=Trivial(trivialField=1)),
+                  2: WrappedTrivial(trivial=Trivial(trivialField=42)),
+                  101: WrappedTrivial(trivial=Trivial(trivialField=1234567)),
+                  79: WrappedTrivial(),
+                 },
+        signed={ 1: 2, 3: 4, 5: 6 }
+    )
+else:
+    # In Binary format we can work around the limitations of Python protobuf
+    # support by using an alternative message definition whose binary encoding
+    # should be identical, according to the protobuf specification.
+    case19Map = MapTestEmulation(
+        prim=[
+            MapTestEmulation.Prim(key='bar', value=42),
+            MapTestEmulation.Prim(key='baz', value=1234567),
+            MapTestEmulation.Prim(key='foo', value=1)
+        ],
+        trivial=[
+            MapTestEmulation.Trivial(key=1, value=WrappedTrivial(trivial=Trivial(trivialField=1))),
+            MapTestEmulation.Trivial(key=2, value=WrappedTrivial(trivial=Trivial(trivialField=42))),
+            MapTestEmulation.Trivial(key=79, value=WrappedTrivial()),
+            MapTestEmulation.Trivial(key=80),
+            MapTestEmulation.Trivial(key=101, value=WrappedTrivial(trivial=Trivial(trivialField=1234567))),
+        ],
+        signed=[
+            MapTestEmulation.Signed(key=1, value=2),
+            MapTestEmulation.Signed(key=3, value=4),
+            MapTestEmulation.Signed(key=5, value=6)
+        ]
+    )
+write_proto(case19Map)
 
 # Test DoubleValue
-write_proto(test_proto_wrappers.TestDoubleValue())
-write_proto(test_proto_wrappers.TestDoubleValue(wrapper=DoubleValue(value=3.5)))
+write_proto(test_proto_wrappers.TestDoubleValue
+            (many=map(lambda x: DoubleValue(value=x), [4.75, 0.0, -7.125])))
+write_proto(test_proto_wrappers.TestDoubleValue
+            (wrapper=DoubleValue(value=3.5),
+             one=DoubleValue(value=0.0)))
+write_proto(test_proto_wrappers.TestDoubleValue
+            (wrapper=DoubleValue(value=-3.5),
+             many=map(lambda x: DoubleValue(value=x), [0.0, 0.0, 0.0]),
+             one=DoubleValue(value=-1.75)))
 
 # Test FloatValue
-write_proto(test_proto_wrappers.TestFloatValue())
-write_proto(test_proto_wrappers.TestFloatValue(wrapper=FloatValue(value=2.5)))
+write_proto(test_proto_wrappers.TestFloatValue(one=FloatValue(value=0.0)))
+write_proto(test_proto_wrappers.TestFloatValue
+            (wrapper=FloatValue(value=2.5),
+             many=map(lambda x: FloatValue(value=x), [1.75, 0.0, -5.125])))
+write_proto(test_proto_wrappers.TestFloatValue
+            (wrapper=FloatValue(value=-2.5),
+             many=map(lambda x: FloatValue(value=x), [0.0, 0.0, 0.0]),
+             one=FloatValue(value=-1.25)))
 
 # Test Int64Value
-write_proto(test_proto_wrappers.TestInt64Value())
-write_proto(test_proto_wrappers.TestInt64Value(wrapper=Int64Value(value=0)))
-write_proto(test_proto_wrappers.TestInt64Value(wrapper=Int64Value(value=9223372036854775807)))
-write_proto(test_proto_wrappers.TestInt64Value(wrapper=Int64Value(value=-1)))
-write_proto(test_proto_wrappers.TestInt64Value(wrapper=Int64Value(value=-9223372036854775808)))
+write_proto(test_proto_wrappers.TestInt64Value
+            (many=map(lambda x: Int64Value(value=x), [1, 0, -5])))
+write_proto(test_proto_wrappers.TestInt64Value
+            (wrapper=Int64Value(value=0),
+             one=Int64Value(value=5)))
+write_proto(test_proto_wrappers.TestInt64Value
+            (wrapper=Int64Value(value=9223372036854775807),
+             many=map(lambda x: Int64Value(value=x), [-9223372036854775808, 0, 9223372036854775807]),
+             one=Int64Value(value=-9223372036854775808)))
+write_proto(test_proto_wrappers.TestInt64Value
+            (wrapper=Int64Value(value=-1),
+             many=map(lambda x: Int64Value(value=x), [0, 9223372036854775807, -9223372036854775808]),
+             one=Int64Value(value=9223372036854775807)))
+write_proto(test_proto_wrappers.TestInt64Value
+            (wrapper=Int64Value(value=-9223372036854775808),
+             many=map(lambda x: Int64Value(value=x), [0, 0, 0]),
+             one=Int64Value(value=0)))
 
 # Test UInt64Value
-write_proto(test_proto_wrappers.TestUInt64Value())
-write_proto(test_proto_wrappers.TestUInt64Value(wrapper=UInt64Value(value=0)))
-write_proto(test_proto_wrappers.TestUInt64Value(wrapper=UInt64Value(value=18446744073709551615)))
+write_proto(test_proto_wrappers.TestUInt64Value
+            (many=map(lambda x: UInt64Value(value=x), [1, 0, 5])))
+write_proto(test_proto_wrappers.TestUInt64Value
+            (wrapper=UInt64Value(value=0),
+             one=UInt64Value(value=5)))
+write_proto(test_proto_wrappers.TestUInt64Value
+            (wrapper=UInt64Value(value=18446744073709551615),
+             many=map(lambda x: UInt64Value(value=x), [0, 0, 18446744073709551615]),
+             one=UInt64Value(value=0)))
+write_proto(test_proto_wrappers.TestUInt64Value
+            (wrapper=UInt64Value(value=1),
+             many=map(lambda x: UInt64Value(value=x), [0, 18446744073709551615, 0]),
+             one=UInt64Value(value=18446744073709551615)))
+write_proto(test_proto_wrappers.TestUInt64Value
+            (wrapper=UInt64Value(value=0),
+             many=map(lambda x: UInt64Value(value=x), [0, 0, 0]),
+             one=UInt64Value(value=0)))
 
 # Test Int32Value
-write_proto(test_proto_wrappers.TestInt32Value())
-write_proto(test_proto_wrappers.TestInt32Value(wrapper=Int32Value(value=0)))
-write_proto(test_proto_wrappers.TestInt32Value(wrapper=Int32Value(value=2147483647)))
-write_proto(test_proto_wrappers.TestInt32Value(wrapper=Int32Value(value=-1)))
-write_proto(test_proto_wrappers.TestInt32Value(wrapper=Int32Value(value=-2147483648)))
+write_proto(test_proto_wrappers.TestInt32Value
+            (many=map(lambda x: Int32Value(value=x), [1, 0, -5])))
+write_proto(test_proto_wrappers.TestInt32Value
+            (wrapper=Int32Value(value=0),
+             one=Int32Value(value=5)))
+write_proto(test_proto_wrappers.TestInt32Value
+            (wrapper=Int32Value(value=2147483647),
+             many=map(lambda x: Int32Value(value=x), [-2147483648, 0, 2147483647]),
+             one=Int32Value(value=-2147483648)))
+write_proto(test_proto_wrappers.TestInt32Value
+            (wrapper=Int32Value(value=-1),
+             many=map(lambda x: Int32Value(value=x), [0, 2147483647, -2147483648]),
+             one=Int32Value(value=2147483647)))
+write_proto(test_proto_wrappers.TestInt32Value
+            (wrapper=Int32Value(value=-2147483648),
+             many=map(lambda x: Int32Value(value=x), [0, 0, 0]),
+             one=Int32Value(value=0)))
 
 # Test UInt32Value
-write_proto(test_proto_wrappers.TestUInt32Value())
-write_proto(test_proto_wrappers.TestUInt32Value(wrapper=UInt32Value(value=0)))
-write_proto(test_proto_wrappers.TestUInt32Value(wrapper=UInt32Value(value=4294967295)))
+write_proto(test_proto_wrappers.TestUInt32Value
+            (many=map(lambda x: UInt32Value(value=x), [1, 0, 5])))
+write_proto(test_proto_wrappers.TestUInt32Value
+            (wrapper=UInt32Value(value=0),
+             one=UInt32Value(value=5)))
+write_proto(test_proto_wrappers.TestUInt32Value
+            (wrapper=UInt32Value(value=4294967295),
+             many=map(lambda x: UInt32Value(value=x), [0, 0, 4294967295]),
+             one=UInt32Value(value=0)))
+write_proto(test_proto_wrappers.TestUInt32Value
+            (wrapper=UInt32Value(value=1),
+             many=map(lambda x: UInt32Value(value=x), [0, 4294967295, 0]),
+             one=UInt32Value(value=4294967295)))
+write_proto(test_proto_wrappers.TestUInt32Value
+            (wrapper=UInt32Value(value=0),
+             many=map(lambda x: UInt32Value(value=x), [0, 0, 0]),
+             one=UInt32Value(value=0)))
 
 # Test BoolValue
-write_proto(test_proto_wrappers.TestBoolValue())
-write_proto(test_proto_wrappers.TestBoolValue(wrapper=BoolValue(value=False)))
-write_proto(test_proto_wrappers.TestBoolValue(wrapper=BoolValue(value=True)))
+write_proto(test_proto_wrappers.TestBoolValue
+            (many=map(lambda x: BoolValue(value=x), [False, True])))
+write_proto(test_proto_wrappers.TestBoolValue
+            (wrapper=BoolValue(value=False),
+             one=BoolValue(value=True)))
+write_proto(test_proto_wrappers.TestBoolValue
+            (wrapper=BoolValue(value=True),
+             many=map(lambda x: BoolValue(value=x), [True, False]),
+             one=BoolValue(value=False)))
 
 # Test StringValue
-write_proto(test_proto_wrappers.TestStringValue())
-write_proto(test_proto_wrappers.TestStringValue(wrapper=StringValue(value="")))
-write_proto(test_proto_wrappers.TestStringValue(wrapper=StringValue(value="abc")))
+write_proto(test_proto_wrappers.TestStringValue
+            (many=map(lambda x: StringValue(value=x), ["abc", "", "def"])))
+write_proto(test_proto_wrappers.TestStringValue
+            (wrapper=StringValue(value=""),
+             one=StringValue(value="xyz")))
+write_proto(test_proto_wrappers.TestStringValue
+            (wrapper=StringValue(value="abc"),
+             many=map(lambda x: StringValue(value=x), ["", "", ""]),
+             one=StringValue(value="")))
 
 # Test BytesValue
-write_proto(test_proto_wrappers.TestBytesValue())
-write_proto(test_proto_wrappers.TestBytesValue(wrapper=BytesValue(value=b"")))
-write_proto(test_proto_wrappers.TestBytesValue(wrapper=BytesValue(value=b"012")))
+write_proto(test_proto_wrappers.TestBytesValue
+            (many=map(lambda x: BytesValue(value=x), [b"012", b"", b"345"])))
+write_proto(test_proto_wrappers.TestBytesValue
+            (wrapper=BytesValue(value=b""),
+             one=BytesValue(value=b"789")))
+write_proto(test_proto_wrappers.TestBytesValue
+            (wrapper=BytesValue(value=b"012"),
+             many=map(lambda x: BytesValue(value=x), [b"", b"", b""]),
+             one=BytesValue(value=b"")))
 
 # Test NegativeEnum
 write_proto(test_proto_negative_enum.WithNegativeEnum(v=test_proto_negative_enum.NEGATIVE_ENUM_0))

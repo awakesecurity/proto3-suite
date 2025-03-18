@@ -302,6 +302,28 @@ in {
                 jailbreak = true;
               });
 
+          # Newer versions of "witch" do not support GHC 9.0.
+          witch =
+            if builtins.compareVersions haskellPackagesOld.ghc.version "9.2.0" < 0
+              then haskellPackagesNew.callPackage (
+                { mkDerivation, base, bytestring, containers, HUnit, lib, tagged
+                , template-haskell, text, time, transformers
+                }:
+                mkDerivation {
+                  pname = "witch";
+                  version = "1.1.6.0";
+                  sha256 = "e3f0879abbc22d7c674219317783438f28325e09e0b30cbc8890c936d870192e";
+                  libraryHaskellDepends = [
+                    base bytestring containers tagged template-haskell text time
+                  ];
+                  testHaskellDepends = [
+                    base bytestring containers HUnit tagged text time transformers
+                  ];
+                  description = "Convert values from one type into another";
+                  license = lib.licenses.mit;
+                }) {}
+              else haskellPackagesOld.witch;
+
           # With nixpkgs-23.11 and ghc962, proto3-wire thinks
           # that doctest and transformers are out of bounds.
           proto3-wire =
@@ -309,8 +331,8 @@ in {
               source = pkgsNew.fetchFromGitHub {
                 owner = "awakesecurity";
                 repo = "proto3-wire";
-                rev = "6fdf0eb93b2028ade0e3e011ce8429c94546839e"; # 1.4.4
-                sha256 = "fGPcpv1AFLbmEg9ZRiBbto3el49pHfPIIxQT6U2mebQ=";
+                rev = "d4376fb6f1c1ac03ee8ec5c5793700ca6508ea70"; # 1.4.5
+                sha256 = "G+MDqooUJvwHLITl2yyDAO31PruPOa9dXh7KIY7vaFk=";
               };
             in
               pkgsNew.haskell.lib.doJailbreak
@@ -376,7 +398,11 @@ in {
 
                   test-files = (gitignoreSource ../../test-files);
 
-                  compile-proto-flags = if enableLargeRecords then "--largeRecords" else "";
+                  compile-proto-flags = {
+                    largeRecords = enableLargeRecords;
+                    typeLevelFormat = true;
+                  };
+
                   cg-artifacts = pkgsNew.runCommand "proto3-suite-test-cg-artifacts" { } ''
                     mkdir -p $out/protos
 
@@ -387,7 +413,7 @@ in {
                     build () {
                       echo "[proto3-suite-test-cg-artifacts] Compiling proto-file/$1"
                       ${haskellPackagesNew.proto3-suite-boot}/bin/compile-proto-file \
-                        ${compile-proto-flags} \
+                        ${pkgsNew.lib.cli.toGNUCommandLineShell {} compile-proto-flags} \
                         --out $out \
                         --includeDir "$2" \
                         --proto "$1"

@@ -28,6 +28,9 @@ import           Data.Typeable                  (Typeable, typeRep,
                                                  splitTyConApp, tyConName
 #endif
                                                 )
+#ifdef SWAGGER
+import           GHC.Stack                      (HasCallStack)
+#endif
 import           Google.Protobuf.Timestamp      (Timestamp(..))
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.Class             (def)
@@ -40,6 +43,7 @@ import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  jsonPBOptions)
 import           Proto3.Suite.Types             (Enumerated(..))
 import           System.Exit
+import           Test.Proto.ToEncoder           (Iterator, Stripping)
 import           Test.Tasty
 import           Test.Tasty.HUnit               (testCase, (@?=))
 import           Test.Tasty.QuickCheck          (Arbitrary, (===), testProperty)
@@ -75,44 +79,47 @@ pythonInteroperation logger = testGroup "Python interoperation" $ do
 #endif
   tt <- ["Data.Text.Lazy.Text", "Data.Text.Text", "Data.Text.Short.ShortText"]
   format <- ["Binary", "Jsonpb"]
-  direction <- [simpleEncodeDotProto logger, simpleDecodeDotProto logger]
-  pure @[] (direction recStyle tt format)
+  testEncode <- [True, False]
+  direct <- [False, True]
+  guard $ not direct || (testEncode && format == "Binary")
+  let f = if testEncode then simpleEncodeDotProto direct else simpleDecodeDotProto
+  pure @[] (f logger recStyle tt format)
 
 #ifdef SWAGGER
 swaggerWrapperFormat :: TestTree
 swaggerWrapperFormat = testGroup "Swagger Wrapper Format"
     [ expectSchema @TestProtoWrappers.TestDoubleValue
-           "{\"properties\":{\"wrapper\":{\"format\":\"DoubleValue\",\"type\":\"number\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"double\",\"type\":\"number\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"DoubleValue\",\"type\":\"number\"},\"many\":{\"items\":{\"format\":\"double\",\"type\":\"number\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestDoubleValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"double\",\"type\":\"number\"},\"many\":{\"items\":{\"format\":\"double\",\"type\":\"number\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestDoubleValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestFloatValue
-           "{\"properties\":{\"wrapper\":{\"format\":\"FloatValue\",\"type\":\"number\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"float\",\"type\":\"number\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"FloatValue\",\"type\":\"number\"},\"many\":{\"items\":{\"format\":\"float\",\"type\":\"number\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestFloatValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"float\",\"type\":\"number\"},\"many\":{\"items\":{\"format\":\"float\",\"type\":\"number\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestFloatValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestInt64Value
-           "{\"properties\":{\"wrapper\":{\"format\":\"Int64Value\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"int64\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"Int64Value\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"int64\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestInt64ValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int64\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"int64\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestInt64ValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestUInt64Value
-           "{\"properties\":{\"wrapper\":{\"format\":\"UInt64Value\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"int64\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"UInt64Value\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"int64\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestUInt64ValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int64\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"int64\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestUInt64ValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestInt32Value
-           "{\"properties\":{\"wrapper\":{\"format\":\"Int32Value\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"Int32Value\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestInt32ValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestInt32ValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestUInt32Value
-           "{\"properties\":{\"wrapper\":{\"format\":\"UInt32Value\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"int32\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"UInt32Value\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"int32\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestUInt32ValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"int32\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"},\"many\":{\"items\":{\"format\":\"int32\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestUInt32ValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestBoolValue
-           "{\"properties\":{\"wrapper\":{\"format\":\"BoolValue\",\"type\":\"boolean\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"type\":\"boolean\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"BoolValue\",\"type\":\"boolean\"},\"many\":{\"items\":{\"type\":\"boolean\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestBoolValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"type\":\"boolean\"},\"many\":{\"items\":{\"type\":\"boolean\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestBoolValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestStringValue
-           "{\"properties\":{\"wrapper\":{\"format\":\"StringValue\",\"type\":\"string\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"type\":\"string\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"StringValue\",\"type\":\"string\"},\"many\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestStringValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"type\":\"string\"},\"many\":{\"items\":{\"type\":\"string\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestStringValuePickOne\"}},\"type\":\"object\"}"
     , expectSchema @TestProtoWrappers.TestBytesValue
-           "{\"properties\":{\"wrapper\":{\"format\":\"BytesValue\",\"type\":\"string\"}},\"type\":\"object\"}"
-           "{\"properties\":{\"wrapper\":{\"format\":\"byte\",\"type\":\"string\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"BytesValue\",\"type\":\"string\"},\"many\":{\"items\":{\"format\":\"byte\",\"type\":\"string\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestBytesValuePickOne\"}},\"type\":\"object\"}"
+           "{\"properties\":{\"wrapper\":{\"format\":\"byte\",\"type\":\"string\"},\"many\":{\"items\":{\"format\":\"byte\",\"type\":\"string\"},\"type\":\"array\"},\"pickOne\":{\"$ref\":\"#/definitions/TestBytesValuePickOne\"}},\"type\":\"object\"}"
     ]
   where
     expectSchema ::
       forall a .
-      (ToSchema a, Typeable a) =>
+      (ToSchema a, Typeable a, HasCallStack) =>
       LBS.ByteString ->
       LBS.ByteString ->
       TestTree
@@ -188,27 +195,46 @@ setPythonPath :: IO ()
 setPythonPath = Turtle.export "PYTHONPATH" .
   maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) =<< Turtle.need "PYTHONPATH"
 
-simpleEncodeDotProto :: Logger -> RecordStyle -> String -> T.Text -> TestTree
-simpleEncodeDotProto logger recStyle chosenStringType format =
+simpleEncodeDotProto :: Bool -> Logger -> RecordStyle -> String -> T.Text -> TestTree
+simpleEncodeDotProto direct logger recStyle chosenStringType format =
     testCase ("generate code for a simple .proto and then use it to encode messages" ++
               " with string type " ++ chosenStringType ++ " in format " ++ show format ++
-              ", record style " ++ show recStyle)
+              ", record style " ++ show recStyle ++
+              (if direct then ", direct mode" else ", intermediate mode"))
     $ do
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
-         compileTestDotProtos logger recStyle decodedStringType
+         compileTestDotProtos logger recStyle decodedStringType direct
          -- Compile our generated encoder
          let encodeCmd = "tests/encode.sh " <> hsTmpDir
+                           <> (if direct then " -DTYPE_LEVEL_FORMAT" else "")
 #if DHALL
                            <> " -DDHALL"
 #endif
          Turtle.shell encodeCmd empty >>= (@?= ExitSuccess)
 
-         -- The python encoder test exits with a special error code to indicate
-         -- all tests were successful
+         -- The python test of encoding exits with a special error code to indicate
+         -- all tests were successful.  When directly encoding without an intermediate
+         -- data structure, we run the test several times (still compiling just once)
+         -- in order to cover various supported ways of iterating over repeated fields.
          setPythonPath
-         let cmd = hsTmpDir <> "/simpleEncodeDotProto " <> format <> " | python tests/check_simple_dot_proto.py " <> format
-         Turtle.shell cmd empty >>= (@?= ExitFailure 12)
+         let iterators :: [Iterator]
+             iterators
+               | direct = [minBound .. maxBound]
+               | otherwise = [minBound]  -- Just an unused placeholder
+             strippings :: [Stripping]
+             strippings
+               | direct = [minBound .. maxBound]
+               | otherwise = [minBound]  -- Just an unused placeholder
+         forM_ iterators $ \(iterator :: Iterator) -> do
+           forM_ strippings $ \(stripping :: Stripping) -> do
+             when direct $ do
+               putStrLn $ "        iterator: " ++ show iterator
+               putStrLn $ "        stripping: " ++ show stripping
+             let cmd = hsTmpDir <> "/simpleEncodeDotProto " <> format <>
+                       " " <> T.pack (show iterator) <> " " <> T.pack (show stripping) <>
+                       " | python tests/check_simple_dot_proto.py " <> format
+             Turtle.shell cmd empty >>= (@?= ExitFailure 12)
 
          -- Not using bracket so that we can inspect the output to fix the tests
          Turtle.rmtree hsTmpDir
@@ -222,7 +248,7 @@ simpleDecodeDotProto logger recStyle chosenStringType format =
     $ do
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
-         compileTestDotProtos logger recStyle decodedStringType
+         compileTestDotProtos logger recStyle decodedStringType False
          -- Compile our generated decoder
          let decodeCmd = "tests/decode.sh " <> hsTmpDir
 #if DHALL
@@ -247,8 +273,8 @@ pyTmpDir = "test-files/py-tmp"
 defaultStringType :: StringType
 defaultStringType = StringType "Data.Text.Lazy" "Text"
 
-compileTestDotProtos :: Logger -> RecordStyle -> StringType -> IO ()
-compileTestDotProtos logger recStyle decodedStringType = do
+compileTestDotProtos :: Logger -> RecordStyle -> StringType -> Bool -> IO ()
+compileTestDotProtos logger recStyle decodedStringType typeLevel = do
   Turtle.mktree hsTmpDir
   Turtle.mktree pyTmpDir
   let protoFiles :: [Turtle.FilePath]
@@ -275,6 +301,7 @@ compileTestDotProtos logger recStyle decodedStringType = do
                    , inputProto = protoFile
                    , stringType = decodedStringType
                    , recordStyle = recStyle
+                   , typeLevelFormat = typeLevel
                    }
 
     let cmd = T.concat [ "protoc --python_out="
