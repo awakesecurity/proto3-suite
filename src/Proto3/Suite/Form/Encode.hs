@@ -29,8 +29,10 @@ module Proto3.Suite.Form.Encode
   , toLazyByteString
   , etaMessageEncoder
   , MessageEncoding
-  , cacheMessageEncoder
+  , cacheMessageEncoding
   , cachedMessageEncoding
+  , messageEncodingToByteString
+  , unsafeByteStringToMessageEncoding
   , Prefix(..)
   , etaPrefix
   , Fields
@@ -311,6 +313,6 @@ instance ( MessageFieldType repetition protoType a
 -- | Creates a message encoder by means of type class `Proto3.Suite.Class.Message`.
 --
 -- To encode a field instead of a top-level message, use 'Reflection'.
-messageReflection :: forall a . Message a => a -> MessageEncoder a
-messageReflection m = coerce (encodeMessage @a (Wire.fieldNumber 1) m)
+messageReflection :: forall message . Message message => message -> MessageEncoder message
+messageReflection m = coerce (encodeMessage @message (Wire.fieldNumber 1) m)
 {-# INLINABLE messageReflection #-}

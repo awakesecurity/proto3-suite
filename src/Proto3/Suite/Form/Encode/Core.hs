@@ -31,8 +31,10 @@ module Proto3.Suite.Form.Encode.Core
   , toLazyByteString
   , etaMessageEncoder
   , MessageEncoding
-  , cacheMessageEncoder
+  , cacheMessageEncoding
   , cachedMessageEncoding
+  , messageEncodingToByteString
+  , unsafeByteStringToMessageEncoding
   , Prefix(..)
   , etaPrefix
   , Fields
@@ -73,7 +75,7 @@ import GHC.Generics (Generic)
 import GHC.TypeLits (ErrorMessage(..), KnownNat, Symbol, TypeError, natVal')
 import Language.Haskell.TH qualified as TH
 import Prelude hiding ((.), id)
-import Proto3.Suite.Class (isDefault)
+import Proto3.Suite.Class (Message, fromByteString, isDefault)
 import Proto3.Suite.Form
          (Association, NumberOf, Omission(..), OneOfOf, Packing(..),
           Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf, Wrapper)
@@ -96,33 +98,55 @@ toLazyByteString = Encode.toLazyByteString . untypedMessageEncoder
 etaMessageEncoder :: forall a message . (a -> MessageEncoder message) -> a -> MessageEncoder message
 etaMessageEncoder = coerce (Encode.etaMessageBuilder @a)
 
--- | The octet sequence that would be emitted by
--- some 'MessageEncoder' having the same type parameter.
+-- | The octet sequence that would be emitted by some
+-- 'MessageEncoder' having the same type parameter.
 --
--- See also: 'cacheMessageEncoder'
-newtype MessageEncoding (message :: Type) =
-  UnsafeMessageEncoding { untypedMessageEncoding :: B.ByteString }
+-- See also: 'cacheMessageEncoding'
+newtype MessageEncoding (message :: Type) = UnsafeMessageEncoding B.ByteString
+  deriving newtype (Eq)
 
 type role MessageEncoding nominal
+
+instance (Message message, Show message) =>
+         Show (MessageEncoding message)
+  where
+    showsPrec d (messageEncodingToByteString -> bs) = showParen (d >= 11) $
+      case fromByteString bs of
+        Left _ ->
+          showString "Proto3.Suite.Form.Encode.unsafeByteStringToMessageEncoding " .
+          showsPrec 11 bs
+        Right (message :: message) ->
+          showString "Proto3.Suite.Form.Encode.messageReflection " .
+          showsPrec 11 message
 
 -- | Precomputes the octet sequence that would be written by the given 'MessageEncoder'.
 -- Do this only if you expect to reuse that specific octet sequence repeatedly.
 --
--- @'cachedMessageEncoding' . 'cacheMessageEncoder'@ is functionally equivalent to @id@
+-- @'cachedMessageEncoding' . 'cacheMessageEncoding'@ is functionally equivalent to @id@
 -- but has different performance characteristics.
 --
 -- See also: 'cachePrefix'.
-cacheMessageEncoder :: MessageEncoder message -> MessageEncoding message
-cacheMessageEncoder =
+cacheMessageEncoding :: MessageEncoder message -> MessageEncoding message
+cacheMessageEncoding =
   UnsafeMessageEncoding . BL.toStrict . Encode.toLazyByteString . untypedMessageEncoder
 
 -- | Encodes a precomputed 'MessageEncoder' by copying octets from a memory buffer.
--- See 'cacheMessageEncoder'.
+-- See 'cacheMessageEncoding'.
 --
 -- See also: 'cachedFields'
 cachedMessageEncoding :: MessageEncoding message -> MessageEncoder message
-cachedMessageEncoding = UnsafeMessageEncoder . Encode.unsafeFromByteString . untypedMessageEncoding
+cachedMessageEncoding =
+  UnsafeMessageEncoder . Encode.unsafeFromByteString . messageEncodingToByteString
 {-# INLINE cachedMessageEncoding #-}
+
+-- | Strips type information from the message encoding, leaving only its octets.
+messageEncodingToByteString :: MessageEncoding message -> B.ByteString
+messageEncodingToByteString (UnsafeMessageEncoding octets) = octets
+
+-- | Unsafe because the caller must ensure that the given octets
+-- are in the correct format for a message of the specified type.
+unsafeByteStringToMessageEncoding :: B.ByteString -> MessageEncoding message
+unsafeByteStringToMessageEncoding = UnsafeMessageEncoding
 
 -- | A 'Category' on builders that prefix zero or more fields to a message.
 -- Use '.' to accumulate prefixes to create an 'MessageEncoder' for a whole message.
@@ -180,7 +204,7 @@ type role Fields nominal nominal nominal
 -- @'cachedFields' . 'cachePrefix'@ is functionally equivalent to @id@
 -- but has different performance characteristics.
 --
--- See also: 'cacheMessageEncoder'
+-- See also: 'cacheMessageEncoding'
 cachePrefix :: Prefix message possible following -> Fields message possible following
 cachePrefix = UnsafeFields . BL.toStrict . Encode.toLazyByteString . untypedPrefix
 
