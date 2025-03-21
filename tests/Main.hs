@@ -373,10 +373,16 @@ encodeCachedSubmessage = testGroup "Cached Submessages"
           bogus :: FormE.MessageEncoding TP.Trivial
           bogus = FormE.unsafeByteStringToMessageEncoding badForm
       -- Test desired behavior for valid encoding:
-      show encoding @?= "Proto3.Suite.Form.Encode.messageReflection " ++ showsPrec 11 trivial ""
+      show encoding @?= "Proto3.Suite.Form.Encode.cacheMessage " ++ showsPrec 11 trivial ""
+      -- Check that when interpreting the above expected 'show' output
+      -- as Haskell source, it really does produce the shown value:
+      encoding @=? FormE.cacheMessage trivial
       -- Test fallback behavior for invalid encoding:
       show bogus @?=
         "Proto3.Suite.Form.Encode.unsafeByteStringToMessageEncoding " ++ showsPrec 11 badForm ""
+      -- Check that when interpreting the above expected 'show' output
+      -- as Haskell source, it really does produce the shown value:
+      bogus @=? FormE.unsafeByteStringToMessageEncoding badForm
 
 data TestMessage
        (num :: Nat)

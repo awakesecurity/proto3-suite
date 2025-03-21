@@ -30,16 +30,8 @@ module Proto3.Suite.Form.Encode.Core
   ( MessageEncoder(..)
   , toLazyByteString
   , etaMessageEncoder
-  , MessageEncoding
-  , cacheMessageEncoding
-  , cachedMessageEncoding
-  , messageEncodingToByteString
-  , unsafeByteStringToMessageEncoding
   , Prefix(..)
   , etaPrefix
-  , Fields
-  , cachePrefix
-  , cachedFields
   , Distinct
   , DistinctCheck
   , RepeatedNames
@@ -53,8 +45,9 @@ module Proto3.Suite.Form.Encode.Core
   , Occupy1
   , NameSublist
   , omitted
+  , SFieldNumberI
   , KnownFieldNumber
-  , fieldNumber
+  , fieldNumberVal
   , Field(..)
   , FieldForm(..)
   , PackedFieldForm(..)
@@ -65,23 +58,22 @@ module Proto3.Suite.Form.Encode.Core
   ) where
 
 import Control.Category (Category(..))
-import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
 import Data.Coerce (coerce)
 import Data.Kind (Type)
 import Data.Traversable (for)
 import GHC.Exts (Constraint, Proxy#, TYPE, proxy#)
 import GHC.Generics (Generic)
-import GHC.TypeLits (ErrorMessage(..), KnownNat, Symbol, TypeError, natVal')
+import GHC.TypeLits (ErrorMessage(..), KnownNat, Nat, Symbol, TypeError, natVal')
 import Language.Haskell.TH qualified as TH
 import Prelude hiding ((.), id)
-import Proto3.Suite.Class (Message, fromByteString, isDefault)
+import Proto3.Suite.Class (isDefault)
 import Proto3.Suite.Form
          (Association, NumberOf, Omission(..), OneOfOf, Packing(..),
           Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf, Wrapper)
 import Proto3.Wire.Encode qualified as Encode
 import Proto3.Wire.Encode.Repeated (Repeated(..), ToRepeated(..), mapRepeated)
-import Proto3.Wire.Types (FieldNumber(..))
+import Proto3.Wire.Types (FieldNumber, fieldNumber)
 
 -- | Annotates 'Encode.MessageBuilder' with the type of protobuf message it encodes.
 -- Prefix a tag and length to turn the message into a submessage of a larger message.
@@ -97,56 +89,6 @@ toLazyByteString = Encode.toLazyByteString . untypedMessageEncoder
 -- | Like 'Encode.etaMessageBuilder' but for 'MessageEncoder'.
 etaMessageEncoder :: forall a message . (a -> MessageEncoder message) -> a -> MessageEncoder message
 etaMessageEncoder = coerce (Encode.etaMessageBuilder @a)
-
--- | The octet sequence that would be emitted by some
--- 'MessageEncoder' having the same type parameter.
---
--- See also: 'cacheMessageEncoding'
-newtype MessageEncoding (message :: Type) = UnsafeMessageEncoding B.ByteString
-  deriving newtype (Eq)
-
-type role MessageEncoding nominal
-
-instance (Message message, Show message) =>
-         Show (MessageEncoding message)
-  where
-    showsPrec d (messageEncodingToByteString -> bs) = showParen (d >= 11) $
-      case fromByteString bs of
-        Left _ ->
-          showString "Proto3.Suite.Form.Encode.unsafeByteStringToMessageEncoding " .
-          showsPrec 11 bs
-        Right (message :: message) ->
-          showString "Proto3.Suite.Form.Encode.messageReflection " .
-          showsPrec 11 message
-
--- | Precomputes the octet sequence that would be written by the given 'MessageEncoder'.
--- Do this only if you expect to reuse that specific octet sequence repeatedly.
---
--- @'cachedMessageEncoding' . 'cacheMessageEncoding'@ is functionally equivalent to @id@
--- but has different performance characteristics.
---
--- See also: 'cachePrefix'.
-cacheMessageEncoding :: MessageEncoder message -> MessageEncoding message
-cacheMessageEncoding =
-  UnsafeMessageEncoding . BL.toStrict . Encode.toLazyByteString . untypedMessageEncoder
-
--- | Encodes a precomputed 'MessageEncoder' by copying octets from a memory buffer.
--- See 'cacheMessageEncoding'.
---
--- See also: 'cachedFields'
-cachedMessageEncoding :: MessageEncoding message -> MessageEncoder message
-cachedMessageEncoding =
-  UnsafeMessageEncoder . Encode.unsafeFromByteString . messageEncodingToByteString
-{-# INLINE cachedMessageEncoding #-}
-
--- | Strips type information from the message encoding, leaving only its octets.
-messageEncodingToByteString :: MessageEncoding message -> B.ByteString
-messageEncodingToByteString (UnsafeMessageEncoding octets) = octets
-
--- | Unsafe because the caller must ensure that the given octets
--- are in the correct format for a message of the specified type.
-unsafeByteStringToMessageEncoding :: B.ByteString -> MessageEncoding message
-unsafeByteStringToMessageEncoding = UnsafeMessageEncoding
 
 -- | A 'Category' on builders that prefix zero or more fields to a message.
 -- Use '.' to accumulate prefixes to create an 'MessageEncoder' for a whole message.
@@ -191,30 +133,6 @@ etaPrefix ::
   (a -> Prefix message possible following) ->
   a -> Prefix message possible following
 etaPrefix = coerce (Encode.etaMessageBuilder @a)
-
--- | The octet sequence that would be prefixed by some 'Prefix' having the same type parameters.
-newtype Fields (message :: Type) (possible :: [Symbol]) (following :: [Symbol]) =
-  UnsafeFields { untypedFields :: B.ByteString }
-
-type role Fields nominal nominal nominal
-
--- | Precomputes the octet sequence that would be written by the given 'Prefix'.
--- Do this only if you expect to reuse that specific octet sequence repeatedly.
---
--- @'cachedFields' . 'cachePrefix'@ is functionally equivalent to @id@
--- but has different performance characteristics.
---
--- See also: 'cacheMessageEncoding'
-cachePrefix :: Prefix message possible following -> Fields message possible following
-cachePrefix = UnsafeFields . BL.toStrict . Encode.toLazyByteString . untypedPrefix
-
--- | Encodes a precomputed 'Prefix' by copying octets from a memory buffer.
--- See 'cachePrefix'.
---
--- See also: 'cachedMessageEncoding'.
-cachedFields :: Fields message possible following -> Prefix message possible following
-cachedFields = UnsafePrefix . Encode.unsafeFromByteString . untypedFields
-{-# INLINE cachedFields #-}
 
 -- | Yields a satisfied constraint if the given list of names contains
 -- no duplicates after first filtering out the names of repeated fields
@@ -376,13 +294,32 @@ omitted ::
   Prefix message names moreNames
 omitted = UnsafePrefix mempty
 
--- | The constraint that provides the (term-level) field number corresponding
--- to the field of the given message type having the given (type-level) name.
-type KnownFieldNumber (message :: Type) (name :: Symbol) = KnownNat (NumberOf message name)
+-- | Singleton field number type.
+newtype SFieldNumber (fieldNumber :: Nat)
+  = UnsafeSFieldNumber { untypedSFieldNumber :: FieldNumber }
 
--- | The term expressing the field number within the specified message type of the named field.
-fieldNumber :: forall message name . KnownFieldNumber message name => FieldNumber
-fieldNumber = FieldNumber (fromInteger (natVal' (proxy# :: Proxy# (NumberOf message name))))
+-- | Provides the term-level value of the given field number type.
+class SFieldNumberI (fieldNumber :: Nat)
+  where
+    -- | Provides the term-level value in the form of a value of the associated singleton type.
+    sFieldNumber :: SFieldNumber fieldNumber
+
+instance KnownNat fieldNumber =>
+         SFieldNumberI fieldNumber
+  where
+    sFieldNumber =
+      UnsafeSFieldNumber (fieldNumber (fromInteger (natVal' (proxy# :: Proxy# fieldNumber))))
+    {-# INLINABLE sFieldNumber #-}  -- So that it can specialize to particular field number types.
+
+-- | Provides the (term-level) field number of the field
+-- having the specified message type and field name.
+type KnownFieldNumber message name = SFieldNumberI (NumberOf message name)
+
+-- | Provides the (term-level) field number of the field having
+-- the message type and field name specified by the type arguments.
+fieldNumberVal :: forall message name . KnownFieldNumber message name => FieldNumber
+fieldNumberVal = untypedSFieldNumber (sFieldNumber @(NumberOf message name))
+{-# INLINE fieldNumberVal #-}
 
 -- | Provides a way to encode a field with the given name from a given type.
 -- That name is interpreted in the context of a given type of message.
@@ -436,7 +373,7 @@ instance forall (name :: Symbol)
       @(a -> Encode.MessageBuilder)
       @(a -> Prefix message names (Occupy message name names))
       (fieldForm @(RepetitionOf message name) @(ProtoTypeOf message name) @a
-                 proxy# proxy# (fieldNumber @message @name))
+                 proxy# proxy# (fieldNumberVal @message @name))
       -- Implementation Note: Using the newtype constructor would require us
       -- to bind a variable of kind @TYPE r@, which is runtime-polymorphic.
       -- By using a coercion we avoid runtime polymorphism restrictions.
@@ -455,8 +392,9 @@ instance forall (name :: Symbol)
 -- library does /not/ provide an instance for `Data.Int.Word64` because its
 -- values greater than or equal to @2 ^ 63@ cannot be represented by @sint64@.
 --
--- As another example, for fields of submessage type @m@ there are type
--- class instances for both @'MessageEncoder' m@ and @'MessageEncoding' m@
+-- As another example, for fields of submessage type @m@ there
+-- are type class instances for both @'MessageEncoder' m@
+-- and @`Proto3.Suite.Form.Encode.MessageEncoding` m@
 -- (wrapped in a suitable container if repeated or outside of a @oneof@).
 --
 -- Arguments for optional fields are often expressed using 'Maybe',
@@ -561,12 +499,6 @@ instance (omission ~ 'Alternative) =>
     fieldForm _ _ !fn e = Encode.embedded fn (untypedMessageEncoder e)
     {-# INLINE fieldForm #-}
 
-instance (omission ~ 'Alternative) =>
-         FieldForm ('Singular omission) ('Message inner) (MessageEncoding inner)
-  where
-    fieldForm rep ty !fn e = fieldForm rep ty fn (cachedMessageEncoding e)
-    {-# INLINE fieldForm #-}
-
 -- | This instance is rather artificial because maps are automatically
 -- repeated and unpacked, with no option to specify a single key-value
 -- pair as a field of a @oneof@.  Hence the code generator should never
@@ -577,18 +509,6 @@ instance (omission ~ 'Alternative) =>
          FieldForm ('Singular omission) ('Map key value) (MessageEncoder (Association key value))
   where
     fieldForm _ _ !fn a = Encode.embedded fn (untypedMessageEncoder a)
-    {-# INLINE fieldForm #-}
-
--- | This instance is rather artificial because maps are automatically
--- repeated and unpacked, with no option to specify a single key-value
--- pair as a field of a @oneof@.  Hence the code generator should never
--- directly make use of this instance, but it will do so indirectly via
--- the general instance for repeated unpacked fields, which will then
--- delegate to this instance.
-instance (omission ~ 'Alternative) =>
-         FieldForm ('Singular omission) ('Map key value) (MessageEncoding (Association key value))
-  where
-    fieldForm rep ty !fn e = fieldForm rep ty fn (cachedMessageEncoding e)
     {-# INLINE fieldForm #-}
 
 -- | 'FieldForm' delegates to this type class when encoding
