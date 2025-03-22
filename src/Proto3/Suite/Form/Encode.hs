@@ -404,7 +404,9 @@ messageReflection :: forall message . Message message => message -> MessageEncod
 messageReflection m = coerce (encodeMessage @message (fieldNumber 1) m)
 {-# INLINABLE messageReflection #-}
 
--- | Equivalent to @'cacheMessageEncoding' . 'messageReflection'@.
+-- | Creates a message encoding by means of type class `Proto3.Suite.Class.Message`.
+--
+-- Equivalent to @'cacheMessageEncoding' . 'messageReflection'@.
 cacheMessage :: forall message . Message message => message -> MessageEncoding message
 cacheMessage m = cacheMessageEncoding (messageReflection m)
 {-# INLINABLE cacheMessage #-}
