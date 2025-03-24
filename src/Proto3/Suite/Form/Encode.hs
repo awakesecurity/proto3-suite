@@ -1,6 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -70,6 +71,7 @@ module Proto3.Suite.Form.Encode
   ) where
 
 import Control.Category (Category(..))
+import Control.DeepSeq (NFData)
 import Data.Coerce (coerce)
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Kind (Type)
@@ -81,6 +83,7 @@ import Data.Text.Lazy qualified as TL
 import Data.Text.Short qualified as TS
 import Data.Word (Word8, Word16, Word32, Word64)
 import GHC.Exts (Proxy#, proxy#)
+import GHC.Generics (Generic)
 import GHC.TypeLits (Symbol)
 import Prelude hiding (String, (.), id)
 import Proto3.Suite.Form.Encode.Core
@@ -99,9 +102,14 @@ import Proto3.Wire.Types (fieldNumber)
 -- | The octet sequence that would be emitted by some
 -- 'MessageEncoder' having the same type parameter.
 --
+-- (This type is not a 'Semigroup' because combining encodings that both
+-- have the same non-repeated field is arguably incorrect, even though the
+-- standard asks parsers to to try to work around such improper repetition.)
+--
 -- See also: 'cacheMessageEncoding'
 newtype MessageEncoding (message :: Type) = UnsafeMessageEncoding B.ByteString
-  deriving newtype (Eq)
+  deriving stock (Generic)
+  deriving newtype (Eq, NFData, Ord)
 
 type role MessageEncoding nominal
 
