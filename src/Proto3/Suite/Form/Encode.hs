@@ -1,17 +1,22 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ViewPatterns #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -29,12 +34,15 @@ module Proto3.Suite.Form.Encode
   , toLazyByteString
   , etaMessageEncoder
   , MessageEncoding
-  , cacheMessageEncoder
+  , cacheMessage
+  , cacheMessageEncoding
   , cachedMessageEncoding
+  , messageEncodingToByteString
+  , unsafeByteStringToMessageEncoding
   , Prefix(..)
   , etaPrefix
   , Fields
-  , cachePrefix
+  , cacheFields
   , cachedFields
   , Distinct
   , DistinctCheck
@@ -49,6 +57,7 @@ module Proto3.Suite.Form.Encode
   , Occupy1
   , NameSublist
   , omitted
+  , SFieldNumberI
   , KnownFieldNumber
   , Field(..)
   , FieldForm(..)
@@ -62,6 +71,7 @@ module Proto3.Suite.Form.Encode
   ) where
 
 import Control.Category (Category(..))
+import Control.DeepSeq (NFData)
 import Data.Coerce (coerce)
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Kind (Type)
@@ -73,19 +83,106 @@ import Data.Text.Lazy qualified as TL
 import Data.Text.Short qualified as TS
 import Data.Word (Word8, Word16, Word32, Word64)
 import GHC.Exts (Proxy#, proxy#)
+import GHC.Generics (Generic)
 import GHC.TypeLits (Symbol)
 import Prelude hiding (String, (.), id)
-import Proto3.Suite.Class (Message, MessageField, encodeMessage, encodeMessageField)
 import Proto3.Suite.Form.Encode.Core
+import Proto3.Suite.Class
+         (Message, MessageField, encodeMessage, encodeMessageField, fromByteString)
 import Proto3.Suite.Form
          (Association, MessageFieldType, Omission(..), Packing(..),
           Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf)
 import Proto3.Suite.Types (Enumerated, codeFromEnumerated)
-import Proto3.Wire qualified as Wire
 import Proto3.Wire.Class (ProtoEnum(..))
 import Proto3.Wire.Encode qualified as Encode
 import Proto3.Wire.Encode.Repeated (ToRepeated, mapRepeated)
 import Proto3.Wire.Reverse qualified as RB
+import Proto3.Wire.Types (fieldNumber)
+
+-- | The octet sequence that would be emitted by some
+-- 'MessageEncoder' having the same type parameter.
+--
+-- (This type is not a 'Semigroup' because combining encodings that both
+-- have the same non-repeated field is arguably incorrect, even though the
+-- standard asks parsers to to try to work around such improper repetition.)
+--
+-- See also: 'cacheMessageEncoding'
+newtype MessageEncoding (message :: Type) = UnsafeMessageEncoding B.ByteString
+  deriving stock (Generic)
+  deriving newtype (Eq, NFData, Ord)
+
+type role MessageEncoding nominal
+
+instance (omission ~ 'Alternative) =>
+         FieldForm ('Singular omission) ('Message inner) (MessageEncoding inner)
+  where
+    fieldForm rep ty !fn e = fieldForm rep ty fn (cachedMessageEncoding e)
+    {-# INLINE fieldForm #-}
+
+-- | This instance is rather artificial because maps are automatically
+-- repeated and unpacked, with no option to specify a single key-value
+-- pair as a field of a @oneof@.  Hence the code generator should never
+-- directly make use of this instance, but it will do so indirectly via
+-- the general instance for repeated unpacked fields, which will then
+-- delegate to this instance.
+instance (omission ~ 'Alternative) =>
+         FieldForm ('Singular omission) ('Map key value) (MessageEncoding (Association key value))
+  where
+    fieldForm rep ty !fn e = fieldForm rep ty fn (cachedMessageEncoding e)
+    {-# INLINE fieldForm #-}
+
+-- | Precomputes the octet sequence that would be written by the given 'MessageEncoder'.
+-- Do this only if you expect to reuse that specific octet sequence repeatedly.
+--
+-- @'cachedMessageEncoding' . 'cacheMessageEncoding'@ is functionally equivalent to @id@
+-- but has different performance characteristics.
+--
+-- See also: 'cacheFields'.
+cacheMessageEncoding :: MessageEncoder message -> MessageEncoding message
+cacheMessageEncoding =
+  UnsafeMessageEncoding . BL.toStrict . Encode.toLazyByteString . untypedMessageEncoder
+
+-- | Encodes a precomputed 'MessageEncoder' by copying octets from a memory buffer.
+-- See 'cacheMessageEncoding'.
+--
+-- See also: 'cachedFields'
+cachedMessageEncoding :: MessageEncoding message -> MessageEncoder message
+cachedMessageEncoding =
+  UnsafeMessageEncoder . Encode.unsafeFromByteString . messageEncodingToByteString
+{-# INLINE cachedMessageEncoding #-}
+
+-- | Strips type information from the message encoding, leaving only its octets.
+messageEncodingToByteString :: MessageEncoding message -> B.ByteString
+messageEncodingToByteString (UnsafeMessageEncoding octets) = octets
+
+-- | Unsafe because the caller must ensure that the given octets
+-- are in the correct format for a message of the specified type.
+unsafeByteStringToMessageEncoding :: B.ByteString -> MessageEncoding message
+unsafeByteStringToMessageEncoding = UnsafeMessageEncoding
+
+-- | The octet sequence that would be prefixed by some 'Prefix' having the same type parameters.
+newtype Fields (message :: Type) (possible :: [Symbol]) (following :: [Symbol]) =
+  UnsafeFields { untypedFields :: B.ByteString }
+
+type role Fields nominal nominal nominal
+
+-- | Precomputes the octet sequence that would be written by the given 'Prefix'.
+-- Do this only if you expect to reuse that specific octet sequence repeatedly.
+--
+-- @'cachedFields' . 'cacheFields'@ is functionally equivalent to @id@
+-- but has different performance characteristics.
+--
+-- See also: 'cacheMessageEncoding'
+cacheFields :: Prefix message possible following -> Fields message possible following
+cacheFields = UnsafeFields . BL.toStrict . Encode.toLazyByteString . untypedPrefix
+
+-- | Encodes a precomputed 'Prefix' by copying octets from a memory buffer.
+-- See 'cacheFields'.
+--
+-- See also: 'cachedMessageEncoding'.
+cachedFields :: Fields message possible following -> Prefix message possible following
+cachedFields = UnsafePrefix . Encode.unsafeFromByteString . untypedFields
+{-# INLINE cachedFields #-}
 
 $(instantiatePackableField
   [t| 'UInt32 |] [t| Word32 |] [| Encode.uint32 |] [| Encode.packedUInt32R |]
@@ -311,6 +408,21 @@ instance ( MessageFieldType repetition protoType a
 -- | Creates a message encoder by means of type class `Proto3.Suite.Class.Message`.
 --
 -- To encode a field instead of a top-level message, use 'Reflection'.
-messageReflection :: forall a . Message a => a -> MessageEncoder a
-messageReflection m = coerce (encodeMessage @a (Wire.fieldNumber 1) m)
+messageReflection :: forall message . Message message => message -> MessageEncoder message
+messageReflection m = coerce (encodeMessage @message (fieldNumber 1) m)
 {-# INLINABLE messageReflection #-}
+
+-- | Creates a message encoding by means of type class `Proto3.Suite.Class.Message`.
+--
+-- Equivalent to @'cacheMessageEncoding' . 'messageReflection'@.
+cacheMessage :: forall message . Message message => message -> MessageEncoding message
+cacheMessage m = cacheMessageEncoding (messageReflection m)
+{-# INLINABLE cacheMessage #-}
+
+instance (Message message, Show message) =>
+         Show (MessageEncoding message)
+  where
+    showsPrec d (messageEncodingToByteString -> bs) = showParen (d >= 11) $
+      case fromByteString bs of
+        Left _ -> shows 'unsafeByteStringToMessageEncoding . showChar ' ' . showsPrec 11 bs
+        Right (msg :: message) -> shows 'cacheMessage . showChar ' ' . showsPrec 11 msg
