@@ -65,7 +65,7 @@ import qualified NeatInterpolation              as Neat
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.AST.Lens
-import qualified Proto3.Suite.DotProto.Generate.Record as RegularRecord
+import qualified Proto3.Suite.DotProto.Generate.Record as Record
 import           Proto3.Suite.DotProto.Generate.Syntax
 import           Proto3.Suite.Haskell.Parser    (Logger, parseModule, renderSDoc)
 import           Proto3.Suite.DotProto.Internal
@@ -84,9 +84,6 @@ import qualified GHC.Types.Basic                as GHC (PromotionFlag(..))
 #if MIN_VERSION_ghc(9,2,0)
 import           GHC.Hs                         (HsSigType(..))
 import           GHC.Parser.Annotation          (noLocA)
-#if !MIN_VERSION_ghc(9,6,0)
-import qualified GHC.Types.SourceText           as GHC ()
-#endif
 #else
 import           GHC.Types.Basic                as GHC (SourceText(..))
 #endif
@@ -227,14 +224,8 @@ renderHsModuleForDotProto stringType extraInstanceFiles dotProto importCtxt = do
                   , "-fno-warn-missing-export-lists"
                   ]
 
-        annotatedHaskellModule :: GHC.HsModule
-#if MIN_VERSION_ghc(9,6,0)
-                                               GHC.GhcPs
-#endif
-        annotatedHaskellModule = haskellModule
-
         moduleContent :: T.Text
-        moduleContent = T.pack $ renderSDoc $ GHC.ppr annotatedHaskellModule
+        moduleContent = T.pack $ renderSDoc $ GHC.ppr haskellModule
 
         textUnlines :: [T.Text] -> T.Text
         textUnlines = T.intercalate "\n"
@@ -868,7 +859,7 @@ dotProtoMessageD stringType ctxt parentIdent messageIdent messageParts = do
     foldMapM id
       [ sequence
           [ pure messageDataDecl
-          , pure (nfDataInstD messageDataDecl messageName)
+          , pure (Record.nfDataInstD messageDataDecl messageName)
           , pure (namedInstD messageName)
           , pure (hasDefaultInstD messageName)
           , messageInstD stringType ctxt' parentIdent messageIdent messageParts
@@ -908,8 +899,6 @@ dotProtoMessageD stringType ctxt parentIdent messageIdent messageParts = do
     ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup messageIdent ctxt)
                 <> ctxt
 
-    nfDataInstD = RegularRecord.nfDataInstD
-
     messagePartFieldD :: String -> DotProtoMessagePart -> m [([HsName], HsBangType)]
     messagePartFieldD messageName (DotProtoMessageField DotProtoField{..}) = do
       fullName <- prefixedFieldName messageName =<< dpIdentUnqualName dotProtoFieldName
@@ -948,7 +937,7 @@ dotProtoMessageD stringType ctxt parentIdent messageIdent messageParts = do
 
       let nestedDecl = dataDecl_ fullName [] cons defaultMessageDeriving
       pure [ nestedDecl
-           , nfDataInstD nestedDecl fullName
+           , Record.nfDataInstD nestedDecl fullName
            , namedInstD fullName
 #ifdef SWAGGER
            , toSchemaInstance
