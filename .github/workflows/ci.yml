@@ -27,18 +27,9 @@ jobs:
         swaggerWrapper:
           - false
           - true
-        largeRecords:
-          - false
-          - true
         exclude:
           - swagger: false
             swaggerWrapper: true
-          - compiler: ghc965
-            largeRecords: true
-          - compiler: ghc982
-            largeRecords: true
-          - compiler: ghc9101
-            largeRecords: true
           - compiler: ghc902
             os: macos-latest
     runs-on: ${{ matrix.os }}
@@ -52,4 +43,4 @@ jobs:
         with:
           name: awakesecurity
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: nix-build --attr proto3-suite --argstr compiler "${{ matrix.compiler }}" --arg enableDhall "${{ matrix.dhall }}" --arg enableSwagger "${{ matrix.swagger }}" --arg swaggerWrapperFormat "${{ matrix.swaggerWrapper }}" --arg enableLargeRecords "${{ matrix.largeRecords }}"
+      - run: nix-build --attr proto3-suite --argstr compiler "${{ matrix.compiler }}" --arg enableDhall "${{ matrix.dhall }}" --arg enableSwagger "${{ matrix.swagger }}" --arg swaggerWrapperFormat "${{ matrix.swaggerWrapper }}"

@@ -2,12 +2,11 @@
 , enableDhall ? false
 , enableSwagger ? true
 , swaggerWrapperFormat ? false
-, enableLargeRecords ? false
 }:
 
 let
   pkgs = import ./nix/pkgs.nix {
-    inherit compiler enableDhall enableSwagger swaggerWrapperFormat enableLargeRecords;
+    inherit compiler enableDhall enableSwagger swaggerWrapperFormat;
   };
 
 in {

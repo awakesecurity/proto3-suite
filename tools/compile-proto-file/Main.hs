@@ -16,7 +16,7 @@ import           Proto3.Suite.Haskell.Parser    (initLogger)
 parseArgs :: ParserInfo CompileArgs
 parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto file to a Haskell module")
   where
-    parser = CompileArgs <$> includes <*> extraInstances <*> proto <*> out <*> stringType <*> recordStyle
+    parser = CompileArgs <$> includes <*> extraInstances <*> proto <*> out <*> stringType
 
     includes = many $ strOption $
       long "includeDir"
@@ -43,10 +43,6 @@ parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto fi
       <> metavar "Data.Text.Lazy.Text"
       <> help "Haskell representation of strings"
       <> value (StringType "Data.Text.Lazy" "Text")
-
-    recordStyle = flag RegularRecords LargeRecords
-      $ long "largeRecords"
-      <> help "Use large-records library to optimize the core code size of generated records"
 
 main :: IO ()
 main = do

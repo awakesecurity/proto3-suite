@@ -24,7 +24,6 @@
 module Proto3.Suite.DotProto.Generate
   ( CompileError(..)
   , StringType(..)
-  , RecordStyle (..)
   , parseStringType
   , TypeContext
   , CompileArgs(..)
@@ -66,7 +65,6 @@ import qualified NeatInterpolation              as Neat
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.AST.Lens
-import qualified Proto3.Suite.DotProto.Generate.LargeRecord as LargeRecord
 import qualified Proto3.Suite.DotProto.Generate.Record as RegularRecord
 import           Proto3.Suite.DotProto.Generate.Syntax
 import           Proto3.Suite.Haskell.Parser    (Logger, parseModule, renderSDoc)
@@ -87,7 +85,7 @@ import qualified GHC.Types.Basic                as GHC (PromotionFlag(..))
 import           GHC.Hs                         (HsSigType(..))
 import           GHC.Parser.Annotation          (noLocA)
 #if !MIN_VERSION_ghc(9,6,0)
-import qualified GHC.Types.SourceText           as GHC
+import qualified GHC.Types.SourceText           as GHC ()
 #endif
 #else
 import           GHC.Types.Basic                as GHC (SourceText(..))
@@ -107,14 +105,10 @@ data CompileArgs = CompileArgs
   , inputProto         :: FilePath
   , outputDir          :: FilePath
   , stringType         :: StringType
-  , recordStyle        :: RecordStyle
   }
 
 data StringType = StringType String String
   -- ^ Qualified module name, then unqualified type name.
-
-data RecordStyle = RegularRecords | LargeRecords
-  deriving stock (Eq, Show, Read)
 
 parseStringType :: String -> Either String StringType
 parseStringType str = case splitOn "." str of
@@ -135,7 +129,7 @@ compileDotProtoFile logger CompileArgs{..} = runExceptT $ do
   Turtle.mktree (Turtle.directory modulePath)
 
   extraInstances <- foldMapM (getExtraInstances logger) extraInstanceFiles
-  haskellModule <- renderHsModuleForDotProto stringType recordStyle extraInstances dotProto importTypeContext
+  haskellModule <- renderHsModuleForDotProto stringType extraInstances dotProto importTypeContext
 
   liftIO (writeFile (Turtle.encodeString modulePath) haskellModule)
   where
@@ -206,10 +200,9 @@ renameProtoFile filename =
 renderHsModuleForDotProto
     :: MonadError CompileError m
     => StringType
-    -> RecordStyle
     -> ([HsImportDecl],[HsDecl]) -> DotProto -> TypeContext -> m String
-renderHsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto importCtxt = do
-    haskellModule <- hsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto importCtxt
+renderHsModuleForDotProto stringType extraInstanceFiles dotProto importCtxt = do
+    haskellModule <- hsModuleForDotProto stringType extraInstanceFiles dotProto importCtxt
 
     let languagePragmas = textUnlines $ map (\extn -> "{-# LANGUAGE " <> extn <> " #-}") $ sort extensions
         ghcOptionPragmas = textUnlines $ map (\opt -> "{-# OPTIONS_GHC " <> opt <> " #-}") $ sort options
@@ -225,48 +218,20 @@ renderHsModuleForDotProto stringType recordStyle extraInstanceFiles dotProto imp
           , "OverloadedStrings"
           , "TypeApplications"
           , "TypeOperators"
-          ] ++
-          case recordStyle of
-            RegularRecords -> []
-            LargeRecords -> [ "ConstraintKinds"
-                           , "FlexibleInstances"
-                           , "MultiParamTypeClasses"
-                           , "ScopedTypeVariables"
-                           , "TypeFamilies"
-                           , "UndecidableInstances"
-                           ]
+          ]
 
         options :: [T.Text]
         options = [ "-fno-warn-unused-imports"
                   , "-fno-warn-name-shadowing"
                   , "-fno-warn-unused-matches"
                   , "-fno-warn-missing-export-lists"
-                  ] ++
-                  case recordStyle of
-                    RegularRecords -> []
-                    LargeRecords -> [ "-fplugin=Data.Record.Plugin" ]
-
-        mkLRAnnotation :: HsDecl -> Maybe HsDecl
-        mkLRAnnotation decl = mkAnn <$> LargeRecord.typeNameIfLargeRecord decl
-          where
-            mkAnn :: HsName -> HsDecl
-            mkAnn recName = noLocA $ GHC.AnnD GHC.NoExtField $ GHC.HsAnnotation
-              synDef
-#if !MIN_VERSION_ghc(9,6,0)
-              GHC.NoSourceText
-#endif
-              (GHC.TypeAnnProvenance recName)
-              (uvar_ "largeRecord")
+                  ]
 
         annotatedHaskellModule :: GHC.HsModule
 #if MIN_VERSION_ghc(9,6,0)
                                                GHC.GhcPs
 #endif
-        annotatedHaskellModule =
-          case (recordStyle, haskellModule) of
-            (RegularRecords, _) -> haskellModule
-            (LargeRecords, GHC.HsModule{hsmodDecls = moduleDecls}) ->
-              haskellModule{GHC.hsmodDecls = moduleDecls ++ mapMaybe mkLRAnnotation moduleDecls}
+        annotatedHaskellModule = haskellModule
 
         moduleContent :: T.Text
         moduleContent = T.pack $ renderSDoc $ GHC.ppr annotatedHaskellModule
@@ -288,8 +253,6 @@ hsModuleForDotProto
     :: MonadError CompileError m
     => StringType
     -- ^ the module and the type for string
-    -> RecordStyle
-    -- ^ kind of records to generate
     -> ([HsImportDecl], [HsDecl])
     -- ^ Extra user-define instances that override default generated instances
     -> DotProto
@@ -303,7 +266,6 @@ hsModuleForDotProto
          )
 hsModuleForDotProto
     stringType
-    recordStyle
     (extraImports, extraInstances)
     dotProto@DotProto{ protoMeta = DotProtoMeta { metaModulePath = modulePath }
                      , protoPackage
@@ -318,8 +280,7 @@ hsModuleForDotProto
        let hasService = has (traverse._DotProtoService) protoDefinitions
 
        let importDeclarations = concat
-              [ defaultImports recordStyle
-                               ImportCustomisation
+              [ defaultImports ImportCustomisation
                                { icUsesGrpc = hasService
                                , icStringType = stringType
                                }
@@ -328,8 +289,7 @@ hsModuleForDotProto
 
        typeContext <- dotProtoTypeContext dotProto
 
-       let toDotProtoDeclaration =
-             dotProtoDefinitionD stringType recordStyle protoPackage (typeContext <> importTypeContext)
+       let toDotProtoDeclaration = dotProtoDefinitionD stringType protoPackage (typeContext <> importTypeContext)
 
        let extraInstances' = instancesForModule moduleName extraInstances
 
@@ -845,14 +805,13 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
 
 dotProtoDefinitionD :: MonadError CompileError m
                     => StringType
-                    -> RecordStyle
                     -> DotProtoPackageSpec
                     -> TypeContext
                     -> DotProtoDefinition
                     -> m [HsDecl]
-dotProtoDefinitionD stringType recordStyle pkgSpec ctxt = \case
+dotProtoDefinitionD stringType pkgSpec ctxt = \case
   DotProtoMessage _ messageName messageParts ->
-    dotProtoMessageD stringType recordStyle ctxt Anonymous messageName messageParts
+    dotProtoMessageD stringType ctxt Anonymous messageName messageParts
 
   DotProtoEnum _ enumName enumParts ->
     dotProtoEnumD Anonymous enumName enumParts
@@ -883,13 +842,12 @@ dotProtoMessageD
     :: forall m
      . MonadError CompileError m
     => StringType
-    -> RecordStyle
     -> TypeContext
     -> DotProtoIdentifier
     -> DotProtoIdentifier
     -> [DotProtoMessagePart]
     -> m [HsDecl]
-dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messageParts = do
+dotProtoMessageD stringType ctxt parentIdent messageIdent messageParts = do
     messageName <- qualifiedMessageName parentIdent messageIdent
 
     let mkDataDecl flds =
@@ -950,9 +908,7 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
     ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup messageIdent ctxt)
                 <> ctxt
 
-    nfDataInstD = case recordStyle of
-                    RegularRecords -> RegularRecord.nfDataInstD
-                    LargeRecords -> LargeRecord.nfDataInstD
+    nfDataInstD = RegularRecord.nfDataInstD
 
     messagePartFieldD :: String -> DotProtoMessagePart -> m [([HsName], HsBangType)]
     messagePartFieldD messageName (DotProtoMessageField DotProtoField{..}) = do
@@ -971,7 +927,7 @@ dotProtoMessageD stringType recordStyle ctxt parentIdent messageIdent messagePar
     nestedDecls :: DotProtoDefinition -> m [HsDecl]
     nestedDecls (DotProtoMessage _ subMsgName subMessageDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoMessageD stringType recordStyle ctxt' parentIdent' subMsgName subMessageDef
+      dotProtoMessageD stringType ctxt' parentIdent' subMsgName subMessageDef
 
     nestedDecls (DotProtoEnum _ subEnumName subEnumDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
@@ -1986,8 +1942,8 @@ data ImportCustomisation = ImportCustomisation
   , icUsesGrpc :: Bool
   }
 
-defaultImports :: RecordStyle -> ImportCustomisation -> [HsImportDecl]
-defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = StringType stringModule stringType} =
+defaultImports :: ImportCustomisation -> [HsImportDecl]
+defaultImports ImportCustomisation{ icUsesGrpc, icStringType = StringType stringModule stringType} =
     [ importDecl_ (m "Prelude")               & qualified haskellNS  & everything
     , importDecl_ (m "Proto3.Suite.Class")    & qualified protobufNS & everything
 #ifdef DHALL
@@ -2025,51 +1981,6 @@ defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = Strin
     , importDecl_ (m "Network.GRPC.HighLevel.Server")              & alias grpcNS & hiding    [i"serverLoop"]
     , importDecl_ (m "Network.GRPC.HighLevel.Server.Unregistered") & alias grpcNS & selecting [i"serverLoop"]
     ])
-    <>
-    case recordStyle of
-      RegularRecords -> []
-      LargeRecords ->
-        [ importDecl_ (m "Data.Record.Generic")              & qualified lrNS  & everything
-        -- "large-records" stopped exporting "grnf"; we try
-        -- to get it directly from "large-generics" if we can.
-        --
-        -- Ideally we would generate CPP conditionals so that
-        -- the version check happens when the generated code
-        -- is built, but as yet it is unclear how to do that.
-        --
-        -- As a result, we have to enable the version check
-        -- based on the package version available when building
-        -- compile-proto-file, and only if large record support
-        -- is enabled in the library code.
-#ifdef LARGE_RECORDS
-#if MIN_VERSION_large_generics(0,2,1)
-        , importDecl_ (m "Data.Record.Generic.NFData")       & qualified lrNS  & everything
-#endif
-#endif
-        , importDecl_ (m "Data.Record.Generic.Rep")          & qualified lrNS  & everything
-        , importDecl_ (m "Data.Record.Generic.Rep.Internal") & qualified lrNS  & everything
-        , importDecl_ (m "Data.Record.Plugin.Runtime")       & qualified lrNS  & everything
-        -- <https://hackage.haskell.org/package/large-records-0.4/changelog>
-        -- says that as of large-records-0.4 the plugin does not generate
-        -- imports, and that "code must now import Data.Record.Plugin to
-        -- bring largeRecord into scope (necessary for ANN annotations)."
-        -- We also seem to need to import some Prelude identifiers.
-        --
-        -- Ideally we would generate CPP conditionals so that
-        -- the version check happens when the generated code
-        -- is built, but as yet it is unclear how to do that.
-        --
-        -- As a result, we have to enable the version check
-        -- based on the package version available when building
-        -- compile-proto-file, and only if large record support
-        -- is enabled in the library code.
-#ifdef LARGE_RECORDS
-#if MIN_VERSION_large_records(0,4,0)
-        , importDecl_ (m "Data.Record.Plugin")               & unqualified     & selecting [i"largeRecord"]
-        , importDecl_ (m "Prelude")                          & unqualified     & selecting [i"Eq", i"Int", i"Ord", i"Show", i"error"]
-#endif
-#endif
-        ]
   where
     m = GHC.mkModuleName
     i n = ieName_ (unqual_ (if foldr (const . isLower) True n then varName else tcName) n)
@@ -2077,7 +1988,6 @@ defaultImports recordStyle ImportCustomisation{ icUsesGrpc, icStringType = Strin
 
     grpcNS                    = m "HsGRPC"
     jsonpbNS                  = m "HsJSONPB"
-    lrNS                      = m "LR"
     protobufNS                = m "HsProtobuf"
     protobufASTNS             = m "HsProtobufAST"
     proxyNS                   = m "Proxy"

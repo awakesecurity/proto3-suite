@@ -2,7 +2,6 @@
 , enableDhall
 , enableSwagger
 , swaggerWrapperFormat
-, enableLargeRecords
 }:
 
 pkgsNew: pkgsOld:
@@ -167,14 +166,6 @@ in {
           generics-sop =
             pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.generics-sop;
 
-          # With nixpkgs-23.11 and ghc902, large-generics thinks that primitive is out of bounds.
-          large-generics =
-            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.large-generics;
-
-          # With nixpkgs-23.11 and ghc902, large-records thinks that primitive is out of bounds.
-          large-records =
-            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.large-records;
-
           # With nixpkgs-24.11 and our overrides, lens thinks that template-haskell is out of bounds.
           lens =
             pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.lens;
@@ -322,7 +313,6 @@ in {
                 (if enableDhall then "-fdhall" else "")
                 (if enableSwagger then "" else "-f-swagger")
                 (if swaggerWrapperFormat then "-fswagger-wrapper-format" else "")
-                (if enableLargeRecords then "" else "-f-large-records")
               ];
             in
             (haskellPackagesNew.callCabal2nixWithOptions
@@ -336,8 +326,7 @@ in {
               configureFlags = (old.configureFlags or [ ])
                 ++ (if enableDhall then [ "-fdhall" ] else [ ])
                 ++ (if enableSwagger then [ "" ] else [ "-f-swagger" ])
-                ++ (if swaggerWrapperFormat then [ "-fswagger-wrapper-format" ] else [ "" ])
-                ++ (if enableLargeRecords then [ ] else [ "-f-large-records" ]);
+                ++ (if swaggerWrapperFormat then [ "-fswagger-wrapper-format" ] else [ "" ]);
             });
 
           proto3-suite-boot =
@@ -376,7 +365,6 @@ in {
 
                   test-files = (gitignoreSource ../../test-files);
 
-                  compile-proto-flags = if enableLargeRecords then "--largeRecords" else "";
                   cg-artifacts = pkgsNew.runCommand "proto3-suite-test-cg-artifacts" { } ''
                     mkdir -p $out/protos
 
@@ -387,7 +375,6 @@ in {
                     build () {
                       echo "[proto3-suite-test-cg-artifacts] Compiling proto-file/$1"
                       ${haskellPackagesNew.proto3-suite-boot}/bin/compile-proto-file \
-                        ${compile-proto-flags} \
                         --out $out \
                         --includeDir "$2" \
                         --proto "$1"
