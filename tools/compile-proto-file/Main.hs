@@ -16,7 +16,14 @@ import           Proto3.Suite.Haskell.Parser    (initLogger)
 parseArgs :: ParserInfo CompileArgs
 parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto file to a Haskell module")
   where
-    parser = CompileArgs <$> includes <*> extraInstances <*> proto <*> out <*> stringType
+    parser = CompileArgs
+      <$> includes
+      <*> extraInstances
+      <*> proto
+      <*> out
+      <*> stringType
+     
+      <*> typeLevelFormat
 
     includes = many $ strOption $
       long "includeDir"
@@ -39,10 +46,15 @@ parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto fi
         <> help "Output directory path where generated Haskell modules will be written (directory is created if it does not exist; note that files in the output directory may be overwritten!)"
 
     stringType = option (eitherReader parseStringType)
-      $ long "string-type"
+      $ long "stringType"
+      <> long "string-type"
       <> metavar "Data.Text.Lazy.Text"
-      <> help "Haskell representation of strings"
+      <> help "Haskell representation of strings (--stringType is the preferred spelling)"
       <> value (StringType "Data.Text.Lazy" "Text")
+
+    typeLevelFormat = switch
+      $ long "typeLevelFormat"
+      <> help "Define formats at the type level (by instantiating type family FieldFormsOf)."
 
 main :: IO ()
 main = do
