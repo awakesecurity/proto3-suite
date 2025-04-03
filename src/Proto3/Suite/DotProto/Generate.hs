@@ -90,8 +90,6 @@ import qualified GHC.Types.Basic                as GHC (PromotionFlag(..))
 #if MIN_VERSION_ghc(9,2,0)
 import           GHC.Hs                         (HsSigType(..))
 import           GHC.Parser.Annotation          (noLocA)
-#else
-import           GHC.Types.Basic                as GHC (SourceText(..))
 #endif
 
 -- $setup
