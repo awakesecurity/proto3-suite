@@ -22,7 +22,6 @@ parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto fi
       <*> proto
       <*> out
       <*> stringType
-     
       <*> typeLevelFormat
 
     includes = many $ strOption $
