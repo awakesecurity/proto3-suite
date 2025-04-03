@@ -25,7 +25,6 @@
 module Proto3.Suite.DotProto.Generate
   ( CompileError(..)
   , StringType(..)
-  , RecordStyle(..)
   , parseStringType
   , TypeContext
   , CompileArgs(..)
@@ -72,8 +71,7 @@ import qualified NeatInterpolation              as Neat
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.AST.Lens
-import qualified Proto3.Suite.DotProto.Generate.LargeRecord as LargeRecord
-import qualified Proto3.Suite.DotProto.Generate.Record as RegularRecord
+import qualified Proto3.Suite.DotProto.Generate.Record as Record
 import           Proto3.Suite.DotProto.Generate.Syntax
 import           Proto3.Suite.Haskell.Parser    (Logger, parseModule, renderSDoc)
 import           Proto3.Suite.DotProto.Internal
@@ -92,11 +90,6 @@ import qualified GHC.Types.Basic                as GHC (PromotionFlag(..))
 #if MIN_VERSION_ghc(9,2,0)
 import           GHC.Hs                         (HsSigType(..))
 import           GHC.Parser.Annotation          (noLocA)
-#if !MIN_VERSION_ghc(9,6,0)
-import qualified GHC.Types.SourceText           as GHC
-#endif
-#else
-import           GHC.Types.Basic                as GHC (SourceText(..))
 #endif
 
 -- $setup
@@ -113,15 +106,11 @@ data CompileArgs = CompileArgs
   , inputProto         :: FilePath
   , outputDir          :: FilePath
   , stringType         :: StringType
-  , recordStyle        :: RecordStyle
   , typeLevelFormat    :: Bool
   }
 
 data StringType = StringType String String
   -- ^ Qualified module name, then unqualified type name.
-
-data RecordStyle = RegularRecords | LargeRecords
-  deriving stock (Eq, Show, Read)
 
 parseStringType :: String -> Either String StringType
 parseStringType str = case splitOn "." str of
@@ -143,8 +132,7 @@ compileDotProtoFile logger CompileArgs{..} = runExceptT $ do
 
   extraInstances <- foldMapM (getExtraInstances logger) extraInstanceFiles
   haskellModule <-
-    let ?recordStyle = recordStyle
-        ?stringType = stringType
+    let ?stringType = stringType
         ?typeLevelFormat = typeLevelFormat
     in renderHsModuleForDotProto extraInstances dotProto importTypeContext
 
@@ -216,7 +204,6 @@ renameProtoFile filename =
 --   messages and enums.
 renderHsModuleForDotProto ::
   ( MonadError CompileError m
-  , (?recordStyle :: RecordStyle)
   , (?stringType :: StringType)
   , (?typeLevelFormat :: Bool)
   ) =>
@@ -242,51 +229,16 @@ renderHsModuleForDotProto extraInstanceFiles dotProto importCtxt = do
           , "TypeApplications"
           , "TypeOperators"
           ] ++
-          (if ?typeLevelFormat then [ "TypeFamilies", "UndecidableInstances" ] else []) ++
-          case ?recordStyle of
-            RegularRecords -> []
-            LargeRecords -> [ "ConstraintKinds"
-                            , "FlexibleInstances"
-                            , "MultiParamTypeClasses"
-                            , "ScopedTypeVariables"
-                            , "TypeFamilies"
-                            , "UndecidableInstances"
-                            ]
-
+          (if ?typeLevelFormat then [ "TypeFamilies", "UndecidableInstances" ] else [])
         options :: [T.Text]
         options = [ "-fno-warn-unused-imports"
                   , "-fno-warn-name-shadowing"
                   , "-fno-warn-unused-matches"
                   , "-fno-warn-missing-export-lists"
-                  ] ++
-                  case ?recordStyle of
-                    RegularRecords -> []
-                    LargeRecords -> [ "-fplugin=Data.Record.Plugin" ]
-
-        mkLRAnnotation :: HsDecl -> Maybe HsDecl
-        mkLRAnnotation decl = mkAnn <$> LargeRecord.typeNameIfLargeRecord decl
-          where
-            mkAnn :: HsName -> HsDecl
-            mkAnn recName = noLocA $ GHC.AnnD GHC.NoExtField $ GHC.HsAnnotation
-              synDef
-#if !MIN_VERSION_ghc(9,6,0)
-              GHC.NoSourceText
-#endif
-              (GHC.TypeAnnProvenance recName)
-              (uvar_ "largeRecord")
-
-        annotatedHaskellModule :: GHC.HsModule
-#if MIN_VERSION_ghc(9,6,0)
-                                               GHC.GhcPs
-#endif
-        annotatedHaskellModule =
-          case (?recordStyle, haskellModule) of
-            (RegularRecords, _) -> haskellModule
-            (LargeRecords, GHC.HsModule{hsmodDecls = moduleDecls}) ->
-              haskellModule{GHC.hsmodDecls = moduleDecls ++ mapMaybe mkLRAnnotation moduleDecls}
+                  ]
 
         moduleContent :: T.Text
-        moduleContent = T.pack $ renderSDoc $ GHC.ppr annotatedHaskellModule
+        moduleContent = T.pack $ renderSDoc $ GHC.ppr haskellModule
 
         textUnlines :: [T.Text] -> T.Text
         textUnlines = T.intercalate "\n"
@@ -303,7 +255,6 @@ renderHsModuleForDotProto extraInstanceFiles dotProto importCtxt = do
 -- Instances given in @eis@ override those otherwise generated.
 hsModuleForDotProto ::
   ( MonadError CompileError m
-  , (?recordStyle :: RecordStyle)
   , (?stringType :: StringType)
   , (?typeLevelFormat :: Bool)
   ) =>
@@ -1008,7 +959,6 @@ dpptToFormType ctxt = \case
 
 dotProtoDefinitionD ::
   ( MonadError CompileError m
-  , (?recordStyle :: RecordStyle)
   , (?stringType :: StringType)
   , (?typeLevelFormat :: Bool)
   ) =>
@@ -1048,7 +998,6 @@ hasDefaultInstD messageName =
 dotProtoMessageD ::
   forall m .
   ( MonadError CompileError m
-  , (?recordStyle :: RecordStyle)
   , (?stringType :: StringType)
   , (?typeLevelFormat :: Bool)
   ) =>
@@ -1078,7 +1027,7 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     foldMapM id
       [ sequence
           [ pure messageDataDecl
-          , pure (nfDataInstD messageDataDecl messageName)
+          , pure (Record.nfDataInstD messageDataDecl messageName)
           , pure (namedInstD messageName)
           , pure (hasDefaultInstD messageName)
           , messageInstD ctxt' parentIdent messageIdent messageParts
@@ -1122,10 +1071,6 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     ctxt' = maybe mempty dotProtoTypeChildContext (M.lookup messageIdent ctxt)
                 <> ctxt
 
-    nfDataInstD = case ?recordStyle of
-                    RegularRecords -> RegularRecord.nfDataInstD
-                    LargeRecords -> LargeRecord.nfDataInstD
-
     messagePartFieldD :: String -> DotProtoMessagePart -> m [([HsName], HsBangType)]
     messagePartFieldD messageName (DotProtoMessageField DotProtoField{..}) = do
       fullName <- prefixedFieldName messageName =<< dpIdentUnqualName dotProtoFieldName
@@ -1164,7 +1109,7 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
 
       let nestedDecl = dataDecl_ fullName [] cons defaultMessageDeriving
       pure [ nestedDecl
-           , nfDataInstD nestedDecl fullName
+           , Record.nfDataInstD nestedDecl fullName
            , namedInstD fullName
 #ifdef SWAGGER
            , toSchemaInstance
@@ -2304,8 +2249,7 @@ dpPrimTypeE ty =
         Double   -> wrap "Double"
 
 defaultImports ::
-  ( (?recordStyle :: RecordStyle)
-  , (?stringType :: StringType)
+  ( (?stringType :: StringType)
   , (?typeLevelFormat :: Bool)
   ) =>
   -- | Uses GRPC?
@@ -2354,51 +2298,6 @@ defaultImports icUsesGrpc | StringType stringModule stringType <- ?stringType =
     [ importDecl_ (m "Proto3.Suite.Form") & qualified protobufFormNS & everything
     , importDecl_ (m "GHC.TypeLits")      & qualified haskellNS      & selecting [i"Nat", i"Symbol", i"TypeError"]
     ])
-    <>
-    case ?recordStyle of
-      RegularRecords -> []
-      LargeRecords ->
-        [ importDecl_ (m "Data.Record.Generic")              & qualified lrNS  & everything
-        -- "large-records" stopped exporting "grnf"; we try
-        -- to get it directly from "large-generics" if we can.
-        --
-        -- Ideally we would generate CPP conditionals so that
-        -- the version check happens when the generated code
-        -- is built, but as yet it is unclear how to do that.
-        --
-        -- As a result, we have to enable the version check
-        -- based on the package version available when building
-        -- compile-proto-file, and only if large record support
-        -- is enabled in the library code.
-#ifdef LARGE_RECORDS
-#if MIN_VERSION_large_generics(0,2,1)
-        , importDecl_ (m "Data.Record.Generic.NFData")       & qualified lrNS  & everything
-#endif
-#endif
-        , importDecl_ (m "Data.Record.Generic.Rep")          & qualified lrNS  & everything
-        , importDecl_ (m "Data.Record.Generic.Rep.Internal") & qualified lrNS  & everything
-        , importDecl_ (m "Data.Record.Plugin.Runtime")       & qualified lrNS  & everything
-        -- <https://hackage.haskell.org/package/large-records-0.4/changelog>
-        -- says that as of large-records-0.4 the plugin does not generate
-        -- imports, and that "code must now import Data.Record.Plugin to
-        -- bring largeRecord into scope (necessary for ANN annotations)."
-        -- We also seem to need to import some Prelude identifiers.
-        --
-        -- Ideally we would generate CPP conditionals so that
-        -- the version check happens when the generated code
-        -- is built, but as yet it is unclear how to do that.
-        --
-        -- As a result, we have to enable the version check
-        -- based on the package version available when building
-        -- compile-proto-file, and only if large record support
-        -- is enabled in the library code.
-#ifdef LARGE_RECORDS
-#if MIN_VERSION_large_records(0,4,0)
-        , importDecl_ (m "Data.Record.Plugin")               & unqualified     & selecting [i"largeRecord"]
-        , importDecl_ (m "Prelude")                          & unqualified     & selecting [i"Eq", i"Int", i"Ord", i"Show", i"error"]
-#endif
-#endif
-        ]
   where
     m = GHC.mkModuleName
     i n = ieName_ (unqual_ (if foldr (const . isLower) True n then varName else tcName) n)
@@ -2406,7 +2305,6 @@ defaultImports icUsesGrpc | StringType stringModule stringType <- ?stringType =
 
     grpcNS                    = m "HsGRPC"
     jsonpbNS                  = m "HsJSONPB"
-    lrNS                      = m "LR"
     protobufNS                = m "HsProtobuf"
     protobufASTNS             = m "HsProtobufAST"
     proxyNS                   = m "Proxy"

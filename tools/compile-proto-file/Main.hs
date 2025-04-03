@@ -22,7 +22,6 @@ parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto fi
       <*> proto
       <*> out
       <*> stringType
-      <*> recordStyle
       <*> typeLevelFormat
 
     includes = many $ strOption $
@@ -51,10 +50,6 @@ parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto fi
       <> metavar "Data.Text.Lazy.Text"
       <> help "Haskell representation of strings (--stringType is the preferred spelling)"
       <> value (StringType "Data.Text.Lazy" "Text")
-
-    recordStyle = flag RegularRecords LargeRecords
-      $ long "largeRecords"
-      <> help "Use large-records library to optimize the core code size of generated records"
 
     typeLevelFormat = switch
       $ long "typeLevelFormat"

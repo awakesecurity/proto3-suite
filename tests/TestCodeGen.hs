@@ -72,18 +72,13 @@ codeGenTests logger = testGroup "Code generator unit tests"
 
 pythonInteroperation :: Logger -> TestTree
 pythonInteroperation logger = testGroup "Python interoperation" $ do
-#ifdef LARGE_RECORDS
-  recStyle <- [RegularRecords, LargeRecords]
-#else
-  recStyle <- [RegularRecords]
-#endif
   tt <- ["Data.Text.Lazy.Text", "Data.Text.Text", "Data.Text.Short.ShortText"]
   format <- ["Binary", "Jsonpb"]
   testEncode <- [True, False]
   direct <- [False, True]
   guard $ not direct || (testEncode && format == "Binary")
   let f = if testEncode then simpleEncodeDotProto direct else simpleDecodeDotProto
-  pure @[] (f logger recStyle tt format)
+  pure @[] (f logger tt format)
 
 #ifdef SWAGGER
 swaggerWrapperFormat :: TestTree
@@ -195,16 +190,15 @@ setPythonPath :: IO ()
 setPythonPath = Turtle.export "PYTHONPATH" .
   maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) =<< Turtle.need "PYTHONPATH"
 
-simpleEncodeDotProto :: Bool -> Logger -> RecordStyle -> String -> T.Text -> TestTree
-simpleEncodeDotProto direct logger recStyle chosenStringType format =
+simpleEncodeDotProto :: Bool -> Logger -> String -> T.Text -> TestTree
+simpleEncodeDotProto direct logger chosenStringType format =
     testCase ("generate code for a simple .proto and then use it to encode messages" ++
               " with string type " ++ chosenStringType ++ " in format " ++ show format ++
-              ", record style " ++ show recStyle ++
               (if direct then ", direct mode" else ", intermediate mode"))
     $ do
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
-         compileTestDotProtos logger recStyle decodedStringType direct
+         compileTestDotProtos logger decodedStringType direct
          -- Compile our generated encoder
          let encodeCmd = "tests/encode.sh " <> hsTmpDir
                            <> (if direct then " -DTYPE_LEVEL_FORMAT" else "")
@@ -240,15 +234,14 @@ simpleEncodeDotProto direct logger recStyle chosenStringType format =
          Turtle.rmtree hsTmpDir
          Turtle.rmtree pyTmpDir
 
-simpleDecodeDotProto :: Logger -> RecordStyle -> String -> T.Text -> TestTree
-simpleDecodeDotProto logger recStyle chosenStringType format =
+simpleDecodeDotProto :: Logger -> String -> T.Text -> TestTree
+simpleDecodeDotProto logger chosenStringType format =
     testCase ("generate code for a simple .proto and then use it to decode messages" ++
-              " with string type " ++ chosenStringType ++ " in format " ++ show format ++
-              ", record style " ++ show recStyle)
+              " with string type " ++ chosenStringType ++ " in format " ++ show format)
     $ do
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
-         compileTestDotProtos logger recStyle decodedStringType False
+         compileTestDotProtos logger decodedStringType False
          -- Compile our generated decoder
          let decodeCmd = "tests/decode.sh " <> hsTmpDir
 #if DHALL
@@ -273,8 +266,8 @@ pyTmpDir = "test-files/py-tmp"
 defaultStringType :: StringType
 defaultStringType = StringType "Data.Text.Lazy" "Text"
 
-compileTestDotProtos :: Logger -> RecordStyle -> StringType -> Bool -> IO ()
-compileTestDotProtos logger recStyle decodedStringType typeLevel = do
+compileTestDotProtos :: Logger -> StringType -> Bool -> IO ()
+compileTestDotProtos logger decodedStringType typeLevel = do
   Turtle.mktree hsTmpDir
   Turtle.mktree pyTmpDir
   let protoFiles :: [Turtle.FilePath]
@@ -300,7 +293,6 @@ compileTestDotProtos logger recStyle decodedStringType typeLevel = do
                    , outputDir = hsTmpDir
                    , inputProto = protoFile
                    , stringType = decodedStringType
-                   , recordStyle = recStyle
                    , typeLevelFormat = typeLevel
                    }
 

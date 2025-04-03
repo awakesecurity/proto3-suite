@@ -1,3 +1,6 @@
+# 0.9.0
+* [#272](https://github.com/awakesecurity/proto3-suite/pull/272) removed support for `large-records` and `large-generics`.
+
 # 0.8.3
 * Fix overlong encoding of packed "sint32" fields containing elements in
   [-0x80000000, -0x40000001] or [0x40000000, 0x7FFFFFFF], which increased
