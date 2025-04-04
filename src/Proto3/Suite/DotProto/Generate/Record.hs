@@ -1,6 +1,4 @@
-{- | This module provides functions to generate regular Haskell records
-   without using the large-records library.
--}
+-- | This module provides functions to generate Haskell records
 module Proto3.Suite.DotProto.Generate.Record where
 
 import GHC.Types.Name.Occurrence (tcName)

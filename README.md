@@ -23,27 +23,15 @@ for more details.
 
 #### GHC 9.10
 
-We do not support features making use of the "large-records"
-library because it does not currently build on GHC 9.10, and
-therefore we cannot test our support.
-
-Otherwise we support GHC 9.10 on Linux and Darwin.
+Supported on Linux and Darwin.
 
 #### GHC 9.8
 
-We do not support features making use of the "large-records"
-library because it does not currently build on GHC 9.8, and
-therefore we cannot test our support.
-
-Otherwise we support GHC 9.8 on Linux and Darwin.
+Supported on Linux and Darwin.
 
 #### GHC 9.6
 
-We do not support features making use of the "large-records"
-library because it does not currently build on GHC 9.6, and
-therefore we cannot test our support.
-
-Otherwise we support GHC 9.6 on Linux and Darwin.
+Supported on Linux and Darwin.
 
 #### GHC 9.4
 
