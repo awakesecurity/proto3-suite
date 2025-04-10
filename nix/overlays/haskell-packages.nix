@@ -33,9 +33,6 @@ in {
 
           # With nixpkgs-23.11 and ghc981, aeson-2.1.2.1 thinks that th-abstraction is out of bounds.
           #
-          # Also, in order to avoid the breaking change to package structure in aeson-2.2.0.0,
-          # we patch the import list of aeson-2.1.2.1.
-          #
           # And we disable tests because explicitly specifying aeson-2.1.2.1
           # seems to trigger a test failure, at least on GHC 9.4.8 and 9.8.1;
           # perhaps somewhere in nixpkgs the test is suppressed and
@@ -51,9 +48,7 @@ in {
           #
           aeson =
             pkgsNew.haskell.lib.doJailbreak
-              ( pkgsNew.haskell.lib.dontCheck
-                  ( pkgsNew.haskell.lib.appendPatches haskellPackagesOld.aeson
-                      [ ../patches/aeson-2.1.2.1.patch ] ) );
+              (pkgsNew.haskell.lib.dontCheck haskellPackagesOld.aeson);
 
           # With nixpkgs-23.11 and ghc981, atomic-write wants hspec for testing,
           # which causes problems.
