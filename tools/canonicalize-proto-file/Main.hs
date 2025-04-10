@@ -13,6 +13,7 @@
 
 module Main where
 
+import Control.Monad (guard)
 import           Control.Monad.Except
 import           Data.List                        (sort, sortOn)
 import qualified Data.List.NonEmpty              as NE
