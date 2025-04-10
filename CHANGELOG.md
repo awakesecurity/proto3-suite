@@ -1,3 +1,6 @@
+# 0.9.1
+* [#275](https://github.com/awakesecurity/proto3-suite/pull/275) the `canonicalize-proto-file` executable no longer depends on the [`range-set-list](https://github.com/phadej/range-set-list#readme) package for normalizing reserved field ranges.
+
 # 0.9.0
 * [#272](https://github.com/awakesecurity/proto3-suite/pull/272) removed support for `large-records` and `large-generics`.
 
