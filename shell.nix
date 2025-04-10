@@ -7,7 +7,7 @@
 #   $ nix-shell --arg fast true
 #
 { fast ? false
-, compiler ? "ghc948"
+, compiler ? "ghc9101"
 , enableDhall ? false
 , enableSwagger ? true
 , swaggerWrapperFormat ? false

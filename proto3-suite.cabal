@@ -38,6 +38,12 @@ flag swagger-wrapper-format
   Default:       False
   Manual:        True
 
+flag attoparsec-aeson
+  Description:   Depend upon the Haskell package "attoparsec-aeson".
+  Default:       True
+  Manual:        False
+    -- "Manual: False" to automatically skip "attoparsec-aeson" if it is not available
+
 source-repository head
   type:     git
   location: https://github.com/awakesecurity/proto3-suite
@@ -91,7 +97,7 @@ library
                        Proto3.Suite.Form.Encode.Core
                        Turtle.Compat
 
-  build-depends:       aeson >= 1.1.1.0 && < 2.2,
+  build-depends:       aeson >= 1.1.1.0 && < 2.3,
                        aeson-pretty,
                        attoparsec >= 0.13.0.1,
                        base >=4.15 && <5.0,
@@ -127,6 +133,8 @@ library
                        transformers >=0.4 && <0.7,
                        turtle < 1.6.0 || >= 1.6.1 && < 1.7.0,
                        vector >=0.11 && <0.14
+  if flag(attoparsec-aeson)
+    build-depends:     attoparsec-aeson >= 2.2.0.0
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -O2 -Wall -Werror
@@ -184,7 +192,7 @@ test-suite tests
     Test.Proto.ToEncoder
 
   build-depends:
-      aeson >= 1.1.1.0 && < 2.2
+      aeson
     , attoparsec >= 0.13.0.1
     , base >=4.15 && <5.0
     , base64-bytestring >= 1.0.0.1 && < 1.3

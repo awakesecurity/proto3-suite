@@ -1,5 +1,6 @@
 # 0.9.0
 * [#272](https://github.com/awakesecurity/proto3-suite/pull/272) removed support for `large-records` and `large-generics`.
+* [#274](https://github.com/awakesecurity/proto3-suite/pull/274) Support aeson-2.2.
 
 # 0.8.3
 * Fix overlong encoding of packed "sint32" fields containing elements in
