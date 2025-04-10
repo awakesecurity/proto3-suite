@@ -11,12 +11,11 @@
 {-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE TypeOperators          #-}
 
-module Main (main) where
+module Main where
 
 import           Control.Monad.Except
 import           Data.List                        (sort, sortOn)
 import qualified Data.List.NonEmpty              as NE
-import           Data.RangeSet.List               (fromRangeList, toRangeList)
 import           Data.Semigroup                   (Min(..))
 import           Options.Generic
 import           Prelude                          hiding (FilePath)
@@ -30,8 +29,53 @@ data Args w = Args
   { includeDir :: w ::: [FilePath] <?> "Path to search for included .proto files (can be repeated, and paths will be searched in order; the current directory is used if this option is not provided)"
   , proto      :: w ::: FilePath   <?> "Path to input .proto file"
   } deriving Generic
+
 instance ParseRecord (Args Wrapped)
+
 deriving instance Show (Args Unwrapped)
+
+-- | @('isOverlappingIntervals' a b :: 'Bool')@ is a relation between two 
+-- interval-like types @a@ and @b@ that is 'True' when the two intervals are 
+-- overlapping or touching over a subinterval of @a@ and @b@.
+isOverlappingIntervals :: (Ord a, Enum a) => (a, a) -> (a, a) -> Bool
+isOverlappingIntervals (x, y) (u, v) = y >= u || v <= x
+
+-- | @('joinIntervals' a b :: 'Maybe' (a, a))@ will join the two given intervals 
+-- @a@ and @b@ into a larger interval if 
+--
+-- @
+-- ('isOverlappingIntervals' a b '==' 'True')
+-- @
+--
+-- Otherwise, returns 'Nothing'.
+joinIntervals :: (Ord a, Enum a) => (a, a) -> (a, a) -> Maybe (a, a)
+joinIntervals a b = do 
+  guard (isOverlappingIntervals a b)
+  pure (fst a, snd b)
+
+-- | Normalizes a list of intervals. 
+--
+-- 1. Filters out any "invalid" intervals from the resulting list, i.e. any 
+--    intervals @(x, y) :: (a, a)@ with @x > y@. 
+--
+-- 2. Additionally, the resulting list will have all overlapping intervals 
+--    merged into a larger interval that covers each overlapping interval.
+normalizeIntervals :: (Ord a, Enum a) => [(a, a)] -> [(a, a)]
+normalizeIntervals = mergeIntervals . filter \(x, y) -> x <= y
+
+-- | Returns a sorted list that contains all intervals from the minimal set of 
+-- intervals to represent the given list of intervals. 
+--
+-- "Merges" overlapping intervals in a list of intervals. Think disjunctive 
+-- normal form.
+mergeIntervals :: (Ord a, Enum a) => [(a, a)] -> [(a, a)]
+mergeIntervals = foldr step [] . sort
+  where 
+    step :: (Ord a, Enum a) => (a, a) -> [(a, a)] -> [(a, a)]
+    step x [] = [x]
+    step x (y : ys) = case joinIntervals x y of 
+      Nothing -> x : y : ys 
+      Just xy -> xy : ys
 
 main :: IO ()
 main = do
@@ -181,7 +225,7 @@ instance Canonicalize [DotProtoReservedField] where
       unique [n] = [n]
       unique (x : xs@(y : _)) = (if x == y then id else (x :)) (unique xs)
 
-      numbers = map reserveNumbers (toRangeList (fromRangeList rangeList))
+      numbers = map reserveNumbers (normalizeIntervals rangeList)
 
       reserveNumbers (lo, hi) | lo == hi = SingleField lo
                               | otherwise = FieldRange lo hi

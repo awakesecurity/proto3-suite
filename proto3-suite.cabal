@@ -45,6 +45,7 @@ source-repository head
 common common
   default-extensions:
     BlockArguments DeriveDataTypeable DeriveGeneric ImportQualifiedPost
+    ViewPatterns
 
 library
   import: common
@@ -230,6 +231,7 @@ executable compile-proto-file
   ghc-options:         -O2 -Wall -Werror
 
 executable canonicalize-proto-file
+  import:              common
   main-is:             Main.hs
   hs-source-dirs:      tools/canonicalize-proto-file
   default-language:    Haskell2010
@@ -239,7 +241,6 @@ executable canonicalize-proto-file
                        , optparse-generic
                        , proto3-suite
                        , proto3-wire >= 1.4.5 && < 1.5
-                       , range-set-list >=0.1.2 && <0.2
                        , system-filepath
                        , turtle
   ghc-options:         -O2 -Wall -Werror

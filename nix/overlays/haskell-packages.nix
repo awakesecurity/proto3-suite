@@ -285,14 +285,6 @@ in {
           yaml =
             pkgsNew.haskell.lib.dontCheck haskellPackagesOld.yaml;
 
-          range-set-list =
-            pkgsNew.haskell.lib.overrideCabal
-              haskellPackagesOld.range-set-list
-              (old: {
-                broken = false;
-                jailbreak = true;
-              });
-
           # Newer versions of "witch" do not support GHC 9.0.
           witch =
             if builtins.compareVersions haskellPackagesOld.ghc.version "9.2.0" < 0
