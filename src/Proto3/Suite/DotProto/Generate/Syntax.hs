@@ -21,10 +21,10 @@ import GHC.Types.Name.Occurrence (NameSpace, dataName, mkOccName, tcName, tvName
 import GHC.Types.Name.Reader (mkRdrQual, mkRdrUnqual, rdrNameSpace)
 import GHC.Types.SrcLoc (GenLocated(..), SrcSpan, generatedSrcSpan)
 
-#if MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,10,0)
 import GHC.Types.Basic (GenReason(OtherExpansion))
 #endif
-#if MIN_VERSION_ghc(9,8,0)
+#if MIN_VERSION_ghc_lib_parser(9,8,0)
 import Control.Arrow ((***))
 import Data.Bool (bool)
 import Data.Ratio ((%))
@@ -37,7 +37,7 @@ import GHC.Types.Fixity (LexicalFixity(..))
 import GHC.Types.PkgQual (RawPkgQual(..))
 import GHC.Types.SourceText
          (IntegralLit(..), FractionalExponentBase(..), FractionalLit(..), SourceText(..))
-#elif MIN_VERSION_ghc(9,6,0)
+#elif MIN_VERSION_ghc_lib_parser(9,6,0)
 import Control.Arrow ((***))
 import Data.Bool (bool)
 import Data.Ratio ((%))
@@ -50,7 +50,7 @@ import GHC.Types.Fixity (LexicalFixity(..))
 import GHC.Types.PkgQual (RawPkgQual(..))
 import GHC.Types.SourceText
          (IntegralLit(..), FractionalExponentBase(..), FractionalLit(..), SourceText(..))
-#elif MIN_VERSION_ghc(9,4,0)
+#elif MIN_VERSION_ghc_lib_parser(9,4,0)
 import Data.Ratio ((%))
 import Data.Void (Void)
 import GHC.Hs hiding (HsBind, HsDecl, HsDerivingClause, HsOuterFamEqnTyVarBndrs,
@@ -64,7 +64,7 @@ import GHC.Types.SourceText
 import GHC.Types.SrcLoc (LayoutInfo(..))
 import GHC.Unit (IsBootInterface(..))
 import GHC.Unit.Module (ModuleName, mkModuleName)
-#elif MIN_VERSION_ghc(9,2,0)
+#elif MIN_VERSION_ghc_lib_parser(9,2,0)
 import Data.Ratio ((%))
 import Data.Void (Void)
 import GHC.Hs hiding (HsBind, HsDecl, HsDerivingClause, HsOuterFamEqnTyVarBndrs,
@@ -107,13 +107,13 @@ type HsImportSpec = LIE GhcPs
 type HsMatch = LMatch GhcPs HsExp
 type HsName = LIdP GhcPs
 type HsOuterFamEqnTyVarBndrs =
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
   GHC.HsOuterFamEqnTyVarBndrs GhcPs
 #else
   ()
 #endif
 type HsOuterSigTyVarBndrs =
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
   GHC.HsOuterSigTyVarBndrs GhcPs
 #else
   ()
@@ -124,7 +124,7 @@ type HsQOp = LHsExpr GhcPs
 type HsSig = LSig GhcPs
 type HsTyVarBndrU = LHsTyVarBndr () GhcPs
 type HsTyVarBndrV = LHsTyVarBndr
-#if MIN_VERSION_ghc(9,8,0)
+#if MIN_VERSION_ghc_lib_parser(9,8,0)
                                  (HsBndrVis GhcPs)
 #else
                                  ()
@@ -133,7 +133,7 @@ type HsTyVarBndrV = LHsTyVarBndr
 type HsType = LHsType GhcPs
 type Module = ModuleName
 
-#if MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,10,0)
 
 pattern VirtualBraces :: Int -> EpLayout
 pattern VirtualBraces indentation = EpVirtualBraces indentation
@@ -176,7 +176,7 @@ instance SyntaxDefault SrcSpan
   where
     synDef = generatedSrcSpan
 
-#if MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,10,0)
 
 instance SyntaxDefault AnnParen
   where
@@ -220,7 +220,7 @@ instance SyntaxDefault (HsBndrVis GhcPs)
 
 #endif
 
-#if MIN_VERSION_ghc(9,8,0) && !MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,8,0) && !MIN_VERSION_ghc_lib_parser(9,10,0)
 
 instance SyntaxDefault (HsBndrVis GhcPs)
   where
@@ -228,7 +228,7 @@ instance SyntaxDefault (HsBndrVis GhcPs)
 
 #endif
 
-#if MIN_VERSION_ghc(9,4,0)
+#if MIN_VERSION_ghc_lib_parser(9,4,0)
 
 instance SyntaxDefault a => SyntaxDefault (GenLocated TokenLocation a)
   where
@@ -236,7 +236,7 @@ instance SyntaxDefault a => SyntaxDefault (GenLocated TokenLocation a)
 
 #endif
 
-#if MIN_VERSION_ghc(9,4,0) && !MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,4,0) && !MIN_VERSION_ghc_lib_parser(9,10,0)
 
 instance SyntaxDefault (SrcAnn a)
   where
@@ -258,14 +258,14 @@ instance SyntaxDefault IsUnicodeSyntax
 
 #endif
 
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
 
 pattern PfxCon :: [arg] -> HsConDetails Void arg r
 pattern PfxCon args = PrefixCon [] args
 
 #endif
 
-#if MIN_VERSION_ghc(9,2,0) && !MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0) && !MIN_VERSION_ghc_lib_parser(9,10,0)
 
 instance SyntaxDefault e => SyntaxDefault (GenLocated (SrcAnn a) e)
   where
@@ -285,7 +285,7 @@ instance SyntaxDefault AnnSortKey
 
 #endif
 
-#if !MIN_VERSION_ghc(9,2,0)
+#if !MIN_VERSION_ghc_lib_parser(9,2,0)
 
 instance SyntaxDefault e => SyntaxDefault (GenLocated SrcSpan e)
   where
@@ -327,7 +327,7 @@ noLocA = noLoc
 
 #endif
 
-#if !MIN_VERSION_ghc(9,4,0)
+#if !MIN_VERSION_ghc_lib_parser(9,4,0)
 
 dataConCantHappen :: NoExtCon -> a
 dataConCantHappen = noExtCon
@@ -422,7 +422,7 @@ apply f xs = mkHsApps f (map paren xs)
 
 appAt :: HsExp -> HsType -> HsExp
 appAt f t = noLocA (HsAppType synDef f
-#if MIN_VERSION_ghc(9,6,0) && !MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,6,0) && !MIN_VERSION_ghc_lib_parser(9,10,0)
                                        synDef
 #endif
                                               (HsWC NoExtField (parenTy t)))
@@ -490,12 +490,12 @@ unbangedTy_ :: HsType -> HsBangType
 unbangedTy_ = noLocA . GHC.HsBangTy synDef (HsSrcBang synDef NoSrcUnpack NoSrcStrict) . parenTy
 
 module_ :: ModuleName -> Maybe [HsExportSpec] -> [HsImportDecl] -> [HsDecl] -> GHC.HsModule
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_ghc_lib_parser(9,6,0)
                                                                                             GhcPs
 #endif
 module_ moduleName maybeExports imports decls = GHC.HsModule
   {
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_ghc_lib_parser(9,6,0)
     hsmodExt = XModulePs
       { hsmodAnn = synDef
       , hsmodLayout = VirtualBraces 2
@@ -503,7 +503,7 @@ module_ moduleName maybeExports imports decls = GHC.HsModule
       , hsmodHaddockModHeader = Nothing
       }
 #else
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
     hsmodAnn = synDef,
 #endif
     hsmodLayout = VirtualBraces 2
@@ -512,7 +512,7 @@ module_ moduleName maybeExports imports decls = GHC.HsModule
   , hsmodExports = noLocA <$> maybeExports
   , hsmodImports = imports
   , hsmodDecls = decls
-#if !MIN_VERSION_ghc(9,6,0)
+#if !MIN_VERSION_ghc_lib_parser(9,6,0)
   , hsmodDeprecMessage = Nothing
   , hsmodHaddockModHeader = Nothing
 #endif
@@ -526,7 +526,7 @@ importDecl_ ::
   HsImportDecl
 importDecl_ moduleName qualified maybeAs details = noLocA ImportDecl
   {
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_ghc_lib_parser(9,6,0)
     ideclExt = XImportDeclPass
       { ideclAnn = synDef
       , ideclSourceText = synDef
@@ -538,7 +538,7 @@ importDecl_ moduleName qualified maybeAs details = noLocA ImportDecl
 #endif
   , ideclName = noLocA moduleName
   , ideclPkgQual =
-#if MIN_VERSION_ghc(9,4,0)
+#if MIN_VERSION_ghc_lib_parser(9,4,0)
       NoRawPkgQual
 #else
       Nothing
@@ -546,11 +546,11 @@ importDecl_ moduleName qualified maybeAs details = noLocA ImportDecl
   , ideclSource = NotBoot
   , ideclSafe = False
   , ideclQualified = if qualified then QualifiedPre else NotQualified
-#if !MIN_VERSION_ghc(9,6,0)
+#if !MIN_VERSION_ghc_lib_parser(9,6,0)
   , ideclImplicit = False
 #endif
   , ideclAs = noLocA <$> maybeAs
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_ghc_lib_parser(9,6,0)
   , ideclImportList = (bool Exactly EverythingBut *** noLocA) <$> details
 #else
   , ideclHiding = fmap noLocA <$> details
@@ -560,28 +560,28 @@ importDecl_ moduleName qualified maybeAs details = noLocA ImportDecl
 ieName_ :: HsName -> HsImportSpec
 ieName_ =
   noLocA .
-#if MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,10,0)
   flip (IEVar synDef) Nothing .
 #else
   IEVar synDef .
 #endif
   noLocA .
   IEName
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_ghc_lib_parser(9,6,0)
          synDef
 #endif
 
 ieNameAll_ :: HsName -> HsImportSpec
 ieNameAll_ =
   noLocA .
-#if MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,10,0)
   flip (IEThingAll synDef) Nothing .
 #else
   (IEThingAll synDef) .
 #endif
   noLocA .
   IEName
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_ghc_lib_parser(9,6,0)
          synDef
 #endif
 
@@ -593,21 +593,21 @@ dataDecl_ messageName bndrs constructors derivedInstances = noLocA $ GHC.TyClD N
     , tcdFixity = Prefix
     , tcdDataDefn = HsDataDefn
         { dd_ext = NoExtField
-#if !MIN_VERSION_ghc(9,6,0)
+#if !MIN_VERSION_ghc_lib_parser(9,6,0)
         , dd_ND = maybe DataType (const NewType) newtypeCtor
 #endif
         , dd_ctxt = synDef
         , dd_cType = Nothing
         , dd_kindSig = Nothing
         , dd_cons =
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_ghc_lib_parser(9,6,0)
             maybe (DataTypeCons False constructors) NewTypeCon newtypeCtor
 #else
             constructors
 #endif
 
         , dd_derivs =
-#if !MIN_VERSION_ghc(9,2,0)
+#if !MIN_VERSION_ghc_lib_parser(9,2,0)
             noLoc $
 #endif
               maybeToList $ derivingClause_ Nothing $ derivedInstances <&> \className ->
@@ -618,7 +618,7 @@ dataDecl_ messageName bndrs constructors derivedInstances = noLocA $ GHC.TyClD N
     -- TO DO: Support GADT syntax, assuming we ever start to use it in generated code.
     newtypeCtor = case constructors of
       [ con@( L _ ( ConDeclH98 { con_forall =
-#if !MIN_VERSION_ghc(9,2,0)
+#if !MIN_VERSION_ghc_lib_parser(9,2,0)
                                               L _
 #endif
                                                   False
@@ -636,7 +636,7 @@ recDecl_ name fields = noLocA ConDeclH98
   { con_ext = synDef
   , con_name = name
   , con_forall =
-#if !MIN_VERSION_ghc(9,2,0)
+#if !MIN_VERSION_ghc_lib_parser(9,2,0)
                  noLoc
 #endif
                        False
@@ -645,9 +645,9 @@ recDecl_ name fields = noLocA ConDeclH98
   , con_args = RecCon $ noLocA $ fields <&> \(names, bangTy) -> noLocA ConDeclField
       { cd_fld_ext = synDef
       , cd_fld_names =
-#if MIN_VERSION_ghc(9,4,0)
+#if MIN_VERSION_ghc_lib_parser(9,4,0)
           noLocA
-#elif MIN_VERSION_ghc(9,2,0)
+#elif MIN_VERSION_ghc_lib_parser(9,2,0)
           noLoc
 #else
           noLocA
@@ -664,7 +664,7 @@ conDecl_ name fields = noLocA ConDeclH98
   { con_ext = synDef
   , con_name = name
   , con_forall =
-#if !MIN_VERSION_ghc(9,2,0)
+#if !MIN_VERSION_ghc_lib_parser(9,2,0)
                  noLoc
 #endif
                        False
@@ -720,7 +720,7 @@ instDecl_ className classArgs binds = noLocA $ GHC.InstD NoExtField ClsInstD
   , cid_inst = ClsInstDecl
       { cid_ext = synDef
       , cid_poly_ty =
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
           noLocA $
 #endif
             HsSig NoExtField implicitOuterSigTyVarBinders_ (tyConApply className classArgs)
@@ -736,7 +736,7 @@ typeOfInstDecl :: HsDecl -> Maybe (HsOuterSigTyVarBndrs, HsType)
 typeOfInstDecl ( L _ ( GHC.InstD _ ClsInstD
                        { cid_inst = ClsInstDecl
                          { cid_poly_ty =
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
                              L _
 #endif
                                  (HsSig _ binders classType)
@@ -755,14 +755,14 @@ closedTyFamDecl_ tyFamName famBndrs resultKind eqns =
   noLocA $ GHC.TyClD NoExtField $ FamDecl synDef $ FamilyDecl
     { fdExt = synDef
     , fdInfo = ClosedTypeFamily (Just (map onEqn eqns))
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
     , fdTopLevel = TopLevel
 #endif
     , fdLName = tyFamName
     , fdTyVars = HsQTvs synDef famBndrs
     , fdFixity = Prefix
     , fdResultSig =
-#if MIN_VERSION_ghc(9,4,0)
+#if MIN_VERSION_ghc_lib_parser(9,4,0)
         noLocA $
 #else
         noLoc $
@@ -772,21 +772,21 @@ closedTyFamDecl_ tyFamName famBndrs resultKind eqns =
     }
   where
     onEqn (eqnBndrs, pats, rhs) = noLocA $
-#if !MIN_VERSION_ghc(9,2,0)
+#if !MIN_VERSION_ghc_lib_parser(9,2,0)
       HsIB synDef
 #endif
         FamEqn
           { feqn_ext = synDef
           , feqn_tycon = tyFamName
           , feqn_bndrs =
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
               maybe (HsOuterImplicit NoExtField) (HsOuterExplicit synDef) eqnBndrs
 #else
               eqnBndrs
 #endif
           , feqn_pats = map
               (HsValArg
-#if MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,10,0)
                         synDef
 #endif
               ) pats
@@ -799,25 +799,25 @@ tyFamInstDecl_ tyFamName bndrs pats rhs = noLocA $ GHC.InstD NoExtField TyFamIns
   { tfid_ext = NoExtField
   , tfid_inst = TyFamInstDecl
       {
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
         tfid_xtn = synDef,
 #endif
         tfid_eqn =
-#if !MIN_VERSION_ghc(9,2,0)
+#if !MIN_VERSION_ghc_lib_parser(9,2,0)
           HsIB synDef
 #endif
                       FamEqn
             { feqn_ext = synDef
             , feqn_tycon = tyFamName
             , feqn_bndrs =
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
                 maybe (HsOuterImplicit NoExtField) (HsOuterExplicit synDef) bndrs
 #else
                 bndrs
 #endif
             , feqn_pats = map
                 (HsValArg
-#if MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,10,0)
                           synDef
 #endif
                 ) pats
@@ -844,16 +844,16 @@ patBind_ (L _ (LazyPat _ (L _ (VarPat _ nm)))) rhs =
 patBind_ pat rhs = noLocA PatBind
   { pat_ext = synDef
   , pat_lhs = pat
-#if MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,10,0)
   , pat_mult = HsNoMultAnn synDef
 #endif
   , pat_rhs =
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
       unguardedGRHSs synDef rhs synDef
 #else
       unguardedGRHSs rhs
 #endif
-#if !MIN_VERSION_ghc(9,6,0)
+#if !MIN_VERSION_ghc_lib_parser(9,6,0)
   , pat_ticks = synDef
 #endif
   }
@@ -871,10 +871,10 @@ functionLike_ strictness name alts = noLocA $ mkFunBind generated name (map matc
   where
     generated :: Origin
     generated = Generated
-#if MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,10,0)
                           OtherExpansion
 #endif
-#if MIN_VERSION_ghc(9,8,0)
+#if MIN_VERSION_ghc_lib_parser(9,8,0)
                                          DoPmc
 #endif
 
@@ -890,14 +890,14 @@ functionLike_ strictness name alts = noLocA $ mkFunBind generated name (map matc
 typeSig_ :: [HsName] -> HsOuterSigTyVarBndrs -> HsType -> HsDecl
 typeSig_ nms bndrs ty = noLocA $ GHC.SigD NoExtField $ TypeSig synDef nms $
   HsWC NoExtField $
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
     noLocA $
 #endif
       HsSig NoExtField bndrs ty
 
 implicitOuterFamEqnTyVarBinders_ :: HsOuterFamEqnTyVarBndrs
 implicitOuterFamEqnTyVarBinders_ =
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
   HsOuterImplicit NoExtField
 #else
   ()
@@ -905,7 +905,7 @@ implicitOuterFamEqnTyVarBinders_ =
 
 implicitOuterSigTyVarBinders_ :: HsOuterSigTyVarBndrs
 implicitOuterSigTyVarBinders_ =
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
   HsOuterImplicit NoExtField
 #else
   ()
@@ -934,14 +934,14 @@ var_ = noLocA . HsVar NoExtField
 
 fieldBind_ :: HsName -> HsExp -> LHsRecField GhcPs HsExp
 fieldBind_ nm val = noLocA
-#if MIN_VERSION_ghc(9,4,0)
+#if MIN_VERSION_ghc_lib_parser(9,4,0)
   HsFieldBind
     { hfbAnn = synDef
     , hfbLHS = noLocA $ FieldOcc NoExtField nm
     , hfbRHS = val
     , hfbPun = False
     }
-#elif MIN_VERSION_ghc(9,2,0)
+#elif MIN_VERSION_ghc_lib_parser(9,2,0)
   HsRecField
     { hsRecFieldAnn = synDef
     , hsRecFieldLbl = noLoc $ FieldOcc NoExtField nm
@@ -959,7 +959,7 @@ fieldBind_ nm val = noLocA
 recordCtor_ :: HsName -> [LHsRecField GhcPs HsExp] -> HsExp
 recordCtor_ nm fields = noLocA RecordCon
   { rcon_ext = synDef
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
   , rcon_con = nm
 #else
   , rcon_con_name = nm
@@ -971,18 +971,18 @@ recordCtor_ nm fields = noLocA RecordCon
   }
 
 fieldUpd_ :: HsName -> HsExp -> LHsRecUpdField GhcPs
-#if MIN_VERSION_ghc(9,8,0)
+#if MIN_VERSION_ghc_lib_parser(9,8,0)
                                                      GhcPs
 #endif
 fieldUpd_ nm val = noLocA
-#if MIN_VERSION_ghc(9,4,0)
+#if MIN_VERSION_ghc_lib_parser(9,4,0)
   HsFieldBind
     { hfbAnn = synDef
     , hfbLHS = noLocA $ Ambiguous NoExtField nm
     , hfbRHS = val
     , hfbPun = False
     }
-#elif MIN_VERSION_ghc(9,2,0)
+#elif MIN_VERSION_ghc_lib_parser(9,2,0)
   HsRecField
     { hsRecFieldAnn = synDef
     , hsRecFieldLbl = noLoc $ Ambiguous NoExtField nm
@@ -998,7 +998,7 @@ fieldUpd_ nm val = noLocA
 #endif
 
 recordUpd_ :: HsExp -> [ LHsRecUpdField GhcPs
-#if MIN_VERSION_ghc(9,8,0)
+#if MIN_VERSION_ghc_lib_parser(9,8,0)
                                               GhcPs
 #endif
                        ] -> HsExp
@@ -1006,9 +1006,9 @@ recordUpd_ r fields = noLocA RecordUpd
   { rupd_ext = synDef
   , rupd_expr = r
   , rupd_flds =
-#if MIN_VERSION_ghc(9,8,0)
+#if MIN_VERSION_ghc_lib_parser(9,8,0)
       RegularRecUpdFields synDef
-#elif MIN_VERSION_ghc(9,2,0)
+#elif MIN_VERSION_ghc_lib_parser(9,2,0)
       Left
 #endif
         fields
@@ -1061,14 +1061,14 @@ recPat ctor fields = noLocA $ ConPat synDef ctor $ RecCon $ HsRecFields
 
 fieldPunPat :: HsName -> LHsRecField GhcPs HsPat
 fieldPunPat nm = noLocA
-#if MIN_VERSION_ghc(9,4,0)
+#if MIN_VERSION_ghc_lib_parser(9,4,0)
   HsFieldBind
     { hfbAnn = synDef
     , hfbLHS = noLocA $ FieldOcc NoExtField nm
     , hfbRHS = noLocA $ VarPat NoExtField nm
     , hfbPun = True
     }
-#elif MIN_VERSION_ghc(9,2,0)
+#elif MIN_VERSION_ghc_lib_parser(9,2,0)
   HsRecField
     { hsRecFieldAnn = synDef
     , hsRecFieldLbl = noLoc $ FieldOcc NoExtField nm
@@ -1088,27 +1088,27 @@ alt_ = mkHsCaseAlt
 
 case_ :: HsExp -> [HsAlt] -> HsExp
 case_ e = noLocA . HsCase synDef e . mkMatchGroup generated
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
                                                             . noLocA
 #endif
   where
     generated :: Origin
     generated = Generated
-#if MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,10,0)
                           OtherExpansion
 #endif
-#if MIN_VERSION_ghc(9,8,0)
+#if MIN_VERSION_ghc_lib_parser(9,8,0)
                                          DoPmc
 #endif
 
 -- | Simple let expression for ordinary bindings.
 let_ :: [HsBind] -> HsExp -> HsExp
 let_ locals e =
-#if MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc_lib_parser(9,10,0)
     noLocA $ HsLet synDef binds e
-#elif MIN_VERSION_ghc(9,4,0)
+#elif MIN_VERSION_ghc_lib_parser(9,4,0)
     noLocA $ HsLet synDef synDef binds synDef e
-#elif MIN_VERSION_ghc(9,2,0)
+#elif MIN_VERSION_ghc_lib_parser(9,2,0)
     noLocA $ HsLet synDef binds e
 #else
     noLocA $ HsLet synDef (noLocA binds) e
@@ -1122,14 +1122,14 @@ lambda_ = mkHsLam
 
 if_ :: HsExp -> HsExp -> HsExp -> HsExp
 if_ c t f = noLocA $ mkHsIf c t f
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
                                   synDef
 #endif
 
 -- | A boxed tuple with all components present.
 tuple_ :: [HsExp] -> HsExp
 tuple_ xs = mkLHsTupleExpr xs
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
                               synDef
 #endif
 
@@ -1271,7 +1271,7 @@ floatE x
         overlit = mkHsFractional $ FL
           { fl_text = NoSourceText
           , fl_neg = y < 0
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
           , fl_signi = _s % 1
           , fl_exp = toInteger _e
           , fl_exp_base = case floatRadix y of
@@ -1285,13 +1285,13 @@ floatE x
 
 do_ :: [ExprLStmt GhcPs] -> HsExp
 do_ = noLocA . mkHsDo (DoExpr Nothing)
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
                                        . noLocA
 #endif
 
 letStmt_ :: [HsBind] -> ExprLStmt GhcPs
 letStmt_ locals = noLocA $ LetStmt synDef
-#if !MIN_VERSION_ghc(9,2,0)
+#if !MIN_VERSION_ghc_lib_parser(9,2,0)
                     $ noLocA
 #endif
                       binds
@@ -1300,7 +1300,7 @@ letStmt_ locals = noLocA $ LetStmt synDef
 
 bindStmt_ :: HsPat -> HsExp -> ExprLStmt GhcPs
 bindStmt_ p e = noLocA $ mkPsBindStmt
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
                                       synDef
 #endif
                                              p e

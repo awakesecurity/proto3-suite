@@ -18,7 +18,7 @@ import GHC.Parser.Lexer (P(..), PState, ParseResult(..))
 import GHC.Types.SrcLoc (Located, RealSrcLoc)
 import GHC.Utils.Outputable (SDoc)
 
-#if MIN_VERSION_ghc(9,8,0)
+#if MIN_VERSION_ghc_lib_parser(9,8,0)
 import qualified GHC.Driver.Errors (printMessages)
 import GHC.Parser.Errors.Types (PsMessage)
 import GHC.Parser.Lexer (getPsMessages, initParserState, mkParserOpts)
@@ -26,7 +26,7 @@ import GHC.Types.Error (Messages, NoDiagnosticOpts(..), partitionMessages, union
 import GHC.Utils.Error (DiagOpts, emptyDiagOpts)
 import GHC.Utils.Logger (Logger, initLogger)
 import GHC.Utils.Outputable (defaultSDocContext, renderWithContext)
-#elif MIN_VERSION_ghc(9,6,0)
+#elif MIN_VERSION_ghc_lib_parser(9,6,0)
 import qualified GHC.Driver.Errors (printMessages)
 import GHC.Parser.Errors.Types (PsMessage)
 import GHC.Parser.Lexer (getPsMessages, initParserState, mkParserOpts)
@@ -34,7 +34,7 @@ import GHC.Types.Error (Messages, NoDiagnosticOpts(..), partitionMessages, union
 import GHC.Utils.Error (DiagOpts(..))
 import GHC.Utils.Logger (Logger, initLogger)
 import GHC.Utils.Outputable (defaultSDocContext, renderWithContext)
-#elif MIN_VERSION_ghc(9,4,0)
+#elif MIN_VERSION_ghc_lib_parser(9,4,0)
 import qualified GHC.Driver.Errors (printMessages)
 import GHC.Parser.Errors.Types (PsMessage)
 import GHC.Parser.Lexer (getPsMessages, initParserState, mkParserOpts)
@@ -42,7 +42,7 @@ import GHC.Types.Error (Messages, partitionMessages, unionMessages)
 import GHC.Utils.Error (DiagOpts(..))
 import GHC.Utils.Logger (Logger, initLogger)
 import GHC.Utils.Outputable (defaultSDocContext, renderWithContext)
-#elif MIN_VERSION_ghc(9,2,0)
+#elif MIN_VERSION_ghc_lib_parser(9,2,0)
 import Control.Arrow ((***))
 import Data.Foldable (traverse_)
 import GHC.ByteOrder (targetByteOrder)
@@ -86,7 +86,7 @@ parseModule ::
   RealSrcLoc ->
   StringBuffer ->
   IO (Maybe (Located (GHC.Hs.HsModule
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_ghc_lib_parser(9,6,0)
                                       GHC.Hs.GhcPs
 #endif
                      )))
@@ -100,9 +100,9 @@ parseModule logger location input = do
         pure Nothing
   where
     exts = EnumSet.fromList (languageExtensions Nothing)
-#if MIN_VERSION_ghc(9,4,0)
+#if MIN_VERSION_ghc_lib_parser(9,4,0)
     diagOpts =
-#if MIN_VERSION_ghc(9,8,0)
+#if MIN_VERSION_ghc_lib_parser(9,8,0)
       emptyDiagOpts
 #else
       DiagOpts
@@ -116,7 +116,7 @@ parseModule logger location input = do
 #endif
     parserOpts = mkParserOpts exts diagOpts [] False True True True
     initialState = initParserState parserOpts input location
-#elif MIN_VERSION_ghc(9,2,0)
+#elif MIN_VERSION_ghc_lib_parser(9,2,0)
     diagOpts = DiagOpts
     parserOpts = mkParserOpts EnumSet.empty exts False True True True
     initialState = initParserState parserOpts input location
@@ -129,10 +129,10 @@ parseModule logger location input = do
 
 printWarningsAndErrors :: Logger -> DiagOpts -> PState -> IO ()
 printWarningsAndErrors logger diagOpts state = do
-#if MIN_VERSION_ghc(9,4,0)
+#if MIN_VERSION_ghc_lib_parser(9,4,0)
   let (ws, es) = getPsMessages state
   let (warnings, unionMessages es -> errors) = partitionMessages ws
-#elif MIN_VERSION_ghc(9,2,0)
+#elif MIN_VERSION_ghc_lib_parser(9,2,0)
   let (warnings, errors) = (fmap pprWarning *** fmap pprError) (getMessages state)
 #else
   let (warnings, errors) = getMessages state renderingDynFlags
@@ -140,17 +140,17 @@ printWarningsAndErrors logger diagOpts state = do
   printMessages logger diagOpts warnings
   printMessages logger diagOpts errors
 
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_ghc_lib_parser(9,6,0)
 
 printMessages :: Logger -> DiagOpts -> Messages PsMessage -> IO ()
 printMessages logger = GHC.Driver.Errors.printMessages logger NoDiagnosticOpts
 
-#elif MIN_VERSION_ghc(9,4,0)
+#elif MIN_VERSION_ghc_lib_parser(9,4,0)
 
 printMessages :: Logger -> DiagOpts -> Messages PsMessage -> IO ()
 printMessages = GHC.Driver.Errors.printMessages
 
-#elif MIN_VERSION_ghc(9,2,0)
+#elif MIN_VERSION_ghc_lib_parser(9,2,0)
 
 printMessages :: Logger -> DiagOpts -> Bag (MsgEnvelope DecoratedSDoc) -> IO ()
 printMessages logger _ = traverse_ report . sortMsgBag Nothing
@@ -174,14 +174,14 @@ printMessages _ _ = traverse_ (putStrLn . renderSDoc) . pprErrMsgBagWithLoc
 
 renderSDoc :: SDoc -> String
 renderSDoc =
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
   renderWithContext
 #else
   renderWithStyle
 #endif
     defaultSDocContext
 
-#if !MIN_VERSION_ghc(9,2,0)
+#if !MIN_VERSION_ghc_lib_parser(9,2,0)
 
 data Logger = Logger
 
@@ -196,7 +196,7 @@ defaultSDocContext = initSDocContext renderingDynFlags defaultDumpStyle
 
 #endif
 
-#if !MIN_VERSION_ghc(9,4,0)
+#if !MIN_VERSION_ghc_lib_parser(9,4,0)
 
 data DiagOpts = DiagOpts
 
@@ -223,7 +223,7 @@ renderingDynFlags = defaultDynFlags placeholderSettings placeholderLlvmConfig
         }
       , sTargetPlatform = Platform
         {
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
           platformArchOS = ArchOS
 #else
           platformMini = PlatformMini
@@ -238,7 +238,7 @@ renderingDynFlags = defaultDynFlags placeholderSettings placeholderLlvmConfig
         , platformIsCrossCompiling = True
         , platformLeadingUnderscore = True
         , platformTablesNextToCode = False
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
         , platform_constants = Nothing
 #endif
         }
@@ -289,14 +289,14 @@ renderingDynFlags = defaultDynFlags placeholderSettings placeholderLlvmConfig
         , platformMisc_ghcWithSMP = False
         , platformMisc_ghcRTSWays = mempty
         , platformMisc_libFFI = False
-#if !MIN_VERSION_ghc(9,2,0)
+#if !MIN_VERSION_ghc_lib_parser(9,2,0)
         , platformMisc_ghcThreaded = False
         , platformMisc_ghcDebugged = False
 #endif
         , platformMisc_ghcRtsWithLibdw = False
         , platformMisc_llvmTarget = mempty
         }
-#if !MIN_VERSION_ghc(9,2,0)
+#if !MIN_VERSION_ghc_lib_parser(9,2,0)
       , sPlatformConstants = PlatformConstants
         { pc_CONTROL_GROUP_CONST_291 = 0
         , pc_STD_HDR_SIZE = 0
