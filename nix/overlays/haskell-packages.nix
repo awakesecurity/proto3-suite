@@ -374,12 +374,6 @@ in {
                   python =
                     pkgsNew.python3.withPackages (pkgs: [ pkgs.protobuf ]);
 
-                  ghc =
-                    haskellPackagesNew.ghcWithPackages
-                      (pkgs: (oldArgs.testHaskellDepends or [ ]) ++ [
-                        haskellPackagesNew.proto3-suite-boot
-                      ]);
-
                   test-files = (gitignoreSource ../../test-files);
 
                   compile-proto-flags = {
@@ -432,7 +426,6 @@ in {
 
                   testHaskellDepends =
                     (oldArgs.testHaskellDepends or [ ]) ++ [
-                      pkgsNew.ghc
                       haskellPackagesNew.proto3-suite-boot
                       python
                       protobuf
@@ -441,7 +434,7 @@ in {
                   shellHook = (oldArgs.shellHook or "") + ''
                     ${copyGeneratedCode}
 
-                    export PATH=${haskellPackagesNew.cabal-install}/bin:${ghc}/bin:${python}/bin:${protobuf}/bin''${PATH:+:}$PATH
+                    export PATH=${haskellPackagesNew.cabal-install}/bin:${python}/bin:${protobuf}/bin''${PATH:+:}$PATH
                   '';
                 }
               );

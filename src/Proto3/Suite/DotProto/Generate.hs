@@ -82,12 +82,12 @@ import qualified Turtle hiding (encodeString)
 import qualified Turtle.Compat as Turtle (encodeString)
 import           Turtle                         (FilePath, (</>), (<.>))
 
-#if !MIN_VERSION_ghc(9,6,0)
+#if !MIN_VERSION_ghc_lib_parser(9,6,0)
 import qualified GHC.Unit.Module.Name           as GHC
 import qualified GHC.Types.Basic                as GHC (PromotionFlag(..))
 #endif
 
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
 import           GHC.Hs                         (HsSigType(..))
 import           GHC.Parser.Annotation          (noLocA)
 #endif
@@ -265,7 +265,7 @@ hsModuleForDotProto ::
   -- |
   TypeContext ->
   m (GHC.HsModule
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_ghc_lib_parser(9,6,0)
                   GHC.GhcPs
 #endif
                            )
@@ -325,7 +325,7 @@ instancesForModule m = mapMaybe go
          ( GHC.InstD clsInstX
            ( GHC.ClsInstD clsInstDeclX clsInstDecl@GHC.ClsInstDecl
              { cid_poly_ty =
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
                  GHC.L tyX
 #endif
                    (HsSig ext bndrs ty) } ) ) )
@@ -335,7 +335,7 @@ instancesForModule m = mapMaybe go
                ( GHC.InstD clsInstX
                  ( GHC.ClsInstD clsInstDeclX clsInstDecl
                    { GHC.cid_poly_ty =
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
                        GHC.L tyX
 #endif
                          (HsSig ext bndrs (tyConApply tc (typeNamed_ (noLocA (GHC.Unqual i)) : ts)))
@@ -363,7 +363,7 @@ replaceHsInstDecls overrides base = concatMap (mbReplace) base
                     { tcdLName = tyn
                     , tcdDataDefn = dd@GHC.HsDataDefn
                       { dd_derivs =
-#if !MIN_VERSION_ghc(9,2,0)
+#if !MIN_VERSION_ghc_lib_parser(9,2,0)
                           GHC.L _
 #endif
                                   clauses
@@ -375,7 +375,7 @@ replaceHsInstDecls overrides base = concatMap (mbReplace) base
              ( GHC.TyClD dataDeclX
                ( dataDecl { GHC.tcdDataDefn = dd
                             { GHC.dd_derivs =
-#if !MIN_VERSION_ghc(9,2,0)
+#if !MIN_VERSION_ghc_lib_parser(9,2,0)
                                 noLocA
 #endif
                                   uncustomized
@@ -405,7 +405,7 @@ replaceHsInstDecls overrides base = concatMap (mbReplace) base
       find (\x -> Just desired == (getSig =<< typeOfInstDecl x)) overrides
 
     getSig :: (HsOuterSigTyVarBndrs, HsType) -> Maybe SimpleTypeName
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc_lib_parser(9,2,0)
     getSig (GHC.HsOuterImplicit _, x) = simpleType x
     getSig _ = empty
 #else
