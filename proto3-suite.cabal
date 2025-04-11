@@ -44,8 +44,8 @@ source-repository head
 
 common common
   default-extensions:
-    BlockArguments DeriveDataTypeable DeriveGeneric ImportQualifiedPost
-    ViewPatterns
+    BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric 
+    ImportQualifiedPost ViewPatterns
 
 library
   import: common

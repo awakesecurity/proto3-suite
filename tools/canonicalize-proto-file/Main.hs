@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE DefaultSignatures      #-}
-{-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE LambdaCase             #-}
@@ -14,17 +13,50 @@
 module Main where
 
 import Control.Monad (guard)
-import           Control.Monad.Except
-import           Data.List                        (sort, sortOn)
-import qualified Data.List.NonEmpty              as NE
-import           Data.Semigroup                   (Min(..))
-import           Options.Generic
-import           Prelude                          hiding (FilePath)
-import           Proto3.Suite.DotProto.AST
-import           Proto3.Suite.DotProto.Generate
-import           Proto3.Suite.DotProto.Rendering
-import           Proto3.Wire.Types                (FieldNumber (..))
-import           Turtle                           (FilePath)
+import Control.Monad.Except (runExceptT)
+
+import Data.List (sort, sortOn)
+import Data.List.NonEmpty qualified as NE
+import Data.Semigroup (Min(..))
+
+import GHC.Generics (Generic)
+
+import Options.Generic 
+  ( ParseRecord
+  , Unwrapped
+  , Wrapped 
+  , (:::)
+  , type (<?>) (..)
+  , unwrapRecord
+  )
+
+import Prelude hiding (FilePath)
+
+import Proto3.Suite.DotProto.AST 
+  ( DotProto (..)
+  , DotProtoDefinition (..)
+  , DotProtoEnumPart (..)
+  , DotProtoEnumValue 
+  , DotProtoField (..)
+  , DotProtoIdentifier (..)
+  , DotProtoImport (..)
+  , DotProtoMessagePart (..)
+  , DotProtoOption (..)
+  , DotProtoPackageSpec (..)
+  , DotProtoServicePart (..)
+  , DotProtoReservedField (..)
+  , DotProtoType (..)
+  , DotProtoValue (..)
+  , Path (..)
+  , RPCMethod (..)
+  )
+import Proto3.Suite.DotProto.Generate (readDotProtoWithContext)
+import Proto3.Suite.DotProto.Rendering (defRenderingOptions, toProtoFile)
+import Proto3.Wire.Types (FieldNumber (..))
+
+import Turtle (FilePath)
+
+--------------------------------------------------------------------------------
 
 data Args w = Args
   { includeDir :: w ::: [FilePath] <?> "Path to search for included .proto files (can be repeated, and paths will be searched in order; the current directory is used if this option is not provided)"
@@ -35,11 +67,15 @@ instance ParseRecord (Args Wrapped)
 
 deriving instance Show (Args Unwrapped)
 
+-- | Check if the given values is some given bounds (inclusive).
+between :: (Ord a, Enum a) => a -> (a, a) -> Bool
+between x i = fst i <= x && x <= snd i
+
 -- | @('isOverlappingIntervals' a b :: 'Bool')@ is a relation between two 
 -- interval-like types @a@ and @b@ that is 'True' when the two intervals are 
 -- overlapping or touching over a subinterval of @a@ and @b@.
 isOverlappingIntervals :: (Ord a, Enum a) => (a, a) -> (a, a) -> Bool
-isOverlappingIntervals (x, y) (u, v) = y >= u || v <= x
+isOverlappingIntervals i1@(x, y) i2@(u, v) = x `between` i2 || y `between` i2 || u `between` i1 || v `between` i1
 
 -- | @('joinIntervals' a b :: 'Maybe' (a, a))@ will join the two given intervals 
 -- @a@ and @b@ into a larger interval if 
@@ -52,7 +88,7 @@ isOverlappingIntervals (x, y) (u, v) = y >= u || v <= x
 joinIntervals :: (Ord a, Enum a) => (a, a) -> (a, a) -> Maybe (a, a)
 joinIntervals a b = do 
   guard (isOverlappingIntervals a b)
-  pure (fst a, snd b)
+  pure (min (fst a) (fst b), max (snd a) (snd b))
 
 -- | Normalizes a list of intervals. 
 --
