@@ -12,6 +12,7 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RoleAnnotations #-}
@@ -65,7 +66,7 @@ import Data.Traversable (for)
 import GHC.Exts (Constraint, Proxy#, TYPE, proxy#)
 import GHC.Generics (Generic)
 import GHC.TypeLits (ErrorMessage(..), KnownNat, Nat, Symbol, TypeError, natVal')
-import Language.Haskell.TH qualified as TH
+import "template-haskell" Language.Haskell.TH qualified as TH
 import Prelude hiding ((.), id)
 import Proto3.Suite.Class (isDefault)
 import Proto3.Suite.Form
