@@ -30,7 +30,7 @@ import           Data.Either
 import           Data.Foldable
 import           Data.Functor.Compose
 import           Data.Int                  (Int32)
-import           Data.List                 (intercalate)
+import           Data.List                 (intercalate, sort)
 import qualified Data.List.NonEmpty        as NE
 import qualified Data.Map                  as M
 import           Data.Maybe                (fromMaybe)
@@ -87,6 +87,53 @@ dieLines :: MonadIO m => Text -> m a
 dieLines (Turtle.textToLines -> msg) = do
   mapM_ Turtle.err msg
   Turtle.exit (ExitFailure 1)
+
+-- | Check if the given values is some given bounds (inclusive).
+between :: (Ord a, Enum a) => a -> (a, a) -> Bool
+between x i = fst i <= x && x <= snd i
+
+-- | @('isOverlappingIntervals' a b :: 'Bool')@ is a relation between two 
+-- interval-like terms @a@ and @b@ that is 'True' when the two intervals are 
+-- overlapping or touching over a subinterval of @a@ and @b@.
+isOverlappingIntervals :: (Ord a, Enum a) => (a, a) -> (a, a) -> Bool
+isOverlappingIntervals i1@(x, y) i2@(u, v) = x `between` i2 || y `between` i2 || u `between` i1 || v `between` i1
+
+-- | @('joinIntervals' a b :: 'Maybe' (a, a))@ will join the two given intervals 
+-- @a@ and @b@ into a larger interval if 
+--
+-- @
+-- ('isOverlappingIntervals' a b '==' 'True')
+-- @
+--
+-- Otherwise, returns 'Nothing'.
+joinIntervals :: (Ord a, Enum a) => (a, a) -> (a, a) -> Maybe (a, a)
+joinIntervals a b = do 
+  guard (isOverlappingIntervals a b)
+  pure (min (fst a) (fst b), max (snd a) (snd b))
+
+-- | Normalizes a list of intervals. 
+--
+-- 1. Filters out any "invalid" intervals from the resulting list, i.e. any 
+--    intervals @(x, y) :: (a, a)@ with @x > y@. 
+--
+-- 2. Additionally, the resulting list will have all overlapping intervals 
+--    merged into a larger interval that covers each overlapping interval.
+normalizeIntervals :: (Ord a, Enum a) => [(a, a)] -> [(a, a)]
+normalizeIntervals = mergeIntervals . filter \(x, y) -> x <= y
+
+-- | Returns a sorted list that contains all intervals from the minimal set of 
+-- intervals to represent the given list of intervals. 
+--
+-- "Merges" overlapping intervals in a list of intervals. Think disjunctive 
+-- normal form.
+mergeIntervals :: (Ord a, Enum a) => [(a, a)] -> [(a, a)]
+mergeIntervals = foldr step [] . sort
+  where 
+    step :: (Ord a, Enum a) => (a, a) -> [(a, a)] -> [(a, a)]
+    step x [] = [x]
+    step x (y : ys) = case joinIntervals x y of 
+      Nothing -> x : y : ys 
+      Just xy -> xy : ys
 
 --------------------------------------------------------------------------------
 --
