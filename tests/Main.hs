@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE BlockArguments        #-}
 {-# LANGUAGE CPP                   #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
