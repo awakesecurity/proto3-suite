@@ -355,7 +355,7 @@ class Field name a message
     field :: forall names . a -> Prefix message names (Occupy message name names)
 
 instance forall (name :: Symbol)
-#if MIN_VERSION_ghc_lib_parser(9,4,0)
+#if defined(__GLASGOW_HASKELL__) && 904 <= __GLASGOW_HASKELL__
                 r (a :: TYPE r)
 #else
                 (a :: Type)
