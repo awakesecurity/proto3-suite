@@ -110,7 +110,7 @@ library
                        contravariant >=1.4 && <1.6,
                        filepath,
                        foldl,
-                       ghc-lib-parser >=9.0 && <9.11,
+                       ghc-lib-parser >=9.2.8 && <9.11,
                        hashable,
                        insert-ordered-containers,
                        lens,
