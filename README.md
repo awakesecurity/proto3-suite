@@ -41,11 +41,6 @@ Supported on Linux and Darwin.
 
 Supported on Linux and Darwin.
 
-#### GHC 9.0
-
-Supported only on Linux because "crypton" fails a test on Darwin,
-probably due to [this issue](https://github.com/kazu-yamamoto/crypton/issues/35).
-
 ### Nix shell + Cabal (recommended)
 
 The Nix shell provides an incremental build environment (but see below for
