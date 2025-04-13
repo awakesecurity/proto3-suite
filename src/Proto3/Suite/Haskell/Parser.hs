@@ -42,7 +42,7 @@ import GHC.Types.Error (Messages, partitionMessages, unionMessages)
 import GHC.Utils.Error (DiagOpts(..))
 import GHC.Utils.Logger (Logger, initLogger)
 import GHC.Utils.Outputable (defaultSDocContext, renderWithContext)
-#elif MIN_VERSION_ghc_lib_parser(9,2,0)
+#else
 import Control.Arrow ((***))
 import Data.Foldable (traverse_)
 import GHC.ByteOrder (targetByteOrder)
@@ -59,20 +59,6 @@ import GHC.Utils.Error (formatBulleted, sortMsgBag)
 import GHC.Utils.Fingerprint (fingerprint0)
 import GHC.Utils.Logger (Logger, initLogger, putLogMsg)
 import GHC.Utils.Outputable (defaultSDocContext, mkErrStyle, renderWithContext, withPprStyle)
-#else
-import Data.Foldable (traverse_)
-import GHC.ByteOrder (targetByteOrder)
-import GHC.Data.Bag (Bag)
-import GHC.Driver.Session
-         (DynFlags(..), FileSettings(..), GhcNameVersion(..),
-          LlvmConfig(..), Settings(..), defaultDynFlags)
-import GHC.Parser.Lexer (getMessages, mkParserFlags', mkPStatePure)
-import GHC.Settings
-         (Platform(..), PlatformConstants(..), PlatformMini(..), PlatformMisc(..), ToolSettings(..))
-import GHC.Unit.Types (UnitId(..))
-import GHC.Utils.Error (ErrMsg, pprErrMsgBagWithLoc)
-import GHC.Utils.Fingerprint (fingerprint0)
-import GHC.Utils.Outputable (SDocContext, defaultDumpStyle, initSDocContext, renderWithStyle)
 #endif
 
 -- | Parses the module with the specified location and content,
@@ -116,15 +102,10 @@ parseModule logger location input = do
 #endif
     parserOpts = mkParserOpts exts diagOpts [] False True True True
     initialState = initParserState parserOpts input location
-#elif MIN_VERSION_ghc_lib_parser(9,2,0)
+#else
     diagOpts = DiagOpts
     parserOpts = mkParserOpts EnumSet.empty exts False True True True
     initialState = initParserState parserOpts input location
-#else
-    diagOpts = DiagOpts
-    unitId = UnitId "compile-proto-file-extra-instance-0.0:extrainstance+AAAAAA"
-    parserFlags = mkParserFlags' EnumSet.empty exts unitId False True True True
-    initialState = mkPStatePure parserFlags input location
 #endif
 
 printWarningsAndErrors :: Logger -> DiagOpts -> PState -> IO ()
@@ -132,10 +113,8 @@ printWarningsAndErrors logger diagOpts state = do
 #if MIN_VERSION_ghc_lib_parser(9,4,0)
   let (ws, es) = getPsMessages state
   let (warnings, unionMessages es -> errors) = partitionMessages ws
-#elif MIN_VERSION_ghc_lib_parser(9,2,0)
-  let (warnings, errors) = (fmap pprWarning *** fmap pprError) (getMessages state)
 #else
-  let (warnings, errors) = getMessages state renderingDynFlags
+  let (warnings, errors) = (fmap pprWarning *** fmap pprError) (getMessages state)
 #endif
   printMessages logger diagOpts warnings
   printMessages logger diagOpts errors
@@ -150,7 +129,7 @@ printMessages logger = GHC.Driver.Errors.printMessages logger NoDiagnosticOpts
 printMessages :: Logger -> DiagOpts -> Messages PsMessage -> IO ()
 printMessages = GHC.Driver.Errors.printMessages
 
-#elif MIN_VERSION_ghc_lib_parser(9,2,0)
+#else
 
 printMessages :: Logger -> DiagOpts -> Bag (MsgEnvelope DecoratedSDoc) -> IO ()
 printMessages logger _ = traverse_ report . sortMsgBag Nothing
@@ -165,36 +144,10 @@ printMessages logger _ = traverse_ report . sortMsgBag Nothing
           withPprStyle (mkErrStyle errCtxt) $
             formatBulleted defaultSDocContext (renderDiagnostic diagnostic)
 
-#else
-
-printMessages :: Logger -> DiagOpts -> Bag ErrMsg -> IO ()
-printMessages _ _ = traverse_ (putStrLn . renderSDoc) . pprErrMsgBagWithLoc
-
 #endif
 
 renderSDoc :: SDoc -> String
-renderSDoc =
-#if MIN_VERSION_ghc_lib_parser(9,2,0)
-  renderWithContext
-#else
-  renderWithStyle
-#endif
-    defaultSDocContext
-
-#if !MIN_VERSION_ghc_lib_parser(9,2,0)
-
-data Logger = Logger
-
-initLogger :: IO Logger
-initLogger = pure Logger
-
--- | To be used only for rendering Haskell source, warnings, and errors.
--- Makes use of questionable value of 'DynFlags' so that we do not have
--- to require a GHC installation director to run compile-proto-file.
-defaultSDocContext :: SDocContext
-defaultSDocContext = initSDocContext renderingDynFlags defaultDumpStyle
-
-#endif
+renderSDoc = renderWithContext defaultSDocContext
 
 #if !MIN_VERSION_ghc_lib_parser(9,4,0)
 
@@ -222,13 +175,7 @@ renderingDynFlags = defaultDynFlags placeholderSettings placeholderLlvmConfig
         , fileSettings_globalPackageDatabase = mempty
         }
       , sTargetPlatform = Platform
-        {
-#if MIN_VERSION_ghc_lib_parser(9,2,0)
-          platformArchOS = ArchOS
-#else
-          platformMini = PlatformMini
-#endif
-            archUnknown osUnknown
+        { platformArchOS = ArchOS archUnknown osUnknown
         , platformWordSize = read "8"
         , platformByteOrder = targetByteOrder
         , platformUnregisterised = True
@@ -238,9 +185,7 @@ renderingDynFlags = defaultDynFlags placeholderSettings placeholderLlvmConfig
         , platformIsCrossCompiling = True
         , platformLeadingUnderscore = True
         , platformTablesNextToCode = False
-#if MIN_VERSION_ghc_lib_parser(9,2,0)
         , platform_constants = Nothing
-#endif
         }
       , sToolSettings = ToolSettings
         { toolSettings_ldSupportsCompactUnwind = False
@@ -289,146 +234,9 @@ renderingDynFlags = defaultDynFlags placeholderSettings placeholderLlvmConfig
         , platformMisc_ghcWithSMP = False
         , platformMisc_ghcRTSWays = mempty
         , platformMisc_libFFI = False
-#if !MIN_VERSION_ghc_lib_parser(9,2,0)
-        , platformMisc_ghcThreaded = False
-        , platformMisc_ghcDebugged = False
-#endif
         , platformMisc_ghcRtsWithLibdw = False
         , platformMisc_llvmTarget = mempty
         }
-#if !MIN_VERSION_ghc_lib_parser(9,2,0)
-      , sPlatformConstants = PlatformConstants
-        { pc_CONTROL_GROUP_CONST_291 = 0
-        , pc_STD_HDR_SIZE = 0
-        , pc_PROF_HDR_SIZE = 0
-        , pc_BLOCK_SIZE = 0
-        , pc_BLOCKS_PER_MBLOCK = 0
-        , pc_TICKY_BIN_COUNT = 0
-        , pc_OFFSET_StgRegTable_rR1 = 0
-        , pc_OFFSET_StgRegTable_rR2 = 0
-        , pc_OFFSET_StgRegTable_rR3 = 0
-        , pc_OFFSET_StgRegTable_rR4 = 0
-        , pc_OFFSET_StgRegTable_rR5 = 0
-        , pc_OFFSET_StgRegTable_rR6 = 0
-        , pc_OFFSET_StgRegTable_rR7 = 0
-        , pc_OFFSET_StgRegTable_rR8 = 0
-        , pc_OFFSET_StgRegTable_rR9 = 0
-        , pc_OFFSET_StgRegTable_rR10 = 0
-        , pc_OFFSET_StgRegTable_rF1 = 0
-        , pc_OFFSET_StgRegTable_rF2 = 0
-        , pc_OFFSET_StgRegTable_rF3 = 0
-        , pc_OFFSET_StgRegTable_rF4 = 0
-        , pc_OFFSET_StgRegTable_rF5 = 0
-        , pc_OFFSET_StgRegTable_rF6 = 0
-        , pc_OFFSET_StgRegTable_rD1 = 0
-        , pc_OFFSET_StgRegTable_rD2 = 0
-        , pc_OFFSET_StgRegTable_rD3 = 0
-        , pc_OFFSET_StgRegTable_rD4 = 0
-        , pc_OFFSET_StgRegTable_rD5 = 0
-        , pc_OFFSET_StgRegTable_rD6 = 0
-        , pc_OFFSET_StgRegTable_rXMM1 = 0
-        , pc_OFFSET_StgRegTable_rXMM2 = 0
-        , pc_OFFSET_StgRegTable_rXMM3 = 0
-        , pc_OFFSET_StgRegTable_rXMM4 = 0
-        , pc_OFFSET_StgRegTable_rXMM5 = 0
-        , pc_OFFSET_StgRegTable_rXMM6 = 0
-        , pc_OFFSET_StgRegTable_rYMM1 = 0
-        , pc_OFFSET_StgRegTable_rYMM2 = 0
-        , pc_OFFSET_StgRegTable_rYMM3 = 0
-        , pc_OFFSET_StgRegTable_rYMM4 = 0
-        , pc_OFFSET_StgRegTable_rYMM5 = 0
-        , pc_OFFSET_StgRegTable_rYMM6 = 0
-        , pc_OFFSET_StgRegTable_rZMM1 = 0
-        , pc_OFFSET_StgRegTable_rZMM2 = 0
-        , pc_OFFSET_StgRegTable_rZMM3 = 0
-        , pc_OFFSET_StgRegTable_rZMM4 = 0
-        , pc_OFFSET_StgRegTable_rZMM5 = 0
-        , pc_OFFSET_StgRegTable_rZMM6 = 0
-        , pc_OFFSET_StgRegTable_rL1 = 0
-        , pc_OFFSET_StgRegTable_rSp = 0
-        , pc_OFFSET_StgRegTable_rSpLim = 0
-        , pc_OFFSET_StgRegTable_rHp = 0
-        , pc_OFFSET_StgRegTable_rHpLim = 0
-        , pc_OFFSET_StgRegTable_rCCCS = 0
-        , pc_OFFSET_StgRegTable_rCurrentTSO = 0
-        , pc_OFFSET_StgRegTable_rCurrentNursery = 0
-        , pc_OFFSET_StgRegTable_rHpAlloc = 0
-        , pc_OFFSET_stgEagerBlackholeInfo = 0
-        , pc_OFFSET_stgGCEnter1 = 0
-        , pc_OFFSET_stgGCFun = 0
-        , pc_OFFSET_Capability_r = 0
-        , pc_OFFSET_bdescr_start = 0
-        , pc_OFFSET_bdescr_free = 0
-        , pc_OFFSET_bdescr_blocks = 0
-        , pc_OFFSET_bdescr_flags = 0
-        , pc_SIZEOF_CostCentreStack = 0
-        , pc_OFFSET_CostCentreStack_mem_alloc = 0
-        , pc_REP_CostCentreStack_mem_alloc = 0
-        , pc_OFFSET_CostCentreStack_scc_count = 0
-        , pc_REP_CostCentreStack_scc_count = 0
-        , pc_OFFSET_StgHeader_ccs = 0
-        , pc_OFFSET_StgHeader_ldvw = 0
-        , pc_SIZEOF_StgSMPThunkHeader = 0
-        , pc_OFFSET_StgEntCounter_allocs = 0
-        , pc_REP_StgEntCounter_allocs = 0
-        , pc_OFFSET_StgEntCounter_allocd = 0
-        , pc_REP_StgEntCounter_allocd = 0
-        , pc_OFFSET_StgEntCounter_registeredp = 0
-        , pc_OFFSET_StgEntCounter_link = 0
-        , pc_OFFSET_StgEntCounter_entry_count = 0
-        , pc_SIZEOF_StgUpdateFrame_NoHdr = 0
-        , pc_SIZEOF_StgMutArrPtrs_NoHdr = 0
-        , pc_OFFSET_StgMutArrPtrs_ptrs = 0
-        , pc_OFFSET_StgMutArrPtrs_size = 0
-        , pc_SIZEOF_StgSmallMutArrPtrs_NoHdr = 0
-        , pc_OFFSET_StgSmallMutArrPtrs_ptrs = 0
-        , pc_SIZEOF_StgArrBytes_NoHdr = 0
-        , pc_OFFSET_StgArrBytes_bytes = 0
-        , pc_OFFSET_StgTSO_alloc_limit = 0
-        , pc_OFFSET_StgTSO_cccs = 0
-        , pc_OFFSET_StgTSO_stackobj = 0
-        , pc_OFFSET_StgStack_sp = 0
-        , pc_OFFSET_StgStack_stack = 0
-        , pc_OFFSET_StgUpdateFrame_updatee = 0
-        , pc_OFFSET_StgFunInfoExtraFwd_arity = 0
-        , pc_REP_StgFunInfoExtraFwd_arity = 0
-        , pc_SIZEOF_StgFunInfoExtraRev = 0
-        , pc_OFFSET_StgFunInfoExtraRev_arity = 0
-        , pc_REP_StgFunInfoExtraRev_arity = 0
-        , pc_MAX_SPEC_SELECTEE_SIZE = 0
-        , pc_MAX_SPEC_AP_SIZE = 0
-        , pc_MIN_PAYLOAD_SIZE = 0
-        , pc_MIN_INTLIKE = 0
-        , pc_MAX_INTLIKE = 0
-        , pc_MIN_CHARLIKE = 0
-        , pc_MAX_CHARLIKE = 0
-        , pc_MUT_ARR_PTRS_CARD_BITS = 0
-        , pc_MAX_Vanilla_REG = 0
-        , pc_MAX_Float_REG = 0
-        , pc_MAX_Double_REG = 0
-        , pc_MAX_Long_REG = 0
-        , pc_MAX_XMM_REG = 0
-        , pc_MAX_Real_Vanilla_REG = 0
-        , pc_MAX_Real_Float_REG = 0
-        , pc_MAX_Real_Double_REG = 0
-        , pc_MAX_Real_XMM_REG = 0
-        , pc_MAX_Real_Long_REG = 0
-        , pc_RESERVED_C_STACK_BYTES = 0
-        , pc_RESERVED_STACK_WORDS = 0
-        , pc_AP_STACK_SPLIM = 0
-        , pc_WORD_SIZE = 0
-        , pc_CINT_SIZE = 0
-        , pc_CLONG_SIZE = 0
-        , pc_CLONG_LONG_SIZE = 0
-        , pc_BITMAP_BITS_SHIFT = 0
-        , pc_TAG_BITS = 0
-        , pc_DYNAMIC_BY_DEFAULT = False
-        , pc_LDV_SHIFT = 0
-        , pc_ILDV_CREATE_MASK = 0
-        , pc_ILDV_STATE_CREATE = 0
-        , pc_ILDV_STATE_USE = 0
-        }
-#endif
       , sRawSettings = mempty
       }
 

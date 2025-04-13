@@ -58,12 +58,14 @@ import           Data.Monoid
 import           Data.Ord                       (comparing)
 import qualified Data.Set                       as S
 import           Data.String                    (fromString)
+import           GHC.Hs                         (HsSigType(..))
+import           GHC.Parser.Annotation          (noLocA)
+import           GHC.Types.Name.Occurrence      (dataName, tcName, varName)
 import qualified Data.Text                      as T
 import qualified GHC.Data.FastString            as GHC
 import qualified GHC.Data.StringBuffer          as GHC
 import qualified GHC.Hs                         as GHC
 import qualified GHC.Types.Name                 as GHC
-import           GHC.Types.Name.Occurrence      (dataName, tcName, varName)
 import qualified GHC.Types.Name.Reader          as GHC
 import qualified GHC.Types.SrcLoc               as GHC
 import qualified GHC.Utils.Outputable           as GHC
@@ -87,10 +89,6 @@ import qualified GHC.Unit.Module.Name           as GHC
 import qualified GHC.Types.Basic                as GHC (PromotionFlag(..))
 #endif
 
-#if MIN_VERSION_ghc_lib_parser(9,2,0)
-import           GHC.Hs                         (HsSigType(..))
-import           GHC.Parser.Annotation          (noLocA)
-#endif
 
 -- $setup
 -- >>> :set -XTypeApplications
@@ -324,21 +322,13 @@ instancesForModule m = mapMaybe go
     go ( GHC.L instX
          ( GHC.InstD clsInstX
            ( GHC.ClsInstD clsInstDeclX clsInstDecl@GHC.ClsInstDecl
-             { cid_poly_ty =
-#if MIN_VERSION_ghc_lib_parser(9,2,0)
-                 GHC.L tyX
-#endif
-                   (HsSig ext bndrs ty) } ) ) )
+             { cid_poly_ty = GHC.L tyX (HsSig ext bndrs ty) } ) ) )
       | Just (tc, GHC.L _ (GHC.HsTyVar _ GHC.NotPromoted (GHC.L _ (GHC.Qual tm i))) : ts) <-
           splitTyConApp ty, m == tm =
         Just ( GHC.L instX
                ( GHC.InstD clsInstX
                  ( GHC.ClsInstD clsInstDeclX clsInstDecl
-                   { GHC.cid_poly_ty =
-#if MIN_VERSION_ghc_lib_parser(9,2,0)
-                       GHC.L tyX
-#endif
-                         (HsSig ext bndrs (tyConApply tc (typeNamed_ (noLocA (GHC.Unqual i)) : ts)))
+                   { GHC.cid_poly_ty = GHC.L tyX (HsSig ext bndrs (tyConApply tc (typeNamed_ (noLocA (GHC.Unqual i)) : ts)))
                    } ) ) )
     go _ = Nothing
 
@@ -362,11 +352,7 @@ replaceHsInstDecls overrides base = concatMap (mbReplace) base
                   ( dataDecl@GHC.DataDecl
                     { tcdLName = tyn
                     , tcdDataDefn = dd@GHC.HsDataDefn
-                      { dd_derivs =
-#if !MIN_VERSION_ghc_lib_parser(9,2,0)
-                          GHC.L _
-#endif
-                                  clauses
+                      { dd_derivs = clauses
                       }
                     } ) ) ) =
         let ty = typeNamed_ tyn
@@ -374,11 +360,7 @@ replaceHsInstDecls overrides base = concatMap (mbReplace) base
         in ( GHC.L tyClDX
              ( GHC.TyClD dataDeclX
                ( dataDecl { GHC.tcdDataDefn = dd
-                            { GHC.dd_derivs =
-#if !MIN_VERSION_ghc_lib_parser(9,2,0)
-                                noLocA
-#endif
-                                  uncustomized
+                            { GHC.dd_derivs = uncustomized
                             } } ) ) )
            : customized
 
@@ -405,12 +387,8 @@ replaceHsInstDecls overrides base = concatMap (mbReplace) base
       find (\x -> Just desired == (getSig =<< typeOfInstDecl x)) overrides
 
     getSig :: (HsOuterSigTyVarBndrs, HsType) -> Maybe SimpleTypeName
-#if MIN_VERSION_ghc_lib_parser(9,2,0)
     getSig (GHC.HsOuterImplicit _, x) = simpleType x
     getSig _ = empty
-#else
-    getSig ((), x) = simpleType x
-#endif
 
 -- | A simplified representation of certain Haskell types.
 data SimpleTypeName = SimpleTypeName GHC.OccName [SimpleTypeName]
