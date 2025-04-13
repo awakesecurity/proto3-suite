@@ -425,32 +425,37 @@ unrestrictedArrow_ = HsUnrestrictedArrow synDef
 unbangedTy_ :: HsType -> HsBangType
 unbangedTy_ = noLocA . GHC.HsBangTy synDef (HsSrcBang synDef NoSrcUnpack NoSrcStrict) . parenTy
 
-module_ :: ModuleName -> Maybe [HsExportSpec] -> [HsImportDecl] -> [HsDecl] -> GHC.HsModule
 #if MIN_VERSION_ghc_lib_parser(9,6,0)
-                                                                                            GhcPs
-#endif
-module_ moduleName maybeExports imports decls = GHC.HsModule
-  {
-#if MIN_VERSION_ghc_lib_parser(9,6,0)
-    hsmodExt = XModulePs
-      { hsmodAnn = synDef
-      , hsmodLayout = VirtualBraces 2
-      , hsmodDeprecMessage = Nothing
-      , hsmodHaddockModHeader = Nothing
-      }
-#else
-  , hsmodAnn = synDef
-  , hsmodLayout = VirtualBraces 2
-#endif
+-- https://hackage.haskell.org/package/ghc-lib-parser-9.6.2.20231121/docs/GHC-Hs.html#t:HsModule
+module_ :: ModuleName -> Maybe [HsExportSpec] -> [HsImportDecl] -> [HsDecl] -> GHC.HsModule GhcPs
+module_ moduleName maybeExports imports decls =
+  GHC.HsModule
+  { hsmodExt = XModulePs
+    { hsmodAnn = synDef
+    , hsmodLayout = VirtualBraces 2
+    , hsmodDeprecMessage = Nothing
+    , hsmodHaddockModHeader = Nothing
+    }
   , hsmodName = Just $ noLocA moduleName
   , hsmodExports = noLocA <$> maybeExports
   , hsmodImports = imports
   , hsmodDecls = decls
-#if !MIN_VERSION_ghc_lib_parser(9,6,0)
+  }
+#else
+-- https://hackage.haskell.org/package/ghc-lib-parser-9.2.2.20220307/docs/GHC-Hs.html#t:HsModule
+module_ :: ModuleName -> Maybe [HsExportSpec] -> [HsImportDecl] -> [HsDecl] -> GHC.HsModule
+module_ moduleName maybeExports imports decls =
+  GHC.HsModule
+  { hsmodAnn = synDef
+  , hsmodLayout = VirtualBraces 2
+  , hsmodName = Just $ noLocA moduleName
+  , hsmodExports = noLocA <$> maybeExports
+  , hsmodImports = imports
+  , hsmodDecls = decls
   , hsmodDeprecMessage = Nothing
   , hsmodHaddockModHeader = Nothing
-#endif
   }
+#endif
 
 importDecl_ ::
   ModuleName ->
