@@ -110,7 +110,7 @@ library
                        contravariant >=1.4 && <1.6,
                        filepath,
                        foldl,
-                       ghc >=9.0 && <9.11,
+                       ghc-lib-parser >=9.2.8 && <9.11,
                        hashable,
                        insert-ordered-containers,
                        lens,
@@ -202,7 +202,7 @@ test-suite tests
     , deepseq >=1.4 && <1.6
     , doctest
     , generic-arbitrary
-    , ghc
+    , ghc-lib-parser
     , hedgehog
     , mtl >=2.2 && <2.4
     , parsec >= 3.1.9 && <3.2.0
@@ -229,7 +229,7 @@ executable compile-proto-file
   hs-source-dirs:      tools/compile-proto-file
   default-language:    Haskell2010
   build-depends:       base >=4.15 && <5.0
-                       , ghc
+                       , ghc-lib-parser
                        , optparse-applicative
                        , proto3-suite
                        , system-filepath

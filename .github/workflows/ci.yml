@@ -12,7 +12,6 @@ jobs:
           - ubuntu-latest
           - macos-latest
         compiler:
-          - ghc902
           - ghc928
           - ghc948
           - ghc965

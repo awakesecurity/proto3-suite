@@ -74,11 +74,6 @@ in {
           bifunctors =
             pkgsNew.haskell.lib.dontCheck haskellPackagesOld.bifunctors;
 
-          # With nixpkgs-24.11 and our overrides, cabal-install-solver does
-          # not like the version of directory when building with GHC 9.0.
-          cabal-install-solver =
-            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.cabal-install-solver;
-
           # With nixpkgs-23.11 and ghc981, conduit wants hspec for testing,
           # which causes problems.
           conduit =
@@ -288,28 +283,6 @@ in {
                 jailbreak = true;
               });
 
-          # Newer versions of "witch" do not support GHC 9.0.
-          witch =
-            if builtins.compareVersions haskellPackagesOld.ghc.version "9.2.0" < 0
-              then haskellPackagesNew.callPackage (
-                { mkDerivation, base, bytestring, containers, HUnit, lib, tagged
-                , template-haskell, text, time, transformers
-                }:
-                mkDerivation {
-                  pname = "witch";
-                  version = "1.1.6.0";
-                  sha256 = "e3f0879abbc22d7c674219317783438f28325e09e0b30cbc8890c936d870192e";
-                  libraryHaskellDepends = [
-                    base bytestring containers tagged template-haskell text time
-                  ];
-                  testHaskellDepends = [
-                    base bytestring containers HUnit tagged text time transformers
-                  ];
-                  description = "Convert values from one type into another";
-                  license = lib.licenses.mit;
-                }) {}
-              else haskellPackagesOld.witch;
-
           # With nixpkgs-23.11 and ghc962, proto3-wire thinks
           # that doctest and transformers are out of bounds.
           proto3-wire =
@@ -374,12 +347,6 @@ in {
                   python =
                     pkgsNew.python3.withPackages (pkgs: [ pkgs.protobuf ]);
 
-                  ghc =
-                    haskellPackagesNew.ghcWithPackages
-                      (pkgs: (oldArgs.testHaskellDepends or [ ]) ++ [
-                        haskellPackagesNew.proto3-suite-boot
-                      ]);
-
                   test-files = (gitignoreSource ../../test-files);
 
                   compile-proto-flags = {
@@ -432,7 +399,6 @@ in {
 
                   testHaskellDepends =
                     (oldArgs.testHaskellDepends or [ ]) ++ [
-                      pkgsNew.ghc
                       haskellPackagesNew.proto3-suite-boot
                       python
                       protobuf
@@ -441,7 +407,7 @@ in {
                   shellHook = (oldArgs.shellHook or "") + ''
                     ${copyGeneratedCode}
 
-                    export PATH=${haskellPackagesNew.cabal-install}/bin:${ghc}/bin:${python}/bin:${protobuf}/bin''${PATH:+:}$PATH
+                    export PATH=${haskellPackagesNew.cabal-install}/bin:${python}/bin:${protobuf}/bin''${PATH:+:}$PATH
                   '';
                 }
               );
