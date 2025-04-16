@@ -98,6 +98,7 @@ docTests = testCase "doctests" $ do
     , "-package"
     , "ghc"
     , "-isrc"
+    , "-XBlockArguments"
 #ifdef SWAGGER
 #ifdef SWAGGER_WRAPPER_FORMAT
     , "-isrc/swagger-wrapper-format"
