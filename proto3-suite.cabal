@@ -49,7 +49,15 @@ source-repository head
   location: https://github.com/awakesecurity/proto3-suite
 
 common common
-  ghc-options:         -Wall -j
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wpartial-fields
+    -Wredundant-constraints
+    -j
   default-language:    Haskell2010
   default-extensions:
     BlockArguments DeriveDataTypeable DeriveGeneric ImportQualifiedPost
