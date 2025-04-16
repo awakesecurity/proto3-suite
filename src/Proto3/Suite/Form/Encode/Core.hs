@@ -12,6 +12,7 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RoleAnnotations #-}
@@ -65,7 +66,7 @@ import Data.Traversable (for)
 import GHC.Exts (Constraint, Proxy#, TYPE, proxy#)
 import GHC.Generics (Generic)
 import GHC.TypeLits (ErrorMessage(..), KnownNat, Nat, Symbol, TypeError, natVal')
-import Language.Haskell.TH qualified as TH
+import "template-haskell" Language.Haskell.TH qualified as TH
 import Prelude hiding ((.), id)
 import Proto3.Suite.Class (isDefault)
 import Proto3.Suite.Form
@@ -354,7 +355,7 @@ class Field name a message
     field :: forall names . a -> Prefix message names (Occupy message name names)
 
 instance forall (name :: Symbol)
-#if MIN_VERSION_ghc(9,4,0)
+#if defined(__GLASGOW_HASKELL__) && 904 <= __GLASGOW_HASKELL__
                 r (a :: TYPE r)
 #else
                 (a :: Type)

@@ -33,9 +33,6 @@ in {
 
           # With nixpkgs-23.11 and ghc981, aeson-2.1.2.1 thinks that th-abstraction is out of bounds.
           #
-          # Also, in order to avoid the breaking change to package structure in aeson-2.2.0.0,
-          # we patch the import list of aeson-2.1.2.1.
-          #
           # And we disable tests because explicitly specifying aeson-2.1.2.1
           # seems to trigger a test failure, at least on GHC 9.4.8 and 9.8.1;
           # perhaps somewhere in nixpkgs the test is suppressed and
@@ -51,9 +48,7 @@ in {
           #
           aeson =
             pkgsNew.haskell.lib.doJailbreak
-              ( pkgsNew.haskell.lib.dontCheck
-                  ( pkgsNew.haskell.lib.appendPatches haskellPackagesOld.aeson
-                      [ ../patches/aeson-2.1.2.1.patch ] ) );
+              (pkgsNew.haskell.lib.dontCheck haskellPackagesOld.aeson);
 
           # With nixpkgs-23.11 and ghc981, atomic-write wants hspec for testing,
           # which causes problems.
@@ -78,11 +73,6 @@ in {
           # which causes problems.
           bifunctors =
             pkgsNew.haskell.lib.dontCheck haskellPackagesOld.bifunctors;
-
-          # With nixpkgs-24.11 and our overrides, cabal-install-solver does
-          # not like the version of directory when building with GHC 9.0.
-          cabal-install-solver =
-            pkgsNew.haskell.lib.doJailbreak haskellPackagesOld.cabal-install-solver;
 
           # With nixpkgs-23.11 and ghc981, conduit wants hspec for testing,
           # which causes problems.
@@ -371,12 +361,6 @@ in {
                   python =
                     pkgsNew.python3.withPackages (pkgs: [ pkgs.protobuf ]);
 
-                  ghc =
-                    haskellPackagesNew.ghcWithPackages
-                      (pkgs: (oldArgs.testHaskellDepends or [ ]) ++ [
-                        haskellPackagesNew.proto3-suite-boot
-                      ]);
-
                   test-files = (gitignoreSource ../../test-files);
 
                   compile-proto-flags = {
@@ -429,7 +413,6 @@ in {
 
                   testHaskellDepends =
                     (oldArgs.testHaskellDepends or [ ]) ++ [
-                      pkgsNew.ghc
                       haskellPackagesNew.proto3-suite-boot
                       python
                       protobuf
@@ -438,7 +421,7 @@ in {
                   shellHook = (oldArgs.shellHook or "") + ''
                     ${copyGeneratedCode}
 
-                    export PATH=${haskellPackagesNew.cabal-install}/bin:${ghc}/bin:${python}/bin:${protobuf}/bin''${PATH:+:}$PATH
+                    export PATH=${haskellPackagesNew.cabal-install}/bin:${python}/bin:${protobuf}/bin''${PATH:+:}$PATH
                   '';
                 }
               );
