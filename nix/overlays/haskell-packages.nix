@@ -325,9 +325,6 @@ in {
               (oldArgs: {
                 pname = "proto3-suite-boot";
 
-                configureFlags = (oldArgs.configureFlags or [ ])
-                  ++ [ "--disable-optimization" ];
-
                 doCheck = false;
 
                 doHaddock = false;
