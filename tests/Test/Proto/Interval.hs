@@ -2,6 +2,8 @@
 
 module Test.Proto.Interval (testTree) where
 
+import Control.Monad (unless)
+
 import Data.Int (Int8)
 
 import Proto3.Suite.DotProto.Internal (isOverlappingIntervals, joinIntervals)
