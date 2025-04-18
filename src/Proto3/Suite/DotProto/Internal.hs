@@ -90,7 +90,7 @@ dieLines (Turtle.textToLines -> msg) = do
 
 -- | Check if the given values is some given bounds (inclusive).
 between :: (Ord a, Enum a) => a -> (a, a) -> Bool
-between x i = fst i <= x && x <= snd i
+between x (a, b) = a <= x && x <= b
 
 -- | @('isOverlappingIntervals' a b :: 'Bool')@ is a relation between two 
 -- interval-like terms @a@ and @b@ that is 'True' when the two intervals are 

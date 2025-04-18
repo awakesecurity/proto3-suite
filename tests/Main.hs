@@ -60,6 +60,7 @@ import           TestDhall
 
 import qualified Test.Proto.Generate.Name
 import qualified Test.Proto.Parse.Option
+import qualified Test.Proto.Interval
 import           Test.Proto.ToEncoder        (Iterator(Forward, Vector),
                                               Stripping(Keep, Strip), ToEncoder(..))
 
@@ -81,6 +82,7 @@ tests logger = testGroup "Tests"
   , codeGenTests logger
   , Test.Proto.Generate.Name.testTree
   , Test.Proto.Parse.Option.testTree
+  , Test.Proto.Interval.testTree
 
 #ifdef DHALL
   , dhallTests
