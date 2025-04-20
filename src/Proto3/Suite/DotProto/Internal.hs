@@ -211,10 +211,10 @@ joinIntervals (a, b) (c, d)
 --
 -- To check that the implementation actually fulfills these requirements,
 -- note that it filters out empty intervals, sorts those that remain,
--- and then merges intervals until the resulting list becomes /normal/.
+-- and then merges intervals until the resulting list becomes normal.
 --
 -- There are also unit tests checking that the result is
- -- /normal/ and has the same union as the given list.
+-- normal and has the same union as the given list.
 normalizeIntervals :: (Enum a, Ord a) => [(a, a)] -> [(a, a)]
 normalizeIntervals = mergeIntervals . filter \(x, y) -> x <= y
 {-# INLINABLE normalizeIntervals #-}  -- To allow specialization to particular type class instances.
