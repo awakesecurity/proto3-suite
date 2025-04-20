@@ -204,11 +204,12 @@ joinIntervals (a, b) (c, d)
 --
 -- = Conclusions
 --
--- In conclusion, the behavior of this function is well defined
--- by the first paragraph in this comment block, and the second
--- paragraph provides an equivalent characterization.
+-- In conclusion, the desired behavior of this function is well defined
+-- by the first paragraph in this comment block, and the second paragraph
+-- (once combined with a requirement to preserve the union) provides
+-- an equivalent definition.
 --
--- To check that the implementation actually fulfills these comments,
+-- To check that the implementation actually fulfills these requirements,
 -- note that it filters out empty intervals, sorts those that remain,
 -- and then merges intervals until the resulting list becomes /normal/.
 --
