@@ -88,52 +88,158 @@ dieLines (Turtle.textToLines -> msg) = do
   mapM_ Turtle.err msg
   Turtle.exit (ExitFailure 1)
 
--- | Check if the given values is some given bounds (inclusive).
-between :: (Ord a, Enum a) => a -> (a, a) -> Bool
-between x (a, b) = a <= x && x <= b
+-- | The proposition that some third value comes strictly after
+-- the first argument but strictly before the second argument.
+nonconsecutive :: (Enum a, Ord a) => a -> a -> Bool
+nonconsecutive x y = x < y && succ x < y
+  -- The check that @x < y@ avoids the potential for arithmetic overflow in @succ x@.
+{-# INLINABLE nonconsecutive #-}  -- To allow specialization to particular type class instances.
 
--- | @('isOverlappingIntervals' a b :: 'Bool')@ is a relation between two 
--- interval-like terms @a@ and @b@ that is 'True' when the two intervals are 
--- overlapping or touching over a subinterval of @a@ and @b@.
-isOverlappingIntervals :: (Ord a, Enum a) => (a, a) -> (a, a) -> Bool
-isOverlappingIntervals i1@(x, y) i2@(u, v) = x `between` i2 || y `between` i2 || u `between` i1 || v `between` i1
+-- | This function yields 'Just' of the union of its arguments if that union
+-- can be expressed as a single interval, and otherwise yields 'Nothing'.
+joinIntervals :: (Enum a, Ord a) => (a, a) -> (a, a) -> Maybe (a, a)
+joinIntervals (a, b) (c, d)
+  | b < a = Just (c, d)  -- (a, b) is empty; we can just drop it
+  | d < c = Just (a, b)  -- (c, d) is empty; we can just drop it
+  | a <= c = if
+      | nonconsecutive b c -> Nothing   -- (a, b), then something strictly between, then (c, d)
+      | otherwise -> Just (a, max b d)  -- no value lies strictly between b and c
+  | otherwise = if
+      | nonconsecutive d a -> Nothing   -- (c, d), then something strictly between, then (a, b)
+      | otherwise -> Just (c, max b d)  -- no value lies strictly between d and a
+{-# INLINABLE joinIntervals #-}  -- To allow specialization to particular type class instances.
 
--- | @('joinIntervals' a b :: 'Maybe' (a, a))@ will join the two given intervals 
--- @a@ and @b@ into a larger interval if 
+-- | Finds the unique shortest list of intervals having the same
+-- set union as the given list and nondecreasing low endpoints.
 --
--- @
--- ('isOverlappingIntervals' a b '==' 'True')
--- @
+-- The result also satisfies the definition of /normal/ given below.
 --
--- Otherwise, returns 'Nothing'.
-joinIntervals :: (Ord a, Enum a) => (a, a) -> (a, a) -> Maybe (a, a)
-joinIntervals a b = do 
-  guard (isOverlappingIntervals a b)
-  pure (min (fst a) (fst b), max (snd a) (snd b))
-
--- | Normalizes a list of intervals. 
+-- Each interval is specified by pairing its low and high endpoints,
+-- which are included in the interval, except when the first component
+-- of the pair exceeds the second, in which case the interval is empty.
 --
--- 1. Filters out any "invalid" intervals from the resulting list, i.e. any 
---    intervals @(x, y) :: (a, a)@ with @x > y@. 
+-- = Supporting Theory
 --
--- 2. Additionally, the resulting list will have all overlapping intervals 
---    merged into a larger interval that covers each overlapping interval.
-normalizeIntervals :: (Ord a, Enum a) => [(a, a)] -> [(a, a)]
+-- == Definition of /normal/
+--
+-- Call a list of intervals /normal/ when it excludes empty intervals
+-- and for any two consecutive intervals /[a .. b]/ and /[c .. d]/,
+-- there exists an /x/ such that /b < x < c/.
+--
+-- We claim that, among those interval lists having any given union,
+-- normality is equivalent to having minimal length and nondecreasing
+-- low endpoints.
+--
+-- == Normal implies minimal length
+--
+-- To see why, first consider any normal interval list /N/.  Clearly its
+-- low endpoints are nondecreasing--and in fact are strictly increasing
+-- with gaps inbetween.  Therefore any interval intersecting at least two
+-- intervals of /N/ necessarily includes at least one point in such a gap,
+-- and that point is outside the union of /N/.  Hence every interval list
+-- with the same union as /N/ consists of (possibly empty) subintervals of
+-- intervals listed by /N/.  Hence /N/ has minimal length among such lists.
+--
+-- == Minimal length implies normal
+--
+-- To establish the converse, consider any interval list /N/ having
+-- nondecreasing endpoints and minimal length.  Deleting empty intervals
+-- from /N/ would only decrease its length, so /N/ must not include any.
+-- Next note that if /[a .. b]/ and /[c .. d]/ are consecutive intervals
+-- within /N/, then either there exists an /x/ such that /b < x < c/, or
+-- else we may shorten /N/ without changing its union by replacing both
+-- /[a .. b]/ and /[c .. d]/ by the single interval /[a .. max b d]/,
+-- which would contradict the minimality of the length of /N/.  Thus
+-- /N/ fulfills all the requirements of being a normal interval list.
+--
+-- == Existence
+--
+-- Having proved the desired equivalence, we turn to the question of
+-- the existence of the shortest interval list having the same union
+-- as any given interval list and nondecreasing low endpoints.
+--
+-- Consider the set /S/ of interval lists having the same union as
+-- the given interval list and nondecreasing low endpoints.  Note
+-- that by performing a stable sort on the given interval list we
+-- immediately find that /S/ is nonempty.  Being nonempty, it must
+-- contain at least one element of minimal length.
+--
+-- == Uniqueness
+--
+-- But could there be two different interval lists of minimal length
+-- for their common union, both with nondecreasing low endpoints?
+--
+-- We claim the answer is no, and proceed by induction on that shared
+-- minimal length.  The base case is trivial: if both lists are empty,
+-- then they cannot differ.
+--
+-- For the induction step, suppose that there are two interval lists
+-- that share the same positive minimal length among those that
+-- have nondecreasing low endpoints and a given same union.
+-- Call them /L/ and /N/.  We will prove that /L = N/.
+--
+-- Let /(a, b) = head L/ and /(e, f) = head N/.
+--
+-- If /a < e/ then /a/ is in /union L/ but not in /union N/,
+-- contradicting our assumpion that /union L = union N/.  Likewise
+-- we may exclude /e < a/, leaving /a = e/ and /(a, f) = head N/.
+--
+-- Next suppose that /b < f/.  If /tail L == []/ then clearly /f/
+-- is outside of /union L/ and yet inside of /union N/, which is
+-- once again beyond our scenario.  Let /(c, d) = head (tail L)/.
+-- By the equivalence we established earlier, /L/ is normal and
+-- hence there exists an /x/ such that /b < x < c/.  If /x <= f/,
+-- then /x/ is in /[a .. f]/ and yet outside of /union L/, once
+-- again contradicting our hypotheses.  Otherwise /f < x < c/, and
+-- hence /f/ is outside of /union L/, a similar contradiction.
+-- Therefore our supposition that /b < f/ must be impossible,
+-- and we can likewise exclude /f < b/.  Hence /b = f/.
+--
+-- Having establishing both /a = e/ and /b = f/, we conclude that
+-- /head L = head N/.  It follows that /tail L/ and /tail N/ have
+-- the same union as each other.  Both tails must be minimal in
+-- length, because otherwise there would also be a way to shorten
+-- /L/ or /N/ in a union-preserving way.  Invoking our induction
+-- hypothesis we find that /tail L = tail N/; therefore /L = N/.
+--
+-- = Conclusions
+--
+-- In conclusion, the desired behavior of this function is well defined
+-- by the first paragraph in this comment block, and the second paragraph
+-- (once combined with a requirement to preserve the union) provides
+-- an equivalent definition.
+--
+-- To check that the implementation actually fulfills these requirements,
+-- note that it filters out empty intervals, sorts those that remain,
+-- and then merges intervals until the resulting list becomes normal.
+--
+-- There are also unit tests checking that the result is
+-- normal and has the same union as the given list.
+normalizeIntervals :: (Enum a, Ord a) => [(a, a)] -> [(a, a)]
 normalizeIntervals = mergeIntervals . filter \(x, y) -> x <= y
+{-# INLINABLE normalizeIntervals #-}  -- To allow specialization to particular type class instances.
 
--- | Returns a sorted list that contains all intervals from the minimal set of 
--- intervals to represent the given list of intervals. 
+-- | Returns a sorted list that contains all intervals from the minimal set of
+-- intervals to represent the given list of intervals.
 --
--- "Merges" overlapping intervals in a list of intervals. Think disjunctive 
+-- "Merges" overlapping intervals in a list of intervals. Think disjunctive
 -- normal form.
-mergeIntervals :: (Ord a, Enum a) => [(a, a)] -> [(a, a)]
+mergeIntervals :: forall a . (Enum a, Ord a) => [(a, a)] -> [(a, a)]
 mergeIntervals = foldr step [] . sort
-  where 
-    step :: (Ord a, Enum a) => (a, a) -> [(a, a)] -> [(a, a)]
+  where
+    step :: (a, a) -> [(a, a)] -> [(a, a)]
     step x [] = [x]
-    step x (y : ys) = case joinIntervals x y of 
-      Nothing -> x : y : ys 
-      Just xy -> xy : ys
+    step x (y : ys) = case joinIntervals x y of
+      Nothing -> x : y : ys
+        -- In this case @x@ and @y@ could not be merged, and therefore there is
+        -- some value strictly inbetween the end of @x@ and the start of @y@.
+        -- Compare this property to the definition of /normal/ (above).
+      Just xy -> step xy ys
+        -- Recursion is necessary here because @x@ may end later than did @y@,
+        -- possibly making @xy@ mergable with some prefix of @ys@, unlike @y@.
+        -- By merging @x@ and @y@ into @xy@ we have shortened the overall
+        -- length of the list, and therefore this recursion must terminate.
+{-# INLINABLE mergeIntervals #-}  -- To allow specialization to particular type class instances.
 
 --------------------------------------------------------------------------------
 --
