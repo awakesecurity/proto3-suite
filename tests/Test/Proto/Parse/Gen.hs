@@ -7,6 +7,8 @@ module Test.Proto.Parse.Gen
   )
 where
 
+import Control.Applicative (liftA2)
+
 import Hedgehog (Gen)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
