@@ -32,12 +32,33 @@ module Proto3.Suite.Tutorial where
 
 import Data.Int (Int32)
 import Data.Word (Word32)
+
 import GHC.Exts (Proxy#, proxy#)
 import GHC.Generics
-import Proto3.Suite (Enumerated, Nested, NestedVec, PackedVec,
-                     Message, Named, Finite, DotProtoDefinition,
-                     enum, message, packageFromDefs, toProtoFileDef)
+
+import Proto3.Suite 
+  ( DotProto (..)
+  , DotProtoDefinition
+  , DotProtoIdentifier (..)
+  , DotProtoMeta (..)
+  , DotProtoPackageSpec (..)
+  , Enumerated
+  , Finite
+  , Message
+  , Named
+  , Nested
+  , NestedVec
+  , PackedVec
+  , enum
+  , fakePath
+  , message
+  , toProtoFileDef
+  )
 import Proto3.Wire.Class (ProtoEnum)
+
+packageFromDefs :: String -> [DotProtoDefinition] -> DotProto
+packageFromDefs package defs =
+  DotProto [] [] (DotProtoPackageSpec $ Single package) defs (DotProtoMeta fakePath)
 
 -- $setup
 -- >>> :set -XOverloadedStrings

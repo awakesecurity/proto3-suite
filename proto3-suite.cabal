@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                proto3-suite
-version:             0.9.0
+version:             1.0.0
 synopsis:            A higher-level API to the proto3-wire library
 description:
   This library provides a higher-level API to <https://github.com/awakesecurity/proto3-wire the `proto3-wire` library>
@@ -50,7 +50,9 @@ source-repository head
 
 common common
   default-extensions:
-    BlockArguments DeriveDataTypeable DeriveGeneric ImportQualifiedPost
+    BlockArguments DeriveGeneric DeriveDataTypeable DerivingStrategies  
+    DerivingVia GeneralizedNewtypeDeriving ImportQualifiedPost FlexibleContexts 
+    FlexibleInstances LambdaCase PatternSynonyms ViewPatterns
 
 library
   import: common
@@ -79,7 +81,6 @@ library
                        Proto3.Suite.DotProto.Generate.Record
                        Proto3.Suite.DotProto.Generate.Syntax
                        Proto3.Suite.DotProto.Parsing
-                       Proto3.Suite.DotProto.Rendering
                        Proto3.Suite.Form
                        Proto3.Suite.Form.Encode
                        Proto3.Suite.JSONPB

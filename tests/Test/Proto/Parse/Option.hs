@@ -15,7 +15,6 @@ import Data.Either (isLeft)
 import Text.Parsec (ParseError)
 
 import qualified Proto3.Suite.DotProto.Parsing as Proto3
-import Proto3.Suite.DotProto.Rendering () -- orphan Pretty DotProtoIdentifier
 
 --------------------------------------------------------------------------------
 

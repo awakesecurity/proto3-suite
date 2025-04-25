@@ -96,6 +96,7 @@ docTests = testCase "doctests" $ do
     [ "--verbose"
     , "-package"
     , "ghc-lib-parser"
+    , "-XPatternSynonyms"
     , "-isrc"
 #ifdef SWAGGER
 #ifdef SWAGGER_WRAPPER_FORMAT

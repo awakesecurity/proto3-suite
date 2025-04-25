@@ -83,6 +83,7 @@ import qualified Text.Parsec as Parsec
 import qualified Turtle hiding (encodeString)
 import qualified Turtle.Compat as Turtle (encodeString)
 import           Turtle                         (FilePath, (</>), (<.>))
+import Text.PrettyPrint.HughesPJClass (Pretty (..))
 
 #if !MIN_VERSION_ghc_lib_parser(9,6,0)
 import qualified GHC.Unit.Module.Name           as GHC

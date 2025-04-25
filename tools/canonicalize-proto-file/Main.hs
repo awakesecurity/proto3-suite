@@ -22,7 +22,6 @@ import           Options.Generic
 import           Prelude                          hiding (FilePath)
 import           Proto3.Suite.DotProto.AST
 import           Proto3.Suite.DotProto.Generate
-import           Proto3.Suite.DotProto.Rendering
 import           Proto3.Wire.Types                (FieldNumber (..))
 import           Turtle                           (FilePath)
 
