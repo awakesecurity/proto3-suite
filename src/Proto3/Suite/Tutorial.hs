@@ -55,6 +55,7 @@ import Proto3.Suite
   , toProtoFileDef
   )
 import Proto3.Wire.Class (ProtoEnum)
+import Proto3.Suite qualified ()
 
 packageFromDefs :: String -> [DotProtoDefinition] -> DotProto
 packageFromDefs package defs =

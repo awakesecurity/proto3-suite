@@ -102,6 +102,7 @@ docTests = testCase "doctests" $ do
     , "-XBlockArguments"
     , "-XPatternSynonyms"
     , "-XLambdaCase"
+    , "-XDerivingStrategies"
     , "-isrc"
     , "-XBlockArguments"
 #ifdef SWAGGER
