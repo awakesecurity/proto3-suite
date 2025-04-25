@@ -101,6 +101,7 @@ docTests = testCase "doctests" $ do
     , "ghc-lib-parser"
     , "-XBlockArguments"
     , "-XPatternSynonyms"
+    , "-XLambdaCase"
     , "-isrc"
     , "-XBlockArguments"
 #ifdef SWAGGER
