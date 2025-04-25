@@ -1,5 +1,11 @@
+# 1.0.0
+* [#280](https://github.com/awakesecurity/proto3-suite/pull/280)
+  * Removed the module [`Proto3.Suite.DotProto.Rendering`](https://github.com/awakesecurity/proto3-suite/blob/aa335bdfcd71f603a294434b53f35b1b6887b3ec/src/Proto3/Suite/DotProto/Rendering.hs).
+  * Relocated orphaned [`Pretty`](https://hackage.haskell.org/package/pretty-1.1.3.6/docs/Text-PrettyPrint-HughesPJClass.html#t:Pretty) instances for AST types to [`Proto3.Suite.DotProto.AST`](https://github.com/awakesecurity/proto3-suite/blob/aa335bdfcd71f603a294434b53f35b1b6887b3ec/src/Proto3/Suite/DotProto/AST.hs).
+  * Removed orphaned [`FieldNumber`](https://hackage.haskell.org/package/proto3-wire-1.4.3/docs/Proto3-Wire-Types.html#t:FieldNumber) instance.
+
 # 0.9.1
-* [#275](https://github.com/awakesecurity/proto3-suite/pull/275) the `canonicalize-proto-file` executable no longer depends on the [`range-set-list](https://github.com/phadej/range-set-list#readme) package for normalizing reserved field ranges.
+* [#275](https://github.com/awakesecurity/proto3-suite/pull/275) the `canonicalize-proto-file` executable no longer depends on the [`range-set-list`](https://github.com/phadej/range-set-list#readme) package for normalizing reserved field ranges.
 
 # 0.9.0
 * [#272](https://github.com/awakesecurity/proto3-suite/pull/272) removed support for `large-records` and `large-generics`.
