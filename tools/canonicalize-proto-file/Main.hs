@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE DefaultSignatures      #-}
-{-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE LambdaCase             #-}
@@ -11,26 +10,61 @@
 {-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE TypeOperators          #-}
 
-module Main (main) where
+module Main where
 
-import           Control.Monad.Except
-import           Data.List                        (sort, sortOn)
-import qualified Data.List.NonEmpty              as NE
-import           Data.RangeSet.List               (fromRangeList, toRangeList)
-import           Data.Semigroup                   (Min(..))
-import           Options.Generic
-import           Prelude                          hiding (FilePath)
-import           Proto3.Suite.DotProto.AST
-import           Proto3.Suite.DotProto.Generate
-import           Proto3.Suite.DotProto.Rendering
-import           Proto3.Wire.Types                (FieldNumber (..))
-import           Turtle                           (FilePath)
+import Control.Monad.Except (runExceptT)
+
+import Data.List (sort, sortOn)
+import Data.List.NonEmpty qualified as NE
+import Data.Semigroup (Min(..))
+
+import GHC.Generics (Generic)
+
+import Options.Generic 
+  ( ParseRecord
+  , Unwrapped
+  , Wrapped 
+  , (:::)
+  , type (<?>) (..)
+  , unwrapRecord
+  )
+
+import Prelude hiding (FilePath)
+
+import Proto3.Suite.DotProto.AST 
+  ( DotProto (..)
+  , DotProtoDefinition (..)
+  , DotProtoEnumPart (..)
+  , DotProtoEnumValue 
+  , DotProtoField (..)
+  , DotProtoIdentifier (..)
+  , DotProtoImport (..)
+  , DotProtoMessagePart (..)
+  , DotProtoOption (..)
+  , DotProtoPackageSpec (..)
+  , DotProtoServicePart (..)
+  , DotProtoReservedField (..)
+  , DotProtoType (..)
+  , DotProtoValue (..)
+  , Path (..)
+  , RPCMethod (..)
+  )
+import Proto3.Suite.DotProto.Generate (readDotProtoWithContext)
+import Proto3.Suite.DotProto.Internal (normalizeIntervals)
+import Proto3.Suite.DotProto.Rendering (defRenderingOptions, toProtoFile)
+import Proto3.Wire.Types (FieldNumber (..))
+
+import Turtle (FilePath)
+
+--------------------------------------------------------------------------------
 
 data Args w = Args
   { includeDir :: w ::: [FilePath] <?> "Path to search for included .proto files (can be repeated, and paths will be searched in order; the current directory is used if this option is not provided)"
   , proto      :: w ::: FilePath   <?> "Path to input .proto file"
   } deriving Generic
+
 instance ParseRecord (Args Wrapped)
+
 deriving instance Show (Args Unwrapped)
 
 main :: IO ()
@@ -181,7 +215,7 @@ instance Canonicalize [DotProtoReservedField] where
       unique [n] = [n]
       unique (x : xs@(y : _)) = (if x == y then id else (x :)) (unique xs)
 
-      numbers = map reserveNumbers (toRangeList (fromRangeList rangeList))
+      numbers = map reserveNumbers (normalizeIntervals rangeList)
 
       reserveNumbers (lo, hi) | lo == hi = SingleField lo
                               | otherwise = FieldRange lo hi

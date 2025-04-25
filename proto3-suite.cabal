@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                proto3-suite
-version:             0.9.0
+version:             0.9.1
 synopsis:            A higher-level API to the proto3-wire library
 description:
   This library provides a higher-level API to <https://github.com/awakesecurity/proto3-wire the `proto3-wire` library>
@@ -50,7 +50,8 @@ source-repository head
 
 common common
   default-extensions:
-    BlockArguments DeriveDataTypeable DeriveGeneric ImportQualifiedPost
+    BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric 
+    ImportQualifiedPost ViewPatterns
 
 library
   import: common
@@ -187,6 +188,7 @@ test-suite tests
     Test.Proto.Generate.Name.Gen
     Test.Proto.Parse
     Test.Proto.Parse.Core
+    Test.Proto.Interval
     Test.Proto.Parse.Gen
     Test.Proto.Parse.Option
     Test.Proto.ToEncoder
@@ -238,6 +240,7 @@ executable compile-proto-file
   ghc-options:         -O2 -Wall -Werror
 
 executable canonicalize-proto-file
+  import:              common
   main-is:             Main.hs
   hs-source-dirs:      tools/canonicalize-proto-file
   default-language:    Haskell2010
@@ -247,7 +250,6 @@ executable canonicalize-proto-file
                        , optparse-generic
                        , proto3-suite
                        , proto3-wire >= 1.4.5 && < 1.5
-                       , range-set-list >=0.1.2 && <0.2
                        , system-filepath
                        , turtle
   ghc-options:         -O2 -Wall -Werror

@@ -275,14 +275,6 @@ in {
           yaml =
             pkgsNew.haskell.lib.dontCheck haskellPackagesOld.yaml;
 
-          range-set-list =
-            pkgsNew.haskell.lib.overrideCabal
-              haskellPackagesOld.range-set-list
-              (old: {
-                broken = false;
-                jailbreak = true;
-              });
-
           # With nixpkgs-23.11 and ghc962, proto3-wire thinks
           # that doctest and transformers are out of bounds.
           proto3-wire =
