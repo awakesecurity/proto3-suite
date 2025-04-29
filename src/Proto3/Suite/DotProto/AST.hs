@@ -35,6 +35,7 @@ module Proto3.Suite.DotProto.AST
   ) where
 
 import           Control.Applicative
+import           Data.Char                 (toLower)
 import           Control.Monad
 import           Data.Data                 (Data)
 import           Data.Int                  (Int32)
@@ -46,7 +47,11 @@ import           Prelude                   hiding (FilePath)
 import           Proto3.Wire.Types         (FieldNumber (..))
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
+import           Text.PrettyPrint          ((<+>))
+import qualified Text.PrettyPrint          as PP
+import           Text.PrettyPrint.HughesPJClass (Pretty(..))
 import           Turtle                    (FilePath)
+import           Turtle.Compat             (encodeString)
 
 -- | The name of a message
 newtype MessageName = MessageName
@@ -87,12 +92,24 @@ data DotProtoIdentifier
   | Anonymous -- [recheck] is there a better way to represent unnamed things
   deriving (Data, Eq, Generic, Ord, Show)
 
+instance Pretty DotProtoIdentifier where
+  pPrint (Single name)                    = PP.text name
+  pPrint (Dots (Path names))              = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> NE.toList names
+  pPrint (Qualified qualifier identifier) = PP.parens (pPrint qualifier) <> PP.text "." <> pPrint identifier
+  pPrint Anonymous                        = PP.empty
+
 -- | Top-level import declaration
 data DotProtoImport = DotProtoImport
   { dotProtoImportQualifier :: DotProtoImportQualifier
   , dotProtoImportPath      :: FilePath
   }
   deriving (Data, Eq, Generic, Ord, Show)
+
+instance Pretty DotProtoImport where
+  pPrint (DotProtoImport q i) =
+    PP.text "import" <+> pPrint q <+> strLit fp PP.<> PP.text ";"
+    where
+      fp = encodeString i
 
 instance Arbitrary DotProtoImport where
   arbitrary = do
@@ -105,6 +122,11 @@ data DotProtoImportQualifier
   | DotProtoImportWeak
   | DotProtoImportDefault
   deriving (Bounded, Data, Enum, Eq, Generic, Ord, Show)
+
+instance Pretty DotProtoImportQualifier where
+  pPrint DotProtoImportDefault = PP.empty
+  pPrint DotProtoImportPublic  = PP.text "public"
+  pPrint DotProtoImportWeak    = PP.text "weak"
 
 instance Arbitrary DotProtoImportQualifier where
   arbitrary = elements
@@ -119,6 +141,10 @@ data DotProtoPackageSpec
   | DotProtoNoPackage
   deriving (Data, Eq, Generic, Ord, Show)
 
+instance Pretty DotProtoPackageSpec where
+  pPrint (DotProtoPackageSpec p) = PP.text "package" <+> pPrint p PP.<> PP.text ";"
+  pPrint (DotProtoNoPackage)     = PP.empty
+
 instance Arbitrary DotProtoPackageSpec where
   arbitrary = oneof
     [ return DotProtoNoPackage
@@ -131,6 +157,9 @@ data DotProtoOption = DotProtoOption
   { dotProtoOptionIdentifier :: DotProtoIdentifier
   , dotProtoOptionValue      :: DotProtoValue
   } deriving (Data, Eq, Generic, Ord, Show)
+
+instance Pretty DotProtoOption where
+  pPrint (DotProtoOption key value) = pPrint key <+> PP.text "=" <+> pPrint value
 
 instance Arbitrary DotProtoOption where
     arbitrary = do
@@ -209,6 +238,13 @@ data DotProtoValue
   | BoolLit    Bool
   deriving (Data, Eq, Generic, Ord, Show)
 
+instance Pretty DotProtoValue where
+  pPrint (Identifier value) = pPrint value
+  pPrint (StringLit  value) = strLit value
+  pPrint (IntLit     value) = PP.text $ show value
+  pPrint (FloatLit   value) = PP.text $ show value
+  pPrint (BoolLit    value) = PP.text $ toLower <$> show value
+
 instance Arbitrary DotProtoValue where
   arbitrary = oneof
     [ fmap Identifier  arbitrarySingleIdentifier
@@ -237,6 +273,24 @@ data DotProtoPrimType
   | Named DotProtoIdentifier
   -- ^ A named type, referring to another message or enum defined in the same file
   deriving (Data, Eq, Generic, Ord, Show)
+
+instance Pretty DotProtoPrimType where
+  pPrint (Named i)  = pPrint i
+  pPrint Int32      = PP.text "int32"
+  pPrint Int64      = PP.text "int64"
+  pPrint SInt32     = PP.text "sint32"
+  pPrint SInt64     = PP.text "sint64"
+  pPrint UInt32     = PP.text "uint32"
+  pPrint UInt64     = PP.text "uint64"
+  pPrint Fixed32    = PP.text "fixed32"
+  pPrint Fixed64    = PP.text "fixed64"
+  pPrint SFixed32   = PP.text "sfixed32"
+  pPrint SFixed64   = PP.text "sfixed64"
+  pPrint String     = PP.text "string"
+  pPrint Bytes      = PP.text "bytes"
+  pPrint Bool       = PP.text "bool"
+  pPrint Float      = PP.text "float"
+  pPrint Double     = PP.text "double"
 
 instance Arbitrary DotProtoPrimType where
   arbitrary = oneof
@@ -278,6 +332,12 @@ data DotProtoType
   | Map            DotProtoPrimType DotProtoPrimType
   deriving (Data, Eq, Generic, Ord, Show)
 
+instance Pretty DotProtoType where
+  pPrint (Prim           ty) = pPrint ty
+  pPrint (Repeated       ty) = PP.text "repeated" <+> pPrint ty
+  pPrint (NestedRepeated ty) = PP.text "repeated" <+> pPrint ty
+  pPrint (Map keyty valuety) = PP.text "map<" <> pPrint keyty <> PP.text ", " <> pPrint valuety <> PP.text ">"
+
 instance Arbitrary DotProtoType where
   arbitrary = oneof [fmap Prim arbitrary]
 
@@ -307,6 +367,10 @@ data Streaming
   | NonStreaming
   deriving (Bounded, Data, Enum, Eq, Generic, Ord, Show)
 
+instance Pretty Streaming where
+  pPrint Streaming    = PP.text "stream"
+  pPrint NonStreaming = PP.empty
+
 instance Arbitrary Streaming where
   arbitrary = elements [Streaming, NonStreaming]
 
@@ -314,6 +378,18 @@ data DotProtoServicePart
   = DotProtoServiceRPCMethod RPCMethod
   | DotProtoServiceOption DotProtoOption
   deriving (Data, Eq, Generic, Ord, Show)
+
+instance Pretty DotProtoServicePart where
+  pPrint (DotProtoServiceRPCMethod RPCMethod{..})
+    =   PP.text "rpc"
+    <+> pPrint rpcMethodName
+    <+> PP.parens (pPrint rpcMethodRequestStreaming <+> pPrint rpcMethodRequestType)
+    <+> PP.text "returns"
+    <+> PP.parens (pPrint rpcMethodResponseStreaming <+> pPrint rpcMethodResponseType)
+    <+> case rpcMethodOptions of
+          [] -> PP.text ";"
+          _  -> PP.braces . PP.vcat $ serviceOption <$> rpcMethodOptions
+  pPrint (DotProtoServiceOption option) = serviceOption option
 
 instance Arbitrary DotProtoServicePart where
   arbitrary = oneof
@@ -403,6 +479,11 @@ data DotProtoReservedField
   | ReservedIdentifier String
   deriving (Data, Eq, Generic, Ord, Show)
 
+instance Pretty DotProtoReservedField where
+  pPrint (SingleField num)      = PP.text $ show num
+  pPrint (FieldRange start end) = (PP.text $ show start) <+> PP.text "to" <+> (PP.text $ show end)
+  pPrint (ReservedIdentifier i) = PP.text $ show i
+
 instance Arbitrary DotProtoReservedField where
   arbitrary =
     oneof [arbitrarySingleField, arbitraryFieldRange]
@@ -462,3 +543,15 @@ smallListOf x = choose (0, 5) >>= \n -> vectorOf n x
 
 smallListOf1 :: Gen a -> Gen [a]
 smallListOf1 x = choose (1, 5) >>= \n -> vectorOf n x
+
+strLit :: String -> PP.Doc
+strLit string = PP.text "\"" <> foldMap escape string <> PP.text "\""
+  where
+    escape '\n' = PP.text "\\n"
+    escape '\\' = PP.text "\\\\"
+    escape '\0' = PP.text "\\x00"
+    escape '"'  = PP.text "\\\""
+    escape  c   = PP.text [ c ]
+
+serviceOption :: DotProtoOption -> PP.Doc
+serviceOption o = PP.text "option" <+> pPrint o PP.<> PP.text ";"
