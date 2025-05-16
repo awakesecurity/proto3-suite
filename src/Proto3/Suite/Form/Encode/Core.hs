@@ -29,7 +29,8 @@
 -- must be kept separate for the sake of @TemplateHaskell@.
 module Proto3.Suite.Form.Encode.Core
   ( MessageEncoder(..)
-  , toLazyByteString
+  , messageEncoderToLazyByteString
+  , messageEncoderToByteString
   , etaMessageEncoder
   , Prefix(..)
   , etaPrefix
@@ -59,6 +60,7 @@ module Proto3.Suite.Form.Encode.Core
   ) where
 
 import Control.Category (Category(..))
+import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
 import Data.Coerce (coerce)
 import Data.Kind (Type)
@@ -84,8 +86,15 @@ newtype MessageEncoder (message :: Type) = UnsafeMessageEncoder
 type role MessageEncoder nominal
 
 -- | Serialize a message (or portion thereof) as a lazy 'BL.ByteString'.
-toLazyByteString :: forall message . MessageEncoder message -> BL.ByteString
-toLazyByteString = Encode.toLazyByteString . untypedMessageEncoder
+messageEncoderToLazyByteString :: forall message . MessageEncoder message -> BL.ByteString
+messageEncoderToLazyByteString = Encode.toLazyByteString . untypedMessageEncoder
+
+-- | Serialize a message (or portion thereof) as a strict 'B.ByteString'.
+--
+-- Functionally equivalent to @'BL.toStrict' . 'messageEncoderToLazyByteString'@,
+-- and currently even the performance is the same.
+messageEncoderToByteString :: forall message . MessageEncoder message -> B.ByteString
+messageEncoderToByteString = BL.toStrict . messageEncoderToLazyByteString
 
 -- | Like 'Encode.etaMessageBuilder' but for 'MessageEncoder'.
 etaMessageEncoder :: forall a message . (a -> MessageEncoder message) -> a -> MessageEncoder message

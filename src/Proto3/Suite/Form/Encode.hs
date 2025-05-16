@@ -31,9 +31,9 @@
 -- frequently than in the other modules of this package, perhaps even in patch releases.
 module Proto3.Suite.Form.Encode
   ( MessageEncoder(..)
-  , toLazyByteString
-  , etaMessageEncoder
+  , messageEncoderToLazyByteString
   , messageEncoderToByteString
+  , etaMessageEncoder
   , unsafeByteStringToMessageEncoder
   , MessageEncoding
   , messageCache
@@ -100,10 +100,6 @@ import Proto3.Wire.Encode qualified as Encode
 import Proto3.Wire.Encode.Repeated (ToRepeated, mapRepeated)
 import Proto3.Wire.Reverse qualified as RB
 import Proto3.Wire.Types (fieldNumber)
-
--- | Runs a message encoder to produce the octets of the encoding.
-messageEncoderToByteString :: MessageEncoder message -> B.ByteString
-messageEncoderToByteString = BL.toStrict . Encode.toLazyByteString . untypedMessageEncoder
 
 -- | The unsafe but fast inverse of 'messageEncoderToByteString'.
 unsafeByteStringToMessageEncoder :: B.ByteString -> MessageEncoder message

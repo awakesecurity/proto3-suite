@@ -1,5 +1,6 @@
 # 0.9.2
 * [#282](https://github.com/awakesecurity/proto3-suite/pull/282) Show MessageEncoder
+  * [BREAKING CHANGE in experimental module: Rename `toLazyByteString` to `messageEncoderToLazyByteString`.]
   * [BREAKING CHANGE in experimental module: Rename `cacheMessage` to `messageCache`.]
   * [BREAKING CHANGE in experimental module: Delete `Eq` instance for `MessageEncoding` because it is application-defined whether we should ignore field order during comparison.]
   * Add `Show` instance for `MessageEncoder`.
