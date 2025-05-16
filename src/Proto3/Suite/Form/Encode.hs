@@ -31,10 +31,12 @@
 -- frequently than in the other modules of this package, perhaps even in patch releases.
 module Proto3.Suite.Form.Encode
   ( MessageEncoder(..)
-  , toLazyByteString
+  , messageEncoderToLazyByteString
+  , messageEncoderToByteString
   , etaMessageEncoder
+  , unsafeByteStringToMessageEncoder
   , MessageEncoding
-  , cacheMessage
+  , messageCache
   , cacheMessageEncoding
   , cachedMessageEncoding
   , messageEncodingToByteString
@@ -99,6 +101,10 @@ import Proto3.Wire.Encode.Repeated (ToRepeated, mapRepeated)
 import Proto3.Wire.Reverse qualified as RB
 import Proto3.Wire.Types (fieldNumber)
 
+-- | The unsafe but fast inverse of 'messageEncoderToByteString'.
+unsafeByteStringToMessageEncoder :: B.ByteString -> MessageEncoder message
+unsafeByteStringToMessageEncoder = UnsafeMessageEncoder . Encode.unsafeFromByteString
+
 -- | The octet sequence that would be emitted by some
 -- 'MessageEncoder' having the same type parameter.
 --
@@ -109,7 +115,7 @@ import Proto3.Wire.Types (fieldNumber)
 -- See also: 'cacheMessageEncoding'
 newtype MessageEncoding (message :: Type) = UnsafeMessageEncoding B.ByteString
   deriving stock (Generic)
-  deriving newtype (Eq, NFData, Ord)
+  deriving newtype (NFData)
 
 type role MessageEncoding nominal
 
@@ -139,17 +145,14 @@ instance (omission ~ 'Alternative) =>
 --
 -- See also: 'cacheFields'.
 cacheMessageEncoding :: MessageEncoder message -> MessageEncoding message
-cacheMessageEncoding =
-  UnsafeMessageEncoding . BL.toStrict . Encode.toLazyByteString . untypedMessageEncoder
+cacheMessageEncoding = UnsafeMessageEncoding . messageEncoderToByteString
 
 -- | Encodes a precomputed 'MessageEncoder' by copying octets from a memory buffer.
 -- See 'cacheMessageEncoding'.
 --
 -- See also: 'cachedFields'
 cachedMessageEncoding :: MessageEncoding message -> MessageEncoder message
-cachedMessageEncoding =
-  UnsafeMessageEncoder . Encode.unsafeFromByteString . messageEncodingToByteString
-{-# INLINE cachedMessageEncoding #-}
+cachedMessageEncoding = unsafeByteStringToMessageEncoder . messageEncodingToByteString
 
 -- | Strips type information from the message encoding, leaving only its octets.
 messageEncodingToByteString :: MessageEncoding message -> B.ByteString
@@ -415,9 +418,9 @@ messageReflection m = coerce (encodeMessage @message (fieldNumber 1) m)
 -- | Creates a message encoding by means of type class `Proto3.Suite.Class.Message`.
 --
 -- Equivalent to @'cacheMessageEncoding' . 'messageReflection'@.
-cacheMessage :: forall message . Message message => message -> MessageEncoding message
-cacheMessage m = cacheMessageEncoding (messageReflection m)
-{-# INLINABLE cacheMessage #-}
+messageCache :: forall message . Message message => message -> MessageEncoding message
+messageCache m = cacheMessageEncoding (messageReflection m)
+{-# INLINABLE messageCache #-}
 
 instance (Message message, Show message) =>
          Show (MessageEncoding message)
@@ -425,4 +428,12 @@ instance (Message message, Show message) =>
     showsPrec d (messageEncodingToByteString -> bs) = showParen (d >= 11) $
       case fromByteString bs of
         Left _ -> shows 'unsafeByteStringToMessageEncoding . showChar ' ' . showsPrec 11 bs
-        Right (msg :: message) -> shows 'cacheMessage . showChar ' ' . showsPrec 11 msg
+        Right (msg :: message) -> shows 'messageCache . showChar ' ' . showsPrec 11 msg
+
+instance (Message message, Show message) =>
+         Show (MessageEncoder message)
+  where
+    showsPrec d (messageEncoderToByteString -> bs) = showParen (d >= 11) $
+      case fromByteString bs of
+        Left _ -> shows 'unsafeByteStringToMessageEncoder . showChar ' ' . showsPrec 11 bs
+        Right (msg :: message) -> shows 'messageReflection . showChar ' ' . showsPrec 11 msg

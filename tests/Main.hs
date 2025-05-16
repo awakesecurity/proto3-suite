@@ -170,6 +170,8 @@ encodeUnitTests = testGroup "Encoder unit tests"
   , encodeBytesFromBuilder
   , encodeMessageReflection
   , encodeCachedSubmessage
+  , testShowMessageEncoder
+  , testShowMessageEncoding
   ]
 
 -- TODO: We should consider generating the reference encodings
@@ -211,22 +213,22 @@ encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
       -- that adhere to the protobuf specification.  We check that decodability
       -- in other tests that pair a Haskell encoder with a Python decoder.
       assertEqual (show fp ++ ": direct encoding, Forward iterator, keep wrappers")
-        goldenEncoding $ FormE.toLazyByteString $
+        goldenEncoding $ FormE.messageEncoderToLazyByteString $
           let ?iterator = Forward
               ?stripping = Keep
           in toEncoder v
       assertEqual (show fp ++ ": direct encoding, Forward iterator, strip wrappers")
-        goldenEncoding $ FormE.toLazyByteString $
+        goldenEncoding $ FormE.messageEncoderToLazyByteString $
           let ?iterator = Forward
               ?stripping = Strip
           in toEncoder v
       assertEqual (show fp ++ ": direct encoding, Vector iterator, keep wrappers")
-        goldenEncoding $ FormE.toLazyByteString $
+        goldenEncoding $ FormE.messageEncoderToLazyByteString $
           let ?iterator = Vector
               ?stripping = Keep
           in toEncoder v
       assertEqual (show fp ++ ": direct encoding, Vector iterator, strip wrappers")
-        goldenEncoding $ FormE.toLazyByteString $
+        goldenEncoding $ FormE.messageEncoderToLazyByteString $
           let ?iterator = Vector
               ?stripping = Strip
           in toEncoder v
@@ -320,32 +322,28 @@ encodeBytesFromBuilder = testCase "bytes from builder" $ do
       a ->
       BL.ByteString
     enc =
-      FormE.toLazyByteString .
+      FormE.messageEncoderToLazyByteString .
       FormE.fieldsToMessage .
       FormE.field @"myBytes" @a @(MyWithBytes r)
 
 encodeMessageReflection :: TestTree
 encodeMessageReflection = testCase "messageReflection" $ do
   let msg = TP.Trivial 123
-  FormE.toLazyByteString (FormE.messageReflection msg) @?= toLazyByteString msg
+  FormE.messageEncoderToLazyByteString (FormE.messageReflection msg) @?= toLazyByteString msg
 
 encodeCachedSubmessage :: TestTree
 encodeCachedSubmessage = testGroup "Cached Submessages"
   [ testOptional
   , testRepeated
   , testOneof
-  , testShow
   ]
   where
-    cacheReflection :: forall a . Message a => a -> FormE.MessageEncoding a
-    cacheReflection = FormE.cacheMessageEncoding . FormE.messageReflection
-
     testOptional :: TestTree
     testOptional = testCase "cached optional submessage" $ do
       let trivial = TP.Trivial 123
           wrappedTrivial = FormE.fieldsToMessage @TP.WrappedTrivial $
-            FormE.field @"trivial" (Just (cacheReflection trivial))
-      FormE.toLazyByteString wrappedTrivial @?=
+            FormE.field @"trivial" (Just (FormE.messageCache trivial))
+      FormE.messageEncoderToLazyByteString wrappedTrivial @?=
         toLazyByteString (TP.WrappedTrivial (Just trivial))
 
     testRepeated :: TestTree
@@ -356,37 +354,47 @@ encodeCachedSubmessage = testGroup "Cached Submessages"
             , TP.MapTestEmulation_Trivial 25 (Just (TP.WrappedTrivial (Just (TP.Trivial 789))))
             ]
           mapTestEmulation = FormE.fieldsToMessage @TP.MapTestEmulation $
-            FormE.field @"trivial" (V.map cacheReflection trivials)
-      FormE.toLazyByteString mapTestEmulation @?=
+            FormE.field @"trivial" (V.map FormE.messageCache trivials)
+      FormE.messageEncoderToLazyByteString mapTestEmulation @?=
         toLazyByteString (TP.MapTestEmulation mempty trivials mempty)
 
     testOneof :: TestTree
     testOneof = testCase "cached submessage within oneof" $ do
       let withOneof = TPOI.WithOneof (Just (TPOI.WithOneofPickOneB 123))
           withImported = FormE.fieldsToMessage @TPO.WithImported $
-            FormE.field @"withOneof" (cacheReflection withOneof)
-      FormE.toLazyByteString withImported @?=
+            FormE.field @"withOneof" (FormE.messageCache withOneof)
+      FormE.messageEncoderToLazyByteString withImported @?=
         toLazyByteString (TPO.WithImported (Just (TPO.WithImportedPickOneWithOneof withOneof)))
 
-    testShow :: TestTree
-    testShow = testCase "Show MessageEncoding" $ do
-      let trivial = TP.Trivial 123
-          badForm = "abc"
-          encoding :: FormE.MessageEncoding TP.Trivial
-          encoding = cacheReflection trivial
-          bogus :: FormE.MessageEncoding TP.Trivial
-          bogus = FormE.unsafeByteStringToMessageEncoding badForm
-      -- Test desired behavior for valid encoding:
-      show encoding @?= "Proto3.Suite.Form.Encode.cacheMessage " ++ showsPrec 11 trivial ""
-      -- Check that when interpreting the above expected 'show' output
-      -- as Haskell source, it really does produce the shown value:
-      encoding @=? FormE.cacheMessage trivial
-      -- Test fallback behavior for invalid encoding:
-      show bogus @?=
-        "Proto3.Suite.Form.Encode.unsafeByteStringToMessageEncoding " ++ showsPrec 11 badForm ""
-      -- Check that when interpreting the above expected 'show' output
-      -- as Haskell source, it really does produce the shown value:
-      bogus @=? FormE.unsafeByteStringToMessageEncoding badForm
+testShowMessageEncoding :: TestTree
+testShowMessageEncoding = testCase "Show MessageEncoding" $ do
+  let trivial = TP.Trivial 123
+      badForm = "abc"
+      encoding :: FormE.MessageEncoding TP.Trivial
+      encoding = FormE.messageCache trivial
+      bogus :: FormE.MessageEncoding TP.Trivial
+      bogus = FormE.unsafeByteStringToMessageEncoding badForm
+  -- Test desired behavior for valid encoding:
+  show (Just encoding) @?=
+    "Just (Proto3.Suite.Form.Encode.messageCache " ++ showsPrec 11 trivial ")"
+  -- Test fallback behavior for invalid encoding:
+  show (Just bogus) @?=
+    "Just (Proto3.Suite.Form.Encode.unsafeByteStringToMessageEncoding " ++ showsPrec 11 badForm ")"
+
+testShowMessageEncoder :: TestTree
+testShowMessageEncoder = testCase "Show MessageEncoder" $ do
+  let trivial = TP.Trivial 123
+      badForm = "abc"
+      encoder :: FormE.MessageEncoder TP.Trivial
+      encoder = FormE.messageReflection trivial
+      bogus :: FormE.MessageEncoder TP.Trivial
+      bogus = FormE.unsafeByteStringToMessageEncoder badForm
+  -- Test desired behavior for valid encoder:
+  show (Just encoder) @?=
+    "Just (Proto3.Suite.Form.Encode.messageReflection " ++ showsPrec 11 trivial ")"
+  -- Test fallback behavior for invalid encoder:
+  show (Just bogus) @?=
+    "Just (Proto3.Suite.Form.Encode.unsafeByteStringToMessageEncoder " ++ showsPrec 11 badForm ")"
 
 data TestMessage
        (num :: Nat)
@@ -636,10 +644,10 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
       b ->
       Property
     check1 a b =
-      FormE.toLazyByteString
+      FormE.messageEncoderToLazyByteString
         (FormE.fieldsToMessage (FormE.field @"name" @a @(TestMessage num repetition protoType) a))
       ===
-      FormE.toLazyByteString
+      FormE.messageEncoderToLazyByteString
         (FormE.fieldsToMessage (FormE.field @"name" @b @(TestMessage num repetition protoType) b))
 
     showsType :: forall a . Typeable a => ShowS
