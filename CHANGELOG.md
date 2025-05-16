@@ -1,3 +1,10 @@
+# 0.9.2
+* [#282](https://github.com/awakesecurity/proto3-suite/pull/282) Show MessageEncoder
+  * [BREAKING CHANGE in experimental module: Rename `cacheMessage` to `messageCache`.]
+  * [BREAKING CHANGE in experimental module: Delete `Eq` instance for `MessageEncoding` because it is application-defined whether we should ignore field order during comparison.]
+  * Add `Show` instance for `MessageEncoder`.
+  * Add `messageEncoderToByteString` and `unsafeByteStringToMessageEncoder`.
+
 # 0.9.1
 * [#275](https://github.com/awakesecurity/proto3-suite/pull/275) the `canonicalize-proto-file` executable no longer depends on the [`range-set-list](https://github.com/phadej/range-set-list#readme) package for normalizing reserved field ranges.
 * Relocated orphaned [`Pretty`](https://hackage.haskell.org/package/pretty-1.1.3.6/docs/Text-PrettyPrint-HughesPJClass.html#t:Pretty) instances for AST types to [`Proto3.Suite.DotProto.AST`].
