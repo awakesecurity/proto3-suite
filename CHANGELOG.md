@@ -5,6 +5,9 @@
   * [BREAKING CHANGE in experimental module: Delete `Eq` instance for `MessageEncoding` because it is application-defined whether we should ignore field order during comparison.]
   * Add `Show` instance for `MessageEncoder`.
   * Add `messageEncoderToByteString` and `unsafeByteStringToMessageEncoder`.
+* [#283](https://github.com/awakesecurity/proto3-suite/pull/283) Delete Repeated.hs
+  * Delete unused experimental source file `src/Proto3/Suite/Form/Encode/Repeated.hs`;
+    proto3-wire provides the relevant functionality in `Proto3.Wire.Encode.Repeated`.
 
 # 0.9.1
 * [#275](https://github.com/awakesecurity/proto3-suite/pull/275) the `canonicalize-proto-file` executable no longer depends on the [`range-set-list](https://github.com/phadej/range-set-list#readme) package for normalizing reserved field ranges.
