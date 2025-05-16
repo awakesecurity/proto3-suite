@@ -21,7 +21,7 @@ import           Text.Read (readEither)
 import           System.Environment (getArgs, getProgName)
 import           System.Exit (die)
 
-import qualified Proto3.Suite.Form.Encode as Form
+import qualified Proto3.Suite.Form.Encode as FormE
 import           Test.Proto.ToEncoder (Iterator, Stripping, ToEncoder(..))
 
 data Format = Binary | Jsonpb
@@ -44,7 +44,7 @@ outputMessage msg = putStrLn (show (BL.length encoded)) >> BL.putStr encoded
     encoded = case ?format of
       Binary ->
 #if TYPE_LEVEL_FORMAT
-        Form.toLazyByteString (toEncoder msg)
+        FormE.messageEncoderToLazyByteString (toEncoder msg)
 #else
         toLazyByteString msg
 #endif

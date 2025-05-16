@@ -213,22 +213,22 @@ encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
       -- that adhere to the protobuf specification.  We check that decodability
       -- in other tests that pair a Haskell encoder with a Python decoder.
       assertEqual (show fp ++ ": direct encoding, Forward iterator, keep wrappers")
-        goldenEncoding $ FormE.toLazyByteString $
+        goldenEncoding $ FormE.messageEncoderToLazyByteString $
           let ?iterator = Forward
               ?stripping = Keep
           in toEncoder v
       assertEqual (show fp ++ ": direct encoding, Forward iterator, strip wrappers")
-        goldenEncoding $ FormE.toLazyByteString $
+        goldenEncoding $ FormE.messageEncoderToLazyByteString $
           let ?iterator = Forward
               ?stripping = Strip
           in toEncoder v
       assertEqual (show fp ++ ": direct encoding, Vector iterator, keep wrappers")
-        goldenEncoding $ FormE.toLazyByteString $
+        goldenEncoding $ FormE.messageEncoderToLazyByteString $
           let ?iterator = Vector
               ?stripping = Keep
           in toEncoder v
       assertEqual (show fp ++ ": direct encoding, Vector iterator, strip wrappers")
-        goldenEncoding $ FormE.toLazyByteString $
+        goldenEncoding $ FormE.messageEncoderToLazyByteString $
           let ?iterator = Vector
               ?stripping = Strip
           in toEncoder v
@@ -322,14 +322,14 @@ encodeBytesFromBuilder = testCase "bytes from builder" $ do
       a ->
       BL.ByteString
     enc =
-      FormE.toLazyByteString .
+      FormE.messageEncoderToLazyByteString .
       FormE.fieldsToMessage .
       FormE.field @"myBytes" @a @(MyWithBytes r)
 
 encodeMessageReflection :: TestTree
 encodeMessageReflection = testCase "messageReflection" $ do
   let msg = TP.Trivial 123
-  FormE.toLazyByteString (FormE.messageReflection msg) @?= toLazyByteString msg
+  FormE.messageEncoderToLazyByteString (FormE.messageReflection msg) @?= toLazyByteString msg
 
 encodeCachedSubmessage :: TestTree
 encodeCachedSubmessage = testGroup "Cached Submessages"
@@ -343,7 +343,7 @@ encodeCachedSubmessage = testGroup "Cached Submessages"
       let trivial = TP.Trivial 123
           wrappedTrivial = FormE.fieldsToMessage @TP.WrappedTrivial $
             FormE.field @"trivial" (Just (FormE.messageCache trivial))
-      FormE.toLazyByteString wrappedTrivial @?=
+      FormE.messageEncoderToLazyByteString wrappedTrivial @?=
         toLazyByteString (TP.WrappedTrivial (Just trivial))
 
     testRepeated :: TestTree
@@ -355,7 +355,7 @@ encodeCachedSubmessage = testGroup "Cached Submessages"
             ]
           mapTestEmulation = FormE.fieldsToMessage @TP.MapTestEmulation $
             FormE.field @"trivial" (V.map FormE.messageCache trivials)
-      FormE.toLazyByteString mapTestEmulation @?=
+      FormE.messageEncoderToLazyByteString mapTestEmulation @?=
         toLazyByteString (TP.MapTestEmulation mempty trivials mempty)
 
     testOneof :: TestTree
@@ -363,7 +363,7 @@ encodeCachedSubmessage = testGroup "Cached Submessages"
       let withOneof = TPOI.WithOneof (Just (TPOI.WithOneofPickOneB 123))
           withImported = FormE.fieldsToMessage @TPO.WithImported $
             FormE.field @"withOneof" (FormE.messageCache withOneof)
-      FormE.toLazyByteString withImported @?=
+      FormE.messageEncoderToLazyByteString withImported @?=
         toLazyByteString (TPO.WithImported (Just (TPO.WithImportedPickOneWithOneof withOneof)))
 
 testShowMessageEncoding :: TestTree
@@ -644,10 +644,10 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
       b ->
       Property
     check1 a b =
-      FormE.toLazyByteString
+      FormE.messageEncoderToLazyByteString
         (FormE.fieldsToMessage (FormE.field @"name" @a @(TestMessage num repetition protoType) a))
       ===
-      FormE.toLazyByteString
+      FormE.messageEncoderToLazyByteString
         (FormE.fieldsToMessage (FormE.field @"name" @b @(TestMessage num repetition protoType) b))
 
     showsType :: forall a . Typeable a => ShowS
