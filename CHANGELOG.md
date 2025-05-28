@@ -1,5 +1,5 @@
 # 0.9.3
-* [#284](https://github.com/awakesecurity/proto3-suite/pull/283) Delete Repeated.hs
+* [#284](https://github.com/awakesecurity/proto3-suite/pull/284) Delete Repeated.hs
   * [BREAKING CHANGE in experimental module: Rename `Prefix` to `FieldsEncoder`, along with related functions.]
   * [BREAKING CHANGE in experimental module: Rename `Fields` to `FieldsEncoding`, along with related functions.]
   * Add instances of `FromJSON`, `FromJSONPB`, `ToJSON`, `ToJSONPB`
