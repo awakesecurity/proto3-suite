@@ -38,6 +38,7 @@ import           Proto3.Suite
 import qualified Proto3.Suite.Form           as Form
 import qualified Proto3.Suite.Form.Encode    as FormE
 import           Proto3.Suite.Haskell.Parser (Logger, initLogger)
+import qualified Proto3.Suite.JSONPB.Class   as JSONPB
 import           Proto3.Wire.Decode          (ParseError)
 import qualified Proto3.Wire.Decode          as Decode
 import qualified Proto3.Wire.Reverse         as RB
@@ -172,6 +173,10 @@ encodeUnitTests = testGroup "Encoder unit tests"
   , encodeCachedSubmessage
   , testShowMessageEncoder
   , testShowMessageEncoding
+  , testToJSONPBMessageEncoder
+  , testToJSONPBMessageEncoding
+  , testFromJSONPBMessageEncoder
+  , testFromJSONPBMessageEncoding
   ]
 
 -- TODO: We should consider generating the reference encodings
@@ -395,6 +400,80 @@ testShowMessageEncoder = testCase "Show MessageEncoder" $ do
   -- Test fallback behavior for invalid encoder:
   show (Just bogus) @?=
     "Just (Proto3.Suite.Form.Encode.unsafeByteStringToMessageEncoder " ++ showsPrec 11 badForm ")"
+
+testToJSONPBMessageEncoding :: TestTree
+testToJSONPBMessageEncoding = testProperty "ToJSONPB MessageEncoding" $ \opts ->
+  let trivial = TP.Trivial 123
+      badForm = "abc"
+      encoding :: FormE.MessageEncoding TP.Trivial
+      encoding = FormE.messageCache trivial
+      bogus :: FormE.MessageEncoding TP.Trivial
+      bogus = FormE.unsafeByteStringToMessageEncoding badForm
+  in
+    -- Test desired behavior for valid encoding:
+    JSONPB.toJSONPB encoding opts === JSONPB.toJSONPB trivial opts
+    .&&.
+    JSONPB.toEncodingPB encoding opts === JSONPB.toEncodingPB trivial opts
+    .&&.
+    -- Test fallback behavior for invalid encoding:
+    JSONPB.toJSONPB bogus opts === JSONPB.toJSONPB badForm opts
+    .&&.
+    JSONPB.toEncodingPB bogus opts === JSONPB.toEncodingPB badForm opts
+
+testToJSONPBMessageEncoder :: TestTree
+testToJSONPBMessageEncoder = testProperty "ToJSONPB MessageEncoder" $ \opts ->
+  let trivial = TP.Trivial 123
+      badForm = "abc"
+      encoder :: FormE.MessageEncoder TP.Trivial
+      encoder = FormE.messageReflection trivial
+      bogus :: FormE.MessageEncoder TP.Trivial
+      bogus = FormE.unsafeByteStringToMessageEncoder badForm
+  in
+    -- Test desired behavior for valid encoder:
+    JSONPB.toJSONPB encoder opts === JSONPB.toJSONPB trivial opts
+    .&&.
+    JSONPB.toEncodingPB encoder opts === JSONPB.toEncodingPB trivial opts
+    .&&.
+    -- Test fallback behavior for invalid encoder:
+    JSONPB.toJSONPB bogus opts === JSONPB.toJSONPB badForm opts
+    .&&.
+    JSONPB.toEncodingPB bogus opts === JSONPB.toEncodingPB badForm opts
+
+testFromJSONPBMessageEncoding :: TestTree
+testFromJSONPBMessageEncoding = testProperty "FromJSONPB MessageEncoding" $ \opts ->
+  let trivial = TP.Trivial 123
+      badForm = "abc"
+      encoding :: FormE.MessageEncoding TP.Trivial
+      encoding = FormE.messageCache trivial
+      bogus :: FormE.MessageEncoding TP.Trivial
+      bogus = FormE.unsafeByteStringToMessageEncoding badForm
+      edec :: BL.ByteString -> Either String (FormE.MessageEncoding TP.Trivial)
+      edec = JSONPB.eitherDecode
+  in
+    -- Test desired behavior for valid encoder:
+    fmap (fromByteString . FormE.messageEncodingToByteString) (edec (JSONPB.encode opts encoding))
+      === Right (Right trivial)
+    .&&.
+    -- Test fallback behavior for invalid encoder:
+    fmap FormE.messageEncodingToByteString (edec (JSONPB.encode opts bogus)) === Right badForm
+
+testFromJSONPBMessageEncoder :: TestTree
+testFromJSONPBMessageEncoder = testProperty "FromJSONPB MessageEncoder" $ \opts ->
+  let trivial = TP.Trivial 123
+      badForm = "abc"
+      encoder :: FormE.MessageEncoder TP.Trivial
+      encoder = FormE.messageReflection trivial
+      bogus :: FormE.MessageEncoder TP.Trivial
+      bogus = FormE.unsafeByteStringToMessageEncoder badForm
+      edec :: BL.ByteString -> Either String (FormE.MessageEncoder TP.Trivial)
+      edec = JSONPB.eitherDecode
+  in
+    -- Test desired behavior for valid encoder:
+    fmap (fromByteString . FormE.messageEncoderToByteString) (edec (JSONPB.encode opts encoder))
+      === Right (Right trivial)
+    .&&.
+    -- Test fallback behavior for invalid encoder:
+    fmap FormE.messageEncoderToByteString (edec (JSONPB.encode opts bogus)) === Right badForm
 
 data TestMessage
        (num :: Nat)
