@@ -145,7 +145,7 @@ instance (omission ~ 'Alternative) =>
 -- Do this only if you expect to reuse that specific octet sequence repeatedly.
 --
 -- @'cachedMessageEncoding' . 'cacheMessageEncoding'@ is functionally equivalent
--- to @id@ but has different performance characteristics.
+-- to 'id' but has different performance characteristics.
 --
 -- See also: 'cacheFieldsEncoding'.
 cacheMessageEncoding :: MessageEncoder message -> MessageEncoding message
@@ -178,7 +178,7 @@ type role FieldsEncoding nominal nominal nominal
 -- Do this only if you expect to reuse that specific octet sequence repeatedly.
 --
 -- @'cachedFieldsEncoding' . 'cacheFieldsEncoding'@ is functionally equivalent
--- to @id@ but has different performance characteristics.
+-- to 'id' but has different performance characteristics.
 --
 -- See also: 'cacheMessageEncoding'
 cacheFieldsEncoding ::
