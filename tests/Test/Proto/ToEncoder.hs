@@ -84,7 +84,7 @@ singular ::
   , ?stripping :: Stripping
   ) =>
   a ->
-  FormE.Prefix message names (FormE.Occupy message name names)
+  FormE.FieldsEncoder message names (FormE.Occupy message name names)
 singular v = case ?stripping of
   Keep -> FormE.field @name @a v
   Strip -> FormE.field @name @b (strip v)
@@ -97,7 +97,7 @@ optional ::
   , ?stripping :: Stripping
   ) =>
   Maybe a ->
-  FormE.Prefix message names (FormE.Occupy message name names)
+  FormE.FieldsEncoder message names (FormE.Occupy message name names)
 optional v = case ?stripping of
   Keep -> FormE.field @name @(Maybe a) v
   Strip -> FormE.field @name @(Maybe b) (fmap @Maybe strip v)
@@ -117,16 +117,16 @@ repeated ::
   ) =>
   (a -> b) ->
   Data.Vector.Vector a ->
-  FormE.Prefix message names names
+  FormE.FieldsEncoder message names names
 repeated f = case (?iterator, ?stripping) of
   (Identity, Keep) ->
     -- We use 'Identity' to indicate we should emit the field elements one at a time,
     -- without the potential for packing, though in any case not all types support packing.
-    FormE.foldPrefixes . fmap (FormE.field @name . Functor.Identity . f)
+    FormE.foldFieldsEncoders . fmap (FormE.field @name . Functor.Identity . f)
   (Identity, Strip) ->
     -- We use 'Identity' to indicate we should emit the field elements one at a time,
     -- without the potential for packing, though in any case not all types support packing.
-    FormE.foldPrefixes . fmap (FormE.field @name . Functor.Identity . strip . f)
+    FormE.foldFieldsEncoders . fmap (FormE.field @name . Functor.Identity . strip . f)
   (Forward, Keep) ->
     FormE.field @name . map f . toList
   (Forward, Strip) ->
@@ -148,9 +148,9 @@ associations ::
   ) =>
   ((k, v) -> FormE.MessageEncoder (Form.Association key value)) ->
   M.Map k v ->
-  FormE.Prefix message names names
+  FormE.FieldsEncoder message names names
 associations f = case ?iterator of
-  Identity -> FormE.foldPrefixes .
+  Identity -> FormE.foldFieldsEncoders .
               mapRepeated (FormE.associations @name . Functor.Identity . f) .
               M.toAscList
   Forward -> FormE.associations @name . map f . M.toAscList
