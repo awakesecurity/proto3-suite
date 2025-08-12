@@ -29,10 +29,11 @@
 -- must be kept separate for the sake of @TemplateHaskell@.
 module Proto3.Suite.Form.Encode.Core
   ( MessageEncoder(..)
-  , toLazyByteString
+  , messageEncoderToLazyByteString
+  , messageEncoderToByteString
   , etaMessageEncoder
-  , Prefix(..)
-  , etaPrefix
+  , FieldsEncoder(..)
+  , etaFieldsEncoder
   , Distinct
   , DistinctCheck
   , RepeatedNames
@@ -59,6 +60,7 @@ module Proto3.Suite.Form.Encode.Core
   ) where
 
 import Control.Category (Category(..))
+import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
 import Data.Coerce (coerce)
 import Data.Kind (Type)
@@ -84,8 +86,15 @@ newtype MessageEncoder (message :: Type) = UnsafeMessageEncoder
 type role MessageEncoder nominal
 
 -- | Serialize a message (or portion thereof) as a lazy 'BL.ByteString'.
-toLazyByteString :: forall message . MessageEncoder message -> BL.ByteString
-toLazyByteString = Encode.toLazyByteString . untypedMessageEncoder
+messageEncoderToLazyByteString :: forall message . MessageEncoder message -> BL.ByteString
+messageEncoderToLazyByteString = Encode.toLazyByteString . untypedMessageEncoder
+
+-- | Serialize a message (or portion thereof) as a strict 'B.ByteString'.
+--
+-- Functionally equivalent to @'BL.toStrict' . 'messageEncoderToLazyByteString'@,
+-- and currently even the performance is the same.
+messageEncoderToByteString :: forall message . MessageEncoder message -> B.ByteString
+messageEncoderToByteString = BL.toStrict . messageEncoderToLazyByteString
 
 -- | Like 'Encode.etaMessageBuilder' but for 'MessageEncoder'.
 etaMessageEncoder :: forall a message . (a -> MessageEncoder message) -> a -> MessageEncoder message
@@ -112,28 +121,28 @@ etaMessageEncoder = coerce (Encode.etaMessageBuilder @a)
 -- packed repeated field.  Though that would be less compact than
 -- a single block, it is allowed by the protobuf standard.
 --
--- See also: 'cachePrefix'
-newtype Prefix (message :: Type) (possible :: [Symbol]) (following :: [Symbol]) =
-  UnsafePrefix { untypedPrefix :: Encode.MessageBuilder }
+-- See also: 'cacheFieldsEncoder'
+newtype FieldsEncoder (message :: Type) (possible :: [Symbol]) (following :: [Symbol]) =
+  UnsafeFieldsEncoder { untypedFieldsEncoder :: Encode.MessageBuilder }
 
-type role Prefix nominal nominal nominal
+type role FieldsEncoder nominal nominal nominal
 
--- | The 'Category' on prefixes of a particular type of
--- message whose '.' is '<>' on the contained builders.
+-- | The 'Category' on encoders of zero or more fields of a particular
+-- type of message whose '.' is '<>' on the contained builders.
 --
 -- Note that '.' preserves the requirements
--- on the type parameters of 'Prefix'.
-instance Category (Prefix message)
+-- on the type parameters of 'FieldsEncoder'.
+instance Category (FieldsEncoder message)
   where
-    id = UnsafePrefix mempty
-    f . g = UnsafePrefix (untypedPrefix f <> untypedPrefix g)
+    id = UnsafeFieldsEncoder mempty
+    f . g = UnsafeFieldsEncoder (untypedFieldsEncoder f <> untypedFieldsEncoder g)
 
--- | Like 'Encode.etaMessageBuilder' but for 'Prefix'.
-etaPrefix ::
+-- | Like 'Encode.etaMessageBuilder' but for 'FieldsEncoder'.
+etaFieldsEncoder ::
   forall a message possible following .
-  (a -> Prefix message possible following) ->
-  a -> Prefix message possible following
-etaPrefix = coerce (Encode.etaMessageBuilder @a)
+  (a -> FieldsEncoder message possible following) ->
+  a -> FieldsEncoder message possible following
+etaFieldsEncoder = coerce (Encode.etaMessageBuilder @a)
 
 -- | Yields a satisfied constraint if the given list of names contains
 -- no duplicates after first filtering out the names of repeated fields
@@ -235,9 +244,9 @@ type family OccupiedOnly1 (message :: Type) (name :: Symbol) (names :: [Symbol])
 fieldsToMessage ::
   forall (message :: Type) (names :: [Symbol]) .
   Distinct message names =>
-  Prefix message '[] names ->
+  FieldsEncoder message '[] names ->
   MessageEncoder message
-fieldsToMessage = UnsafeMessageEncoder . untypedPrefix
+fieldsToMessage = UnsafeMessageEncoder . untypedFieldsEncoder
 
 -- | Among the names of the given message, prefixes
 -- the given name with the following exceptions:
@@ -276,8 +285,8 @@ type family NameSublist (names :: [Symbol]) (moreNames :: [Symbol]) :: Constrain
       ( 'Text "NameSublist: name disappeared: " ':<>: 'ShowType n )
 
 -- | Uses an empty encoding for the @oneof@s and non-@oneof@ message fields
--- that appear in the final type parameter of 'Prefix' but not the previous
--- type parameter, thereby implicitly emitting their default values.
+-- that appear in the final type parameter of 'FieldsEncoder' but not the
+-- previous type parameter, thereby implicitly emitting their default values.
 --
 -- This function is not always required, but becomes necessary when
 -- there are two code paths, one of which may write non-repeatable
@@ -292,8 +301,8 @@ type family NameSublist (names :: [Symbol]) (moreNames :: [Symbol]) :: Constrain
 omitted ::
   forall (message :: Type) (names :: [Symbol]) (moreNames :: [Symbol]) .
   NameSublist names moreNames =>
-  Prefix message names moreNames
-omitted = UnsafePrefix mempty
+  FieldsEncoder message names moreNames
+omitted = UnsafeFieldsEncoder mempty
 
 -- | Singleton field number type.
 newtype SFieldNumber (fieldNumber :: Nat)
@@ -352,7 +361,7 @@ class Field name a message
     -- `Proto3.Suite.Form.Encode.associations`.
     --
     -- See also 'fieldForm'.
-    field :: forall names . a -> Prefix message names (Occupy message name names)
+    field :: forall names . a -> FieldsEncoder message names (Occupy message name names)
 
 instance forall (name :: Symbol)
 #if defined(__GLASGOW_HASKELL__) && 904 <= __GLASGOW_HASKELL__
@@ -369,10 +378,10 @@ instance forall (name :: Symbol)
          ) =>
          Field name a message
   where
-    field :: forall names . a -> Prefix message names (Occupy message name names)
+    field :: forall names . a -> FieldsEncoder message names (Occupy message name names)
     field = coerce
       @(a -> Encode.MessageBuilder)
-      @(a -> Prefix message names (Occupy message name names))
+      @(a -> FieldsEncoder message names (Occupy message name names))
       (fieldForm @(RepetitionOf message name) @(ProtoTypeOf message name) @a
                  proxy# proxy# (fieldNumberVal @message @name))
       -- Implementation Note: Using the newtype constructor would require us

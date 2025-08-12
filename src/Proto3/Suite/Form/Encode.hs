@@ -31,19 +31,21 @@
 -- frequently than in the other modules of this package, perhaps even in patch releases.
 module Proto3.Suite.Form.Encode
   ( MessageEncoder(..)
-  , toLazyByteString
+  , messageEncoderToLazyByteString
+  , messageEncoderToByteString
   , etaMessageEncoder
+  , unsafeByteStringToMessageEncoder
   , MessageEncoding
-  , cacheMessage
+  , messageCache
   , cacheMessageEncoding
   , cachedMessageEncoding
   , messageEncodingToByteString
   , unsafeByteStringToMessageEncoding
-  , Prefix(..)
-  , etaPrefix
-  , Fields
-  , cacheFields
-  , cachedFields
+  , FieldsEncoder(..)
+  , etaFieldsEncoder
+  , FieldsEncoding
+  , cacheFieldsEncoding
+  , cachedFieldsEncoding
   , Distinct
   , DistinctCheck
   , RepeatedNames
@@ -63,15 +65,17 @@ module Proto3.Suite.Form.Encode
   , FieldForm(..)
   , Wrap(..)
   , Auto(..)
-  , foldPrefixes
+  , foldFieldsEncoders
   , message
   , associations
   , Reflection(..)
   , messageReflection
   ) where
 
+import Control.Applicative ((<|>))
 import Control.Category (Category(..))
 import Control.DeepSeq (NFData)
+import Data.Aeson qualified as Aeson (FromJSON(..), ToJSON(..))
 import Data.Coerce (coerce)
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Kind (Type)
@@ -92,12 +96,18 @@ import Proto3.Suite.Class
 import Proto3.Suite.Form
          (Association, MessageFieldType, Omission(..), Packing(..),
           Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf)
+import Proto3.Suite.JSONPB.Class qualified as JSONPB
+         (FromJSONPB(..), ToJSONPB(..), toAesonEncoding, toAesonValue)
 import Proto3.Suite.Types (Enumerated, codeFromEnumerated)
 import Proto3.Wire.Class (ProtoEnum(..))
 import Proto3.Wire.Encode qualified as Encode
 import Proto3.Wire.Encode.Repeated (ToRepeated, mapRepeated)
 import Proto3.Wire.Reverse qualified as RB
 import Proto3.Wire.Types (fieldNumber)
+
+-- | The unsafe but fast inverse of 'messageEncoderToByteString'.
+unsafeByteStringToMessageEncoder :: B.ByteString -> MessageEncoder message
+unsafeByteStringToMessageEncoder = UnsafeMessageEncoder . Encode.unsafeFromByteString
 
 -- | The octet sequence that would be emitted by some
 -- 'MessageEncoder' having the same type parameter.
@@ -109,7 +119,7 @@ import Proto3.Wire.Types (fieldNumber)
 -- See also: 'cacheMessageEncoding'
 newtype MessageEncoding (message :: Type) = UnsafeMessageEncoding B.ByteString
   deriving stock (Generic)
-  deriving newtype (Eq, NFData, Ord)
+  deriving newtype (NFData)
 
 type role MessageEncoding nominal
 
@@ -134,22 +144,19 @@ instance (omission ~ 'Alternative) =>
 -- | Precomputes the octet sequence that would be written by the given 'MessageEncoder'.
 -- Do this only if you expect to reuse that specific octet sequence repeatedly.
 --
--- @'cachedMessageEncoding' . 'cacheMessageEncoding'@ is functionally equivalent to @id@
--- but has different performance characteristics.
+-- @'cachedMessageEncoding' . 'cacheMessageEncoding'@ is functionally equivalent
+-- to 'id' but has different performance characteristics.
 --
--- See also: 'cacheFields'.
+-- See also: 'cacheFieldsEncoding'.
 cacheMessageEncoding :: MessageEncoder message -> MessageEncoding message
-cacheMessageEncoding =
-  UnsafeMessageEncoding . BL.toStrict . Encode.toLazyByteString . untypedMessageEncoder
+cacheMessageEncoding = UnsafeMessageEncoding . messageEncoderToByteString
 
 -- | Encodes a precomputed 'MessageEncoder' by copying octets from a memory buffer.
 -- See 'cacheMessageEncoding'.
 --
--- See also: 'cachedFields'
+-- See also: 'cachedFieldsEncoding'
 cachedMessageEncoding :: MessageEncoding message -> MessageEncoder message
-cachedMessageEncoding =
-  UnsafeMessageEncoder . Encode.unsafeFromByteString . messageEncodingToByteString
-{-# INLINE cachedMessageEncoding #-}
+cachedMessageEncoding = unsafeByteStringToMessageEncoder . messageEncodingToByteString
 
 -- | Strips type information from the message encoding, leaving only its octets.
 messageEncodingToByteString :: MessageEncoding message -> B.ByteString
@@ -160,29 +167,33 @@ messageEncodingToByteString (UnsafeMessageEncoding octets) = octets
 unsafeByteStringToMessageEncoding :: B.ByteString -> MessageEncoding message
 unsafeByteStringToMessageEncoding = UnsafeMessageEncoding
 
--- | The octet sequence that would be prefixed by some 'Prefix' having the same type parameters.
-newtype Fields (message :: Type) (possible :: [Symbol]) (following :: [Symbol]) =
-  UnsafeFields { untypedFields :: B.ByteString }
+-- | The octet sequence that would be prefixed by some
+-- 'FieldsEncoder' having the same type parameters.
+newtype FieldsEncoding (message :: Type) (possible :: [Symbol]) (following :: [Symbol]) =
+  UnsafeFieldsEncoding { untypedFieldsEncoding :: B.ByteString }
 
-type role Fields nominal nominal nominal
+type role FieldsEncoding nominal nominal nominal
 
--- | Precomputes the octet sequence that would be written by the given 'Prefix'.
+-- | Precomputes the octet sequence that would be written by the given 'FieldsEncoder'.
 -- Do this only if you expect to reuse that specific octet sequence repeatedly.
 --
--- @'cachedFields' . 'cacheFields'@ is functionally equivalent to @id@
--- but has different performance characteristics.
+-- @'cachedFieldsEncoding' . 'cacheFieldsEncoding'@ is functionally equivalent
+-- to 'id' but has different performance characteristics.
 --
 -- See also: 'cacheMessageEncoding'
-cacheFields :: Prefix message possible following -> Fields message possible following
-cacheFields = UnsafeFields . BL.toStrict . Encode.toLazyByteString . untypedPrefix
+cacheFieldsEncoding ::
+  FieldsEncoder message possible following -> FieldsEncoding message possible following
+cacheFieldsEncoding =
+  UnsafeFieldsEncoding . BL.toStrict . Encode.toLazyByteString . untypedFieldsEncoder
 
--- | Encodes a precomputed 'Prefix' by copying octets from a memory buffer.
--- See 'cacheFields'.
+-- | Encodes a precomputed 'FieldsEncoder' by copying octets from a memory buffer.
+-- See 'cacheFieldsEncoding'.
 --
 -- See also: 'cachedMessageEncoding'.
-cachedFields :: Fields message possible following -> Prefix message possible following
-cachedFields = UnsafePrefix . Encode.unsafeFromByteString . untypedFields
-{-# INLINE cachedFields #-}
+cachedFieldsEncoding ::
+  FieldsEncoding message possible following -> FieldsEncoder message possible following
+cachedFieldsEncoding = UnsafeFieldsEncoder . Encode.unsafeFromByteString . untypedFieldsEncoding
+{-# INLINE cachedFieldsEncoding #-}
 
 $(instantiatePackableField
   [t| 'UInt32 |] [t| Word32 |] [| Encode.uint32 |] [| Encode.packedUInt32R |]
@@ -337,15 +348,15 @@ instance FieldForm ('Singular 'Implicit) 'Bytes RB.BuildR
     fieldForm _ _ = Encode.bytesIfNonempty
     {-# INLINE fieldForm #-}
 
--- | Combines 'Prefix' builders for zero or more repeated fields.
-foldPrefixes ::
+-- | Combines 'FieldsEncoder' builders for zero or more repeated fields.
+foldFieldsEncoders ::
   forall c message names .
-  ToRepeated c (Prefix message names names) =>
+  ToRepeated c (FieldsEncoder message names names) =>
   c ->
-  Prefix message names names
-foldPrefixes prefixes =
-  UnsafePrefix (Encode.repeatedMessageBuilder (mapRepeated untypedPrefix prefixes))
-{-# INLINE foldPrefixes #-}
+  FieldsEncoder message names names
+foldFieldsEncoders prefixes =
+  UnsafeFieldsEncoder (Encode.repeatedMessageBuilder (mapRepeated untypedFieldsEncoder prefixes))
+{-# INLINE foldFieldsEncoders #-}
 
 -- | Specializes the argument type of 'field' to the encoding of a submessage type,
 -- which can help to avoid ambiguity when the argument expression is polymorphic.
@@ -356,7 +367,7 @@ message ::
   , KnownFieldNumber outer name
   ) =>
   MessageEncoder inner ->
-  Prefix outer names (Occupy outer name names)
+  FieldsEncoder outer names (Occupy outer name names)
 message = field @name @(MessageEncoder inner)
 
 -- | Specializes the argument type of 'field' to be a sequence of key-value pair encodings,
@@ -370,7 +381,7 @@ associations ::
   , KnownFieldNumber message name
   ) =>
   t (MessageEncoder (Association key value)) ->
-  Prefix message names names
+  FieldsEncoder message names names
 associations = field @name @(t (MessageEncoder (Association key value)))
 
 -- | Signals that the argument to 'field' should be treated
@@ -415,9 +426,9 @@ messageReflection m = coerce (encodeMessage @message (fieldNumber 1) m)
 -- | Creates a message encoding by means of type class `Proto3.Suite.Class.Message`.
 --
 -- Equivalent to @'cacheMessageEncoding' . 'messageReflection'@.
-cacheMessage :: forall message . Message message => message -> MessageEncoding message
-cacheMessage m = cacheMessageEncoding (messageReflection m)
-{-# INLINABLE cacheMessage #-}
+messageCache :: forall message . Message message => message -> MessageEncoding message
+messageCache m = cacheMessageEncoding (messageReflection m)
+{-# INLINABLE messageCache #-}
 
 instance (Message message, Show message) =>
          Show (MessageEncoding message)
@@ -425,4 +436,67 @@ instance (Message message, Show message) =>
     showsPrec d (messageEncodingToByteString -> bs) = showParen (d >= 11) $
       case fromByteString bs of
         Left _ -> shows 'unsafeByteStringToMessageEncoding . showChar ' ' . showsPrec 11 bs
-        Right (msg :: message) -> shows 'cacheMessage . showChar ' ' . showsPrec 11 msg
+        Right (msg :: message) -> shows 'messageCache . showChar ' ' . showsPrec 11 msg
+
+instance (Message message, Show message) =>
+         Show (MessageEncoder message)
+  where
+    showsPrec d (messageEncoderToByteString -> bs) = showParen (d >= 11) $
+      case fromByteString bs of
+        Left _ -> shows 'unsafeByteStringToMessageEncoder . showChar ' ' . showsPrec 11 bs
+        Right (msg :: message) -> shows 'messageReflection . showChar ' ' . showsPrec 11 msg
+
+instance (Message message, JSONPB.ToJSONPB message) =>
+         JSONPB.ToJSONPB (MessageEncoding message)
+  where
+    toJSONPB (messageEncodingToByteString -> bs) opts =
+      case fromByteString bs of
+        Left _ -> JSONPB.toJSONPB @B.ByteString bs opts
+        Right (msg :: message) -> JSONPB.toJSONPB @message msg opts
+
+    toEncodingPB (messageEncodingToByteString -> bs) opts =
+      case fromByteString bs of
+        Left _ -> JSONPB.toEncodingPB @B.ByteString bs opts
+        Right (msg :: message) -> JSONPB.toEncodingPB @message msg opts
+
+instance (Message message, JSONPB.ToJSONPB message) =>
+         JSONPB.ToJSONPB (MessageEncoder message)
+  where
+    toJSONPB = JSONPB.toJSONPB @(MessageEncoding message) . cacheMessageEncoding
+    toEncodingPB = JSONPB.toEncodingPB @(MessageEncoding message) . cacheMessageEncoding
+
+instance (Message message, JSONPB.FromJSONPB message) =>
+         JSONPB.FromJSONPB (MessageEncoding message)
+  where
+    parseJSONPB v =
+      messageCache <$> JSONPB.parseJSONPB @message v <|>
+      unsafeByteStringToMessageEncoding <$> JSONPB.parseJSONPB @B.ByteString v
+
+instance (Message message, JSONPB.FromJSONPB message) =>
+         JSONPB.FromJSONPB (MessageEncoder message)
+  where
+    parseJSONPB v =
+      messageReflection <$> JSONPB.parseJSONPB @message v <|>
+      unsafeByteStringToMessageEncoder <$> JSONPB.parseJSONPB @B.ByteString v
+
+instance (Message message, JSONPB.ToJSONPB message) =>
+         Aeson.ToJSON (MessageEncoding message)
+  where
+    toJSON = JSONPB.toAesonValue
+    toEncoding = JSONPB.toAesonEncoding
+
+instance (Message message, JSONPB.ToJSONPB message) =>
+         Aeson.ToJSON (MessageEncoder message)
+  where
+    toJSON = JSONPB.toAesonValue
+    toEncoding = JSONPB.toAesonEncoding
+
+instance (Message message, JSONPB.FromJSONPB message) =>
+         Aeson.FromJSON (MessageEncoding message)
+  where
+    parseJSON = JSONPB.parseJSONPB
+
+instance (Message message, JSONPB.FromJSONPB message) =>
+         Aeson.FromJSON (MessageEncoder message)
+  where
+    parseJSON = JSONPB.parseJSONPB
