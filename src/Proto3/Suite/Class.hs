@@ -243,10 +243,14 @@ instance HasDefault (NestedVec a) where
 
 instance HasDefault (Nested a) where
   def = Nested Nothing
-  isDefault = isNothing . nested
+  {-# INLINE CONLIKE def #-}
+
+  isDefault (Nested x) = isNothing x
+  {-# INLINE isDefault #-}
 
 instance (HasDefault a) => HasDefault (ForceEmit a) where
   def       = ForceEmit def
+
   isDefault = isDefault . forceEmit
 
 -- | Used in fields of generated records to represent an unwrapped
@@ -668,15 +672,19 @@ instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
   {-# INLINE encodeMessageField #-}
 
 instance (Named a, Message a) => MessageField (Nested a) where
-  encodeMessageField !num = go op
-    where
-      go f = foldMap f . coerce @(Nested a) @(Maybe a)
-      op = Encode.embedded num . encodeMessage (fieldNumber 1)
-      {-# INLINABLE op #-}  -- To allow specialization to a particular type class or field number.
+  encodeMessageField !num = maybe mempty (Encode.embedded num . encodeMessage (fieldNumber 1)) . nested
   {-# INLINE encodeMessageField #-}
-  decodeMessageField = coerce @(Parser RawField (Maybe a)) @(Parser RawField (Nested a))
-                       (Decode.embedded (decodeMessage (fieldNumber 1)))
-  protoType _ = messageField (Prim . Named . Single $ nameOf (proxy# :: Proxy# a)) Nothing
+
+  decodeMessageField = coerce @(Parser RawField (Maybe a)) @(Parser RawField (Nested a)) (Decode.embedded (decodeMessage (fieldNumber 1)))
+
+  protoType _ = 
+    DotProtoField
+      { dotProtoFieldNumber = fieldNumber 1
+      , dotProtoFieldType = (Prim . Named . Single $ nameOf (proxy# :: Proxy# a)) 
+      , dotProtoFieldName = Single "nested"
+      , dotProtoFieldOptions = []
+      , dotProtoFieldComment = ""
+      }
 
 instance Primitive a => MessageField (UnpackedVec a) where
   encodeMessageField !fn = go op
