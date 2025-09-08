@@ -294,28 +294,24 @@ protobufFormType ns = typeNamed_ . protobufFormName ns
 formProtoTypeT :: HsType
 formProtoTypeT = protobufFormType tcName "ProtoType"
 
-formNamesOf, formNumberOf, formOneOfOf, formRepetitionOf, formProtoTypeOf :: HsQName
+formNamesOf, formNumberOf, formOneOfOf, formCardinalityOf, formProtoTypeOf :: HsQName
 formNamesOf = protobufFormName tcName "NamesOf"
 formNumberOf = protobufFormName tcName "NumberOf"
 formOneOfOf = protobufFormName tcName "OneOfOf"
-formRepetitionOf = protobufFormName tcName "RepetitionOf"
+formCardinalityOf = protobufFormName tcName "CardinalityOf"
 formProtoTypeOf = protobufFormName tcName "ProtoTypeOf"
 
 formFieldNotFound, formFieldOrOneOfNotFound :: HsType
 formFieldNotFound = protobufFormType tcName "FieldNotFound"
 formFieldOrOneOfNotFound = protobufFormType tcName "FieldOrOneOfNotFound"
 
-formImplicitT, formAlternativeT :: HsType
-formImplicitT = protobufFormType dataName "Implicit"
-formAlternativeT = protobufFormType dataName "Alternative"
-
 formUnpackedT, formPackedT :: HsType
 formUnpackedT = protobufFormType dataName "Unpacked"
 formPackedT = protobufFormType dataName "Packed"
 
-formRepetitionT, formSingularT, formOptionalT, formRepeatedT :: HsType
-formRepetitionT = protobufFormType tcName "Repetition"
-formSingularT = protobufFormType dataName "Singular"
+formCardinalityT, formImplicitT, formOptionalT, formRepeatedT :: HsType
+formCardinalityT = protobufFormType tcName "Cardinality"
+formImplicitT = protobufFormType dataName "Implicit"
 formOptionalT = protobufFormType dataName "Optional"
 formRepeatedT = protobufFormType dataName "Repeated"
 
@@ -1001,16 +997,17 @@ symT = noLocA . HsTyLit synDef . HsStrTy NoSourceText . mkFastString
 
 nothingN, justN :: HsQName
 
-dotProtoFieldC, primC, repeatedC, nestedRepeatedC, namedC, mapC,
+dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC, mapC,
   fieldNumberC, singleC, dotsC, pathC, qualifiedC, anonymousC, dotProtoOptionC,
   identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC, nothingC,
   justC, forceEmitC, encodeMessageFieldE, fromStringE, decodeMessageFieldE,
   pureE, returnE, mappendE, memptyE, msumE, atE, oneofE, fmapE :: HsExp
 
-justT, nothingT, natT, symbolT, typeErrorT :: HsType
+forceEmitT, justT, maybeT, nothingT, natT, symbolT, typeErrorT :: HsType
 
 dotProtoFieldC       = var_ (protobufASTName tcName "DotProtoField")
 primC                = var_ (protobufASTName dataName "Prim")
+optionalC            = var_ (protobufASTName dataName "Optional")
 repeatedC            = var_ (protobufASTName dataName "Repeated")
 nestedRepeatedC      = var_ (protobufASTName dataName "NestedRepeated")
 namedC               = var_ (protobufASTName tcName "Named")
@@ -1028,6 +1025,7 @@ intLitC              = var_ (protobufASTName dataName "IntLit")
 floatLitC            = var_ (protobufASTName dataName "FloatLit")
 boolLitC             = var_ (protobufASTName dataName "BoolLit")
 forceEmitC           = var_ (protobufName dataName "ForceEmit")
+forceEmitT           = protobufType_ "ForceEmit"
 encodeMessageFieldE  = var_ (protobufName varName "encodeMessageField")
 decodeMessageFieldE  = var_ (protobufName varName "decodeMessageField")
 atE                  = var_ (protobufName varName "at")
@@ -1041,6 +1039,7 @@ nothingT             = typeNamed_ (haskellName tcName "Nothing")
 justC                = var_ justN
 justN                =       haskellName dataName "Just"
 justT                = typeNamed_ (haskellName tcName "Just")
+maybeT               = typeNamed_ (haskellName tcName "Maybe")
 fromStringE          = var_ (haskellName varName "fromString")
 pureE                = var_ (haskellName varName "pure")
 returnE              = var_ (haskellName varName "return")

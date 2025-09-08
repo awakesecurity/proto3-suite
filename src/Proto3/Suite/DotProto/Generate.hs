@@ -739,6 +739,7 @@ foldDPT dptToHsCont foldPrim ctxt dpt =
   in
     case dpt of
       Prim pType           -> cont <$> prim pType
+      Optional pType       -> cont <$> prim pType
       Repeated pType       -> cont <$> prim pType
       NestedRepeated pType -> cont <$> prim pType
       Map k v  | validMapKey k -> tyApp . cont <$> prim k <*> go (Prim v) -- need to 'Nest' message types
@@ -754,6 +755,9 @@ dptToHsWrappedContType fc ctxt opts = \case
   Prim (Named tyName)
     | WithinMessage <- fc, isMessage ctxt tyName
                             -> Just $ tyApp (protobufType_ "Nested")
+  Optional (Named tyName)
+    | isMessage ctxt tyName -> Just $ tyApp (protobufType_ "Nested")
+  Optional _                -> Just $ tyApp maybeT . tyApp forceEmitT
   Repeated (Named tyName)
     | isMessage ctxt tyName -> Just $ tyApp (protobufType_ "NestedVec")
   Repeated ty
@@ -771,6 +775,7 @@ dptToHsContType :: FieldContext -> TypeContext -> DotProtoType -> HsType -> HsTy
 dptToHsContType fc ctxt = \case
   Prim (Named tyName) | WithinMessage <- fc, isMessage ctxt tyName
                      -> tyApp $ primType_ "Maybe"
+  Optional _         -> tyApp $ primType_ "Maybe"
   Repeated _         -> tyApp $ primType_ "Vector"
   NestedRepeated _   -> tyApp $ primType_ "Vector"
   Map _ _            -> tyApp $ primType_ "Map"
@@ -822,15 +827,15 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
                       , Fixed32, Fixed64, SFixed32, SFixed64
                       , String, Bool])
 
--- | Convert a dot proto type to a Haskell type of kind `Proto3.Suite.Form.Repetition`.
+-- | Convert a dot proto type to a Haskell type of kind `Proto3.Suite.Form.Cardinality`.
 -- It is ASSUMED that the field with this type is NOT part of a @oneof@.
-dptToFormRepetition ::
+dptToFormCardinality ::
   MonadError CompileError m => [DotProtoOption] -> TypeContext -> DotProtoType -> m HsType
-dptToFormRepetition opts ctxt = \case
+dptToFormCardinality opts ctxt = \case
   Prim (Named tyName)
     | isMessage ctxt tyName -> pure formOptionalT
-  Prim _                    -> pure $ tyApp formSingularT formImplicitT
-    -- TO DO: When the @optional@ keyword is supported, check for it here.
+  Prim _                    -> pure formImplicitT
+  Optional _                -> pure formOptionalT
   Repeated (Named tyName)
     | isMessage ctxt tyName -> pure unpacked
   Repeated pType
@@ -847,10 +852,12 @@ dptToFormRepetition opts ctxt = \case
     unpacked = tyApp formRepeatedT formUnpackedT
 
 -- | Convert a dot proto type to a Haskell type of kind `Proto3.Suite.Form.ProtoType`,
--- with `Proto3.Suite.Form.Optional` replacing wrapper types.
+-- with `Proto3.Suite.Form.Optional` serving the role elsewhere served by wrapper types
+-- and by `Proto3.Suite.Types.ForceEmit`.
 dptToFormType :: MonadError CompileError m => TypeContext -> DotProtoType -> m HsType
 dptToFormType ctxt = \case
   Prim pType -> dpptToFormType ctxt pType
+  Optional pType -> dpptToFormType ctxt pType
   Repeated pType -> dpptToFormType ctxt pType
   NestedRepeated pType -> internalError $ "unexpected NestedRepeated on " ++ show pType
   Map k v
@@ -1114,7 +1121,7 @@ data FieldSpec = FieldSpec
   { fieldSpecName :: FieldName
   , fieldSpecNumber :: FieldNumber
   , fieldSpecOneOf :: Maybe FieldName
-  , fieldSpecRepetition :: HsType
+  , fieldSpecCardinality :: HsType
   , fieldSpecProtoType :: HsType
   }
 
@@ -1150,7 +1157,7 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
         msgNumberOf = unqual_ tcName (msgName ++ "_NumberOf")
         msgProtoTypeOf = unqual_ tcName (msgName ++ "_ProtoTypeOf")
         msgOneOfOf = unqual_ tcName (msgName ++ "_OneOfOf")
-        msgRepetitionOf = unqual_ tcName (msgName ++ "_RepetitionOf")
+        msgCardinalityOf = unqual_ tcName (msgName ++ "_CardinalityOf")
         fieldNameVar = tvarn_ "name"
         fieldNameVarT = typeNamed_ fieldNameVar
         fieldNameVarB = kindedTyVar_ synDef fieldNameVar symbolT
@@ -1168,7 +1175,7 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
         onOneOfs rhs = oneOfs <&> \o -> (Nothing, [ toSym o ], rhs o)
 
     let namesOf :: HsDecl
-        numberOf, protoTypeOf, oneOfOf, repetitionOf :: [HsDecl]
+        numberOf, protoTypeOf, oneOfOf, cardinalityOf :: [HsDecl]
         namesOf = tyFamInstDecl_ formNamesOf Nothing [ msgNameT ]
           (listT_ (map fieldNameT fieldSpecs))
         numberOf =
@@ -1189,29 +1196,29 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
           , closedTyFamDecl_ msgOneOfOf [ fieldNameVarB ] symbolT
               (onFields oneOfT ++ onOneOfs toSym ++ err formFieldOrOneOfNotFound)
           ]
-        repetitionOf =
-          [ tyFamInstDecl_ formRepetitionOf Nothing [ msgNameT, fieldNameVarT ]
-              (tyApp (typeNamed_ msgRepetitionOf) fieldNameVarT)
-          , closedTyFamDecl_ msgRepetitionOf [ fieldNameVarB ] formRepetitionT
-              ( onFields fieldSpecRepetition ++
-                onOneOfs (const (tyApp formSingularT formAlternativeT)) ++
+        cardinalityOf =
+          [ tyFamInstDecl_ formCardinalityOf Nothing [ msgNameT, fieldNameVarT ]
+              (tyApp (typeNamed_ msgCardinalityOf) fieldNameVarT)
+          , closedTyFamDecl_ msgCardinalityOf [ fieldNameVarB ] formCardinalityT
+              ( onFields fieldSpecCardinality ++
+                onOneOfs (const formOptionalT) ++
                 err formFieldOrOneOfNotFound
               )
           ]
 
-    pure $ namesOf : numberOf ++ protoTypeOf ++ oneOfOf ++ repetitionOf
+    pure $ namesOf : numberOf ++ protoTypeOf ++ oneOfOf ++ cardinalityOf
   where
     mkFieldSpecs :: QualifiedField -> WriterT FieldOccurrences m ([FieldName], [FieldSpec])
     mkFieldSpecs QualifiedField{fieldInfo} = case fieldInfo of
       FieldNormal fieldName fieldNum dpType options -> do
         tell (oneOccurrence fieldName, oneOccurrence fieldNum)
-        repetition <- dptToFormRepetition options ctxt dpType
+        cardinality <- dptToFormCardinality options ctxt dpType
         protoType <- dptToFormType ctxt dpType
         pure ( [], [ FieldSpec
                        { fieldSpecName = fieldName
                        , fieldSpecNumber = fieldNum
                        , fieldSpecOneOf = Nothing
-                       , fieldSpecRepetition = repetition
+                       , fieldSpecCardinality = cardinality
                        , fieldSpecProtoType = protoType
                        } ] )
 
@@ -1231,7 +1238,7 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
                    { fieldSpecName = subfieldName
                    , fieldSpecNumber = subfieldNum
                    , fieldSpecOneOf = Just oneofName
-                   , fieldSpecRepetition = tyApp formSingularT formAlternativeT
+                   , fieldSpecCardinality = formOptionalT
                    , fieldSpecProtoType = protoType
                    }
 
@@ -2199,6 +2206,7 @@ optionE (DotProtoOption name value) =
 -- | Translate a dot proto type to its Haskell AST type
 dpTypeE :: DotProtoType -> HsExp
 dpTypeE (Prim p)           = apply primC           [ dpPrimTypeE p ]
+dpTypeE (Optional p)       = apply optionalC       [ dpPrimTypeE p ]
 dpTypeE (Repeated p)       = apply repeatedC       [ dpPrimTypeE p ]
 dpTypeE (NestedRepeated p) = apply nestedRepeatedC [ dpPrimTypeE p ]
 dpTypeE (Map k v)          = apply mapC            [ dpPrimTypeE k, dpPrimTypeE v]

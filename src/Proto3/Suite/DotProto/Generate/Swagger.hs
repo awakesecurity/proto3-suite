@@ -59,6 +59,10 @@ deriving newtype instance ToSchema a => ToSchema (Fixed a)
 -- Zig-zag encoding issues do not matter to JSONPB.
 deriving newtype instance ToSchema a => ToSchema (Signed a)
 
+-- `Proto3.Suite.Types.ForceEmit` affects the binary format, not the JSONPB schema, but
+-- that might change if we find a way to express the meaning of omission in such a schema.
+deriving newtype instance ToSchema a => ToSchema (Proto3.Suite.Types.ForceEmit a)
+
 -- Packed/unpacked distinctions do not matter to JSONPB.
 deriving via (V.Vector a) instance ToSchema a => ToSchema (NestedVec a)
 deriving via (V.Vector a) instance ToSchema a => ToSchema (PackedVec a)

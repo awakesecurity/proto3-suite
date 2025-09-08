@@ -8,6 +8,7 @@ from test_proto_import_pb2        import WithNesting as ImportedWithNesting
 from test_proto_negative_enum_pb2 import *
 from test_proto_oneof_pb2         import Something, WithImported, DUMMY0, DUMMY1
 from test_proto_oneof_import_pb2  import WithOneof
+from test_proto_optional_pb2      import Code55, Enum, Submessage, UNKNOWN, WithOptional
 from test_proto_wrappers_pb2      import *
 
 # Python 3.7 or newer requires this
@@ -689,6 +690,57 @@ assert case_NegativeEnum_D.v == NEGATIVE_ENUM_NEGATIVE_128
 
 case_NegativeEnum_E = read_proto(WithNegativeEnum)
 assert case_NegativeEnum_E.v == NEGATIVE_ENUM_128
+
+case_Optional_empty = read_proto(WithOptional)
+assert case_Optional_empty == WithOptional()
+
+case_Optional_realA = read_proto(WithOptional)
+assert case_Optional_realA == WithOptional(optionalDouble=0, optionalFloat=1.0)
+
+case_Optional_realB = read_proto(WithOptional)
+assert case_Optional_realB == WithOptional(optionalDouble=2.0, optionalFloat=0)
+
+case_Optional_intA = read_proto(WithOptional)
+assert case_Optional_intA == WithOptional(optionalInt32=0, optionalInt64=-64)
+
+case_Optional_intB = read_proto(WithOptional)
+assert case_Optional_intB == WithOptional(optionalInt32=-32, optionalInt64=0)
+
+case_Optional_uintA = read_proto(WithOptional)
+assert case_Optional_uintA == WithOptional(optionalUint32=0, optionalUint64=0xFFFFFFFFFFFFFFBF)
+
+case_Optional_uintB = read_proto(WithOptional)
+assert case_Optional_uintB == WithOptional(optionalUint32=0xFFFFFFDF, optionalUint64=0)
+
+case_Optional_sintA = read_proto(WithOptional)
+assert case_Optional_sintA == WithOptional(optionalSint32=0, optionalSint64=-64)
+
+case_Optional_sintB = read_proto(WithOptional)
+assert case_Optional_sintB == WithOptional(optionalSint32=-32, optionalSint64=0)
+
+case_Optional_fixedA = read_proto(WithOptional)
+assert case_Optional_fixedA == WithOptional(optionalFixed32=0, optionalFixed64=0xFFFFFFFFFFFFFFBF)
+
+case_Optional_fixedB = read_proto(WithOptional)
+assert case_Optional_fixedB == WithOptional(optionalFixed32=0xFFFFFFDF, optionalFixed64=0)
+
+case_Optional_sfixedA = read_proto(WithOptional)
+assert case_Optional_sfixedA == WithOptional(optionalSfixed32=0, optionalSfixed64=-64)
+
+case_Optional_sfixedB = read_proto(WithOptional)
+assert case_Optional_sfixedB == WithOptional(optionalSfixed32=-32, optionalSfixed64=0)
+
+case_Optional_bool_string_bytesA = read_proto(WithOptional)
+assert case_Optional_bool_string_bytesA == WithOptional(optionalBool=False, optionalString="abc", optionalBytes=b"xyz")
+
+case_Optional_bool_string_bytesB = read_proto(WithOptional)
+assert case_Optional_bool_string_bytesB == WithOptional(optionalBool=True, optionalString="", optionalBytes=b"")
+
+case_Optional_enum_submessageA = read_proto(WithOptional)
+assert case_Optional_enum_submessageA == WithOptional(optionalEnum=UNKNOWN, optionalSubmessage=Submessage(someField=123))
+
+case_Optional_enum_submessageB = read_proto(WithOptional)
+assert case_Optional_enum_submessageB == WithOptional(optionalEnum=Code55)
 
 # Wait for the special 'done' messsage
 done_msg = read_proto(MultipleFields)

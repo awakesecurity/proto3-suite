@@ -1,9 +1,10 @@
-{-# LANGUAGE CPP                  #-}
-{-# LANGUAGE ImplicitParams       #-}
-{-# LANGUAGE OverloadedLists      #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE NegativeLiterals #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Main where
 
@@ -13,10 +14,11 @@ import           Proto3.Suite
 import qualified Proto3.Suite.JSONPB as JSONPB
 import           TestProto
 import qualified TestProtoImport
+import qualified TestProtoNegativeEnum
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
+import qualified TestProtoOptional
 import qualified TestProtoWrappers
-import qualified TestProtoNegativeEnum
 import           Text.Read (readEither)
 import           System.Environment (getArgs, getProgName)
 import           System.Exit (die)
@@ -333,6 +335,44 @@ testCase_NegativeEnum = do
   emit TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_NEGATIVE_128
   emit TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_128
 
+testCase_Optional :: (?format :: Format, ?iterator :: Iterator, ?stripping :: Stripping) => IO ()
+testCase_Optional = do
+  let emit f = outputMessage (f (def @TestProtoOptional.WithOptional))
+  emit (\m -> m)
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalDouble = Just 0
+                , TestProtoOptional.withOptionalOptionalFloat = Just 1.0 })
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalDouble = Just 2.0
+                , TestProtoOptional.withOptionalOptionalFloat = Just 0 })
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalInt32 = Just 0
+                , TestProtoOptional.withOptionalOptionalInt64 = Just -64 })
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalInt32 = Just -32
+                , TestProtoOptional.withOptionalOptionalInt64 = Just 0 })
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalUint32 = Just 0
+                , TestProtoOptional.withOptionalOptionalUint64 = Just 0xFFFFFFFFFFFFFFBF })
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalUint32 = Just 0xFFFFFFDF
+                , TestProtoOptional.withOptionalOptionalUint64 = Just 0 })
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalSint32 = Just 0
+                , TestProtoOptional.withOptionalOptionalSint64 = Just -64 })
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalSint32 = Just -32
+                , TestProtoOptional.withOptionalOptionalSint64 = Just 0 })
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalFixed32 = Just 0
+                , TestProtoOptional.withOptionalOptionalFixed64 = Just 0xFFFFFFFFFFFFFFBF })
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalFixed32 = Just 0xFFFFFFDF
+                , TestProtoOptional.withOptionalOptionalFixed64 = Just 0 })
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalSfixed32 = Just 0
+                , TestProtoOptional.withOptionalOptionalSfixed64 = Just -64})
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalSfixed32 = Just -32
+                , TestProtoOptional.withOptionalOptionalSfixed64 = Just 0})
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalBool = Just False
+                , TestProtoOptional.withOptionalOptionalString = Just "abc"
+                , TestProtoOptional.withOptionalOptionalBytes = Just "xyz" })
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalBool = Just True
+                , TestProtoOptional.withOptionalOptionalString = Just ""
+                , TestProtoOptional.withOptionalOptionalBytes = Just "" })
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalEnum = Just (Enumerated (Right TestProtoOptional.EnumUNKNOWN))
+                , TestProtoOptional.withOptionalOptionalSubmessage = Just (TestProtoOptional.Submessage 123) })
+  emit (\m -> m { TestProtoOptional.withOptionalOptionalEnum = Just (Enumerated (Right TestProtoOptional.EnumCode55)) })
+
 
 main :: IO ()
 main = do
@@ -391,5 +431,8 @@ main = do
 
   -- Negative enum codes
   testCase_NegativeEnum
+
+  -- Optional fields
+  testCase_Optional
 
   outputMessage (MultipleFields 0 0 0 0 "All tests complete" False)

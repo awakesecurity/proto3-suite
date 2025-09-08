@@ -40,6 +40,7 @@ module Proto3.Suite.Form.Encode.Core
   , RepeatedNames1
   , Omits
   , Strip
+  , OccupiedName
   , OccupiedOnly
   , OccupiedOnly1
   , fieldsToMessage
@@ -63,6 +64,7 @@ import Control.Category (Category(..))
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
 import Data.Coerce (coerce)
+import Data.Functor.Identity (Identity(..))
 import Data.Kind (Type)
 import Data.Traversable (for)
 import GHC.Exts (Constraint, Proxy#, TYPE, proxy#)
@@ -72,8 +74,8 @@ import "template-haskell" Language.Haskell.TH qualified as TH
 import Prelude hiding ((.), id)
 import Proto3.Suite.Class (isDefault)
 import Proto3.Suite.Form
-         (Association, NumberOf, Omission(..), OneOfOf, Packing(..),
-          Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf, Wrapper)
+         (Association, NumberOf, OneOfOf, Packing(..), Cardinality(..),
+          CardinalityOf, ProtoType(..), ProtoTypeOf, Wrapper)
 import Proto3.Wire.Encode qualified as Encode
 import Proto3.Wire.Encode.Repeated (Repeated(..), ToRepeated(..), mapRepeated)
 import Proto3.Wire.Types (FieldNumber, fieldNumber)
@@ -206,6 +208,23 @@ type family Strip (name :: k) (names :: [k]) :: [k]
     Strip name (other ': names) = other ': Strip name names
     Strip name '[] = '[]
 
+-- | Yields the name of the containing @oneof@ if there is one,
+-- and otherwise returns the field name as is.  This type family can
+-- help prevent two fields of the same @oneof@ from being emitted.
+--
+-- This type family is an implementation detail of other type families
+-- that is subject to change, and is exported only to assist
+-- in understanding of compilation errors.
+type OccupiedName (message :: Type) (name :: Symbol) = OccupiedName1 name (OneOfOf message name)
+
+-- | This type family is an implementation detail of 'OccupiedName'
+-- that is subject to change, and is exported only to assist
+-- in understanding of compilation errors.
+type family OccupiedName1 (name :: Symbol) (oneof :: Symbol) :: Symbol
+  where
+    OccupiedName1 name "" = name
+    OccupiedName1 _ oneof = oneof
+
 -- | Filters out the repeated field names and replaces @oneof@ fields with their @oneof@ names.
 --
 -- We do this in case 'omitted' is used to introduce the names of repeated fields
@@ -217,7 +236,7 @@ type family Strip (name :: k) (names :: [k]) :: [k]
 type family OccupiedOnly (message :: Type) (names :: [Symbol]) :: [Symbol]
   where
     OccupiedOnly message (name ': names) =
-      OccupiedOnly1 message name names (RepetitionOf message name)
+      OccupiedOnly1 message name names (CardinalityOf message name)
     OccupiedOnly _ '[] =
       '[]
 
@@ -227,14 +246,12 @@ type family OccupiedOnly (message :: Type) (names :: [Symbol]) :: [Symbol]
 -- that is subject to change, and is exported only to assist
 -- in understanding of compilation errors.
 type family OccupiedOnly1 (message :: Type) (name :: Symbol) (names :: [Symbol])
-                          (repetition :: Repetition) :: [Symbol]
+                          (cardinality :: Cardinality) :: [Symbol]
   where
-    OccupiedOnly1 message name names ('Singular 'Alternative) =
-      OneOfOf message name ': OccupiedOnly message names
-    OccupiedOnly1 message name names ('Singular 'Implicit) =
+    OccupiedOnly1 message name names 'Implicit =
       name ': OccupiedOnly message names
     OccupiedOnly1 message name names 'Optional =
-      name ': OccupiedOnly message names
+      OccupiedName message name ': OccupiedOnly message names
     OccupiedOnly1 message name names ('Repeated _) =
       OccupiedOnly message names
 
@@ -259,7 +276,7 @@ fieldsToMessage = UnsafeMessageEncoder . untypedFieldsEncoder
 --   prevent further emission of any of its fields.
 --
 type Occupy (message :: Type) (name :: Symbol) (names :: [Symbol]) =
-  Occupy1 message name names (RepetitionOf message name)
+  Occupy1 message name names (CardinalityOf message name)
 
 -- | Helps to implement 'Occupy'.
 --
@@ -267,11 +284,10 @@ type Occupy (message :: Type) (name :: Symbol) (names :: [Symbol]) =
 -- that is subject to change, and is exported only to assist
 -- in understanding of compilation errors.
 type family Occupy1 (message :: Type) (name :: Symbol) (names :: [Symbol])
-                    (repetition :: Repetition) :: [Symbol]
+                    (cardinality :: Cardinality) :: [Symbol]
   where
-    Occupy1 message name names ('Singular 'Alternative) = OneOfOf message name ': names
-    Occupy1 message name names ('Singular 'Implicit) = name ': names
-    Occupy1 message name names 'Optional = name ': names
+    Occupy1 message name names 'Implicit = name ': names
+    Occupy1 message name names 'Optional = OccupiedName message name ': names
     Occupy1 message name names ('Repeated _) = names
 
 -- | The constraint that 'moreNames' is 'names', but possibly with additional
@@ -336,27 +352,26 @@ fieldNumberVal = untypedSFieldNumber (sFieldNumber @(NumberOf message name))
 --
 -- More than one argument type may be supported for any given field;
 -- see further discussion in the comments for 'FieldForm', to which
--- this type class delegates after determining the repetition and
+-- this type class delegates after determining the cardinality and
 -- protobuf type of the field in question.
 type Field :: Symbol -> forall {r} . TYPE r -> Type -> Constraint
 class Field name a message
   where
     -- | Encodes the named field from the given value.
     --
-    -- If the field is neither repeated nor part of a oneof, then its default
-    -- value is represented implicitly--that is, it encodes to zero octets.
+    -- If the field is neither @optional@, nor @repeated@, nor part of a @oneof@, then
+    -- its default value is represented implicitly--that is, it encodes to zero octets.
+    --
+    -- In other cases the argument is often a container.  In particular, when using
+    -- this method with @optional@ fields and fields within a @oneof@, the argument
+    -- type typically involves 'Maybe' or (if the field is always "set") 'Identity'.
     --
     -- Use @TypeApplications@ to specify the field name as the first type parameter.
     --
-    -- You may also need to specify the argument type as the second type parameter
-    -- when the argument expression is polymorphic.  For example, when passing
-    -- an integer literal, or a string literal if you use @OverloadedStrings@.
-    -- (The runtime representation of the argument type is found by unification.)
-    --
-    -- If the argument type is too verbose, or is ambiguous due to polymorphism,
-    -- then we recommend using 'Auto' or wrapping the call to 'field' in a helper
-    -- function in order to automatically select the argument type best suited to
-    -- your particular use case.  Examples:
+    -- The second type parameter may also be ambiguous.  For example, the argument
+    -- expression may be an integer literal or (when using @OverloadedStrings@)
+    -- a string literal.  @TypeApplications@ would resolve the ambiguity, but you
+    -- may prefer the 'Auto' wrapper or special-case helper functions such as:
     -- `Proto3.Suite.Form.Encode.message`,
     -- `Proto3.Suite.Form.Encode.associations`.
     --
@@ -374,7 +389,7 @@ instance forall (name :: Symbol)
 #endif
                 (message :: Type) .
          ( KnownFieldNumber message name
-         , FieldForm (RepetitionOf message name) (ProtoTypeOf message name) a
+         , FieldForm (CardinalityOf message name) (ProtoTypeOf message name) a
          ) =>
          Field name a message
   where
@@ -382,19 +397,19 @@ instance forall (name :: Symbol)
     field = coerce
       @(a -> Encode.MessageBuilder)
       @(a -> FieldsEncoder message names (Occupy message name names))
-      (fieldForm @(RepetitionOf message name) @(ProtoTypeOf message name) @a
+      (fieldForm @(CardinalityOf message name) @(ProtoTypeOf message name) @a
                  proxy# proxy# (fieldNumberVal @message @name))
       -- Implementation Note: Using the newtype constructor would require us
       -- to bind a variable of kind @TYPE r@, which is runtime-polymorphic.
       -- By using a coercion we avoid runtime polymorphism restrictions.
     {-# INLINE field #-}
 
--- | Implements 'Field' for all fields having the specified repetition,
+-- | Implements 'Field' for all fields having the specified cardinality,
 -- protobuf type, and type of argument to be encoded within that field.
 --
 -- Argument Type:
 --
--- For any given repetition and protobuf type there may be multiple
+-- For any given cardinality and protobuf type there may be multiple
 -- instances of this class for different types of argument.  For example,
 -- a field of protobuf type @sint64@ may be encoded from any of the Haskell
 -- types `Data.Int.Int8`, `Data.Int.Word8`, `Data.Int.Int16`, `Data.Int.Word16`,
@@ -415,16 +430,21 @@ instance forall (name :: Symbol)
 -- sure to consider how they might overlap with existing instances,
 -- and try to avoid overly broad instances that might cause ambiguity.
 --
--- However, this library does provide general instances for 'Optional'
--- and @'Repeated' 'Unpacked'@ that delegate to instances for
--- @'Singular' 'Alternative'@ for the same protobuf type, and an
--- instance for @'Repeated' 'Packed'@ that delegates to 'PackedFieldForm'.
+-- However, this library does provide some general instances:
+--
+--   * An instance for 'Optional' with 'Maybe' that delegates to
+--     the corresponding instance for 'Optional' with 'Identity'.
+--
+--   * An instance for @'Repeated' 'Unpacked'@ that delegates to
+--     the corresponding instance for 'Optional' with 'Identity'.
+--
+--   * An instance for @'Repeated' 'Packed'@ that delegates to 'PackedFieldForm'.
 --
 -- Design Note:
 --
 -- Importantly, the type parameters of this type class do not mention
--- the message type, field name, or field number, thus allowing it to
--- be broadly applicable to all message types.
+-- the containing message type, field name, or field number, thus
+-- allowing it to be broadly applicable to all containing message types.
 --
 -- Furthermore, type class 'Field' has a general-purpose definition
 -- that need not be specialized for particular message types: one that
@@ -436,8 +456,8 @@ instance forall (name :: Symbol)
 -- defined in "Proto3.Suite.Form", which declare message format without
 -- specifying any policy regarding how to efficiently encode or which
 -- Haskell types may be encoded.
-type FieldForm :: Repetition -> ProtoType -> forall {r} . TYPE r -> Constraint
-class FieldForm repetition protoType a
+type FieldForm :: Cardinality -> ProtoType -> forall {r} . TYPE r -> Constraint
+class FieldForm cardinality protoType a
   where
     -- | Encodes a message field with the
     -- given number from the given value.
@@ -446,35 +466,26 @@ class FieldForm repetition protoType a
     -- part of a @oneof@, then its default value is represented
     -- implicitly--that is, it encodes to zero octets.
     --
-    -- Use @TypeApplications@ to specify
-    -- the repetition and protobuf type.
-    --
     -- If you apply this method to a polymorphic expression,
     -- such as a literal value, then you may need to choose
     -- a particular type with @TypeApplications@ or @::@.
-    --
-    -- If the argument type is too verbose, then we recommend
-    -- wrapping calls to 'field' in helper functions select it
-    -- automatically based on particular use cases.  Examples:
-    -- `Proto3.Suite.Form.Encode.message`,
-    -- `Proto3.Suite.Form.Encode.associations`.
-    fieldForm :: Proxy# repetition -> Proxy# protoType -> FieldNumber -> a -> Encode.MessageBuilder
+    fieldForm :: Proxy# cardinality -> Proxy# protoType -> FieldNumber -> a -> Encode.MessageBuilder
 
-instance FieldForm ('Singular 'Alternative) protoType a =>
+instance FieldForm 'Optional protoType (Identity a) =>
          FieldForm 'Optional protoType (Maybe a)
   where
-    fieldForm _ ty !fn = Encode.etaMessageBuilder $
-      foldMap @Maybe (fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn)
+    fieldForm rep ty !fn = Encode.etaMessageBuilder $
+      foldMap @Maybe (fieldForm rep ty fn . Identity)
     {-# INLINE fieldForm #-}
 
 instance ( ToRepeated c e
-         , FieldForm ('Singular 'Alternative) protoType e
+         , FieldForm 'Optional protoType (Identity e)
          ) =>
          FieldForm ('Repeated 'Unpacked) protoType c
   where
     fieldForm _ ty !fn = Encode.etaMessageBuilder $
       Encode.repeatedMessageBuilder .
-      mapRepeated (fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn)
+      mapRepeated (fieldForm (proxy# :: Proxy# 'Optional) ty fn . Identity)
     {-# INLINE fieldForm #-}
 
 -- | Ignores the preference for packed format when there is exactly one element,
@@ -482,7 +493,7 @@ instance ( ToRepeated c e
 -- accept both packed and unpacked primitives regardless of packing preference.)
 instance ( ToRepeated c e
          , PackedFieldForm protoType e
-         , FieldForm ('Singular 'Alternative) protoType e
+         , FieldForm 'Optional protoType (Identity e)
          ) =>
          FieldForm ('Repeated 'Packed) protoType c
   where
@@ -493,7 +504,7 @@ instance ( ToRepeated c e
             | otherwise -> fieldForm (proxy# :: Proxy# ('Repeated 'Unpacked)) ty fn xs  -- 0 or 1
           Nothing -> case foldr singletonOp Empty reversed of
             Empty -> mempty  -- 0 elements can be expressed implicitly
-            Singleton x -> fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn x -- unpacked
+            Singleton x -> fieldForm (proxy# :: Proxy# 'Optional) ty fn (Identity x) -- unpacked
             Multiple -> packedFieldForm ty fn xs  -- multiple packed elements
       where
         singletonOp :: a -> Singleton a -> Singleton a
@@ -503,22 +514,20 @@ instance ( ToRepeated c e
 
 data Singleton a = Empty | Singleton a | Multiple
 
-instance (omission ~ 'Alternative) =>
-         FieldForm ('Singular omission) ('Message inner) (MessageEncoder inner)
+instance FieldForm 'Optional ('Message inner) (Identity (MessageEncoder inner))
   where
-    fieldForm _ _ !fn e = Encode.embedded fn (untypedMessageEncoder e)
+    fieldForm _ _ !fn (Identity e) = Encode.embedded fn (untypedMessageEncoder e)
     {-# INLINE fieldForm #-}
 
 -- | This instance is rather artificial because maps are automatically
--- repeated and unpacked, with no option to specify a single key-value
--- pair as a field of a @oneof@.  Hence the code generator should never
--- directly make use of this instance, but it will do so indirectly via
--- the general instance for repeated unpacked fields, which will then
--- delegate to this instance.
-instance (omission ~ 'Alternative) =>
-         FieldForm ('Singular omission) ('Map key value) (MessageEncoder (Association key value))
+-- repeated and unpacked, with no option to specify a single key-value pair
+-- as an @optional@ field or a field of a @oneof@.  Hence the code generator
+-- should never directly make use of this instance, but it will do so
+-- indirectly via the general instance for repeated unpacked fields,
+-- which will then delegate to this instance.
+instance FieldForm 'Optional ('Map key value) (Identity (MessageEncoder (Association key value)))
   where
-    fieldForm _ _ !fn a = Encode.embedded fn (untypedMessageEncoder a)
+    fieldForm _ _ !fn (Identity a) = Encode.embedded fn (untypedMessageEncoder a)
     {-# INLINE fieldForm #-}
 
 -- | 'FieldForm' delegates to this type class when encoding
@@ -541,13 +550,12 @@ newtype Wrap (a :: Type) = Wrap { unwrap :: a }
   deriving stock (Foldable, Functor, Generic, Traversable)
   deriving newtype (Bounded, Enum, Eq, Fractional, Integral, Ord, Num, Read, Real, Show)
 
-instance ( omission ~ 'Alternative
-         , FieldForm ('Singular 'Implicit) protoType a
-         ) =>
-         FieldForm ('Singular omission) ('Message (Wrapper protoType)) (Wrap a)
+instance FieldForm 'Implicit protoType a =>
+         FieldForm 'Optional ('Message (Wrapper protoType)) (Identity (Wrap a))
   where
-    fieldForm rep ty !fn (Wrap x) =
-      fieldForm rep ty fn (fieldsToMessage @(Wrapper protoType) (field @"value" x))
+    fieldForm _ ty !fn (Identity (Wrap x)) =
+      fieldForm (proxy# :: Proxy# 'Optional) ty fn
+                (Identity (fieldsToMessage @(Wrapper protoType) (field @"value" x)))
     {-# INLINE fieldForm #-}
 
 -- | Asks that its type parameter be chosen to be the most efficient Haskell type
@@ -591,28 +599,28 @@ instantiatePackableField protoType elementType encoder packedEncoder promotions 
   direct <-
     [d|
 
-      instance FieldForm ('Singular 'Alternative) $protoType $elementType
+      instance FieldForm 'Optional $protoType (Identity $elementType)
         where
-          fieldForm _ _ = $encoder
+          fieldForm _ _ !fn (Identity x) = $encoder fn x
           {-# INLINE fieldForm #-}
 
-      instance FieldForm ('Singular 'Implicit) $protoType $elementType
+      instance FieldForm 'Implicit $protoType $elementType
         where
           fieldForm _ ty !fn x
             | isDefault x = mempty
-            | otherwise = fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn x
+            | otherwise = fieldForm (proxy# :: Proxy# 'Optional) ty fn (Identity x)
           {-# INLINE fieldForm #-}
 
       instance (a ~ $elementType) =>
-               FieldForm ('Singular 'Alternative) $protoType (Auto a)
+               FieldForm 'Optional $protoType (Identity (Auto a))
         where
-          fieldForm = coerce (fieldForm @('Singular 'Alternative) @($protoType) @a)
+          fieldForm = coerce (fieldForm @'Optional @($protoType) @(Identity a))
           {-# INLINE fieldForm #-}
 
       instance (a ~ $elementType) =>
-               FieldForm ('Singular 'Implicit) $protoType (Auto a)
+               FieldForm 'Implicit $protoType (Auto a)
         where
-          fieldForm = coerce (fieldForm @('Singular 'Implicit) @($protoType) @a)
+          fieldForm = coerce (fieldForm @'Implicit @($protoType) @a)
           {-# INLINE fieldForm #-}
 
       instance PackedFieldForm $protoType $elementType
@@ -631,13 +639,13 @@ instantiatePackableField protoType elementType encoder packedEncoder promotions 
   promoted <- for promotions $ \(supportedType, conversion, compatibleProtoType) ->
     [d|
 
-      instance FieldForm ('Singular 'Alternative) $protoType $supportedType
+      instance FieldForm 'Optional $protoType (Identity $supportedType)
         where
-          fieldForm rep _ !fn x =
-            fieldForm rep (proxy# :: Proxy# $compatibleProtoType) fn ($conversion x)
+          fieldForm rep _ !fn (Identity x) =
+            fieldForm rep (proxy# :: Proxy# $compatibleProtoType) fn (Identity ($conversion x))
           {-# INLINE fieldForm #-}
 
-      instance FieldForm ('Singular 'Implicit) $protoType $supportedType
+      instance FieldForm 'Implicit $protoType $supportedType
         where
           fieldForm rep _ !fn x =
             fieldForm rep (proxy# :: Proxy# $compatibleProtoType) fn ($conversion x)
@@ -654,18 +662,17 @@ instantiatePackableField protoType elementType encoder packedEncoder promotions 
   wrapped <- if not hasWrapper then pure [] else
     [d|
 
-      instance (omission ~ 'Alternative) =>
-               FieldForm ('Singular omission) ('Message (Wrapper $protoType)) $elementType
+      instance FieldForm 'Optional ('Message (Wrapper $protoType)) (Identity $elementType)
         where
           fieldForm = coerce
-            (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap $elementType))
+            (fieldForm @'Optional @('Message (Wrapper $protoType)) @(Identity (Wrap $elementType)))
           {-# INLINE fieldForm #-}
 
-      instance (omission ~ 'Alternative, a ~ $elementType) =>
-               FieldForm ('Singular omission) ('Message (Wrapper $protoType)) (Auto a)
+      instance (a ~ $elementType) =>
+               FieldForm 'Optional ('Message (Wrapper $protoType)) (Identity (Auto a))
         where
           fieldForm = coerce
-            (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap a))
+            (fieldForm @'Optional @('Message (Wrapper $protoType)) @(Identity (Wrap a)))
           {-# INLINE fieldForm #-}
 
       |]
@@ -674,11 +681,10 @@ instantiatePackableField protoType elementType encoder packedEncoder promotions 
     for promotions $ \(supportedType, _, _) -> do
       [d|
 
-        instance (omission ~ 'Alternative) =>
-                 FieldForm ('Singular omission) ('Message (Wrapper $protoType)) $supportedType
+        instance FieldForm 'Optional ('Message (Wrapper $protoType)) (Identity $supportedType)
           where
             fieldForm = coerce
-              (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap $supportedType))
+              (fieldForm @'Optional @('Message (Wrapper $protoType)) @(Identity (Wrap $supportedType)))
             {-# INLINE fieldForm #-}
 
         |]
@@ -699,65 +705,63 @@ instantiateStringOrBytesField ::
 instantiateStringOrBytesField protoType argumentType encoder additional = do
   preferred <- [d|
 
-    instance FieldForm ('Singular 'Alternative) $protoType $argumentType
+    instance FieldForm 'Optional $protoType (Identity $argumentType)
       where
-        fieldForm _ _ = $encoder
+        fieldForm _ _ !fn (Identity x) = $encoder fn x
         {-# INLINE fieldForm #-}
 
-    instance FieldForm ('Singular 'Implicit) $protoType $argumentType
+    instance FieldForm 'Implicit $protoType $argumentType
       where
         fieldForm _ ty !fn x
           | isDefault x = mempty
-          | otherwise = fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn x
+          | otherwise = fieldForm (proxy# :: Proxy# 'Optional) ty fn (Identity x)
         {-# INLINE fieldForm #-}
 
     instance (a ~ $argumentType) =>
-             FieldForm ('Singular 'Alternative) $protoType (Auto a)
+             FieldForm 'Optional $protoType (Identity (Auto a))
       where
-        fieldForm = coerce (fieldForm @('Singular 'Alternative) @($protoType) @a)
+        fieldForm = coerce (fieldForm @'Optional @($protoType) @(Identity a))
         {-# INLINE fieldForm #-}
 
     instance (a ~ $argumentType) =>
-             FieldForm ('Singular 'Implicit) $protoType (Auto a)
+             FieldForm 'Implicit $protoType (Auto a)
       where
-        fieldForm = coerce (fieldForm @('Singular 'Implicit) @($protoType) @a)
+        fieldForm = coerce (fieldForm @'Implicit @($protoType) @a)
         {-# INLINE fieldForm #-}
 
-    instance (omission ~ 'Alternative) =>
-             FieldForm ('Singular omission) ('Message (Wrapper $protoType)) $argumentType
+    instance FieldForm 'Optional ('Message (Wrapper $protoType)) (Identity $argumentType)
       where
         fieldForm = coerce
-          (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap $argumentType))
+          (fieldForm @'Optional @('Message (Wrapper $protoType)) @(Identity (Wrap $argumentType)))
         {-# INLINE fieldForm #-}
 
-    instance (omission ~ 'Alternative, a ~ $argumentType) =>
-             FieldForm ('Singular omission) ('Message (Wrapper $protoType)) (Auto a)
+    instance (a ~ $argumentType) =>
+             FieldForm 'Optional ('Message (Wrapper $protoType)) (Identity (Auto a))
       where
         fieldForm = coerce
-          (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap a))
+          (fieldForm @'Optional @('Message (Wrapper $protoType)) @(Identity (Wrap a)))
         {-# INLINE fieldForm #-}
 
     |]
 
   supported <- for additional $ \(supportedType, additionalEncoder) -> [d|
 
-    instance FieldForm ('Singular 'Alternative) $protoType $supportedType
+    instance FieldForm 'Optional $protoType (Identity $supportedType)
       where
-        fieldForm _ _ = $additionalEncoder
+        fieldForm _ _ !fn (Identity x) = $additionalEncoder fn x
         {-# INLINE fieldForm #-}
 
-    instance FieldForm ('Singular 'Implicit) $protoType $supportedType
+    instance FieldForm 'Implicit $protoType $supportedType
       where
         fieldForm _ ty !fn x
           | isDefault x = mempty
-          | otherwise = fieldForm (proxy# :: Proxy# ('Singular 'Alternative)) ty fn x
+          | otherwise = fieldForm (proxy# :: Proxy# 'Optional) ty fn (Identity x)
         {-# INLINE fieldForm #-}
 
-    instance (omission ~ 'Alternative) =>
-             FieldForm ('Singular omission) ('Message (Wrapper $protoType)) $supportedType
+    instance FieldForm 'Optional ('Message (Wrapper $protoType)) (Identity $supportedType)
       where
         fieldForm = coerce
-          (fieldForm @('Singular omission) @('Message (Wrapper $protoType)) @(Wrap $supportedType))
+          (fieldForm @'Optional @('Message (Wrapper $protoType)) @(Identity (Wrap $supportedType)))
         {-# INLINE fieldForm #-}
 
     |]
