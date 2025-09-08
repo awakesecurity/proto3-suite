@@ -239,55 +239,55 @@ encoderMatchesGoldens = testGroup "Encoder matches golden encodings"
           in toEncoder v
 
 -- Simulated protobuf message type having a single field named @myBytes@ of
--- type @bytes@ with field number @8@ and the specified 'Form.Repetition'.
-data MyWithBytes (r :: Form.Repetition)
+-- type @bytes@ with field number @8@ and the specified 'Form.Cardinality'.
+data MyWithBytes (r :: Form.Cardinality)
 
 type instance Form.NamesOf (MyWithBytes r) = '["x"]
 
 type instance Form.NumberOf (MyWithBytes r) name = MyWithBytes_NumberOf r name
 
-type family MyWithBytes_NumberOf (r :: Form.Repetition) (name :: Symbol) :: Nat
+type family MyWithBytes_NumberOf (r :: Form.Cardinality) (name :: Symbol) :: Nat
   where
     MyWithBytes_NumberOf _ "myBytes" = 8
     MyWithBytes_NumberOf r name = TypeError (Form.FieldNotFound (MyWithBytes r) name)
 
 type instance Form.ProtoTypeOf (MyWithBytes r) name = MyWithBytes_ProtoTypeOf r name
 
-type family MyWithBytes_ProtoTypeOf (r :: Form.Repetition) (name :: Symbol) :: Form.ProtoType
+type family MyWithBytes_ProtoTypeOf (r :: Form.Cardinality) (name :: Symbol) :: Form.ProtoType
   where
     MyWithBytes_ProtoTypeOf _ "myBytes" = 'Form.Bytes
     MyWithBytes_ProtoTypeOf r name = TypeError (Form.FieldNotFound (MyWithBytes r) name)
 
 type instance Form.OneOfOf (MyWithBytes r) name = MyWithBytes_OneOfOf r name
 
-type family MyWithBytes_OneOfOf (r :: Form.Repetition) (name :: Symbol) :: Symbol
+type family MyWithBytes_OneOfOf (r :: Form.Cardinality) (name :: Symbol) :: Symbol
   where
-    MyWithBytes_OneOfOf ('Form.Singular 'Form.Alternative) "myBytes" = "pickOne"
-    MyWithBytes_OneOfOf ('Form.Singular 'Form.Alternative) "pickOne" = "pickOne"
+    MyWithBytes_OneOfOf ('Form.Unitary 'Form.Alternative) "myBytes" = "pickOne"
+    MyWithBytes_OneOfOf ('Form.Unitary 'Form.Alternative) "pickOne" = "pickOne"
     MyWithBytes_OneOfOf r "myBytes" = ""
     MyWithBytes_OneOfOf r name = TypeError (Form.FieldOrOneOfNotFound (MyWithBytes r) name)
 
-type instance Form.RepetitionOf (MyWithBytes r) name = MyWithBytes_RepetitionOf r name
+type instance Form.CardinalityOf (MyWithBytes r) name = MyWithBytes_CardinalityOf r name
 
-type family MyWithBytes_RepetitionOf (r :: Form.Repetition) (name :: Symbol) :: Form.Repetition
+type family MyWithBytes_CardinalityOf (r :: Form.Cardinality) (name :: Symbol) :: Form.Cardinality
   where
-    MyWithBytes_RepetitionOf r "myBytes" =
+    MyWithBytes_CardinalityOf r "myBytes" =
       r
-    MyWithBytes_RepetitionOf ('Form.Singular 'Form.Alternative) "pickOne" =
-      'Form.Singular 'Form.Alternative
-    MyWithBytes_RepetitionOf r name =
+    MyWithBytes_CardinalityOf ('Form.Unitary 'Form.Alternative) "pickOne" =
+      'Form.Unitary 'Form.Alternative
+    MyWithBytes_CardinalityOf r name =
       TypeError (Form.FieldOrOneOfNotFound (MyWithBytes r) name)
 
 encodeBytesFromBuilder :: TestTree
 encodeBytesFromBuilder = testCase "bytes from builder" $ do
     assertEqual "empty alternative"
-      (enc @('Form.Singular 'Form.Alternative) (mempty :: RB.BuildR)) "B\NUL"
+      (enc @('Form.Unitary 'Form.Alternative) (mempty :: RB.BuildR)) "B\NUL"
     assertEqual "nonempty alternative"
-      (enc @('Form.Singular 'Form.Alternative) (RB.byteString "xyz")) "B\ETXxyz"
+      (enc @('Form.Unitary 'Form.Alternative) (RB.byteString "xyz")) "B\ETXxyz"
     assertEqual "implicitly empty"
-      (enc @('Form.Singular 'Form.Implicit) (mempty :: RB.BuildR)) ""
+      (enc @('Form.Unitary 'Form.Implicit) (mempty :: RB.BuildR)) ""
     assertEqual "implicit but nonempty"
-      (enc @('Form.Singular 'Form.Implicit) (RB.byteString "xyz")) "B\ETXxyz"
+      (enc @('Form.Unitary 'Form.Implicit) (RB.byteString "xyz")) "B\ETXxyz"
     assertEqual "unset optional"
       (enc @('Form.Optional) (Nothing :: Maybe RB.BuildR)) ""
     assertEqual "set empty optional"
@@ -477,7 +477,7 @@ testFromJSONPBMessageEncoder = testProperty "FromJSONPB MessageEncoder" $ \opts 
 
 data TestMessage
        (num :: Nat)
-       (repetition :: Form.Repetition)
+       (repetition :: Form.Cardinality)
        (protoType :: Form.ProtoType)
 
 type instance Form.NamesOf (TestMessage num repetition protoType) = '[ "name" ]
@@ -486,14 +486,14 @@ type instance Form.NumberOf (TestMessage num repetition protoType) "name" = num
 
 type instance Form.ProtoTypeOf (TestMessage num repetition protoType) "name" = protoType
 
-type instance Form.OneOfOf (TestMessage num ('Form.Singular 'Form.Alternative) protoType) "name" = "pickOne"
-type instance Form.OneOfOf (TestMessage num ('Form.Singular 'Form.Alternative) protoType) "pickOne" = "pickOne"
-type instance Form.OneOfOf (TestMessage num ('Form.Singular 'Form.Implicit) protoType) "name" = ""
+type instance Form.OneOfOf (TestMessage num ('Form.Unitary 'Form.Alternative) protoType) "name" = "pickOne"
+type instance Form.OneOfOf (TestMessage num ('Form.Unitary 'Form.Alternative) protoType) "pickOne" = "pickOne"
+type instance Form.OneOfOf (TestMessage num ('Form.Unitary 'Form.Implicit) protoType) "name" = ""
 type instance Form.OneOfOf (TestMessage num 'Form.Optional protoType) "name" = ""
 type instance Form.OneOfOf (TestMessage num ('Form.Repeated packing) protoType) "name" = ""
 
-type instance Form.RepetitionOf (TestMessage num repetition protoType) "name" = repetition
-type instance Form.RepetitionOf (TestMessage num ('Form.Singular 'Form.Alternative) protoType) "pickOne" = 'Form.Singular 'Form.Alternative
+type instance Form.CardinalityOf (TestMessage num repetition protoType) "name" = repetition
+type instance Form.CardinalityOf (TestMessage num ('Form.Unitary 'Form.Alternative) protoType) "pickOne" = 'Form.Unitary 'Form.Alternative
 
 encoderPromotionsAndAuto :: TestTree
 encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-selection works"
@@ -565,10 +565,10 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
       , Typeable b
       , Arbitrary a
       , Show a
-      , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType a
-      , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType b
-      , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType a
-      , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType b
+      , FormE.FieldForm ('Form.Unitary 'Form.Alternative) protoType a
+      , FormE.FieldForm ('Form.Unitary 'Form.Alternative) protoType b
+      , FormE.FieldForm ('Form.Unitary 'Form.Implicit) protoType a
+      , FormE.FieldForm ('Form.Unitary 'Form.Implicit) protoType b
       , FormE.FieldForm 'Form.Optional protoType (Maybe a)
       , FormE.FieldForm 'Form.Optional protoType (Maybe b)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
@@ -599,10 +599,10 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
       , Typeable b
       , Arbitrary a
       , Show a
-      , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType a
-      , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType b
-      , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType a
-      , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType b
+      , FormE.FieldForm ('Form.Unitary 'Form.Alternative) protoType a
+      , FormE.FieldForm ('Form.Unitary 'Form.Alternative) protoType b
+      , FormE.FieldForm ('Form.Unitary 'Form.Implicit) protoType a
+      , FormE.FieldForm ('Form.Unitary 'Form.Implicit) protoType b
       , FormE.FieldForm 'Form.Optional protoType (Maybe a)
       , FormE.FieldForm 'Form.Optional protoType (Maybe b)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
@@ -626,10 +626,10 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
       , Typeable b
       , Arbitrary a
       , Show a
-      , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType a
-      , FormE.FieldForm ('Form.Singular 'Form.Alternative) protoType b
-      , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType a
-      , FormE.FieldForm ('Form.Singular 'Form.Implicit) protoType b
+      , FormE.FieldForm ('Form.Unitary 'Form.Alternative) protoType a
+      , FormE.FieldForm ('Form.Unitary 'Form.Alternative) protoType b
+      , FormE.FieldForm ('Form.Unitary 'Form.Implicit) protoType a
+      , FormE.FieldForm ('Form.Unitary 'Form.Implicit) protoType b
       , FormE.FieldForm 'Form.Optional protoType (Maybe a)
       , FormE.FieldForm 'Form.Optional protoType (Maybe b)
       , FormE.FieldForm ('Form.Repeated 'Form.Unpacked) protoType (Identity a)
@@ -659,13 +659,13 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
               bsVec = V.fromList bs
           in
           counterexample "Implicit"
-            (check1 @num @('Form.Singular 'Form.Implicit) @protoType a b) .&&.
+            (check1 @num @('Form.Unitary 'Form.Implicit) @protoType a b) .&&.
           counterexample "Optional - Nothing"
             (check1 @num @'Form.Optional @protoType (Nothing @a) (Nothing @b)) .&&.
           counterexample "Optional - Just"
             (check1 @num @'Form.Optional @protoType (Just a) (Just b)) .&&.
           counterexample "Alternative"
-            (check1 @num @('Form.Singular 'Form.Alternative) @protoType a b) .&&.
+            (check1 @num @('Form.Unitary 'Form.Alternative) @protoType a b) .&&.
           counterexample "Unpacked Identity"
             (check1 @num @('Form.Repeated 'Form.Unpacked) @protoType (Identity a) (Identity b)) .&&.
           counterexample "Unpacked Forward"
@@ -713,7 +713,7 @@ encoderPromotionsAndAuto = testGroup "Encoder promotes types correctly and Auto-
             (check1 @num @('Form.Repeated 'Form.Packed) @protoType asVec bsVec)
 
     check1 ::
-      forall (num :: Nat) (repetition :: Form.Repetition) (protoType :: Form.ProtoType) a b .
+      forall (num :: Nat) (repetition :: Form.Cardinality) (protoType :: Form.ProtoType) a b .
       ( FormE.Field "name" a (TestMessage num repetition protoType)
       , FormE.Field "name" b (TestMessage num repetition protoType)
       , FormE.Distinct (TestMessage num repetition protoType)

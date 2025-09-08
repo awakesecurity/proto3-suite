@@ -95,7 +95,7 @@ import Proto3.Suite.Class
          (Message, MessageField, encodeMessage, encodeMessageField, fromByteString)
 import Proto3.Suite.Form
          (Association, MessageFieldType, Omission(..), Packing(..),
-          Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf)
+          Cardinality(..), CardinalityOf, ProtoType(..), ProtoTypeOf)
 import Proto3.Suite.JSONPB.Class qualified as JSONPB
          (FromJSONPB(..), ToJSONPB(..), toAesonEncoding, toAesonValue)
 import Proto3.Suite.Types (Enumerated, codeFromEnumerated)
@@ -124,7 +124,7 @@ newtype MessageEncoding (message :: Type) = UnsafeMessageEncoding B.ByteString
 type role MessageEncoding nominal
 
 instance (omission ~ 'Alternative) =>
-         FieldForm ('Singular omission) ('Message inner) (MessageEncoding inner)
+         FieldForm ('Unitary omission) ('Message inner) (MessageEncoding inner)
   where
     fieldForm rep ty !fn e = fieldForm rep ty fn (cachedMessageEncoding e)
     {-# INLINE fieldForm #-}
@@ -136,7 +136,7 @@ instance (omission ~ 'Alternative) =>
 -- the general instance for repeated unpacked fields, which will then
 -- delegate to this instance.
 instance (omission ~ 'Alternative) =>
-         FieldForm ('Singular omission) ('Map key value) (MessageEncoding (Association key value))
+         FieldForm ('Unitary omission) ('Map key value) (MessageEncoding (Association key value))
   where
     fieldForm rep ty !fn e = fieldForm rep ty fn (cachedMessageEncoding e)
     {-# INLINE fieldForm #-}
@@ -309,17 +309,17 @@ $(instantiateStringOrBytesField
    ])
 
 instance ( ProtoEnum e
-         , FieldForm ('Singular omission) 'Int32 Int32
+         , FieldForm ('Unitary omission) 'Int32 Int32
          ) =>
-         FieldForm ('Singular omission) ('Enumeration e) e
+         FieldForm ('Unitary omission) ('Enumeration e) e
   where
     fieldForm rep _ !fn x = fieldForm rep (proxy# :: Proxy# 'Int32) fn (fromProtoEnum x)
     {-# INLINE fieldForm #-}
 
 instance ( ProtoEnum e
-         , FieldForm ('Singular omission) 'Int32 Int32
+         , FieldForm ('Unitary omission) 'Int32 Int32
          ) =>
-         FieldForm ('Singular omission) ('Enumeration e) (Enumerated e)
+         FieldForm ('Unitary omission) ('Enumeration e) (Enumerated e)
   where
     fieldForm rep _ !fn x = fieldForm rep (proxy# :: Proxy# 'Int32) fn (codeFromEnumerated x)
     {-# INLINE fieldForm #-}
@@ -338,12 +338,12 @@ instance ProtoEnum e =>
       packedFieldForm (proxy# :: Proxy# 'Int32) fn (fmap codeFromEnumerated xs)
     {-# INLINE packedFieldForm #-}
 
-instance FieldForm ('Singular 'Alternative) 'Bytes RB.BuildR
+instance FieldForm ('Unitary 'Alternative) 'Bytes RB.BuildR
   where
     fieldForm _ _ = Encode.bytes
     {-# INLINE fieldForm #-}
 
-instance FieldForm ('Singular 'Implicit) 'Bytes RB.BuildR
+instance FieldForm ('Unitary 'Implicit) 'Bytes RB.BuildR
   where
     fieldForm _ _ = Encode.bytesIfNonempty
     {-# INLINE fieldForm #-}
@@ -376,7 +376,7 @@ associations ::
   forall (name :: Symbol) (t :: Type -> Type) (key :: ProtoType) (value :: ProtoType)
          (message :: Type) (names :: [Symbol]) .
   ( ProtoTypeOf message name ~ 'Map key value
-  , RepetitionOf message name ~ 'Repeated 'Unpacked
+  , CardinalityOf message name ~ 'Repeated 'Unpacked
   , Field name (t (MessageEncoder (Association key value))) message
   , KnownFieldNumber message name
   ) =>
@@ -408,10 +408,10 @@ associations = field @name @(t (MessageEncoder (Association key value)))
 -- To encode a top-level message instead of a field, use 'messageReflection'.
 newtype Reflection a = Reflection a
 
-instance ( MessageFieldType repetition protoType a
+instance ( MessageFieldType cardinality protoType a
          , MessageField a
          ) =>
-         FieldForm repetition protoType (Reflection a)
+         FieldForm cardinality protoType (Reflection a)
   where
     fieldForm _ _ = coerce (encodeMessageField @a)
     {-# INLINE fieldForm #-}

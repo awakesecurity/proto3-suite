@@ -822,14 +822,14 @@ validMapKey = (`elem` [ Int32, Int64, SInt32, SInt64, UInt32, UInt64
                       , Fixed32, Fixed64, SFixed32, SFixed64
                       , String, Bool])
 
--- | Convert a dot proto type to a Haskell type of kind `Proto3.Suite.Form.Repetition`.
+-- | Convert a dot proto type to a Haskell type of kind `Proto3.Suite.Form.Cardinality`.
 -- It is ASSUMED that the field with this type is NOT part of a @oneof@.
-dptToFormRepetition ::
+dptToFormCardinality ::
   MonadError CompileError m => [DotProtoOption] -> TypeContext -> DotProtoType -> m HsType
-dptToFormRepetition opts ctxt = \case
+dptToFormCardinality opts ctxt = \case
   Prim (Named tyName)
     | isMessage ctxt tyName -> pure formOptionalT
-  Prim _                    -> pure $ tyApp formSingularT formImplicitT
+  Prim _                    -> pure $ tyApp formUnitaryT formImplicitT
     -- TO DO: When the @optional@ keyword is supported, check for it here.
   Repeated (Named tyName)
     | isMessage ctxt tyName -> pure unpacked
@@ -1114,7 +1114,7 @@ data FieldSpec = FieldSpec
   { fieldSpecName :: FieldName
   , fieldSpecNumber :: FieldNumber
   , fieldSpecOneOf :: Maybe FieldName
-  , fieldSpecRepetition :: HsType
+  , fieldSpecCardinality :: HsType
   , fieldSpecProtoType :: HsType
   }
 
@@ -1150,7 +1150,7 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
         msgNumberOf = unqual_ tcName (msgName ++ "_NumberOf")
         msgProtoTypeOf = unqual_ tcName (msgName ++ "_ProtoTypeOf")
         msgOneOfOf = unqual_ tcName (msgName ++ "_OneOfOf")
-        msgRepetitionOf = unqual_ tcName (msgName ++ "_RepetitionOf")
+        msgCardinalityOf = unqual_ tcName (msgName ++ "_CardinalityOf")
         fieldNameVar = tvarn_ "name"
         fieldNameVarT = typeNamed_ fieldNameVar
         fieldNameVarB = kindedTyVar_ synDef fieldNameVar symbolT
@@ -1168,7 +1168,7 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
         onOneOfs rhs = oneOfs <&> \o -> (Nothing, [ toSym o ], rhs o)
 
     let namesOf :: HsDecl
-        numberOf, protoTypeOf, oneOfOf, repetitionOf :: [HsDecl]
+        numberOf, protoTypeOf, oneOfOf, cardinalityOf :: [HsDecl]
         namesOf = tyFamInstDecl_ formNamesOf Nothing [ msgNameT ]
           (listT_ (map fieldNameT fieldSpecs))
         numberOf =
@@ -1189,29 +1189,29 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
           , closedTyFamDecl_ msgOneOfOf [ fieldNameVarB ] symbolT
               (onFields oneOfT ++ onOneOfs toSym ++ err formFieldOrOneOfNotFound)
           ]
-        repetitionOf =
-          [ tyFamInstDecl_ formRepetitionOf Nothing [ msgNameT, fieldNameVarT ]
-              (tyApp (typeNamed_ msgRepetitionOf) fieldNameVarT)
-          , closedTyFamDecl_ msgRepetitionOf [ fieldNameVarB ] formRepetitionT
-              ( onFields fieldSpecRepetition ++
-                onOneOfs (const (tyApp formSingularT formAlternativeT)) ++
+        cardinalityOf =
+          [ tyFamInstDecl_ formCardinalityOf Nothing [ msgNameT, fieldNameVarT ]
+              (tyApp (typeNamed_ msgCardinalityOf) fieldNameVarT)
+          , closedTyFamDecl_ msgCardinalityOf [ fieldNameVarB ] formCardinalityT
+              ( onFields fieldSpecCardinality ++
+                onOneOfs (const (tyApp formUnitaryT formAlternativeT)) ++
                 err formFieldOrOneOfNotFound
               )
           ]
 
-    pure $ namesOf : numberOf ++ protoTypeOf ++ oneOfOf ++ repetitionOf
+    pure $ namesOf : numberOf ++ protoTypeOf ++ oneOfOf ++ cardinalityOf
   where
     mkFieldSpecs :: QualifiedField -> WriterT FieldOccurrences m ([FieldName], [FieldSpec])
     mkFieldSpecs QualifiedField{fieldInfo} = case fieldInfo of
       FieldNormal fieldName fieldNum dpType options -> do
         tell (oneOccurrence fieldName, oneOccurrence fieldNum)
-        repetition <- dptToFormRepetition options ctxt dpType
+        cardinality <- dptToFormCardinality options ctxt dpType
         protoType <- dptToFormType ctxt dpType
         pure ( [], [ FieldSpec
                        { fieldSpecName = fieldName
                        , fieldSpecNumber = fieldNum
                        , fieldSpecOneOf = Nothing
-                       , fieldSpecRepetition = repetition
+                       , fieldSpecCardinality = cardinality
                        , fieldSpecProtoType = protoType
                        } ] )
 
@@ -1231,7 +1231,7 @@ typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
                    { fieldSpecName = subfieldName
                    , fieldSpecNumber = subfieldNum
                    , fieldSpecOneOf = Just oneofName
-                   , fieldSpecRepetition = tyApp formSingularT formAlternativeT
+                   , fieldSpecCardinality = tyApp formUnitaryT formAlternativeT
                    , fieldSpecProtoType = protoType
                    }
 

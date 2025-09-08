@@ -294,11 +294,11 @@ protobufFormType ns = typeNamed_ . protobufFormName ns
 formProtoTypeT :: HsType
 formProtoTypeT = protobufFormType tcName "ProtoType"
 
-formNamesOf, formNumberOf, formOneOfOf, formRepetitionOf, formProtoTypeOf :: HsQName
+formNamesOf, formNumberOf, formOneOfOf, formCardinalityOf, formProtoTypeOf :: HsQName
 formNamesOf = protobufFormName tcName "NamesOf"
 formNumberOf = protobufFormName tcName "NumberOf"
 formOneOfOf = protobufFormName tcName "OneOfOf"
-formRepetitionOf = protobufFormName tcName "RepetitionOf"
+formCardinalityOf = protobufFormName tcName "CardinalityOf"
 formProtoTypeOf = protobufFormName tcName "ProtoTypeOf"
 
 formFieldNotFound, formFieldOrOneOfNotFound :: HsType
@@ -313,9 +313,9 @@ formUnpackedT, formPackedT :: HsType
 formUnpackedT = protobufFormType dataName "Unpacked"
 formPackedT = protobufFormType dataName "Packed"
 
-formRepetitionT, formSingularT, formOptionalT, formRepeatedT :: HsType
-formRepetitionT = protobufFormType tcName "Repetition"
-formSingularT = protobufFormType dataName "Singular"
+formCardinalityT, formUnitaryT, formOptionalT, formRepeatedT :: HsType
+formCardinalityT = protobufFormType tcName "Cardinality"
+formUnitaryT = protobufFormType dataName "Unitary"
 formOptionalT = protobufFormType dataName "Optional"
 formRepeatedT = protobufFormType dataName "Repeated"
 

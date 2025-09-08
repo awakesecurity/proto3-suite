@@ -1,3 +1,8 @@
+# 0.9.4
+* [#288](https://github.com/awakesecurity/proto3-suite/pull/288) v0.9.4: rename Repetition to Cardinality and Singular to Unitary
+  * [BREAKING CHANGE in experimental module: Rename `...Repetition...` to `...Cardinality...` and
+     `Singular` to `Unitary` in order to better reflect terminology in the protobuf specification.]
+
 # 0.9.3
 * [#284](https://github.com/awakesecurity/proto3-suite/pull/284) Delete Repeated.hs
   * [BREAKING CHANGE in experimental module: Rename `Prefix` to `FieldsEncoder`, along with related functions.]
