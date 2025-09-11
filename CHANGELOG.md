@@ -1,5 +1,5 @@
 # 0.9.4
-* [#289](https://github.com/awakesecurity/proto3-suite/pull/288) Support optional fields
+* [#289](https://github.com/awakesecurity/proto3-suite/pull/289) Support optional fields
   * Support optional fields (outside of a `oneof`).  Such fields are allowed
     by newer versions of the proto3 specification (and even recommended by it).
   * Correctly prohibit `map` and `repeated` fields within a `oneof`
