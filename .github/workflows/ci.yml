@@ -12,11 +12,11 @@ jobs:
           - ubuntu-latest
           - macos-latest
         compiler:
-          - ghc928
-          - ghc948
-          - ghc965
-          - ghc982
-          - ghc9101
+          - ghc92
+          - ghc94
+          - ghc96
+          - ghc98
+          - ghc910
         dhall:
           - false
           - true
@@ -29,8 +29,6 @@ jobs:
         exclude:
           - swagger: false
             swaggerWrapper: true
-          - compiler: ghc902
-            os: macos-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
