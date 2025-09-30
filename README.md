@@ -37,10 +37,6 @@ Supported on Linux and Darwin.
 
 Supported on Linux and Darwin.
 
-#### GHC 9.2
-
-Supported on Linux and Darwin.
-
 ### Nix shell + Cabal (recommended)
 
 The Nix shell provides an incremental build environment (but see below for
