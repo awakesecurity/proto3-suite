@@ -26,6 +26,8 @@ in {
 
           (haskellPackagesNew: haskellPackagesOld: {
 
+          attoparsec = pkgsNew.haskell.lib.compose.dontCheckIf pkgsNew.stdenv.hostPlatform.isDarwin haskellPackagesOld.attoparsec;
+
           proto3-wire =
             let
               source = pkgsNew.fetchFromGitHub {
