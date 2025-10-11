@@ -24,6 +24,9 @@
   * [BREAKING CHANGE in experimental module: Rename `Fields` to `FieldsEncoding`, along with related functions.]
   * Add instances of `FromJSON`, `FromJSONPB`, `ToJSON`, `ToJSONPB`
     for `MessageEncoding` and `MessageEncoder`.
+* [#290](https://github.com/awakesecurity/proto3-suite/pull/290)
+  * Support tasty-1.5
+  * Drop support for GHC 9.2 
 
 # 0.9.2
 * [#282](https://github.com/awakesecurity/proto3-suite/pull/282) Show MessageEncoder
