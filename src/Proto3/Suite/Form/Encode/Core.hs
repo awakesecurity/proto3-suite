@@ -601,7 +601,10 @@ instantiatePackableField protoType elementType encoder packedEncoder promotions 
 
       instance FieldForm 'Optional $protoType (Identity $elementType)
         where
-          fieldForm _ _ !fn (Identity x) = $encoder fn x
+          fieldForm _ _ = coerce
+            @(FieldNumber -> $elementType -> Encode.MessageBuilder)
+            @(FieldNumber -> Identity $elementType -> Encode.MessageBuilder)
+            $encoder
           {-# INLINE fieldForm #-}
 
       instance FieldForm 'Implicit $protoType $elementType
