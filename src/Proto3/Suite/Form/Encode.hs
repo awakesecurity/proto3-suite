@@ -155,7 +155,7 @@ import Proto3.Wire.Class (ProtoEnum(..))
 import Proto3.Wire.Encode qualified as Encode
 import Proto3.Wire.Encode.Repeated (ToRepeated, mapRepeated)
 import Proto3.Wire.Reverse qualified as RB
-import Proto3.Wire.Types (fieldNumber)
+import Proto3.Wire.Types (FieldNumber, fieldNumber)
 
 -- | The unsafe but fast inverse of 'messageEncoderToByteString'.
 unsafeByteStringToMessageEncoder :: B.ByteString -> MessageEncoder message
@@ -408,7 +408,10 @@ instance ProtoEnum e =>
 
 instance FieldForm 'Optional 'Bytes (Identity RB.BuildR)
   where
-    fieldForm _ _ !fn (Identity x) = Encode.bytes fn x
+    fieldForm _ _ = coerce
+      @(FieldNumber -> RB.BuildR -> Encode.MessageBuilder)
+      @(FieldNumber -> Identity RB.BuildR -> Encode.MessageBuilder)
+      Encode.bytes
     {-# INLINE fieldForm #-}
 
 instance FieldForm 'Implicit 'Bytes RB.BuildR

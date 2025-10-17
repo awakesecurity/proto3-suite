@@ -707,7 +707,10 @@ instantiateStringOrBytesField protoType argumentType encoder additional = do
 
     instance FieldForm 'Optional $protoType (Identity $argumentType)
       where
-        fieldForm _ _ !fn (Identity x) = $encoder fn x
+        fieldForm _ _ = coerce
+          @(FieldNumber -> $argumentType -> Encode.MessageBuilder)
+          @(FieldNumber -> Identity $argumentType -> Encode.MessageBuilder)
+          $encoder
         {-# INLINE fieldForm #-}
 
     instance FieldForm 'Implicit $protoType $argumentType
@@ -748,7 +751,10 @@ instantiateStringOrBytesField protoType argumentType encoder additional = do
 
     instance FieldForm 'Optional $protoType (Identity $supportedType)
       where
-        fieldForm _ _ !fn (Identity x) = $additionalEncoder fn x
+        fieldForm _ _ = coerce
+          @(FieldNumber -> $supportedType -> Encode.MessageBuilder)
+          @(FieldNumber -> Identity $supportedType -> Encode.MessageBuilder)
+          $additionalEncoder
         {-# INLINE fieldForm #-}
 
     instance FieldForm 'Implicit $protoType $supportedType
