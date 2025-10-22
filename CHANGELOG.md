@@ -6,7 +6,8 @@
     for `MessageEncoding` and `MessageEncoder`.
 * [#290](https://github.com/awakesecurity/proto3-suite/pull/290)
   * Support tasty-1.5
-  * Drop support for GHC 9.2 
+  * Drop support for GHC 9.2
+* [#291](https://github.com/awakesecurity/proto3-suite/pull/291) Optimize isDefault instances
 
 # 0.9.2
 * [#282](https://github.com/awakesecurity/proto3-suite/pull/282) Show MessageEncoder
