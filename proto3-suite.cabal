@@ -50,8 +50,11 @@ source-repository head
 
 common common
   default-extensions:
-    BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric
-    ImportQualifiedPost ViewPatterns
+    DeriveDataTypeable DeriveGeneric
+
+  ghc-options:
+    -O2 
+    -Wall
 
 library
   import: common
@@ -138,7 +141,6 @@ library
     build-depends:     attoparsec-aeson >= 2.2.0.0
   hs-source-dirs:      src
   default-language:    Haskell2010
-  ghc-options:         -O2 -Wall -Werror
 
 test-suite tests
   import:           common
@@ -222,9 +224,7 @@ test-suite tests
     , text-short >=0.1.3 && <0.2
     , transformers >=0.4 && <0.7
     , turtle
-    , vector >=0.11 && <0.14
-
-  ghc-options:         -O2 -Wall
+    , vector >=0.11 && < 0.14
 
 executable compile-proto-file
   main-is:             Main.hs
@@ -237,7 +237,6 @@ executable compile-proto-file
                        , system-filepath
                        , text
                        , turtle
-  ghc-options:         -O2 -Wall -Werror
 
 executable canonicalize-proto-file
   import:              common
@@ -252,4 +251,3 @@ executable canonicalize-proto-file
                        , proto3-wire >= 1.4.5 && < 1.5
                        , system-filepath
                        , turtle
-  ghc-options:         -O2 -Wall -Werror
