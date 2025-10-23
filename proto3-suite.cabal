@@ -50,7 +50,8 @@ source-repository head
 
 common common
   default-extensions:
-    DeriveDataTypeable DeriveGeneric
+    BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric
+    ImportQualifiedPost ViewPatterns
 
   ghc-options:
     -O2 
