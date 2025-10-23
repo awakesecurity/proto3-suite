@@ -123,6 +123,7 @@ import qualified Data.Text.Lazy         as TL
 import qualified Data.Text.Short        as TS
 import qualified Data.Traversable       as TR
 import           Data.Vector            (Vector)
+import qualified Data.Vector            as V
 import           Data.Word              (Word32, Word64)
 import           GHC.Exts               (fromList, Proxy#, proxy#)
 import           GHC.Generics
@@ -195,31 +196,37 @@ instance HasDefault Bool where
 
 instance HasDefault T.Text where
   def = mempty
+  isDefault = T.null
 
 deriving via T.Text instance HasDefault (Proto3.Suite.Types.String T.Text)
 
 instance HasDefault TL.Text where
   def = mempty
+  isDefault = TL.null
 
 deriving via TL.Text instance HasDefault (Proto3.Suite.Types.String TL.Text)
 
 instance HasDefault TS.ShortText where
   def = mempty
+  isDefault = TS.null
 
 deriving via TS.ShortText instance HasDefault (Proto3.Suite.Types.String TS.ShortText)
 
 instance HasDefault B.ByteString where
   def = mempty
+  isDefault = B.null
 
 deriving via B.ByteString instance HasDefault (Proto3.Suite.Types.Bytes B.ByteString)
 
 instance HasDefault BL.ByteString where
   def = mempty
+  isDefault = BL.null
 
 deriving via BL.ByteString instance HasDefault (Proto3.Suite.Types.Bytes BL.ByteString)
 
 instance HasDefault BS.ShortByteString where
   def = mempty
+  isDefault = BS.null
 
 deriving via BS.ShortByteString instance HasDefault (Proto3.Suite.Types.Bytes BS.ShortByteString)
 
@@ -231,15 +238,15 @@ deriving via (a :: Type) instance HasDefault a => HasDefault (Wrapped a)
 
 instance HasDefault (UnpackedVec a) where
   def = mempty
-  isDefault = null . unpackedvec
+  isDefault = V.null . unpackedvec
 
 instance HasDefault (PackedVec a) where
   def = mempty
-  isDefault = null . packedvec
+  isDefault = V.null . packedvec
 
 instance HasDefault (NestedVec a) where
   def = mempty
-  isDefault = null . nestedvec
+  isDefault = V.null . nestedvec
 
 instance HasDefault (Nested a) where
   def = Nested Nothing
@@ -253,7 +260,7 @@ instance (HasDefault a) => HasDefault (ForceEmit a) where
 -- 'PackedVec'/'UnpackedVec'
 instance HasDefault (Vector a) where
   def       = mempty
-  isDefault = null
+  isDefault = V.null
 
 -- | Used in generated records to represent an unwrapped 'Nested'
 instance HasDefault (Maybe a) where
