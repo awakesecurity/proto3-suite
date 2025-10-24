@@ -10,8 +10,8 @@
 
 -- | Type-Level Format Information
 --
--- The code generator instantiates these type families to provide type-level
--- information that may be used to define custom encoders and decoders.
+-- Use @compile-proto-file --typeLevelFormat ...@ to instantiate these type families to
+-- provide type-level information that may be used to define custom encoders and decoders.
 --
 -- /WARNING/: This module is experimental and breaking changes may occur much more
 -- frequently than in the other modules of this package, perhaps even in patch releases.
@@ -20,17 +20,16 @@ module Proto3.Suite.Form
   , NumberOf
   , ProtoTypeOf
   , OneOfOf
-  , RepetitionOf
+  , CardinalityOf
   , FieldNotFound
   , FieldOrOneOfNotFound
-  , Omission(..)
   , Packing(..)
-  , Repetition(..)
+  , Cardinality(..)
   , ProtoType(..)
   , Association
-  , RepetitionOfMapped
+  , CardinalityOfMapped
   , Wrapper
-  , RecoverRepetition
+  , RecoverCardinality
   , RecoverProtoType
   , MessageFieldType
   , OptionalMessageFieldType
@@ -69,11 +68,11 @@ type family ProtoTypeOf (message :: Type) (name :: Symbol) :: ProtoType
 type family OneOfOf (message :: Type) (name :: Symbol) :: Symbol
 
 -- | In the context of a message type, maps the name
--- of every field and @oneof@ to its 'Repetition'.
+-- of every field and @oneof@ to its 'Cardinality'.
 --
 -- (Every @oneof@ in the message is mapped to 'OneOf',
 -- as are those fields that are within @oneof@s.)
-type family RepetitionOf (message :: Type) (name :: Symbol) :: Repetition
+type family CardinalityOf (message :: Type) (name :: Symbol) :: Cardinality
 
 -- | A compilation error message for when the given message
 -- does not contain a field with the given name.
@@ -87,16 +86,6 @@ type FieldOrOneOfNotFound (message :: Type) (name :: Symbol) =
   'Text "Field or oneof " ':<>: 'ShowType name ':<>:
   'Text " not found in message:" ':$$: 'ShowType message
 
--- | The semantics of omission of an encoding of a non-@map@ field
--- that is neither @optional@ nor @repeated@.
-data Omission
-  = Implicit
-      -- ^ A scalar/enumerated field whose omission implies its default value.
-  | Alternative
-      -- ^ The field is part of a @oneof@.  The entire @oneof@ is either set or unset,
-      -- and if it is set then a particular field of the @oneof@ has been selected, and
-      -- must be encoded explicitly even if it has the default value for its type.
-
 -- | The packing of field that is @repeated@ or is a @map@.  Every
 -- encoding appends and element, and omission means zero elements.
 data Packing
@@ -105,35 +94,49 @@ data Packing
   | Packed
       -- ^ Packing is supported and preferred (perhaps implicitly).
 
--- | Whether or a field is @repeated@, what it means when its encoding is
--- omitted, and if it is @repeated@, whether or not packing is preferred.
+-- | Expresses how many values we expect a field to contain, what it means when its
+-- encoding is omitted, and if it is @repeated@, whether or not packing is preferred.
 --
--- The data constructors are chosen in such a way that each
--- implies how many values are expected as arguments to 'field'.
+-- Each data constructor is chosen in such a way that it implies how many
+-- values are expected as arguments to `Proto3.Suite.Form.Encode.field`.
 -- This choice simplifies instantiation of type classes.
-data Repetition
-  = Singular Omission
-      -- ^ The field is not a @map@ and is neither @optional@ nor @repeated@.
-      -- It has the specified semantics when its encoding is omitted.
+data Cardinality
+  = Implicit
+      -- ^ We expect exactly one value for this field,
+      -- though the default value is expressed by omission
+      -- in the binary format.  Such a field is never "unset".
       --
-      -- We expect exactly one value as an argument to 'field', because:
+      -- In the terminology of the proto3 specification, the field is
+      -- "singular" and is neither @optional@ nor part of a @oneof@.
       --
-      -- If the field is /not/ part of a @oneof@ then we expect exactly one value
-      -- (which is to be omitted from the encoding if it is the default value).
+      -- Put another way: the field is not declared @optional@ or
+      -- @repeated@, it is not a @map@, it does not have a message type,
+      -- and it is not part of a @oneof@.
       --
-      -- If the field /is/ part of a @oneof@ /and we have chosen this field/
-      -- (as opposed to a different field or the absence of the entire @oneof@),
-      -- then we also expect exactly one value.
+      -- `Proto3.Suite.Form.Encode.field` will expect exactly one field
+      -- value as its argument.  Typically the argument type is not
+      -- a container type.  But there may be application-specific reasons
+      -- for supplying a container type, such as the field type being
+      -- a message that has container semantics implemented by an
+      -- application-specific instance of `Proto3.Suite.Form.Encode.FieldForm`.
   | Optional
-      -- ^ A non-@repeated@ submessage field or an @optional@ scalar/enumerated field
-      -- whose omission implies an "unset" value distinct from the default value.
+      -- ^ The field is singular and has optional field presence.  That is,
+      -- That is, it is a non-@repeated@ submessage field (which is optional
+      -- even when not explicitly declared @optional@), or an @optional@
+      -- scalar/enumerated field whose omission implies an "unset" value
+      -- distinct from the default value, or any field within a @oneof@.
       --
-      -- We expect an optional value as an argument to 'field'--typically a 'Maybe' type.
+      -- `Proto3.Suite.Form.Encode.field` will expect zero or one field
+      -- values as its argument.  Typically the type involves 'Maybe',
+      -- but when the 'Nothing' case can be excluded, feel free to
+      -- use `Data.Functor.Identity.Identity` to illustrate that fact.
   | Repeated Packing
-      -- ^ The field is @repeated@ or is a @map@,
-      -- with the indicated packing preference.
+      -- ^ The field is @repeated@ or is a @map@, with the indicated
+      -- packing preference (which for @map is always 'Unpacked').
       --
-      -- We expect a sequence of zero or more values as an argument to 'field'.
+      -- `Proto3.Suite.Form.Encode.field` will expect zero or more
+      -- field values, typically expressed by a container type having
+      -- an instance of `Proto3.Wire.Encode.Repeated.ToRepeated`.
 
 -- | The type of a message field, but when the field is repeated, this is the element type.
 --
@@ -168,6 +171,8 @@ data ProtoType
 --
 -- We never need to construct values; instead we construct values of types
 -- such as @`Proto3.Suite.Form.Encode.Encoding` ('Association' key value)@.
+--
+-- The key field is named @"key"@ and the value field is named @"value"@.
 data Association (key :: ProtoType) (value :: ProtoType)
 
 type instance NamesOf (Association _ _) = '[ "key", "value" ]
@@ -181,17 +186,17 @@ type instance ProtoTypeOf (Association _ value) "value" = value
 type instance OneOfOf (Association _ _) "key" = ""
 type instance OneOfOf (Association _ _) "value" = ""
 
-type instance RepetitionOf (Association _ _) "key" = 'Singular 'Implicit
-type instance RepetitionOf (Association _ value) "value" = RepetitionOfMapped value
+type instance CardinalityOf (Association _ _) "key" = 'Implicit
+type instance CardinalityOf (Association _ value) "value" = CardinalityOfMapped value
 
 -- | Yields the field presence of a mapped value of the given protobuf type.
-type family RepetitionOfMapped (protoType :: ProtoType) :: Repetition
+type family CardinalityOfMapped (protoType :: ProtoType) :: Cardinality
   where
-    RepetitionOfMapped ('Message _) = 'Optional
-    RepetitionOfMapped ('Map k v) = TypeError
+    CardinalityOfMapped ('Message _) = 'Optional
+    CardinalityOfMapped ('Map k v) = TypeError
       ( 'Text "Nested maps are disallowed, so this cannot be a mapped type:"
         ':$$: 'ShowType ('Map k v) )
-    RepetitionOfMapped _ = 'Singular 'Implicit
+    CardinalityOfMapped _ = 'Implicit
 
 -- | Indicates the standard protobuf wrapper having
 -- the field type given by the type argument.
@@ -212,36 +217,35 @@ type instance ProtoTypeOf (Wrapper protoType) "value" = protoType
 
 type instance OneOfOf (Wrapper protoType) "value" = ""
 
-type instance RepetitionOf (Wrapper protoType) "value" = 'Singular 'Implicit
+type instance CardinalityOf (Wrapper protoType) "value" = 'Implicit
 
 -- | Given the Haskell type used by features such as `Proto3.Suite.Class.MessageField`
 -- to indicate the encoding of a message field.
-type family RecoverRepetition (haskellType :: Type) :: Repetition
+type family RecoverCardinality (haskellType :: Type) :: Cardinality
   where
-    RecoverRepetition (Commented _ haskellType) = RecoverRepetition haskellType
-    RecoverRepetition (ForceEmit _) = 'Singular 'Alternative
-    RecoverRepetition (PackedVec _) = 'Repeated 'Packed
-    RecoverRepetition (UnpackedVec _) = 'Repeated 'Unpacked
-    RecoverRepetition (NestedVec _) = 'Repeated 'Unpacked
-    RecoverRepetition (Nested _) = 'Optional
-    RecoverRepetition (Enumerated _) = 'Singular 'Implicit
-    RecoverRepetition (M.Map _ _) = 'Repeated 'Unpacked
-    RecoverRepetition Int32 = 'Singular 'Implicit
-    RecoverRepetition Int64 = 'Singular 'Implicit
-    RecoverRepetition (Signed Int32) = 'Singular 'Implicit
-    RecoverRepetition (Signed Int64) = 'Singular 'Implicit
-    RecoverRepetition Word32 = 'Singular 'Implicit
-    RecoverRepetition Word64 = 'Singular 'Implicit
-    RecoverRepetition (Fixed Word32) = 'Singular 'Implicit
-    RecoverRepetition (Fixed Word64) = 'Singular 'Implicit
-    RecoverRepetition (Signed (Fixed Int32)) = 'Singular 'Implicit
-    RecoverRepetition (Signed (Fixed Int64)) = 'Singular 'Implicit
-    RecoverRepetition (String _) = 'Singular 'Implicit
-    RecoverRepetition (Bytes _) = 'Singular 'Implicit
-    RecoverRepetition Bool = 'Singular 'Implicit
-    RecoverRepetition Float = 'Singular 'Implicit
-    RecoverRepetition Double = 'Singular 'Implicit
-    RecoverRepetition _ = 'Singular 'Alternative  -- Unnested message type implies @oneof@.
+    RecoverCardinality (Commented _ haskellType) = RecoverCardinality haskellType
+    RecoverCardinality (Maybe (ForceEmit _)) = 'Optional
+    RecoverCardinality (PackedVec _) = 'Repeated 'Packed
+    RecoverCardinality (UnpackedVec _) = 'Repeated 'Unpacked
+    RecoverCardinality (NestedVec _) = 'Repeated 'Unpacked
+    RecoverCardinality (Nested _) = 'Optional
+    RecoverCardinality (Enumerated _) = 'Implicit
+    RecoverCardinality (M.Map _ _) = 'Repeated 'Unpacked
+    RecoverCardinality Int32 = 'Implicit
+    RecoverCardinality Int64 = 'Implicit
+    RecoverCardinality (Signed Int32) = 'Implicit
+    RecoverCardinality (Signed Int64) = 'Implicit
+    RecoverCardinality Word32 = 'Implicit
+    RecoverCardinality Word64 = 'Implicit
+    RecoverCardinality (Fixed Word32) = 'Implicit
+    RecoverCardinality (Fixed Word64) = 'Implicit
+    RecoverCardinality (Signed (Fixed Int32)) = 'Implicit
+    RecoverCardinality (Signed (Fixed Int64)) = 'Implicit
+    RecoverCardinality (String _) = 'Implicit
+    RecoverCardinality (Bytes _) = 'Implicit
+    RecoverCardinality Bool = 'Implicit
+    RecoverCardinality Float = 'Implicit
+    RecoverCardinality Double = 'Implicit
 
 -- | Given the Haskell type used by features such as `Proto3.Suite.Class.MessageField`
 -- to indicate the encoding of a message field, returns the corresponding type of kind
@@ -265,7 +269,7 @@ type family RecoverProtoType (haskellType :: Type) :: ProtoType
     RecoverProtoType Float = 'Float
     RecoverProtoType Double = 'Double
     RecoverProtoType (Commented _ haskellType) = RecoverProtoType haskellType
-    RecoverProtoType (ForceEmit haskellType) = RecoverProtoType haskellType
+    RecoverProtoType (Maybe (ForceEmit haskellType)) = RecoverProtoType haskellType
     RecoverProtoType (PackedVec haskellType) = RecoverProtoType haskellType
     RecoverProtoType (UnpackedVec haskellType) = RecoverProtoType haskellType
     RecoverProtoType (Enumerated e) = 'Enumeration e
@@ -276,27 +280,44 @@ type family RecoverProtoType (haskellType :: Type) :: ProtoType
 
 -- | Inhabited by Haskell types used by features such as `Proto3.Suite.Class.MessageField`
 -- that correspond to particular protobuf types that are repeated in the specified way.
-class ( RecoverRepetition haskellType ~ repetition
+class ( RecoverCardinality haskellType ~ cardinality
       , RecoverProtoType haskellType ~ protoType
       ) =>
-      MessageFieldType (repetition :: Repetition) (protoType :: ProtoType) (haskellType :: Type)
+      MessageFieldType (cardinality :: Cardinality) (protoType :: ProtoType) (haskellType :: Type)
 
-instance MessageFieldType ('Singular 'Implicit) 'Int32 Int32
-instance MessageFieldType ('Singular 'Implicit) 'Int64 Int64
-instance MessageFieldType ('Singular 'Implicit) 'SInt32 (Signed Int32)
-instance MessageFieldType ('Singular 'Implicit) 'SInt64 (Signed Int64)
-instance MessageFieldType ('Singular 'Implicit) 'UInt32 (Word32)
-instance MessageFieldType ('Singular 'Implicit) 'UInt64  (Word64)
-instance MessageFieldType ('Singular 'Implicit) 'Fixed32 (Fixed Word32)
-instance MessageFieldType ('Singular 'Implicit) 'Fixed64 (Fixed Word64)
-instance MessageFieldType ('Singular 'Implicit) 'SFixed32 (Signed (Fixed Int32))
-instance MessageFieldType ('Singular 'Implicit) 'SFixed64 (Signed (Fixed Int64))
-instance MessageFieldType ('Singular 'Implicit) 'String (String a)
-instance MessageFieldType ('Singular 'Implicit) 'Bytes (Bytes a)
-instance MessageFieldType ('Singular 'Implicit) 'Bool Bool
-instance MessageFieldType ('Singular 'Implicit) 'Float Float
-instance MessageFieldType ('Singular 'Implicit) 'Double Double
-instance MessageFieldType ('Singular 'Implicit) ('Enumeration e) (Enumerated e)
+instance MessageFieldType 'Implicit 'Int32 Int32
+instance MessageFieldType 'Implicit 'Int64 Int64
+instance MessageFieldType 'Implicit 'SInt32 (Signed Int32)
+instance MessageFieldType 'Implicit 'SInt64 (Signed Int64)
+instance MessageFieldType 'Implicit 'UInt32 (Word32)
+instance MessageFieldType 'Implicit 'UInt64  (Word64)
+instance MessageFieldType 'Implicit 'Fixed32 (Fixed Word32)
+instance MessageFieldType 'Implicit 'Fixed64 (Fixed Word64)
+instance MessageFieldType 'Implicit 'SFixed32 (Signed (Fixed Int32))
+instance MessageFieldType 'Implicit 'SFixed64 (Signed (Fixed Int64))
+instance MessageFieldType 'Implicit 'String (String a)
+instance MessageFieldType 'Implicit 'Bytes (Bytes a)
+instance MessageFieldType 'Implicit 'Bool Bool
+instance MessageFieldType 'Implicit 'Float Float
+instance MessageFieldType 'Implicit 'Double Double
+instance MessageFieldType 'Implicit ('Enumeration e) (Enumerated e)
+
+instance MessageFieldType 'Optional 'Int32 (Maybe (ForceEmit Int32))
+instance MessageFieldType 'Optional 'Int64 (Maybe (ForceEmit Int64))
+instance MessageFieldType 'Optional 'SInt32 (Maybe (ForceEmit (Signed Int32)))
+instance MessageFieldType 'Optional 'SInt64 (Maybe (ForceEmit (Signed Int64)))
+instance MessageFieldType 'Optional 'UInt32 (Maybe (ForceEmit Word32))
+instance MessageFieldType 'Optional 'UInt64  (Maybe (ForceEmit Word64))
+instance MessageFieldType 'Optional 'Fixed32 (Maybe (ForceEmit (Fixed Word32)))
+instance MessageFieldType 'Optional 'Fixed64 (Maybe (ForceEmit (Fixed Word64)))
+instance MessageFieldType 'Optional 'SFixed32 (Maybe (ForceEmit (Signed (Fixed Int32))))
+instance MessageFieldType 'Optional 'SFixed64 (Maybe (ForceEmit (Signed (Fixed Int64))))
+instance MessageFieldType 'Optional 'String (Maybe (ForceEmit (String a)))
+instance MessageFieldType 'Optional 'Bytes (Maybe (ForceEmit (Bytes a)))
+instance MessageFieldType 'Optional 'Bool (Maybe (ForceEmit Bool))
+instance MessageFieldType 'Optional 'Float (Maybe (ForceEmit Float))
+instance MessageFieldType 'Optional 'Double (Maybe (ForceEmit Double))
+instance MessageFieldType 'Optional ('Enumeration e) (Maybe (ForceEmit (Enumerated e)))
 
 -- | Helps to diagnose the absence of an instance for 'MessageFieldType'
 -- for optional submessages by requiring that the second type parameter
@@ -316,31 +337,10 @@ type family OptionalMessageFieldType (m :: Type) (haskellType :: Type)
         'Text "Haskell type provided: " ':<>: 'ShowType haskellType )
 
 instance ( OptionalMessageFieldType m haskellType
-         , RecoverRepetition haskellType ~ 'Optional
+         , RecoverCardinality haskellType ~ 'Optional
          , RecoverProtoType haskellType ~ 'Message m
          ) =>
          MessageFieldType 'Optional ('Message m) haskellType
-
-instance MessageFieldType ('Singular 'Alternative) 'Int32 (ForceEmit Int32)
-instance MessageFieldType ('Singular 'Alternative) 'Int64 (ForceEmit Int64)
-instance MessageFieldType ('Singular 'Alternative) 'SInt32 (ForceEmit (Signed Int32))
-instance MessageFieldType ('Singular 'Alternative) 'SInt64 (ForceEmit (Signed Int64))
-instance MessageFieldType ('Singular 'Alternative) 'UInt32 (ForceEmit (Word32))
-instance MessageFieldType ('Singular 'Alternative) 'UInt64 (ForceEmit (Word64))
-instance MessageFieldType ('Singular 'Alternative) 'Fixed32 (ForceEmit (Fixed Word32))
-instance MessageFieldType ('Singular 'Alternative) 'Fixed64 (ForceEmit (Fixed Word64))
-instance MessageFieldType ('Singular 'Alternative) 'SFixed32 (ForceEmit (Signed (Fixed Int32)))
-instance MessageFieldType ('Singular 'Alternative) 'SFixed64 (ForceEmit (Signed (Fixed Int64)))
-instance MessageFieldType ('Singular 'Alternative) 'String (ForceEmit (String a))
-instance MessageFieldType ('Singular 'Alternative) 'Bytes (ForceEmit (Bytes a))
-instance MessageFieldType ('Singular 'Alternative) 'Bool (ForceEmit Bool)
-instance MessageFieldType ('Singular 'Alternative) 'Float (ForceEmit Float)
-instance MessageFieldType ('Singular 'Alternative) 'Double (ForceEmit Double)
-instance MessageFieldType ('Singular 'Alternative) ('Enumeration e) (ForceEmit (Enumerated e))
-instance ( RecoverRepetition m ~ 'Singular 'Alternative
-         , RecoverProtoType m ~ 'Message m
-         ) =>
-         MessageFieldType ('Singular 'Alternative) ('Message m) m
 
 instance MessageFieldType ('Repeated 'Unpacked) 'Int32 (UnpackedVec Int32)
 instance MessageFieldType ('Repeated 'Unpacked) 'Int64 (UnpackedVec Int64)
@@ -377,13 +377,13 @@ type family RepeatedMessageFieldType (m :: Type) (haskellType :: Type)
         'Text "Haskell type provided: " ':<>: 'ShowType haskellType )
 
 instance ( RepeatedMessageFieldType m haskellType
-         , RecoverRepetition haskellType ~ 'Repeated 'Unpacked
+         , RecoverCardinality haskellType ~ 'Repeated 'Unpacked
          , RecoverProtoType haskellType ~ 'Message m
          ) =>
          MessageFieldType ('Repeated 'Unpacked) ('Message m) haskellType
 
-instance ( MessageFieldType ('Singular 'Implicit) k kh
-         , MessageFieldType (RepetitionOfMapped v) v vh
+instance ( MessageFieldType 'Implicit k kh
+         , MessageFieldType (CardinalityOfMapped v) v vh
          ) =>
          MessageFieldType ('Repeated 'Unpacked) ('Map k v) (M.Map kh vh)
 

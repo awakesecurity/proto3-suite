@@ -431,7 +431,7 @@ message = do
 messageOneOf :: ProtoParser DotProtoMessagePart
 messageOneOf = do symbol "oneof"
                   name <- singleIdentifier
-                  body <- braces (many messageField)
+                  body <- braces (many oneofField)
                   return $ DotProtoMessageOneOf name body
 
 messagePart :: ProtoParser (Maybe DotProtoMessagePart)
@@ -445,23 +445,32 @@ messagePart =
     <|> (Nothing <$ pEmptyStmt)
 
 messageType :: ProtoParser DotProtoType
-messageType = try mapType <|> try repType <|> (Prim <$> primType)
+messageType = try mapType <|> try optType <|> try repType <|> (Prim <$> primType)
   where
     mapType = do symbol "map"
                  angles $ Map <$> (primType <* comma)
                               <*> primType
 
+    optType = do symbol "optional"
+                 Optional <$> primType
+
     repType = do symbol "repeated"
                  Repeated <$> primType
 
 messageField :: ProtoParser DotProtoField
-messageField = do mtype <- messageType
-                  mname <- identifier
-                  symbol "="
-                  mnumber <- fieldNumber
-                  moptions <- pFieldOptions
-                  semi
-                  return $ DotProtoField mnumber mtype mname moptions mempty
+messageField = messageFieldFor messageType
+
+oneofField :: ProtoParser DotProtoField
+oneofField = messageFieldFor (Prim <$> primType)
+
+messageFieldFor :: ProtoParser DotProtoType -> ProtoParser DotProtoField
+messageFieldFor parseType = do mtype <- parseType
+                               mname <- identifier
+                               symbol "="
+                               mnumber <- fieldNumber
+                               moptions <- pFieldOptions
+                               semi
+                               return $ DotProtoField mnumber mtype mname moptions mempty
 
 --------------------------------------------------------------------------------
 -- enumerations
@@ -505,7 +514,7 @@ ranges :: ProtoParser [DotProtoReservedField]
 ranges = commaSep1 (try range <|> (SingleField . fromInteger <$> integer))
 
 pReserved :: ProtoParser [DotProtoReservedField]
-pReserved = do 
+pReserved = do
   symbol "reserved"
   v <- ranges <|> commaSep1 (ReservedIdentifier <$> strFieldName)
   semi

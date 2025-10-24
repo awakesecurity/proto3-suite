@@ -23,12 +23,63 @@
 -- | Encodes to protobuf directly from application-specific source data without
 -- an intermediate value of a type generated from protobuf message definitions.
 --
+-- Use @compile-proto-file --typeLevelFormat ...@ to generate supporting code.
+--
 -- Importantly, code generation does not make use of this module,
 -- instead using only "Proto3.Suite.Form".  Therefore one can replace
 -- this module with another that makes use of the same generated code.
 --
 -- /WARNING/: This module is experimental and breaking changes may occur much more
 -- frequently than in the other modules of this package, perhaps even in patch releases.
+--
+-- Example @.proto@ file:
+--
+-- > syntax = "proto3";
+-- > package Example;
+-- >
+-- > message Submessage {
+-- > };
+-- >
+-- > message Message {
+-- >   sint32 implicitField = 1;
+-- >   optional sint32 optionalField = 2;
+-- >   repeated sint32 repeatedField = 3;
+-- >   Submessage submessageField = 4;
+-- >   map<sint32, string> mapField = 5;
+-- > }
+--
+-- Example Haskell program:
+--
+-- > {-# LANGUAGE DataKinds #-}
+-- > {-# LANGUAGE OverloadedStrings #-}
+-- > {-# LANGUAGE PolyKinds #-}
+-- > {-# LANGUAGE TypeApplications #-}
+-- >
+-- > import Control.Category ((.), id)
+-- > import Data.ByteString.Lazy (writeFile)
+-- > import Data.Text.Short (ShortText)
+-- > import Data.Word (Word8)
+-- > import Example (Message, Submessage)
+-- > import Prelude hiding ((.), id)
+-- > import Proto3.Suite.Form (Association, ProtoType(SInt32, String))
+-- > import Proto3.Suite.Form.Encode
+-- >          (Auto(..), MessageEncoder, associations, field,
+-- >           fieldsToMessage, messageEncoderToLazyByteString)
+-- > import Proto3.Wire.Encode.Repeated (mapRepeated)
+-- >
+-- > main :: IO ()
+-- > main = do
+-- >   let assoc :: (Word8, ShortText) -> MessageEncoder (Association 'SInt32 'String)
+-- >       assoc (k, v) = fieldsToMessage (field @"key" k . field @"value" v)
+-- >   Data.ByteString.Lazy.writeFile "example.data" $
+-- >     messageEncoderToLazyByteString $
+-- >       fieldsToMessage @Message $
+-- >         field @"implicitField" @Word8 123 .
+-- >         field @"optionalField" (Just (Auto 456)) .
+-- >         field @"repeatedField" (mapRepeated Auto [789, 321]) .
+-- >         field @"submessageField" (Just (fieldsToMessage @Submessage id)) .
+-- >         associations @"mapField" (mapRepeated assoc [(3, "abc"), (5, "xyz")])
+--
 module Proto3.Suite.Form.Encode
   ( MessageEncoder(..)
   , messageEncoderToLazyByteString
@@ -82,6 +133,7 @@ import Data.Kind (Type)
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
 import Data.ByteString.Short qualified as BS
+import Data.Functor.Identity (Identity(..))
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Text.Short qualified as TS
@@ -94,8 +146,8 @@ import Proto3.Suite.Form.Encode.Core
 import Proto3.Suite.Class
          (Message, MessageField, encodeMessage, encodeMessageField, fromByteString)
 import Proto3.Suite.Form
-         (Association, MessageFieldType, Omission(..), Packing(..),
-          Repetition(..), RepetitionOf, ProtoType(..), ProtoTypeOf)
+         (Association, MessageFieldType,  Packing(..), Cardinality(..),
+          CardinalityOf, ProtoType(..), ProtoTypeOf)
 import Proto3.Suite.JSONPB.Class qualified as JSONPB
          (FromJSONPB(..), ToJSONPB(..), toAesonEncoding, toAesonValue)
 import Proto3.Suite.Types (Enumerated, codeFromEnumerated)
@@ -103,7 +155,7 @@ import Proto3.Wire.Class (ProtoEnum(..))
 import Proto3.Wire.Encode qualified as Encode
 import Proto3.Wire.Encode.Repeated (ToRepeated, mapRepeated)
 import Proto3.Wire.Reverse qualified as RB
-import Proto3.Wire.Types (fieldNumber)
+import Proto3.Wire.Types (FieldNumber, fieldNumber)
 
 -- | The unsafe but fast inverse of 'messageEncoderToByteString'.
 unsafeByteStringToMessageEncoder :: B.ByteString -> MessageEncoder message
@@ -123,22 +175,20 @@ newtype MessageEncoding (message :: Type) = UnsafeMessageEncoding B.ByteString
 
 type role MessageEncoding nominal
 
-instance (omission ~ 'Alternative) =>
-         FieldForm ('Singular omission) ('Message inner) (MessageEncoding inner)
+instance FieldForm 'Optional ('Message inner) (Identity (MessageEncoding inner))
   where
-    fieldForm rep ty !fn e = fieldForm rep ty fn (cachedMessageEncoding e)
+    fieldForm rep ty !fn (Identity e) = fieldForm rep ty fn (Identity (cachedMessageEncoding e))
     {-# INLINE fieldForm #-}
 
 -- | This instance is rather artificial because maps are automatically
--- repeated and unpacked, with no option to specify a single key-value
--- pair as a field of a @oneof@.  Hence the code generator should never
--- directly make use of this instance, but it will do so indirectly via
--- the general instance for repeated unpacked fields, which will then
--- delegate to this instance.
-instance (omission ~ 'Alternative) =>
-         FieldForm ('Singular omission) ('Map key value) (MessageEncoding (Association key value))
+-- repeated and unpacked, with no option to specify a single key-value pair
+-- as an @optional@ field or a field of a @oneof@.  Hence the code generator
+-- should never directly make use of this instance, but it will do so
+-- indirectly via the general instance for repeated unpacked fields,
+-- which will then delegate to this instance.
+instance FieldForm 'Optional ('Map key value) (Identity (MessageEncoding (Association key value)))
   where
-    fieldForm rep ty !fn e = fieldForm rep ty fn (cachedMessageEncoding e)
+    fieldForm rep ty !fn (Identity a) = fieldForm rep ty fn (Identity (cachedMessageEncoding a))
     {-# INLINE fieldForm #-}
 
 -- | Precomputes the octet sequence that would be written by the given 'MessageEncoder'.
@@ -309,19 +359,37 @@ $(instantiateStringOrBytesField
    ])
 
 instance ( ProtoEnum e
-         , FieldForm ('Singular omission) 'Int32 Int32
+         , FieldForm 'Implicit 'Int32 Int32
          ) =>
-         FieldForm ('Singular omission) ('Enumeration e) e
+         FieldForm 'Implicit ('Enumeration e) e
   where
     fieldForm rep _ !fn x = fieldForm rep (proxy# :: Proxy# 'Int32) fn (fromProtoEnum x)
     {-# INLINE fieldForm #-}
 
 instance ( ProtoEnum e
-         , FieldForm ('Singular omission) 'Int32 Int32
+         , FieldForm 'Optional 'Int32 (Identity Int32)
          ) =>
-         FieldForm ('Singular omission) ('Enumeration e) (Enumerated e)
+         FieldForm 'Optional ('Enumeration e) (Identity e)
+  where
+    fieldForm rep _ !fn (Identity x) =
+      fieldForm rep (proxy# :: Proxy# 'Int32) fn (Identity (fromProtoEnum x))
+    {-# INLINE fieldForm #-}
+
+instance ( ProtoEnum e
+         , FieldForm 'Implicit 'Int32 Int32
+         ) =>
+         FieldForm 'Implicit ('Enumeration e) (Enumerated e)
   where
     fieldForm rep _ !fn x = fieldForm rep (proxy# :: Proxy# 'Int32) fn (codeFromEnumerated x)
+    {-# INLINE fieldForm #-}
+
+instance ( ProtoEnum e
+         , FieldForm 'Optional 'Int32 (Identity Int32)
+         ) =>
+         FieldForm 'Optional ('Enumeration e) (Identity (Enumerated e))
+  where
+    fieldForm rep _ !fn (Identity x) =
+      fieldForm rep (proxy# :: Proxy# 'Int32) fn (Identity (codeFromEnumerated x))
     {-# INLINE fieldForm #-}
 
 instance ProtoEnum e =>
@@ -338,12 +406,15 @@ instance ProtoEnum e =>
       packedFieldForm (proxy# :: Proxy# 'Int32) fn (fmap codeFromEnumerated xs)
     {-# INLINE packedFieldForm #-}
 
-instance FieldForm ('Singular 'Alternative) 'Bytes RB.BuildR
+instance FieldForm 'Optional 'Bytes (Identity RB.BuildR)
   where
-    fieldForm _ _ = Encode.bytes
+    fieldForm _ _ = coerce
+      @(FieldNumber -> RB.BuildR -> Encode.MessageBuilder)
+      @(FieldNumber -> Identity RB.BuildR -> Encode.MessageBuilder)
+      Encode.bytes
     {-# INLINE fieldForm #-}
 
-instance FieldForm ('Singular 'Implicit) 'Bytes RB.BuildR
+instance FieldForm 'Implicit 'Bytes RB.BuildR
   where
     fieldForm _ _ = Encode.bytesIfNonempty
     {-# INLINE fieldForm #-}
@@ -376,7 +447,7 @@ associations ::
   forall (name :: Symbol) (t :: Type -> Type) (key :: ProtoType) (value :: ProtoType)
          (message :: Type) (names :: [Symbol]) .
   ( ProtoTypeOf message name ~ 'Map key value
-  , RepetitionOf message name ~ 'Repeated 'Unpacked
+  , CardinalityOf message name ~ 'Repeated 'Unpacked
   , Field name (t (MessageEncoder (Association key value))) message
   , KnownFieldNumber message name
   ) =>
@@ -408,10 +479,10 @@ associations = field @name @(t (MessageEncoder (Association key value)))
 -- To encode a top-level message instead of a field, use 'messageReflection'.
 newtype Reflection a = Reflection a
 
-instance ( MessageFieldType repetition protoType a
+instance ( MessageFieldType cardinality protoType a
          , MessageField a
          ) =>
-         FieldForm repetition protoType (Reflection a)
+         FieldForm cardinality protoType (Reflection a)
   where
     fieldForm _ _ = coerce (encodeMessageField @a)
     {-# INLINE fieldForm #-}

@@ -11,8 +11,10 @@ import qualified Test.QuickCheck       as QC
 import           Test.QuickCheck.Arbitrary.Generic (genericArbitrary, Arbitrary (..))
 import           TestProto
 import qualified TestProtoImport
+import qualified TestProtoNegativeEnum
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
+import qualified TestProtoOptional
 
 instance Arbitrary Trivial where
   arbitrary = Trivial <$> arbitrary
@@ -163,3 +165,43 @@ instance Arbitrary TestProtoOneofImport.WithOneofPickOne where
       [ TestProtoOneofImport.WithOneofPickOneA <$> fmap fromString arbitrary
       , TestProtoOneofImport.WithOneofPickOneB <$> arbitrary
       ]
+
+instance Arbitrary TestProtoNegativeEnum.NegativeEnum where
+  arbitrary = QC.elements
+    [ TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_0
+    , TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_NEGATIVE_1
+    , TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_1
+    , TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_NEGATIVE_128
+    , TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_128
+    ]
+
+instance Arbitrary TestProtoNegativeEnum.WithNegativeEnum where
+  arbitrary =
+    TestProtoNegativeEnum.WithNegativeEnum
+    <$> arbitrary
+
+instance Arbitrary TestProtoOptional.Submessage where
+  arbitrary =
+    TestProtoOptional.Submessage
+    <$> arbitrary
+
+instance Arbitrary TestProtoOptional.WithOptional where
+  arbitrary =
+    TestProtoOptional.WithOptional
+    <$> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary
+    <*> arbitrary

@@ -145,9 +145,9 @@ newtype Nested a = Nested { nested :: Maybe a }
   deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable,
             Traversable, Applicative, Alternative, Monad, Semigroup)
 
--- | 'ForceEmit' provides a way to force emission of field values, even when
--- default-value semantics states otherwise. Used when serializing oneof
--- subfields.
+-- | 'ForceEmit' provides a way to force emission of field values,
+-- even when they have the default value.  Used for @optional@ fields
+-- and fields that are part of a @oneof@.
 newtype ForceEmit a = ForceEmit{ forceEmit :: a }
   deriving (Show, Eq, Ord, Generic, NFData, Monoid, Arbitrary, Functor, Foldable,
             Traversable, Semigroup)

@@ -1,3 +1,23 @@
+# 0.9.4
+* [#289](https://github.com/awakesecurity/proto3-suite/pull/289) Support optional fields
+  * Support optional fields (outside of a `oneof`).  Such fields are allowed
+    by newer versions of the proto3 specification (and even recommended by it).
+  * Correctly prohibit `map` and `repeated` fields within a `oneof`
+    (and continue to prohibit `optional` fields within a `oneof`).
+  * [BREAKING CHANGE in experimental module: When encoding a `oneof` field, the `field`
+     method now expects `Maybe a` or `Identity a` where it used to expect plain `a`.
+     Similarly, any instantiation of `FieldForm` for `Singular Alternative` should be
+     changed to specify `Optional` instead, and must wrap the argument type in `Identity`.
+     The type-level descriptions of cardinality have been reorganized to better reflect
+     standard terminology and encoding: `...Repetition...` -> `...Cardinality...`,
+     `Singular Implicit` -> `Implicit`, `Singular Alternative` -> `Optional`.
+     The `Omission` type is no longer needed and has been removed.]
+  * When using `field` to encode an `optional` or `oneof` field that in practice
+    is always present, you may now replace the `Just` data constructor with
+    the `Identity` newtype constructor in order to express that fact.  When
+    extending `FieldForm` at type `Optional`, define the instance for `Identity`
+    because the general `Maybe` instance delegates to `Identity` in the `Just` case.
+
 # 0.9.3
 * [#284](https://github.com/awakesecurity/proto3-suite/pull/284) Delete Repeated.hs
   * [BREAKING CHANGE in experimental module: Rename `Prefix` to `FieldsEncoder`, along with related functions.]

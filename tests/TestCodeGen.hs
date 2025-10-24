@@ -1,11 +1,12 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedLists     #-}
-{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeApplications #-}
 
 module TestCodeGen where
 
@@ -28,14 +29,17 @@ import           Data.Typeable                  (Typeable, typeRep,
                                                  splitTyConApp, tyConName
 #endif
                                                 )
+import           GHC.Exts                       (Proxy#, proxy#)
 #ifdef SWAGGER
 import           GHC.Stack                      (HasCallStack)
 #endif
 import           Google.Protobuf.Timestamp      (Timestamp(..))
 import           Prelude                        hiding (FilePath)
-import           Proto3.Suite.Class             (def)
-import           Proto3.Suite.DotProto.Generate
+import           Proto3.Suite.Class             (Message(..), def)
 import           Proto3.Suite.DotProto          (fieldLikeName, prefixedEnumFieldName, typeLikeName)
+import           Proto3.Suite.DotProto.AST      (DotProtoField(..), DotProtoIdentifier(..),
+                                                 DotProtoType(..), DotProtoPrimType(..))
+import           Proto3.Suite.DotProto.Generate
 import           Proto3.Suite.Haskell.Parser    (Logger)
 import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  ToJSONPB (..), defaultOptions,
@@ -50,14 +54,17 @@ import           Test.Tasty.QuickCheck          (Arbitrary, (===), testProperty)
 import qualified Turtle
 import qualified Turtle.Format                  as F
 import qualified TestProto
+import qualified TestProtoNegativeEnum
 import qualified TestProtoOneof
+import qualified TestProtoOptional
 #ifdef SWAGGER
 import qualified TestProtoWrappers
 #endif
 
 codeGenTests :: Logger -> TestTree
 codeGenTests logger = testGroup "Code generator unit tests"
-  [ jsonpbTests
+  [ dotProtoTests
+  , jsonpbTests
   , hasDefaultTests
   , pascalCaseMessageNames
   , camelCaseMessageFieldNames
@@ -284,6 +291,7 @@ compileTestDotProtos logger decodedStringType typeLevel = do
         , "test_proto_nested_message.proto"
         , "test_proto_wrappers.proto"
         , "test_proto_negative_enum.proto"
+        , "test_proto_optional.proto"
         ]
 
   forM_ protoFiles $ \protoFile -> do
@@ -304,6 +312,57 @@ compileTestDotProtos logger decodedStringType typeLevel = do
     Turtle.shell cmd empty >>= (@?= ExitSuccess)
 
   Turtle.touch (pyTmpDir Turtle.</> "__init__.py")
+
+dotProtoTests :: TestTree
+dotProtoTests = testGroup "dotProto method tests"
+  [ dotProtoTest @TestProto.Trivial
+      [ DotProtoField 1 (Prim Int32) (Single "trivialField") [] ""
+      ]
+  , dotProtoTest @TestProto.MultipleFields
+      [ DotProtoField 1 (Prim Double) (Single "multiFieldDouble") [] ""
+      , DotProtoField 2 (Prim Float) (Single "multiFieldFloat") [] ""
+      , DotProtoField 3 (Prim Int32) (Single "multiFieldInt32") [] ""
+      , DotProtoField 4 (Prim Int64) (Single "multiFieldInt64") [] ""
+      , DotProtoField 5 (Prim String) (Single "multiFieldString") [] ""
+      , DotProtoField 6 (Prim Bool) (Single "multiFieldBool") [] ""
+      ]
+  , dotProtoTest @TestProto.SignedInts
+      [ DotProtoField 1 (Prim SInt32) (Single "signed32") [] ""
+      , DotProtoField 2 (Prim SInt64) (Single "signed64") [] ""
+      ]
+  , dotProtoTest @TestProto.MapTest
+      [ DotProtoField 1 (Map String SInt32) (Single "prim") [] ""
+      , DotProtoField 2 (Map Int32 (Named (Single "WrappedTrivial"))) (Single "trivial") [] ""
+      , DotProtoField 3 (Map SInt32 SInt32) (Single "signed") [] ""
+          -- Current parser discards comments.
+      ]
+  , dotProtoTest @TestProto.WithNestingRepeatedInts
+      [ DotProtoField 1 (Repeated (Named (Single "NestedInts"))) (Single "nestedInts") [] ""
+      ]
+  , dotProtoTest @TestProto.WithRepeatedSigned
+      [ DotProtoField 1 (Repeated SInt32) (Single "r32") [] ""
+      , DotProtoField 2 (Repeated SInt64) (Single "r64") [] ""
+      ]
+  , dotProtoTest @TestProtoOptional.WithOptional
+      [ DotProtoField 10 (Optional Double) (Single "optionalDouble") [] ""
+      , DotProtoField 20 (Optional Float) (Single "optionalFloat") [] ""
+      , DotProtoField 30 (Optional Int32) (Single "optionalInt32") [] ""
+      , DotProtoField 40 (Optional Int64) (Single "optionalInt64") [] ""
+      , DotProtoField 50 (Optional UInt32) (Single "optionalUint32") [] ""
+      , DotProtoField 60 (Optional UInt64) (Single "optionalUint64") [] ""
+      , DotProtoField 70 (Optional SInt32) (Single "optionalSint32") [] ""
+      , DotProtoField 80 (Optional SInt64) (Single "optionalSint64") [] ""
+      , DotProtoField 90 (Optional Fixed32) (Single "optionalFixed32") [] ""
+      , DotProtoField 100 (Optional Fixed64) (Single "optionalFixed64") [] ""
+      , DotProtoField 110 (Optional SFixed32) (Single "optionalSfixed32") [] ""
+      , DotProtoField 120 (Optional SFixed64) (Single "optionalSfixed64") [] ""
+      , DotProtoField 130 (Optional Bool) (Single "optionalBool") [] ""
+      , DotProtoField 140 (Optional String) (Single "optionalString") [] ""
+      , DotProtoField 150 (Optional Bytes) (Single "optionalBytes") [] ""
+      , DotProtoField 160 (Optional (Named (Single "Enum"))) (Single "optionalEnum") [] ""
+      , DotProtoField 170 (Optional (Named (Single "Submessage"))) (Single "optionalSubmessage") [] ""
+      ]
+  ]
 
 jsonpbTests :: TestTree
 jsonpbTests = testGroup "JSONPB tests"
@@ -326,6 +385,8 @@ jsonpbTests = testGroup "JSONPB tests"
       , roundTripTest @TestProto.Wrapped
       , roundTripTest @TestProtoOneof.Something
       , roundTripTest @TestProtoOneof.WithImported
+      , roundTripTest @TestProtoNegativeEnum.WithNegativeEnum
+      , roundTripTest @TestProtoOptional.WithOptional
       ]
   , testGroup "Specific encoding tests" $
       let jsonPB = jsonPBOptions
@@ -422,7 +483,26 @@ swaggerTests = testGroup "Swagger tests"
       "{\"properties\":{\"dummy\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"}},\"type\":\"object\"}"
   , schemaOf @(Enumerated TestProtoOneof.DummyEnum)
       "{\"enum\":[\"DUMMY0\",\"DUMMY1\"],\"type\":\"string\"}"
-
+  , schemaOf @TestProtoOptional.WithOptional $
+      "{\"properties\":{" <>
+      "\"optionalDouble\":{\"format\":\"double\",\"type\":\"number\"}," <>
+      "\"optionalFloat\":{\"format\":\"float\",\"type\":\"number\"}," <>
+      "\"optionalInt32\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"}," <>
+      "\"optionalInt64\":{\"format\":\"int64\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"}," <>
+      "\"optionalUint32\":{\"format\":\"int32\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"}," <>
+      "\"optionalUint64\":{\"format\":\"int64\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"}," <>
+      "\"optionalSint32\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"}," <>
+      "\"optionalSint64\":{\"format\":\"int64\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"}," <>
+      "\"optionalFixed32\":{\"format\":\"int32\",\"maximum\":4294967295,\"minimum\":0,\"type\":\"integer\"}," <>
+      "\"optionalFixed64\":{\"format\":\"int64\",\"maximum\":18446744073709551615,\"minimum\":0,\"type\":\"integer\"}," <>
+      "\"optionalSfixed32\":{\"format\":\"int32\",\"maximum\":2147483647,\"minimum\":-2147483648,\"type\":\"integer\"}," <>
+      "\"optionalSfixed64\":{\"format\":\"int64\",\"maximum\":9223372036854775807,\"minimum\":-9223372036854775808,\"type\":\"integer\"}," <>
+      "\"optionalBool\":{\"type\":\"boolean\"}," <>
+      "\"optionalString\":{\"type\":\"string\"}," <>
+      "\"optionalBytes\":{\"format\":\"byte\",\"type\":\"string\"}," <>
+      "\"optionalEnum\":{\"$ref\":\"#/definitions/Enum\"}," <>
+      "\"optionalSubmessage\":{\"$ref\":\"#/definitions/Submessage\"}" <>
+      "},\"type\":\"object\"}"
   ]
 #endif
 
@@ -443,6 +523,15 @@ hasDefaultTests = testGroup "Generic HasDefault"
   ]
 
 -- * Helper quickcheck props
+
+dotProtoTest ::
+  forall a .
+  (Message a, Typeable a) =>
+  [DotProtoField] ->
+  TestTree
+dotProtoTest expected =
+  testProperty ("dotProtoTest @" ++ show (typeRep (Proxy :: Proxy a))) $
+    dotProto (proxy# :: Proxy# a) === expected
 
 roundTripTest ::
   forall a .

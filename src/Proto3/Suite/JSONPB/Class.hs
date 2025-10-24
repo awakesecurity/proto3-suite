@@ -117,9 +117,9 @@ import           Google.Protobuf.Wrappers.Polymorphic (Wrapped(..))
 import           Proto3.Suite.Class               (HasDefault (def, isDefault),
                                                    Named (nameOf))
 import           Proto3.Suite.Types               (Enumerated(..), Fixed(..),
-                                                   Nested(..), NestedVec(..),
-                                                   PackedVec(..), Signed(..),
-                                                   UnpackedVec(..))
+                                                   ForceEmit(..), Nested(..),
+                                                   NestedVec(..), PackedVec(..),
+                                                   Signed(..), UnpackedVec(..))
 import qualified Proto3.Suite.Types
 import           Proto3.Wire.Class                (ProtoEnum(..))
 import           Test.QuickCheck.Arbitrary        (Arbitrary(..))
@@ -549,6 +549,12 @@ instance FromJSONPB a => FromJSONPB (Maybe a) where
 
 deriving via (Maybe a) instance FromJSONPB a => FromJSONPB (Nested a)
 deriving via (Maybe a) instance ToJSONPB a => ToJSONPB (Nested a)
+
+--------------------------------------------------------------------------------
+-- Instances for optional fields
+
+deriving newtype instance FromJSONPB a => FromJSONPB (ForceEmit a)
+deriving newtype instance ToJSONPB a => ToJSONPB (ForceEmit a)
 
 --------------------------------------------------------------------------------
 -- Instances for map

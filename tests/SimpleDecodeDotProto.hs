@@ -1,22 +1,27 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ImplicitParams #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NegativeLiterals #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
 
 
 import Test.Tasty
-import Test.Tasty.HUnit (Assertion, (@?=), (@=?), testCase)
+import Test.Tasty.HUnit (Assertion, (@?=), assertEqual, assertFailure, testCase)
 import Control.Monad (when)
 import qualified Data.Map as M
 import Proto3.Suite
 import qualified Proto3.Suite.JSONPB as JSONPB
 import qualified Data.Bifunctor as Bifunctor
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
 import Data.List (intercalate)
+import Data.Proxy (Proxy(..))
+import Data.Typeable (Typeable, showsTypeRep, typeOf, typeRep)
 import GHC.Stack (HasCallStack)
 import System.Environment (lookupEnv)
 import System.Exit (die)
@@ -25,10 +30,11 @@ import Text.Read (readEither)
 
 import TestProto
 import qualified TestProtoImport
+import qualified TestProtoNegativeEnum
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
+import qualified TestProtoOptional
 import qualified TestProtoWrappers
-import qualified TestProtoNegativeEnum
 
 data Format = Binary | Jsonpb
   deriving (Bounded, Enum, Eq, Read, Show)
@@ -60,7 +66,7 @@ tests, testCase1, testCase2, testCaseSignedInts, testCaseRepeatedSignedInts,
     testCase_DoubleValue, testCase_FloatValue, testCase_Int64Value,
     testCase_UInt64Value, testCase_Int32Value, testCase_UInt32Value,
     testCase_BoolValue, testCase_StringValue, testCase_BytesValue,
-    testCase_NegativeEnum,
+    testCase_NegativeEnum, testCase_Optional,
     allTestsDone :: (?format :: Format) => TestTree
 tests = testGroup
           ("Decode protobuf messages from Python: format " ++ show ?format)
@@ -73,29 +79,44 @@ tests = testGroup
           , testCase_DoubleValue, testCase_FloatValue, testCase_Int64Value
           , testCase_UInt64Value, testCase_Int32Value, testCase_UInt32Value
           , testCase_BoolValue, testCase_StringValue, testCase_BytesValue
-          , testCase_NegativeEnum
+          , testCase_NegativeEnum, testCase_Optional
           , allTestsDone -- this should always run last
           ]
 
-readProto :: (Message a, JSONPB.FromJSONPB a, ?format :: Format) => IO a
-readProto = do
+readProto ::
+  forall a .
+  (HasCallStack, Message a, JSONPB.FromJSONPB a, Typeable a, ?format :: Format) =>
+  IO a
+readProto = fmap snd readBytesAndProto
+
+readBytesAndProto ::
+  forall a .
+  (HasCallStack, Message a, JSONPB.FromJSONPB a, Typeable a, ?format :: Format) =>
+  IO (B.ByteString, a)
+readBytesAndProto = do
     length <- readLn
-    res <- parse <$> BC.hGet stdin length
-    case res of
-      Left err -> fail ("readProto: " ++ err)
-      Right  x -> pure x
+    bs <- BC.hGet stdin length
+    case parse bs of
+      Left err -> assertFailure $
+        "readProto @" ++
+        showsTypeRep (typeRep (Proxy :: Proxy a)) " (?format = " ++
+        show ?format ++ "): (" ++ show bs ++ ") " ++
+        err
+      Right  x -> pure (bs, x)
   where
     parse = case ?format of
-      Binary -> Bifunctor.first show . fromByteString
-      Jsonpb -> JSONPB.eitherDecode . BL.fromStrict
+      Binary -> Bifunctor.first show . fromByteString @a
+      Jsonpb -> JSONPB.eitherDecode @a . BL.fromStrict
 
 expect ::
-  ( HasCallStack, Eq a, Message a, JSONPB.FromJSONPB a, Show a
+  ( HasCallStack, Eq a, Message a, JSONPB.FromJSONPB a, Show a, Typeable a
   , ?format :: Format
   ) =>
   a ->
   Assertion
-expect v = (v @=?) =<< readProto
+expect v = do
+  (bs, x) <- readBytesAndProto
+  assertEqual ("result of decoding a " ++ showsTypeRep (typeOf x) " from " ++ show bs) v x
 
 testCaseInFormat :: (?format :: Format) => String -> Assertion -> TestTree
 testCaseInFormat = testCase . (++ ": format " ++ show ?format)
@@ -493,6 +514,47 @@ testCase_NegativeEnum = testCaseInFormat "NegativeEnum" $ do
   expect (w TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_1)
   expect (w TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_NEGATIVE_128)
   expect (w TestProtoNegativeEnum.NegativeEnumNEGATIVE_ENUM_128)
+
+testCase_Optional = testCaseInFormat "Optional" $ do
+  let check ::
+        HasCallStack =>
+        (TestProtoOptional.WithOptional -> TestProtoOptional.WithOptional) ->
+        Assertion
+      check f = expect (f (def @TestProtoOptional.WithOptional))
+  check (\m -> m)
+  check (\m -> m { TestProtoOptional.withOptionalOptionalDouble = Just 0
+                 , TestProtoOptional.withOptionalOptionalFloat = Just 1.0 })
+  check (\m -> m { TestProtoOptional.withOptionalOptionalDouble = Just 2.0
+                 , TestProtoOptional.withOptionalOptionalFloat = Just 0 })
+  check (\m -> m { TestProtoOptional.withOptionalOptionalInt32 = Just 0
+                 , TestProtoOptional.withOptionalOptionalInt64 = Just -64 })
+  check (\m -> m { TestProtoOptional.withOptionalOptionalInt32 = Just -32
+                 , TestProtoOptional.withOptionalOptionalInt64 = Just 0 })
+  check (\m -> m { TestProtoOptional.withOptionalOptionalUint32 = Just 0
+                 , TestProtoOptional.withOptionalOptionalUint64 = Just 0xFFFFFFFFFFFFFFBF })
+  check (\m -> m { TestProtoOptional.withOptionalOptionalUint32 = Just 0xFFFFFFDF
+                 , TestProtoOptional.withOptionalOptionalUint64 = Just 0 })
+  check (\m -> m { TestProtoOptional.withOptionalOptionalSint32 = Just 0
+                 , TestProtoOptional.withOptionalOptionalSint64 = Just -64 })
+  check (\m -> m { TestProtoOptional.withOptionalOptionalSint32 = Just -32
+                 , TestProtoOptional.withOptionalOptionalSint64 = Just 0 })
+  check (\m -> m { TestProtoOptional.withOptionalOptionalFixed32 = Just 0
+                 , TestProtoOptional.withOptionalOptionalFixed64 = Just 0xFFFFFFFFFFFFFFBF })
+  check (\m -> m { TestProtoOptional.withOptionalOptionalFixed32 = Just 0xFFFFFFDF
+                 , TestProtoOptional.withOptionalOptionalFixed64 = Just 0 })
+  check (\m -> m { TestProtoOptional.withOptionalOptionalSfixed32 = Just 0
+                 , TestProtoOptional.withOptionalOptionalSfixed64 = Just -64})
+  check (\m -> m { TestProtoOptional.withOptionalOptionalSfixed32 = Just -32
+                 , TestProtoOptional.withOptionalOptionalSfixed64 = Just 0})
+  check (\m -> m { TestProtoOptional.withOptionalOptionalBool = Just False
+                 , TestProtoOptional.withOptionalOptionalString = Just "abc"
+                 , TestProtoOptional.withOptionalOptionalBytes = Just "xyz" })
+  check (\m -> m { TestProtoOptional.withOptionalOptionalBool = Just True
+                 , TestProtoOptional.withOptionalOptionalString = Just ""
+                 , TestProtoOptional.withOptionalOptionalBytes = Just "" })
+  check (\m -> m { TestProtoOptional.withOptionalOptionalEnum = Just (Enumerated (Right TestProtoOptional.EnumUNKNOWN))
+                 , TestProtoOptional.withOptionalOptionalSubmessage = Just (TestProtoOptional.Submessage 123) })
+  check (\m -> m { TestProtoOptional.withOptionalOptionalEnum = Just (Enumerated (Right TestProtoOptional.EnumCode55)) })
 
 
 allTestsDone = testCaseInFormat "Receive end of test suite sentinel message" $

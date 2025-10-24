@@ -565,7 +565,7 @@ instance forall e. (Named e, ProtoEnum e) => Primitive (Enumerated e) where
     Decode.enum
   primType _ = Named (Single (nameOf (proxy# :: Proxy# e)))
 
-instance (Primitive a) => Primitive (ForceEmit a) where
+instance Primitive a => Primitive (ForceEmit a) where
   encodePrimitive !num = encodePrimitive num . forceEmit
   {-# INLINE encodePrimitive #-}
   decodePrimitive     = coerce @(Parser RawPrimitive a) @(Parser RawPrimitive (ForceEmit a)) decodePrimitive
@@ -673,6 +673,12 @@ instance {-# OVERLAPS #-} (Ord k, Primitive k, Named v, Message v, MessageField 
 instance (HasDefault a, Primitive a) => MessageField (ForceEmit a) where
   encodeMessageField !num = encodePrimitive num
   {-# INLINE encodeMessageField #-}
+
+instance Primitive a => MessageField (Maybe (ForceEmit a)) where
+  encodeMessageField !num = foldMap (encodePrimitive num)
+  {-# INLINE encodeMessageField #-}
+  decodeMessageField = Decode.optional decodePrimitive
+  protoType _ = messageField (Optional $ primType (proxy# :: Proxy# (ForceEmit a))) Nothing
 
 instance (Named a, Message a) => MessageField (Nested a) where
   encodeMessageField !num = go op

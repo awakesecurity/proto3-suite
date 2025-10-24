@@ -9,6 +9,7 @@ import test_proto_import_pb2        as test_proto_import
 import test_proto_negative_enum_pb2 as test_proto_negative_enum
 import test_proto_oneof_pb2         as test_proto_oneof
 import test_proto_oneof_import_pb2  as test_proto_oneof_import
+import test_proto_optional_pb2      as test_proto_optional
 import test_proto_wrappers_pb2      as test_proto_wrappers
 
 # Python 3.7 or newer requires this
@@ -412,6 +413,25 @@ write_proto(test_proto_negative_enum.WithNegativeEnum(v=test_proto_negative_enum
 write_proto(test_proto_negative_enum.WithNegativeEnum(v=test_proto_negative_enum.NEGATIVE_ENUM_1))
 write_proto(test_proto_negative_enum.WithNegativeEnum(v=test_proto_negative_enum.NEGATIVE_ENUM_NEGATIVE_128))
 write_proto(test_proto_negative_enum.WithNegativeEnum(v=test_proto_negative_enum.NEGATIVE_ENUM_128))
+
+# Test Optional
+write_proto(test_proto_optional.WithOptional())
+write_proto(test_proto_optional.WithOptional(optionalDouble=0, optionalFloat=1.0))
+write_proto(test_proto_optional.WithOptional(optionalDouble=2.0, optionalFloat=0))
+write_proto(test_proto_optional.WithOptional(optionalInt32=0, optionalInt64=-64))
+write_proto(test_proto_optional.WithOptional(optionalInt32=-32, optionalInt64=0))
+write_proto(test_proto_optional.WithOptional(optionalUint32=0, optionalUint64=0xFFFFFFFFFFFFFFBF))
+write_proto(test_proto_optional.WithOptional(optionalUint32=0xFFFFFFDF, optionalUint64=0))
+write_proto(test_proto_optional.WithOptional(optionalSint32=0, optionalSint64=-64))
+write_proto(test_proto_optional.WithOptional(optionalSint32=-32, optionalSint64=0))
+write_proto(test_proto_optional.WithOptional(optionalFixed32=0, optionalFixed64=0xFFFFFFFFFFFFFFBF))
+write_proto(test_proto_optional.WithOptional(optionalFixed32=0xFFFFFFDF, optionalFixed64=0))
+write_proto(test_proto_optional.WithOptional(optionalSfixed32=0, optionalSfixed64=-64))
+write_proto(test_proto_optional.WithOptional(optionalSfixed32=-32, optionalSfixed64=0))
+write_proto(test_proto_optional.WithOptional(optionalBool=False, optionalString="abc", optionalBytes=b"xyz"))
+write_proto(test_proto_optional.WithOptional(optionalBool=True, optionalString="", optionalBytes=b""))
+write_proto(test_proto_optional.WithOptional(optionalEnum=test_proto_optional.UNKNOWN, optionalSubmessage=test_proto_optional.Submessage(someField=123)))
+write_proto(test_proto_optional.WithOptional(optionalEnum=test_proto_optional.Code55))
 
 # Send the special 'done' message
 write_proto(MultipleFields(multiFieldString = "All tests complete"))

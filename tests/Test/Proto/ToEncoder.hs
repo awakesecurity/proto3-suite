@@ -35,6 +35,7 @@ import qualified TestProtoImport
 import qualified TestProtoNegativeEnum
 import qualified TestProtoOneof
 import qualified TestProtoOneofImport
+import qualified TestProtoOptional
 import qualified TestProtoWrappers
 
 -- | Which kind of iteration we should test for repeated fields.
@@ -76,7 +77,7 @@ instance Strip (FormE.Wrap a) a 'True
   where
     strip = FormE.unwrap
 
-singular ::
+implicit ::
   forall name a message names b .
   ( Strip a b (IsWrapped a)
   , FormE.Field name a message
@@ -85,7 +86,7 @@ singular ::
   ) =>
   a ->
   FormE.FieldsEncoder message names (FormE.Occupy message name names)
-singular v = case ?stripping of
+implicit v = case ?stripping of
   Keep -> FormE.field @name @a v
   Strip -> FormE.field @name @b (strip v)
 
@@ -139,7 +140,7 @@ repeated f = case (?iterator, ?stripping) of
 associations ::
   forall name k v key value message names .
   ( Form.ProtoTypeOf message name ~ 'Form.Map key value
-  , Form.RepetitionOf message name ~ 'Form.Repeated 'Form.Unpacked
+  , Form.CardinalityOf message name ~ 'Form.Repeated 'Form.Unpacked
   , ?iterator :: Iterator
   , FormE.Field name (Functor.Identity (FormE.MessageEncoder (Form.Association key value))) message
   , FormE.Field name [FormE.MessageEncoder (Form.Association key value)] message
@@ -159,34 +160,34 @@ associations f = case ?iterator of
 instance ToEncoder Trivial
   where
     toEncoder (Trivial f1) = FormE.fieldsToMessage @Trivial @'["trivialField"] $
-      singular @"trivialField" f1
+      implicit @"trivialField" f1
 
 instance ToEncoder MultipleFields
   where
     toEncoder (MultipleFields f1 f2 f3 f4 f5 f6) = FormE.fieldsToMessage $
-      singular @"multiFieldDouble" f1 .
-      singular @"multiFieldFloat" f2 .
-      singular @"multiFieldInt32" f3 .
-      singular @"multiFieldInt64" f4 .
-      singular @"multiFieldString" f5 .
-      singular @"multiFieldBool" f6
+      implicit @"multiFieldDouble" f1 .
+      implicit @"multiFieldFloat" f2 .
+      implicit @"multiFieldInt32" f3 .
+      implicit @"multiFieldInt64" f4 .
+      implicit @"multiFieldString" f5 .
+      implicit @"multiFieldBool" f6
 
 instance ToEncoder SignedInts
   where
     toEncoder (SignedInts f1 f2) = FormE.fieldsToMessage $
-      singular @"signed32" f1 .
-      singular @"signed64" f2
+      implicit @"signed32" f1 .
+      implicit @"signed64" f2
 
 instance ToEncoder WithEnum
   where
     toEncoder (WithEnum f1) = FormE.fieldsToMessage $
-      singular @"enumField" f1
+      implicit @"enumField" f1
 
 instance ToEncoder WithNesting_Nested
   where
     toEncoder (WithNesting_Nested f1 f2 f3 f4) = FormE.fieldsToMessage $
-      singular @"nestedField1" f1 .
-      singular @"nestedField2" f2 .
+      implicit @"nestedField1" f1 .
+      implicit @"nestedField2" f2 .
       repeated @"nestedPacked" id f3 .
       repeated @"nestedUnpacked" id f4
 
@@ -198,8 +199,8 @@ instance ToEncoder WithNesting
 instance ToEncoder WithNestingRepeated_Nested
   where
     toEncoder (WithNestingRepeated_Nested f1 f2 f3 f4) = FormE.fieldsToMessage $
-      singular @"nestedField1" f1 .
-      singular @"nestedField2" f2 .
+      implicit @"nestedField1" f1 .
+      implicit @"nestedField2" f2 .
       repeated @"nestedPacked" id f3 .
       repeated @"nestedUnpacked" id f4
 
@@ -211,8 +212,8 @@ instance ToEncoder WithNestingRepeated
 instance ToEncoder NestedInts
   where
     toEncoder (NestedInts f1 f2) = FormE.fieldsToMessage $
-      singular @"nestedInt1" f1 .
-      singular @"nestedInt2" f2
+      implicit @"nestedInt1" f1 .
+      implicit @"nestedInt2" f2
 
 instance ToEncoder WithNestingRepeatedInts
   where
@@ -233,15 +234,15 @@ instance ToEncoder WithRepeatedSigned
 instance ToEncoder WithFixed
   where
     toEncoder (WithFixed f1 f2 f3 f4) = FormE.fieldsToMessage $
-      singular @"fixed1" f1 .
-      singular @"fixed2" f2 .
-      singular @"fixed3" f3 .
-      singular @"fixed4" f4
+      implicit @"fixed1" f1 .
+      implicit @"fixed2" f2 .
+      implicit @"fixed3" f3 .
+      implicit @"fixed4" f4
 
 instance ToEncoder WithBytes
   where
     toEncoder (WithBytes f1 f2) = FormE.fieldsToMessage $
-      singular @"bytes1" f1 .
+      implicit @"bytes1" f1 .
       repeated @"bytes2" id f2
 
 instance ToEncoder WithPacking
@@ -271,27 +272,27 @@ instance ToEncoder OutOfOrderFields
   where
     toEncoder (OutOfOrderFields f1 f2 f3 f4) = FormE.fieldsToMessage $
       repeated @"field1" id f1 .
-      singular @"field2" f2 .
-      singular @"field3" f3 .
+      implicit @"field2" f2 .
+      implicit @"field3" f3 .
       repeated @"field4" id f4
 
 instance ToEncoder ShadowedMessage
   where
     toEncoder (ShadowedMessage f1 f2) = FormE.fieldsToMessage $
-      singular @"name" f1 .
-      singular @"value" f2
+      implicit @"name" f1 .
+      implicit @"value" f2
 
 instance ToEncoder MessageShadower_ShadowedMessage
   where
     toEncoder (MessageShadower_ShadowedMessage f1 f2) = FormE.fieldsToMessage $
-      singular @"name" f1 .
-      singular @"value" f2
+      implicit @"name" f1 .
+      implicit @"value" f2
 
 instance ToEncoder MessageShadower
   where
     toEncoder (MessageShadower f1 f2) = FormE.fieldsToMessage $
       optional @"shadowed_message" (fmap @Maybe toEncoder f1) .
-      singular @"name" f2
+      implicit @"name" f2
 
 instance ToEncoder WithQualifiedName
   where
@@ -302,8 +303,8 @@ instance ToEncoder WithQualifiedName
 instance ToEncoder TestProtoImport.WithNesting_Nested
   where
     toEncoder (TestProtoImport.WithNesting_Nested f1 f2) = FormE.fieldsToMessage $
-      singular @"nestedField1" f1 .
-      singular @"nestedField2" f2
+      implicit @"nestedField1" f1 .
+      implicit @"nestedField2" f2
 
 instance ToEncoder TestProtoImport.WithNesting
   where
@@ -320,13 +321,13 @@ instance ToEncoder UsingImported
 instance ToEncoder TestProtoOneof.DummyMsg
   where
     toEncoder (TestProtoOneof.DummyMsg f1) = FormE.fieldsToMessage $
-      singular @"dummy" f1
+      implicit @"dummy" f1
 
 instance ToEncoder TestProtoOneofImport.AMessage
   where
     toEncoder (TestProtoOneofImport.AMessage f1 f2) = FormE.fieldsToMessage $
-      singular @"x" f1 .
-      singular @"y" f2
+      implicit @"x" f1 .
+      implicit @"y" f2
 
 instance ToEncoder TestProtoOneofImport.WithOneof
   where
@@ -335,30 +336,30 @@ instance ToEncoder TestProtoOneofImport.WithOneof
         Nothing ->
           FormE.omitted
         Just (TestProtoOneofImport.WithOneofPickOneA v) ->
-          singular @"a" v
+          optional @"a" (Just v)
         Just (TestProtoOneofImport.WithOneofPickOneB v) ->
-          singular @"b" v
+          optional @"b" (Just v)
         Just (TestProtoOneofImport.WithOneofPickOneC v) ->
-          singular @"c" (toEncoder v)
+          optional @"c" (Just (toEncoder v))
 
 instance ToEncoder TestProtoOneof.Something
   where
     toEncoder (TestProtoOneof.Something f1 f2 f3) = FormE.fieldsToMessage $
-      singular @"value" f1 .
-      singular @"another" f2 .
+      implicit @"value" f1 .
+      implicit @"another" f2 .
       case f3 of
         Nothing ->
           FormE.omitted
         Just (TestProtoOneof.SomethingPickOneName v) ->
-          singular @"name" v
+          optional @"name" (Just v)
         Just (TestProtoOneof.SomethingPickOneSomeid v) ->
-          singular @"someid" v
+          optional @"someid" (Just v)
         Just (TestProtoOneof.SomethingPickOneDummyMsg1 v) ->
-          singular @"dummyMsg1" (toEncoder v)
+          optional @"dummyMsg1" (Just (toEncoder v))
         Just (TestProtoOneof.SomethingPickOneDummyMsg2 v) ->
-          singular @"dummyMsg2" (toEncoder v)
+          optional @"dummyMsg2" (Just (toEncoder v))
         Just (TestProtoOneof.SomethingPickOneDummyEnum v) ->
-          singular @"dummyEnum" v
+          optional @"dummyEnum" (Just v)
 
 instance ToEncoder TestProtoOneof.WithImported
   where
@@ -367,9 +368,9 @@ instance ToEncoder TestProtoOneof.WithImported
         Nothing ->
           FormE.omitted
         Just (TestProtoOneof.WithImportedPickOneDummyMsg1 v) ->
-          singular @"dummyMsg1" (toEncoder v)
+          optional @"dummyMsg1" (Just (toEncoder v))
         Just (TestProtoOneof.WithImportedPickOneWithOneof v) ->
-          singular @"withOneof" (toEncoder v)
+          optional @"withOneof" (Just (toEncoder v))
 
 instance ToEncoder TestProtoWrappers.TestDoubleValue
   where
@@ -380,7 +381,7 @@ instance ToEncoder TestProtoWrappers.TestDoubleValue
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestDoubleValuePickOneOne v) ->
-          singular @"one" (FormE.Wrap v)
+          optional @"one" (Just (FormE.Wrap v))
 
 instance ToEncoder TestProtoWrappers.TestFloatValue
   where
@@ -391,7 +392,7 @@ instance ToEncoder TestProtoWrappers.TestFloatValue
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestFloatValuePickOneOne v) ->
-          singular @"one" (FormE.Wrap v)
+          optional @"one" (Just (FormE.Wrap v))
 
 instance ToEncoder TestProtoWrappers.TestInt64Value
   where
@@ -402,7 +403,7 @@ instance ToEncoder TestProtoWrappers.TestInt64Value
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestInt64ValuePickOneOne v) ->
-          singular @"one" (FormE.Wrap v)
+          optional @"one" (Just (FormE.Wrap v))
 
 instance ToEncoder TestProtoWrappers.TestUInt64Value
   where
@@ -413,7 +414,7 @@ instance ToEncoder TestProtoWrappers.TestUInt64Value
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestUInt64ValuePickOneOne v) ->
-          singular @"one" (FormE.Wrap v)
+          optional @"one" (Just (FormE.Wrap v))
 
 instance ToEncoder TestProtoWrappers.TestInt32Value
   where
@@ -424,7 +425,7 @@ instance ToEncoder TestProtoWrappers.TestInt32Value
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestInt32ValuePickOneOne v) ->
-          singular @"one" (FormE.Wrap v)
+          optional @"one" (Just (FormE.Wrap v))
 
 instance ToEncoder TestProtoWrappers.TestUInt32Value
   where
@@ -435,7 +436,7 @@ instance ToEncoder TestProtoWrappers.TestUInt32Value
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestUInt32ValuePickOneOne v) ->
-          singular @"one" (FormE.Wrap v)
+          optional @"one" (Just (FormE.Wrap v))
 
 instance ToEncoder TestProtoWrappers.TestBoolValue
   where
@@ -446,7 +447,7 @@ instance ToEncoder TestProtoWrappers.TestBoolValue
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestBoolValuePickOneOne v) ->
-          singular @"one" (FormE.Wrap v)
+          optional @"one" (Just (FormE.Wrap v))
 
 instance ToEncoder TestProtoWrappers.TestStringValue
   where
@@ -457,7 +458,7 @@ instance ToEncoder TestProtoWrappers.TestStringValue
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestStringValuePickOneOne v) ->
-          singular @"one" (FormE.Wrap v)
+          optional @"one" (Just (FormE.Wrap v))
 
 instance ToEncoder TestProtoWrappers.TestBytesValue
   where
@@ -468,7 +469,7 @@ instance ToEncoder TestProtoWrappers.TestBytesValue
         Nothing ->
           FormE.omitted
         Just (TestProtoWrappers.TestBytesValuePickOneOne v) ->
-          singular @"one" (FormE.Wrap v)
+          optional @"one" (Just (FormE.Wrap v))
 
 instance ToEncoder WrappedTrivial
   where
@@ -483,20 +484,48 @@ instance ToEncoder MapTest
         associations @"signed" assoc3 f3
       where
         assoc1 (k, v) = FormE.fieldsToMessage $
-          singular @"key" k .
-          singular @"value" v
+          implicit @"key" k .
+          implicit @"value" v
 
         assoc2 (k, v) = FormE.fieldsToMessage $
-          singular @"key" k .
+          implicit @"key" k .
           optional @"value" (fmap @Maybe toEncoder v)
 
         assoc3 (k, v) = FormE.fieldsToMessage $
-          singular @"key" k .
-          singular @"value" v
+          implicit @"key" k .
+          implicit @"value" v
 
 instance ToEncoder TestProtoNegativeEnum.WithNegativeEnum
   where
     toEncoder (TestProtoNegativeEnum.WithNegativeEnum f1) = FormE.fieldsToMessage $
-      singular @"v" f1
+      implicit @"v" f1
+
+instance ToEncoder TestProtoOptional.Submessage
+  where
+    toEncoder (TestProtoOptional.Submessage f1) = FormE.fieldsToMessage $
+      implicit @"someField" f1
+
+instance ToEncoder TestProtoOptional.WithOptional
+  where
+    toEncoder (TestProtoOptional.WithOptional
+                 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 f16 f17
+              ) = FormE.fieldsToMessage $
+      optional @"optionalDouble" f1 .
+      optional @"optionalFloat" f2 .
+      optional @"optionalInt32" f3 .
+      optional @"optionalInt64" f4 .
+      optional @"optionalUint32" f5 .
+      optional @"optionalUint64" f6 .
+      optional @"optionalSint32" f7 .
+      optional @"optionalSint64" f8 .
+      optional @"optionalFixed32" f9 .
+      optional @"optionalFixed64" f10 .
+      optional @"optionalSfixed32" f11 .
+      optional @"optionalSfixed64" f12 .
+      optional @"optionalBool" f13 .
+      optional @"optionalString" f14 .
+      optional @"optionalBytes" f15 .
+      optional @"optionalEnum" f16 .
+      optional @"optionalSubmessage" (fmap @Maybe toEncoder f17)
 
 #endif

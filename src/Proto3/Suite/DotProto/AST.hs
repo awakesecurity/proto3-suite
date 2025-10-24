@@ -327,6 +327,7 @@ instance Arbitrary Packing where
 --   are meaningful in every type context.
 data DotProtoType
   = Prim           DotProtoPrimType
+  | Optional       DotProtoPrimType
   | Repeated       DotProtoPrimType
   | NestedRepeated DotProtoPrimType
   | Map            DotProtoPrimType DotProtoPrimType
@@ -334,6 +335,7 @@ data DotProtoType
 
 instance Pretty DotProtoType where
   pPrint (Prim           ty) = pPrint ty
+  pPrint (Optional       ty) = PP.text "optional" <+> pPrint ty
   pPrint (Repeated       ty) = PP.text "repeated" <+> pPrint ty
   pPrint (NestedRepeated ty) = PP.text "repeated" <+> pPrint ty
   pPrint (Map keyty valuety) = PP.text "map<" <> pPrint keyty <> PP.text ", " <> pPrint valuety <> PP.text ">"
