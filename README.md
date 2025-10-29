@@ -37,21 +37,26 @@ Supported on Linux and Darwin.
 
 Supported on Linux and Darwin.
 
-### Nix shell + Cabal (recommended)
+### Development 
+
+#### Nix shell + Cabal (recommended)
 
 The Nix shell provides an incremental build environment (but see below for
 testing). From the root of this repository, run:
 
 ```bash
 $ nix-shell
+[nix-shell]$ cabal configure -f development
 [nix-shell]$ cabal build
 ```
 
-Once your source code compiles and you want to test, run this instead:
+#### Testing 
+
+To enable testing, configure `cabal` with `--enable-test` and (optionally) with the [`development`](./proto3-suite.cabal) flag to enable `-Werror`.
 
 ```bash
 $ nix-shell
-[nix-shell]$ cabal configure --enable-tests
+[nix-shell]$ cabal configure -f development --enable-tests
 [nix-shell]$ cabal build
 [nix-shell]$ cabal test
 ```
