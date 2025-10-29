@@ -23,6 +23,12 @@ build-type:          Simple
 data-files:          test-files/*.bin tests/encode.sh tests/decode.sh
 extra-source-files:  CHANGELOG.md, gen/.gitignore
 
+
+flag development
+  Description:   Switch for "development" mode, which enables stricter warnings and -Werror. 
+  Default:       False
+  Manual:        True
+
 flag dhall
   Description:   Turn on Dhall interpret and inject codegen
   Default:       False
@@ -53,9 +59,15 @@ common common
     BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric
     ImportQualifiedPost ViewPatterns
 
-  ghc-options:
-    -O2 
-    -Wall
+  if flag(development)
+    ghc-options:
+      -O2 
+      -Wall
+      -Werror
+  else
+    ghc-options:
+      -O2 
+      -Wall
 
 library
   import: common
