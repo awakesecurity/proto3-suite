@@ -59,15 +59,13 @@ common common
     BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric
     ImportQualifiedPost ViewPatterns
 
+  ghc-options:
+    -O2 
+    -Wall
+
   if flag(development)
     ghc-options:
-      -O2 
-      -Wall
       -Werror
-  else
-    ghc-options:
-      -O2 
-      -Wall
 
 library
   import: common
@@ -237,7 +235,7 @@ test-suite tests
     , text-short >=0.1.3 && <0.2
     , transformers >=0.4 && <0.7
     , turtle
-    , vector >=0.11 && < 0.14
+    , vector >=0.11 && <0.14
 
 executable compile-proto-file
   main-is:             Main.hs
