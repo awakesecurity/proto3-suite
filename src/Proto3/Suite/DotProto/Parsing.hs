@@ -264,7 +264,7 @@ sortStatements modulePath statements
              }
   where
     adapt (x:_) = x
-    adapt _     = DotProtoNoPackage
+    adapt _     = DotProtoPackageSpec Anonymous
 
 topLevel :: Path -> ProtoParser DotProto
 topLevel modulePath = do
