@@ -468,8 +468,8 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
 
       let prefixWithPackageName =
             case importPkgSpec of
+              DotProtoPackageSpec Anonymous -> pure
               DotProtoPackageSpec packageName -> concatDotProtoIdentifier packageName
-              DotProtoNoPackage -> pure
 
       qualifiedTypeContext <- mapKeysM prefixWithPackageName importTypeContext
 
@@ -1983,10 +1983,10 @@ dotProtoServiceD pkgSpec ctxt serviceIdent service = do
 
      endpointPrefix <-
        case pkgSpec of
+         DotProtoPackageSpec Anonymous -> pure $ "/" ++ serviceName ++ "/"
          DotProtoPackageSpec pkgIdent -> do
            packageName <- dpIdentQualName pkgIdent
            pure $ "/" ++ packageName ++ "." ++ serviceName ++ "/"
-         DotProtoNoPackage -> pure $ "/" ++ serviceName ++ "/"
 
      let serviceFieldD (DotProtoServiceRPCMethod RPCMethod{..}) = do
            fullName <- prefixedMethodName serviceName =<< dpIdentUnqualName rpcMethodName

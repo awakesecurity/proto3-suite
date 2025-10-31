@@ -8,9 +8,15 @@
 
 module Proto3.Suite.DotProto.AST
   ( -- * Types
+      -- * MessageName
       MessageName(..)
+      -- * FieldName
     , FieldName(..)
+      -- * PackageName
     , PackageName(..)
+      -- * Path
+    , Path(..)
+    , fakePath
     , DotProtoIdentifier(..)
     , DotProtoImport(..)
     , DotProtoImportQualifier(..)
@@ -22,7 +28,6 @@ module Proto3.Suite.DotProto.AST
     , DotProtoValue(..)
     , DotProtoPrimType(..)
     , Packing(..)
-    , Path(..), fakePath
     , DotProtoType(..)
     , DotProtoEnumValue
     , DotProtoEnumPart(..)
@@ -53,33 +58,36 @@ import           Text.PrettyPrint.HughesPJClass (Pretty(..))
 import           Turtle                    (FilePath)
 import           Turtle.Compat             (encodeString)
 
+-- MessageName -----------------------------------------------------------------
+
 -- | The name of a message
 newtype MessageName = MessageName
   { getMessageName :: String }
-  deriving (Data, Eq, Generic, IsString, Ord)
+  deriving newtype (Eq, IsString, Ord, Show)
+  deriving stock (Data, Generic)
 
-instance Show MessageName where
-  show = show . getMessageName
+-- FieldName -------------------------------------------------------------------
 
 -- | The name of some field
 newtype FieldName = FieldName
   { getFieldName :: String }
-  deriving (Data, Eq, Generic, IsString, Ord)
+  deriving newtype (Eq, IsString, Ord, Show)
+  deriving stock (Data, Generic)
 
-instance Show FieldName where
-  show = show . getFieldName
+-- PackageName -----------------------------------------------------------------
 
 -- | The name of the package
 newtype PackageName = PackageName
   { getPackageName :: String }
-  deriving (Data, Eq, Generic, IsString, Ord)
+  deriving newtype (Eq, IsString, Ord, Show)
+  deriving stock (Data, Generic)
 
-instance Show PackageName where
-  show = show . getPackageName
+-- Path ------------------------------------------------------------------------
 
 newtype Path = Path
   { components :: NE.NonEmpty String }
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving newtype (Eq, Ord, Show)
+  deriving stock (Data, Generic)
 
 -- Used for testing
 fakePath :: Path
@@ -136,21 +144,20 @@ instance Arbitrary DotProtoImportQualifier where
     ]
 
 -- | The namespace declaration
-data DotProtoPackageSpec
-  = DotProtoPackageSpec DotProtoIdentifier
-  | DotProtoNoPackage
+newtype DotProtoPackageSpec = DotProtoPackageSpec 
+  { getDotProtoPackageSpec :: DotProtoIdentifier }
   deriving (Data, Eq, Generic, Ord, Show)
 
 instance Pretty DotProtoPackageSpec where
-  pPrint (DotProtoPackageSpec p) = PP.text "package" <+> pPrint p PP.<> PP.text ";"
-  pPrint (DotProtoNoPackage)     = PP.empty
+  pPrint (DotProtoPackageSpec idt) = PP.text "package" <+> pPrint idt PP.<> PP.text ";"
 
 instance Arbitrary DotProtoPackageSpec where
-  arbitrary = oneof
-    [ return DotProtoNoPackage
-    , fmap DotProtoPackageSpec arbitrarySingleIdentifier
-    , fmap DotProtoPackageSpec arbitraryPathIdentifier
-    ]
+  arbitrary = 
+    oneof
+      [ pure (DotProtoPackageSpec Anonymous)
+      , fmap DotProtoPackageSpec arbitrarySingleIdentifier
+      , fmap DotProtoPackageSpec arbitraryPathIdentifier
+      ]
 
 -- | An option id/value pair, can be attached to many types of statements
 data DotProtoOption = DotProtoOption
