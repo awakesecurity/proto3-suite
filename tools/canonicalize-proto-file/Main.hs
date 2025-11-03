@@ -41,12 +41,10 @@ import Proto3.Suite.DotProto.AST
   , DotProtoImport (..)
   , DotProtoMessagePart (..)
   , DotProtoOption (..)
-  , DotProtoPackageSpec (..)
   , DotProtoServicePart (..)
   , DotProtoReservedField (..)
   , DotProtoType (..)
   , DotProtoValue (..)
-  , Path (..)
   , RPCMethod (..)
   )
 import Proto3.Suite.DotProto.Generate (readDotProtoWithContext)
@@ -95,7 +93,7 @@ instance Canonicalize DotProto where
   canonicalize DotProto{..} = DotProto
     { protoImports     = canonicalize protoImports
     , protoOptions     = canonicalize protoOptions
-    , protoPackage     = canonicalize protoPackage
+    , protoPackage     = fmap canonicalize protoPackage 
     , protoDefinitions = canonicalize protoDefinitions
     , protoMeta        = protoMeta
     }
@@ -115,11 +113,6 @@ instance Canonicalize DotProtoOption where
     { dotProtoOptionIdentifier = canonicalize dotProtoOptionIdentifier
     , dotProtoOptionValue      = canonicalize dotProtoOptionValue
     }
-
-instance Canonicalize DotProtoPackageSpec where
-  canonicalize = \case
-    DotProtoPackageSpec name -> DotProtoPackageSpec (canonicalize name)
-    DotProtoNoPackage -> DotProtoNoPackage
 
 instance Canonicalize [DotProtoDefinition] where canonicalize = canonicalSort
 
@@ -273,7 +266,7 @@ instance Canonicalize DotProtoValue where
 instance Canonicalize DotProtoIdentifier where
   canonicalize = \case
     Single part -> Single part
-    Dots (Path (part NE.:| [])) -> Single part
+    Dots (part NE.:| []) -> Single part
     Dots path -> Dots path
     Qualified x y -> Qualified (canonicalize x) (canonicalize y)
     Anonymous -> Anonymous

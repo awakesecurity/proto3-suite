@@ -51,7 +51,7 @@ source-repository head
 common common
   default-extensions:
     BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric
-    ImportQualifiedPost ViewPatterns
+    ImportQualifiedPost PatternSynonyms ViewPatterns
 
 library
   import: common
@@ -75,6 +75,7 @@ library
                        Proto3.Suite.Class
                        Proto3.Suite.DotProto
                        Proto3.Suite.DotProto.AST
+                       Proto3.Suite.DotProto.AST.Identifier
                        Proto3.Suite.DotProto.AST.Lens
                        Proto3.Suite.DotProto.Generate
                        Proto3.Suite.DotProto.Generate.Record

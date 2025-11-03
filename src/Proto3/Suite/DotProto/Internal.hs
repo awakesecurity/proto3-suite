@@ -31,7 +31,8 @@ import           Data.Foldable
 import           Data.Functor.Compose
 import           Data.Int                  (Int32)
 import           Data.List                 (intercalate, sort)
-import qualified Data.List.NonEmpty        as NE
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map                  as M
 import           Data.Maybe                (fromMaybe)
 import qualified Data.Text                 as T
@@ -277,29 +278,29 @@ mergeIntervals = foldr step [] . sort
 -- Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
 --
 -- >>> toModulePath "google/protobuf/timestamp.proto"
--- Right (Path {components = "Google" :| ["Protobuf","Timestamp"]})
+-- Right ("Google" :| ["Protobuf","Timestamp"])
 --
 -- >>> toModulePath "a/b/c/google.protobuf.timestamp.proto"
--- Right (Path {components = "A" :| ["B","C","Google","Protobuf","Timestamp"]})
+-- Right ("A" :| ["B","C","Google","Protobuf","Timestamp"])
 --
 -- >>> toModulePath "foo/FiLeName_underscore.and.then.some.dots.proto"
--- Right (Path {components = "Foo" :| ["FiLeName_underscore","And","Then","Some","Dots"]})
+-- Right ("Foo" :| ["FiLeName_underscore","And","Then","Some","Dots"])
 --
 #if MIN_VERSION_turtle(1,6,0)
 -- >>> toModulePath "foo/bar/././baz/../boggle.proto"
 -- Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
 #else
 -- >>> toModulePath "foo/bar/././baz/../boggle.proto"
--- Right (Path {components = "Foo" :| ["Bar","Boggle"]})
+-- Right ("Foo" :| ["Bar","Boggle"])
 #endif
 --
 -- >>> toModulePath "./foo.proto"
--- Right (Path {components = "Foo" :| []})
+-- Right ("Foo" :| [])
 --
 -- NB: We ignore preceding single '.' characters
 -- >>> toModulePath ".foo.proto"
--- Right (Path {components = "Foo" :| []})
-toModulePath :: FilePath -> Either String Path
+-- Right ("Foo" :| [])
+toModulePath :: FilePath -> Either String (NonEmpty String)
 toModulePath fp0@(fromMaybe fp0 . Turtle.stripPrefix "./" -> fp)
   | Turtle.absolute fp
     = Left "expected include-relative path"
@@ -312,8 +313,8 @@ toModulePath fp0@(fromMaybe fp0 . Turtle.stripPrefix "./" -> fp)
           | T.isInfixOf ".." . Turtle.format F.fp . Turtle.collapse $ fp
             -> Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
           | otherwise
-            -> maybe (Left "empty path after canonicalization") (Right . Path)
-             . NE.nonEmpty
+            -> maybe (Left "empty path after canonicalization") Right
+             . NonEmpty.nonEmpty
              . dropWhile null -- Remove a potential preceding empty component which
                               -- arose from a preceding '.' in the input path, which we
                               -- want to ignore. E.g. ".foo.proto" => ["","Foo"].
@@ -344,7 +345,7 @@ importProto paths toplevelProto protoFP =
     Right (Just (mp, fp))
       -> liftEither . first CompileParseError =<< parseProtoFile mp fp
 
-type FindProtoResult = Either String (Maybe (Path, FilePath))
+type FindProtoResult = Either String (Maybe (NonEmpty String, FilePath))
 
 -- | Attempts to locate the first (if any) filename that exists on the given
 -- search paths, and constructs the "module path" from the given
@@ -420,7 +421,7 @@ type TypeContext = M.Map DotProtoIdentifier DotProtoTypeInfo
 
 -- | Information about messages and enumerations
 data DotProtoTypeInfo = DotProtoTypeInfo
-  { dotProtoTypeInfoPackage    :: DotProtoPackageSpec
+  { dotProtoTypeInfoPackage    :: Maybe DotProtoIdentifier
      -- ^ The package this type is defined in
   , dotProtoTypeInfoParent     :: DotProtoIdentifier
     -- ^ The message this type is nested under, or 'Anonymous' if it's top-level
@@ -429,7 +430,7 @@ data DotProtoTypeInfo = DotProtoTypeInfo
     --   scope of this type
   , dotProtoTypeInfoKind       :: DotProtoKind
     -- ^ Whether this type is an enumeration or message
-  , dotProtoTypeInfoModulePath :: Path
+  , dotProtoTypeInfoModulePath :: NonEmpty String
     -- ^ The include-relative module path used when importing this module
   } deriving Show
 
@@ -448,7 +449,7 @@ dotProtoTypeContext DotProto{..} =
   foldMapM (definitionTypeContext (metaModulePath protoMeta)) protoDefinitions
 
 definitionTypeContext :: MonadError CompileError m
-                      => Path -> DotProtoDefinition -> m TypeContext
+                      => NonEmpty String -> DotProtoDefinition -> m TypeContext
 definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
   let updateParent = tiParent (concatDotProtoIdentifier msgIdent)
 
@@ -458,7 +459,7 @@ definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
 
   qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier msgIdent) childTyContext
 
-  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
+  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = Nothing
                                 , dotProtoTypeInfoParent =  Anonymous
                                 , dotProtoTypeChildContext = childTyContext
                                 , dotProtoTypeInfoKind = DotProtoKindMessage
@@ -468,7 +469,7 @@ definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
   pure $ M.singleton msgIdent tyInfo <> qualifiedChildTyContext
 
 definitionTypeContext modulePath (DotProtoEnum _ enumIdent _) = do
-  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
+  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = Nothing
                                 , dotProtoTypeInfoParent =  Anonymous
                                 , dotProtoTypeChildContext = mempty
                                 , dotProtoTypeInfoKind = DotProtoKindEnum
@@ -536,9 +537,9 @@ concatDotProtoIdentifier i1 i2 = case (i1, i2) of
   (Anonymous    , Anonymous    ) -> pure Anonymous
   (Anonymous    , b            ) -> pure b
   (a            , Anonymous    ) -> pure a
-  (Single a     , b            ) -> concatDotProtoIdentifier (Dots (Path (pure a))) b
-  (a            , Single b     ) -> concatDotProtoIdentifier a (Dots (Path (pure b)))
-  (Dots (Path a), Dots (Path b)) -> pure (Dots (Path (a <> b)))
+  (Single a     , b            ) -> concatDotProtoIdentifier (Dots (pure a)) b
+  (a            , Single b     ) -> concatDotProtoIdentifier a (Dots (pure b))
+  (Dots a, Dots b) -> pure (Dots (a <> b))
 
 -- | @'toPascalCase' xs'@ sends a snake-case string @xs@ to a pascal-cased string. Trailing underscores are not dropped
 -- from the input string and exactly double underscores are replaced by a single underscore.
@@ -735,13 +736,13 @@ prefixedFieldName msgName fieldName = do
 
 dpIdentUnqualName :: MonadError CompileError m => DotProtoIdentifier -> m String
 dpIdentUnqualName (Single name)       = pure name
-dpIdentUnqualName (Dots (Path names)) = pure (NE.last names)
+dpIdentUnqualName (Dots names) = pure (NonEmpty.last names)
 dpIdentUnqualName (Qualified _ next)  = dpIdentUnqualName next
 dpIdentUnqualName Anonymous           = internalError "dpIdentUnqualName: Anonymous"
 
 dpIdentQualName :: MonadError CompileError m => DotProtoIdentifier -> m String
 dpIdentQualName (Single name)       = pure name
-dpIdentQualName (Dots (Path names)) = pure (intercalate "." (NE.toList names))
+dpIdentQualName (Dots names) = pure (intercalate "." (NonEmpty.toList names))
 dpIdentQualName (Qualified _ _)     = internalError "dpIdentQualName: Qualified"
 dpIdentQualName Anonymous           = internalError "dpIdentQualName: Anonymous"
 
@@ -757,7 +758,7 @@ nestedTypeName ::
   -- | Returns the formatted name.
   m String
 nestedTypeName (Just (Single parent))       nm = intercalate "_" <$> traverse typeLikeName [parent, nm]
-nestedTypeName (Just (Dots (Path parents))) nm = intercalate "_" . (<> [nm]) <$> traverse typeLikeName (NE.toList parents)
+nestedTypeName (Just (Dots parents)) nm = intercalate "_" . (<> [nm]) <$> traverse typeLikeName (NonEmpty.toList parents)
 nestedTypeName (Just (Qualified {}))        _  = internalError "nestedTypeName: Qualified"
 nestedTypeName _ nm = typeLikeName nm
 
@@ -788,7 +789,7 @@ qualifiedMessageTypeName ctxt parentIdent msgIdent = do
       nestedTypeName (Just parentIdent) nm
     x : xs' -> do 
       nm <- dpIdentUnqualName msgIdent
-      nestedTypeName (Just (Dots . Path $ x NE.:| xs')) nm
+      nestedTypeName (Just (Dots (x :| xs'))) nm
   where
     parents par@(Single x) xs =
       case M.lookup par ctxt of

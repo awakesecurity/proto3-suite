@@ -11,6 +11,7 @@ import Hedgehog (Gen)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 
+import Control.Applicative (liftA2)
 import qualified Data.List.NonEmpty as NonEmpty
 
 import Proto3.Suite.DotProto.AST
@@ -28,7 +29,7 @@ optionName =
     nms <- Gen.nonEmpty range gNameString
     pure $ if null (NonEmpty.tail nms)
       then Single (NonEmpty.head nms)
-      else Dots (Path nms)
+      else Dots nms
   where
     gNameString :: Gen String
     gNameString =
