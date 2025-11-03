@@ -24,30 +24,30 @@ testTree :: TestTree
 testTree =
   testGroup
     "Test.Proto.Generate.Name"
-    [ testProperty "filenames" resolve'protofile
+    [ testProperty "filenames" resolveProtofile
     ]
 
 -- | Testing combinator for name resolution functions.
 testResolution ::
   (MonadTest m, Applicative f, Eq (f String), Show (f String)) =>
-  (String -> f String) -> GenName -> m ()
+  (String -> f String) -> 
+  GenName -> 
+  m ()
 testResolution resolve nm = do
-  let occ = Name.Gen.nameOcc nm
-  let res = Name.Gen.nameRes nm
-  let got = resolve occ
-
   annotate ("protobuf name: " ++ occ)
   annotate ("expected name: " ++ res)
   annotate ("resolved name: " ++ show got)
-
   pure res === got
+  where
+    occ :: String
+    occ = Name.Gen.nameOcc nm
 
--- -----------------------------------------------------------------------------
---
--- Name Resolution Tests
---
+    res :: String
+    res = Name.Gen.nameRes nm
 
-resolve'protofile :: Property
-resolve'protofile = property do
+    got = resolve occ
+
+resolveProtofile :: Property
+resolveProtofile = property do
   nm <- forAll $ Gen.sized (Name.Gen.protofile . Range.linear 1 . fromIntegral)
   testResolution (renameProtoFile @(Either CompileError)) nm

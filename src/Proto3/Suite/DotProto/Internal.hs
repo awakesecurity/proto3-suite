@@ -607,9 +607,21 @@ suffixBy p xs' = do
       | p x = Left (x : xs)
       | otherwise = Right ([x], xs)
 
--- | @'typeLikeName' xs@ produces either the pascal-cased version of the string @xs@ if it begins with an alphabetical
--- character or underscore - which is replaced with 'X'. A 'CompileError' is emitted if the starting character is
+-- | @'typeLikeName' xs@ produces either the pascal-cased version of the string
+-- @xs@ if it begins with an alphabetical character or underscore - which is 
+-- replaced with 'X'. A 'CompileError' is emitted if the starting character is
 -- non-alphabetic or if @xs == ""@.
+--
+-- ==== __Examples__
+--
+-- >>> typeLikeName @(Either CompileError) "my_type_name"
+-- Right "MyTypeName"
+--
+-- >>> typeLikeName @(Either CompileError) "MyTypeName"
+-- Right "MyTypeName"
+--
+-- >>> typeLikeName @(Either CompileError) "myTypeName"
+-- Right "MyTypeName"
 typeLikeName :: MonadError CompileError m => String -> m String
 typeLikeName "" = invalidTypeNameError "<empty name>"
 typeLikeName s@(x : xs)
@@ -635,26 +647,58 @@ typeLikeName s@(x : xs)
     -- First character of a Haskell name can only be "isAlpha".
     isValidNameChar ch = isAlphaNum ch || ch == '_'
 
--- | @'fieldLikeName' field@ is the casing transformation used to produce record selectors from message fields. If
--- @field@ is prefixed by a span of uppercase characters then that prefix will be lowercased while the remaining string
--- is left unchanged.
+-- | @'fieldLikeName' field@ is the casing transformation used to produce record
+-- selectors from message fields. If @field@ is prefixed by a span of uppercase 
+-- characters then that prefix will be lowercased while the remaining string is 
+-- left unchanged.
+--
+-- ==== __Examples__
+--
+-- >>> fieldLikeName "myField"
+-- "myField"
+--
+-- >>> fieldLikeName "MyField"
+-- "myField"
+--
+-- >>> fieldLikeName "my_field"
+-- "my_field"
 fieldLikeName :: String -> String
 fieldLikeName "" = ""
 fieldLikeName (x : xs)
   | isUpper x = map toLower prefix ++ suffix
   | otherwise = x : xs
-  where (prefix, suffix) = span isUpper (x : xs)
+  where 
+    (prefix, suffix) = span isUpper (x : xs)
 
 prefixedEnumFieldName :: String -> String -> String
 prefixedEnumFieldName enumName enumItem = enumName ++ enumItem
 
-prefixedConName :: MonadError CompileError m => String -> String -> m String
+prefixedConName :: 
+  MonadError CompileError m =>
+  -- | TODO: docs
+  String ->
+  -- | TODO: docs
+  String ->
+  -- | TODO: docs
+  m String
 prefixedConName msgName conName = do
   constructor <- typeLikeName conName
-  return (msgName ++ constructor)
+  pure (msgName ++ constructor)
 
--- | @'prefixedMethodName' service method@ produces a Haskell record selector name for the service method @method@ by
--- joining the names @service@, @method@ under concatenation on a camel-casing transformation.
+-- | @'prefixedMethodName' service method@ produces a Haskell record selector 
+-- name for the service method @method@ by joining the names @service@, 
+-- @method@ under concatenation on a camel-casing transformation.
+--
+-- ==== __Examples__
+--  
+-- >>> prefixedMethodName @(Either CompileError) "MyService" "GetItem"
+-- Right "myServiceGetItem"
+--
+-- >>> prefixedMethodName @(Either CompileError) "MyService" "get_item"
+-- Right "myServiceget_item"
+--
+-- >>> prefixedMethodName @(Either CompileError) "MyService" "getItem"
+-- Right "myServicegetItem"
 prefixedMethodName :: MonadError CompileError m => String -> String -> m String
 prefixedMethodName _ "" = invalidTypeNameError "<empty name>"
 prefixedMethodName serviceName (x : xs)
@@ -663,9 +707,28 @@ prefixedMethodName serviceName (x : xs)
       method <- typeLikeName (x : xs)
       return (fieldLikeName serviceName ++ method)
 
--- | @'prefixedFieldName' prefix field@ constructs a Haskell record selector name by prepending @prefix@ in camel-case
--- to the message field/service method name @field@.
-prefixedFieldName :: MonadError CompileError m => String -> String -> m String
+-- | @'prefixedFieldName' prefix field@ constructs a Haskell record selector 
+-- name by prepending @prefix@ in camel-case to the message field/service method 
+-- name @field@.
+--
+-- ==== __Examples__
+--
+-- >>> prefixedFieldName @(Either CompileError) "MyMessage" "myField"
+-- Right "myMessageMyField"
+--
+-- >>> prefixedFieldName @(Either CompileError) "MyMessage" "MyField"
+-- Right "myMessageMyField"
+--
+-- >>> prefixedFieldName @(Either CompileError) "MyMessage" "my_field"
+-- Right "myMessageMyField"
+prefixedFieldName :: 
+  MonadError CompileError m =>
+  -- | The name of the enclosing message.
+  String ->
+  -- | The name of the field.
+  String ->
+  -- | Returns the prefixed field Haskell name.
+  m String
 prefixedFieldName msgName fieldName = do
   field <- typeLikeName fieldName
   return (fieldLikeName msgName ++ field)
@@ -684,25 +747,48 @@ dpIdentQualName Anonymous           = internalError "dpIdentQualName: Anonymous"
 
 -- | Given a 'DotProtoIdentifier' for the parent type and the unqualified name
 -- of this type, generate the corresponding Haskell name
-nestedTypeName :: MonadError CompileError m => DotProtoIdentifier -> String -> m String
-nestedTypeName Anonymous             nm = typeLikeName nm
-nestedTypeName (Single parent)       nm = intercalate "_" <$> traverse typeLikeName [parent, nm]
-nestedTypeName (Dots (Path parents)) nm = intercalate "_" . (<> [nm]) <$> traverse typeLikeName (NE.toList parents)
-nestedTypeName (Qualified {})        _  = internalError "nestedTypeName: Qualified"
+nestedTypeName :: 
+  MonadError CompileError m => 
+  -- | The qualifying 'DotProtoIdentifier' of the parent type, if one exists.
+  -- Otherwise the 'String' name is assumed to be top-level.
+  Maybe DotProtoIdentifier -> 
+  -- | The 'String' name of the nested type.
+  String ->
+  -- | Returns the formatted name.
+  m String
+nestedTypeName (Just (Single parent))       nm = intercalate "_" <$> traverse typeLikeName [parent, nm]
+nestedTypeName (Just (Dots (Path parents))) nm = intercalate "_" . (<> [nm]) <$> traverse typeLikeName (NE.toList parents)
+nestedTypeName (Just (Qualified {}))        _  = internalError "nestedTypeName: Qualified"
+nestedTypeName _ nm = typeLikeName nm
 
-qualifiedMessageName :: MonadError CompileError m => DotProtoIdentifier -> DotProtoIdentifier -> m String
-qualifiedMessageName parentIdent msgIdent = nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+qualifiedMessageName :: 
+  MonadError CompileError m => 
+  -- | The 'DotProtoIdentifier' belonging to the parent of the qualified message
+  -- 'DotProtoIdentifier'.
+  DotProtoIdentifier -> 
+  -- | The 'DotProtoIdentifier' belonging to the qualified message.
+  DotProtoIdentifier -> 
+  -- | The qualified Haskell name of the message.
+  m String
+qualifiedMessageName parentIdent msgIdent = do
+  idt <- dpIdentUnqualName msgIdent 
+  nestedTypeName (Just parentIdent) idt
 
-qualifiedMessageTypeName :: MonadError CompileError m =>
-                            TypeContext ->
-                            DotProtoIdentifier ->
-                            DotProtoIdentifier ->
-                            m String
+qualifiedMessageTypeName ::
+  MonadError CompileError m =>
+  TypeContext ->
+  DotProtoIdentifier ->
+  DotProtoIdentifier ->
+  m String
 qualifiedMessageTypeName ctxt parentIdent msgIdent = do
   xs <- parents parentIdent []
   case xs of
-    [] -> nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
-    x : xs' -> nestedTypeName (Dots . Path $ x NE.:| xs') =<< dpIdentUnqualName msgIdent
+    [] -> do 
+      nm <- dpIdentUnqualName msgIdent
+      nestedTypeName (Just parentIdent) nm
+    x : xs' -> do 
+      nm <- dpIdentUnqualName msgIdent
+      nestedTypeName (Just (Dots . Path $ x NE.:| xs')) nm
   where
     parents par@(Single x) xs =
       case M.lookup par ctxt of
@@ -722,8 +808,8 @@ qualifiedMessageTypeName ctxt parentIdent msgIdent = do
 
 -- | Bookeeping for qualified fields
 data QualifiedField = QualifiedField
-  { recordFieldName   :: FieldName
-  , fieldInfo         :: FieldInfo
+  { recordFieldName :: FieldName
+  , fieldInfo       :: FieldInfo
   } deriving Show
 
 -- | Bookkeeping for fields
