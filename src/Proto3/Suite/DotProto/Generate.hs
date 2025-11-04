@@ -468,7 +468,7 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
 
       let prefixWithPackageName =
             case importPkgSpec of
-              Just packageName -> concatDotProtoIdentifier packageName
+              Just packageName -> concatDotProtoIdentifier (Just packageName)
               Nothing -> pure
 
       qualifiedTypeContext <- mapKeysM prefixWithPackageName importTypeContext
@@ -940,6 +940,17 @@ dpptToFormType ctxt = \case
 -- * Code generation
 --
 
+toHaskellName ::
+  (MonadError CompileError m) =>
+  Maybe DotProtoIdentifier ->
+  DotProtoIdentifier ->
+  m String
+toHaskellName Nothing idt = case idt of 
+  Single nm -> typeLikeName nm
+  other -> error ("toHaskellName: cannot convert non-single identifier " ++ show other ++ " without a parent identifier")
+toHaskellName (Just parentIdt) idt = do 
+  qualifiedMessageName parentIdt idt
+
 -- ** Generate instances for a 'DotProto' package
 
 dotProtoDefinitionD ::
@@ -955,10 +966,10 @@ dotProtoDefinitionD ::
   m [HsDecl]
 dotProtoDefinitionD pkgSpec ctxt = \case
   DotProtoMessage _ messageName messageParts ->
-    dotProtoMessageD ctxt Anonymous messageName messageParts
+    dotProtoMessageD ctxt Nothing messageName messageParts
 
   DotProtoEnum _ enumName enumParts ->
-    dotProtoEnumD Anonymous enumName enumParts
+    dotProtoEnumD Nothing enumName enumParts
 
   DotProtoService _ serviceName serviceParts ->
     dotProtoServiceD pkgSpec ctxt serviceName serviceParts
@@ -989,12 +1000,12 @@ dotProtoMessageD ::
   , (?typeLevelFormat :: Bool)
   ) =>
   TypeContext ->
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   [DotProtoMessagePart] ->
   m [HsDecl]
 dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
-    messageName <- qualifiedMessageName parentIdent messageIdent
+    messageName <- toHaskellName parentIdent messageIdent
 
     let mkDataDecl flds =
           dataDecl_ messageName
@@ -1075,11 +1086,11 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     nestedDecls :: DotProtoDefinition -> m [HsDecl]
     nestedDecls (DotProtoMessage _ subMsgName subMessageDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoMessageD ctxt' parentIdent' subMsgName subMessageDef
+      dotProtoMessageD ctxt' (Just parentIdent') subMsgName subMessageDef
 
     nestedDecls (DotProtoEnum _ subEnumName subEnumDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoEnumD parentIdent' subEnumName subEnumDef
+      dotProtoEnumD (Just parentIdent') subEnumName subEnumDef
 
     nestedDecls _ = pure []
 
@@ -1133,12 +1144,12 @@ typeLevelInstsD ::
   , (?stringType :: StringType)
   ) =>
   TypeContext ->
-  DotProtoIdentifier->
+  Maybe DotProtoIdentifier->
   DotProtoIdentifier ->
   [DotProtoMessagePart]->
   m [HsDecl]
 typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
-    msgName <- qualifiedMessageName parentIdent msgIdent
+    msgName <- toHaskellName parentIdent msgIdent
 
     qualifiedFields <- getQualifiedFields msgName messageParts
 
@@ -1252,12 +1263,12 @@ messageInstD ::
   , (?stringType :: StringType)
   ) =>
   TypeContext ->
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   [DotProtoMessagePart] ->
   m HsDecl
 messageInstD ctxt parentIdent msgIdent messageParts = do
-     msgName         <- qualifiedMessageName parentIdent msgIdent
+     msgName <- toHaskellName parentIdent msgIdent
      qualifiedFields <- getQualifiedFields msgName messageParts
 
      encodedFields   <- mapM encodeMessageField qualifiedFields
@@ -1401,12 +1412,12 @@ toJSONPBMessageInstD ::
   , (?stringType :: StringType)
   ) =>
   TypeContext ->
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   [DotProtoMessagePart] ->
   m HsDecl
 toJSONPBMessageInstD ctxt parentIdent msgIdent messageParts = do
-    msgName    <- qualifiedMessageName parentIdent msgIdent
+    msgName    <- toHaskellName parentIdent msgIdent
     qualFields <- getQualifiedFields msgName messageParts
 
     let applyE nm oneofNm = do
@@ -1519,12 +1530,13 @@ fromJSONPBMessageInstD ::
   , (?stringType :: StringType)
   ) =>
   TypeContext ->
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   [DotProtoMessagePart] ->
   m HsDecl
 fromJSONPBMessageInstD ctxt parentIdent msgIdent messageParts = do
-    msgName    <- qualifiedMessageName parentIdent msgIdent
+    msgName <- toHaskellName parentIdent msgIdent
+
     qualFields <- getQualifiedFields msgName messageParts
 
     fieldParsers <- traverse parseField qualFields
@@ -1840,14 +1852,14 @@ toSchemaInstanceDeclaration ctxt messageName maybeConstructors fieldNamesEtc = d
 
 -- ** Generate types and instances for .proto enums
 
-dotProtoEnumD
-    :: MonadError CompileError m
-    => DotProtoIdentifier
-    -> DotProtoIdentifier
-    -> [DotProtoEnumPart]
-    -> m [HsDecl]
+dotProtoEnumD :: 
+  MonadError CompileError m =>
+  Maybe DotProtoIdentifier ->
+  DotProtoIdentifier ->
+  [DotProtoEnumPart] ->
+  m [HsDecl]
 dotProtoEnumD parentIdent enumIdent enumParts = do
-  enumName <- qualifiedMessageName parentIdent enumIdent
+  enumName <- toHaskellName parentIdent enumIdent
 
   let enumeratorDecls =
         [ (i, conIdent) | DotProtoEnumField conIdent i _options <- enumParts ]

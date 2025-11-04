@@ -451,13 +451,13 @@ dotProtoTypeContext DotProto{..} =
 definitionTypeContext :: MonadError CompileError m
                       => NonEmpty String -> DotProtoDefinition -> m TypeContext
 definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
-  let updateParent = tiParent (concatDotProtoIdentifier msgIdent)
+  let updateParent = tiParent (concatDotProtoIdentifier (Just msgIdent))
 
   childTyContext <- foldMapOfM (traverse . _DotProtoMessageDefinition)
                                (definitionTypeContext modulePath >=> traverse updateParent)
                                parts
 
-  qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier msgIdent) childTyContext
+  qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier (Just msgIdent)) childTyContext
 
   let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = Nothing
                                 , dotProtoTypeInfoParent =  Anonymous
@@ -528,18 +528,19 @@ isMap _ = False
 
 concatDotProtoIdentifier ::
   MonadError CompileError m =>
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   m DotProtoIdentifier
 concatDotProtoIdentifier i1 i2 = case (i1, i2) of
-  (Qualified{}  ,  _           ) -> internalError "concatDotProtoIdentifier: Qualified"
-  (_            , Qualified{}  ) -> internalError "concatDotProtoIdentifier Qualified"
-  (Anonymous    , Anonymous    ) -> pure Anonymous
-  (Anonymous    , b            ) -> pure b
-  (a            , Anonymous    ) -> pure a
-  (Single a     , b            ) -> concatDotProtoIdentifier (Dots (pure a)) b
-  (a            , Single b     ) -> concatDotProtoIdentifier a (Dots (pure b))
-  (Dots a, Dots b) -> pure (Dots (a <> b))
+  (Nothing, b) -> pure b
+  (Just Qualified {},  _) -> internalError "concatDotProtoIdentifier: Qualified"
+  (Just _, Qualified {}) -> internalError "concatDotProtoIdentifier Qualified"
+  (Just Anonymous, Anonymous) -> pure Anonymous
+  (Just Anonymous, b) -> pure b
+  (Just a, Anonymous) -> pure a
+  (Just (Single a), b) -> concatDotProtoIdentifier (Just (Dots (pure a))) b
+  (Just a, Single b) -> concatDotProtoIdentifier (Just a) (Dots (pure b))
+  (Just (Dots a), Dots b) -> pure (Dots (a <> b))
 
 -- | @'toPascalCase' xs'@ sends a snake-case string @xs@ to a pascal-cased string. Trailing underscores are not dropped
 -- from the input string and exactly double underscores are replaced by a single underscore.
