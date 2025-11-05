@@ -462,7 +462,12 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
       let importPkgSpec = protoPackage import_
 
       let fixImportTyInfo tyInfo =
-             tyInfo { dotProtoTypeInfoPackage    = importPkgSpec
+             tyInfo { dotProtoTypeInfoPackage    = case importPkgSpec of 
+                        Nothing -> []
+                        Just Anonymous -> []
+                        Just (Single p) -> [p]
+                        Just (Dots ps) -> NE.toList ps
+                        Just Qualified {} -> error "fixImportTyInfo: Qualified"
                     , dotProtoTypeInfoModulePath = metaModulePath . protoMeta $ import_
                     }
       importTypeContext <- fmap fixImportTyInfo <$> dotProtoTypeContext import_

@@ -421,7 +421,7 @@ type TypeContext = M.Map DotProtoIdentifier DotProtoTypeInfo
 
 -- | Information about messages and enumerations
 data DotProtoTypeInfo = DotProtoTypeInfo
-  { dotProtoTypeInfoPackage    :: Maybe DotProtoIdentifier
+  { dotProtoTypeInfoPackage    :: [String]
      -- ^ The package this type is defined in
   , dotProtoTypeInfoParent     :: Maybe String
     -- ^ The message this type is nested under, or 'Anonymous' if it's top-level
@@ -448,10 +448,15 @@ dotProtoTypeContext :: MonadError CompileError m => DotProto -> m TypeContext
 dotProtoTypeContext DotProto{..} =
   foldMapM (definitionTypeContext (metaModulePath protoMeta)) protoDefinitions
 
-definitionTypeContext :: MonadError CompileError m
-                      => NonEmpty String -> DotProtoDefinition -> m TypeContext
+definitionTypeContext :: 
+  forall m.
+  MonadError CompileError m =>
+  NonEmpty String ->
+  DotProtoDefinition ->
+  m TypeContext
 definitionTypeContext modulePath (DotProtoMessage _ parIdt parts) = do
-  let updateParent = tiParent \case 
+  let updateParent :: DotProtoTypeInfo -> m DotProtoTypeInfo
+      updateParent = tiParent \case 
         Just par -> pure (Just par)
         Nothing -> case parIdt of 
           Single parName -> pure (Just parName)
@@ -463,7 +468,7 @@ definitionTypeContext modulePath (DotProtoMessage _ parIdt parts) = do
 
   qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier (Just parIdt)) childTyContext
 
-  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = Nothing
+  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = []
                                 , dotProtoTypeInfoParent = Nothing
                                 , dotProtoTypeChildContext = childTyContext
                                 , dotProtoTypeInfoKind = DotProtoKindMessage
@@ -473,7 +478,7 @@ definitionTypeContext modulePath (DotProtoMessage _ parIdt parts) = do
   pure $ M.singleton parIdt tyInfo <> qualifiedChildTyContext
 
 definitionTypeContext modulePath (DotProtoEnum _ enumIdent _) = do
-  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = Nothing
+  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = []
                                 , dotProtoTypeInfoParent = Nothing
                                 , dotProtoTypeChildContext = mempty
                                 , dotProtoTypeInfoKind = DotProtoKindEnum
