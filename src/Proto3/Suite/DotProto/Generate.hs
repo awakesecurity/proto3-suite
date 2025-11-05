@@ -28,6 +28,7 @@ module Proto3.Suite.DotProto.Generate
   , parseStringType
   , TypeContext
   , CompileArgs(..)
+  , toHaskellTypeName
   , compileDotProtoFile
   , compileDotProtoFileOrDie
   , renameProtoFile
@@ -940,15 +941,38 @@ dpptToFormType ctxt = \case
 -- * Code generation
 --
 
-toHaskellName ::
-  (MonadError CompileError m) =>
+-- | Given an identifier referencing a statement such as an enumeration or 
+-- message definition, produce a 'String' for the unqualified Haskell type name
+-- of the identifier.
+--
+-- ==== __Examples__
+--
+-- Obtaining the (unqualified) Haskell type name for a top-level identifier 
+-- @MyMessage@:
+--
+-- >>> toHaskellTypeName @(Either _) Nothing (Single "MyMessage")
+-- Right "MyMessage"
+--
+-- If the identifier is nested, then the parent identifier must be provided:
+--
+-- >>> toHaskellTypeName @(Either _) (Just (Single "OuterMessage")) (Single "InnerMessage")
+-- Right "OuterMessage_InnerMessage"
+--
+-- >>> toHaskellTypeName @(Either _) (Just (Single "QName" `Qualified` Single "OuterMessage")) (Single "InnerMessage")
+-- Left (InternalError "nestedTypeName: Qualified")
+toHaskellTypeName ::
+  MonadError CompileError m =>
+  -- | The parent (enclosing identifier), if any. If 'Nothing', then the given 
+  -- 'DotProtoIdentifier' must be a 'Single' identifier (i.e. a top-level name).
   Maybe DotProtoIdentifier ->
+  -- | The identifier to convert to a Haskell name.
   DotProtoIdentifier ->
+  -- | Returns the type-like Haskell name as a 'String'.
   m String
-toHaskellName Nothing idt = case idt of 
+toHaskellTypeName Nothing idt = case idt of 
   Single nm -> typeLikeName nm
-  other -> error ("toHaskellName: cannot convert non-single identifier " ++ show other ++ " without a parent identifier")
-toHaskellName (Just parentIdt) idt = do 
+  other -> error ("toHaskellTypeName: cannot convert non-single identifier " ++ show other ++ " without a parent identifier")
+toHaskellTypeName (Just parentIdt) idt = do 
   qualifiedMessageName parentIdt idt
 
 -- ** Generate instances for a 'DotProto' package
@@ -1005,7 +1029,7 @@ dotProtoMessageD ::
   [DotProtoMessagePart] ->
   m [HsDecl]
 dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
-    messageName <- toHaskellName parentIdent messageIdent
+    messageName <- toHaskellTypeName parentIdent messageIdent
 
     let mkDataDecl flds =
           dataDecl_ messageName
@@ -1149,7 +1173,7 @@ typeLevelInstsD ::
   [DotProtoMessagePart]->
   m [HsDecl]
 typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
-    msgName <- toHaskellName parentIdent msgIdent
+    msgName <- toHaskellTypeName parentIdent msgIdent
 
     qualifiedFields <- getQualifiedFields msgName messageParts
 
@@ -1268,7 +1292,7 @@ messageInstD ::
   [DotProtoMessagePart] ->
   m HsDecl
 messageInstD ctxt parentIdent msgIdent messageParts = do
-     msgName <- toHaskellName parentIdent msgIdent
+     msgName <- toHaskellTypeName parentIdent msgIdent
      qualifiedFields <- getQualifiedFields msgName messageParts
 
      encodedFields   <- mapM encodeMessageField qualifiedFields
@@ -1417,7 +1441,7 @@ toJSONPBMessageInstD ::
   [DotProtoMessagePart] ->
   m HsDecl
 toJSONPBMessageInstD ctxt parentIdent msgIdent messageParts = do
-    msgName    <- toHaskellName parentIdent msgIdent
+    msgName    <- toHaskellTypeName parentIdent msgIdent
     qualFields <- getQualifiedFields msgName messageParts
 
     let applyE nm oneofNm = do
@@ -1535,7 +1559,7 @@ fromJSONPBMessageInstD ::
   [DotProtoMessagePart] ->
   m HsDecl
 fromJSONPBMessageInstD ctxt parentIdent msgIdent messageParts = do
-    msgName <- toHaskellName parentIdent msgIdent
+    msgName <- toHaskellTypeName parentIdent msgIdent
 
     qualFields <- getQualifiedFields msgName messageParts
 
@@ -1859,7 +1883,7 @@ dotProtoEnumD ::
   [DotProtoEnumPart] ->
   m [HsDecl]
 dotProtoEnumD parentIdent enumIdent enumParts = do
-  enumName <- toHaskellName parentIdent enumIdent
+  enumName <- toHaskellTypeName parentIdent enumIdent
 
   let enumeratorDecls =
         [ (i, conIdent) | DotProtoEnumField conIdent i _options <- enumParts ]
