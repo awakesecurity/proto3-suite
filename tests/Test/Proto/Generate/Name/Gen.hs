@@ -8,19 +8,21 @@
 
 -- |
 module Test.Proto.Generate.Name.Gen
-  ( GenName (GenName, nameOcc, nameRes),
+  ( -- * GenName 
+    GenName (..),
     protofile,
   )
 where
+
+import Control.Applicative
+
+import Data.Char qualified as Char
 
 import Hedgehog (MonadGen, Range)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
-import Control.Applicative
-import Data.Char qualified as Char
-
--- -----------------------------------------------------------------------------
+--- GenName --------------------------------------------------------------------
 
 -- | 'GenName' is an association between generated names.
 --

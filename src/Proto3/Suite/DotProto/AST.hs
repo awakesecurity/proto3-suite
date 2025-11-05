@@ -11,10 +11,8 @@ module Proto3.Suite.DotProto.AST
       MessageName(..)
     , FieldName(..)
     , PackageName(..)
-    , DotProtoIdentifier(..)
     , DotProtoImport(..)
     , DotProtoImportQualifier(..)
-    , DotProtoPackageSpec(..)
     , DotProtoOption(..)
     , DotProtoDefinition(..)
     , DotProtoMeta(..)
@@ -22,7 +20,6 @@ module Proto3.Suite.DotProto.AST
     , DotProtoValue(..)
     , DotProtoPrimType(..)
     , Packing(..)
-    , Path(..), fakePath
     , DotProtoType(..)
     , DotProtoEnumValue
     , DotProtoEnumPart(..)
@@ -32,6 +29,7 @@ module Proto3.Suite.DotProto.AST
     , DotProtoMessagePart(..)
     , DotProtoField(..)
     , DotProtoReservedField(..)
+    , module Proto3.Suite.DotProto.AST.Identifier
   ) where
 
 import           Control.Applicative
@@ -39,11 +37,12 @@ import           Data.Char                 (toLower)
 import           Control.Monad
 import           Data.Data                 (Data)
 import           Data.Int                  (Int32)
-import qualified Data.List.NonEmpty        as NE
+import Data.List.NonEmpty (NonEmpty (..))
 import           Data.String               (IsString(..))
 import           GHC.Generics              (Generic)
 import           Numeric.Natural
 import           Prelude                   hiding (FilePath)
+import Proto3.Suite.DotProto.AST.Identifier 
 import           Proto3.Wire.Types         (FieldNumber (..))
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
@@ -76,27 +75,6 @@ newtype PackageName = PackageName
 
 instance Show PackageName where
   show = show . getPackageName
-
-newtype Path = Path
-  { components :: NE.NonEmpty String }
-  deriving (Data, Eq, Generic, Ord, Show)
-
--- Used for testing
-fakePath :: Path
-fakePath = Path ("fakePath" NE.:| [])
-
-data DotProtoIdentifier
-  = Single String
-  | Dots   Path
-  | Qualified DotProtoIdentifier DotProtoIdentifier
-  | Anonymous -- [recheck] is there a better way to represent unnamed things
-  deriving (Data, Eq, Generic, Ord, Show)
-
-instance Pretty DotProtoIdentifier where
-  pPrint (Single name)                    = PP.text name
-  pPrint (Dots (Path names))              = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> NE.toList names
-  pPrint (Qualified qualifier identifier) = PP.parens (pPrint qualifier) <> PP.text "." <> pPrint identifier
-  pPrint Anonymous                        = PP.empty
 
 -- | Top-level import declaration
 data DotProtoImport = DotProtoImport
@@ -133,23 +111,6 @@ instance Arbitrary DotProtoImportQualifier where
     [ DotProtoImportDefault
     , DotProtoImportWeak
     , DotProtoImportPublic
-    ]
-
--- | The namespace declaration
-data DotProtoPackageSpec
-  = DotProtoPackageSpec DotProtoIdentifier
-  | DotProtoNoPackage
-  deriving (Data, Eq, Generic, Ord, Show)
-
-instance Pretty DotProtoPackageSpec where
-  pPrint (DotProtoPackageSpec p) = PP.text "package" <+> pPrint p PP.<> PP.text ";"
-  pPrint (DotProtoNoPackage)     = PP.empty
-
-instance Arbitrary DotProtoPackageSpec where
-  arbitrary = oneof
-    [ return DotProtoNoPackage
-    , fmap DotProtoPackageSpec arbitrarySingleIdentifier
-    , fmap DotProtoPackageSpec arbitraryPathIdentifier
     ]
 
 -- | An option id/value pair, can be attached to many types of statements
@@ -194,7 +155,7 @@ instance Arbitrary DotProtoDefinition where
 
 -- | Tracks misc metadata about the AST
 data DotProtoMeta = DotProtoMeta
-  { metaModulePath :: Path
+  { metaModulePath :: NonEmpty String
     -- ^ The "module path" associated with the .proto file from which this AST
     -- was parsed. The "module path" is derived from the `--includeDir`-relative
     -- .proto filename passed to `Proto3.Suite.DotProto.Parsing.parseProtoFile`. See
@@ -214,7 +175,7 @@ instance Arbitrary DotProtoMeta where
 data DotProto = DotProto
   { protoImports     :: [DotProtoImport]
   , protoOptions     :: [DotProtoOption]
-  , protoPackage     :: DotProtoPackageSpec
+  , protoPackage     :: Maybe DotProtoIdentifier
   , protoDefinitions :: [DotProtoDefinition]
   , protoMeta        :: DotProtoMeta
   } deriving (Data, Eq, Generic, Ord, Show)
@@ -223,10 +184,14 @@ instance Arbitrary DotProto where
   arbitrary = do
     protoImports     <- smallListOf arbitrary
     protoOptions     <- smallListOf arbitrary
-    protoPackage     <- arbitrary
+    protoPackage     <- oneof
+      [ pure Nothing
+      , fmap Just arbitrarySingleIdentifier
+      , fmap Just arbitraryPathIdentifier
+      ]
     protoDefinitions <- smallListOf arbitrary
     protoMeta        <- arbitrary
-    return (DotProto {..})
+    pure (DotProto {..})
 
 -- | Matches the definition of @constant@ in the proto3 language spec
 --   These are only used as rvalues
@@ -526,7 +491,7 @@ arbitraryPathIdentifier :: Gen DotProtoIdentifier
 arbitraryPathIdentifier = do
   name  <- arbitraryIdentifierName
   names <- smallListOf1 arbitraryIdentifierName
-  pure . Dots . Path $ name NE.:| names
+  pure (Dots (name :| names))
 
 arbitraryNestedIdentifier :: Gen DotProtoIdentifier
 arbitraryNestedIdentifier = do

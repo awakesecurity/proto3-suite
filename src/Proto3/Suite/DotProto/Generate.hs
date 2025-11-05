@@ -28,6 +28,7 @@ module Proto3.Suite.DotProto.Generate
   , parseStringType
   , TypeContext
   , CompileArgs(..)
+  , toHaskellTypeName
   , compileDotProtoFile
   , compileDotProtoFileOrDie
   , renameProtoFile
@@ -137,7 +138,7 @@ compileDotProtoFile logger CompileArgs{..} = runExceptT $ do
   liftIO (writeFile (Turtle.encodeString modulePath) haskellModule)
   where
     toModuleComponents :: DotProto -> NonEmpty String
-    toModuleComponents = components . metaModulePath . protoMeta
+    toModuleComponents = metaModulePath . protoMeta
 
 -- | Same as 'compileDotProtoFile', except terminates the program with an error
 -- message on failure.
@@ -461,15 +462,20 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
       let importPkgSpec = protoPackage import_
 
       let fixImportTyInfo tyInfo =
-             tyInfo { dotProtoTypeInfoPackage    = importPkgSpec
+             tyInfo { dotProtoTypeInfoPackage    = case importPkgSpec of 
+                        Nothing -> []
+                        Just Anonymous -> []
+                        Just (Single p) -> [p]
+                        Just (Dots ps) -> NE.toList ps
+                        Just Qualified {} -> error "fixImportTyInfo: Qualified"
                     , dotProtoTypeInfoModulePath = metaModulePath . protoMeta $ import_
                     }
       importTypeContext <- fmap fixImportTyInfo <$> dotProtoTypeContext import_
 
       let prefixWithPackageName =
             case importPkgSpec of
-              DotProtoPackageSpec packageName -> concatDotProtoIdentifier packageName
-              DotProtoNoPackage -> pure
+              Just packageName -> concatDotProtoIdentifier (Just packageName)
+              Nothing -> pure
 
       qualifiedTypeContext <- mapKeysM prefixWithPackageName importTypeContext
 
@@ -505,15 +511,23 @@ ctxtImports =
 --   field of the 'DotProtoTypeInfo' parameter, instead demanding that we have
 --   been provided with a valid module path in its 'dotProtoTypeInfoModulePath'
 --   field. The latter describes the name of the Haskell module being generated.
-msgTypeFromDpTypeInfo :: MonadError CompileError m
-                      => TypeContext -> DotProtoTypeInfo -> DotProtoIdentifier -> m HsType
+msgTypeFromDpTypeInfo :: 
+  MonadError CompileError m => 
+  TypeContext -> 
+  DotProtoTypeInfo -> 
+  DotProtoIdentifier -> 
+  m HsType
 msgTypeFromDpTypeInfo ctxt DotProtoTypeInfo{..} ident = do
+    let parIdt = case dotProtoTypeInfoParent of
+          Nothing -> Anonymous
+          Just idt -> Single idt
+
     modName   <- modulePathModName dotProtoTypeInfoModulePath
-    identName <- qualifiedMessageTypeName ctxt dotProtoTypeInfoParent ident
+    identName <- qualifiedMessageTypeName ctxt parIdt ident
     pure $ typeNamed_ $ qual_ modName tcName identName
 
-modulePathModName :: MonadError CompileError m => Path -> m Module
-modulePathModName (Path comps) =
+modulePathModName :: MonadError CompileError m => NonEmpty String -> m Module
+modulePathModName comps =
   GHC.mkModuleName . intercalate "." <$> traverse typeLikeName (NE.toList comps)
 
 _pkgIdentModName :: MonadError CompileError m => DotProtoIdentifier -> m Module
@@ -699,7 +713,7 @@ dpptToHsTypeWrapped ctxt | StringType _ stringType <- ?stringType = \case
     pure $ primType_ "Float"
   Double ->
     pure $ primType_ "Double"
-  Named (Dots (Path ("google" :| ["protobuf", x])))
+  Named (Dots ("google" :| ["protobuf", x]))
     | x == "Int32Value" ->
         pure $ protobufWrappedType_ $ primType_ "Int32"
     | x == "Int64Value" ->
@@ -805,7 +819,7 @@ dpptToHsType ctxt | StringType _ stringType <- ?stringType = \case
   Bool     -> pure $ primType_ "Bool"
   Float    -> pure $ primType_ "Float"
   Double   -> pure $ primType_ "Double"
-  Named (Dots (Path ("google" :| ["protobuf", x])))
+  Named (Dots ("google" :| ["protobuf", x]))
     | x == "Int32Value" -> pure $ primType_ "Int32"
     | x == "Int64Value" -> pure $ primType_ "Int64"
     | x == "UInt32Value" -> pure $ primType_ "Word32"
@@ -906,7 +920,7 @@ dpptToFormType ctxt = \case
       pure formFloatT
     Double ->
       pure formDoubleT
-    Named (Dots (Path ("google" :| ["protobuf", x])))
+    Named (Dots ("google" :| ["protobuf", x]))
       | x == "Int32Value" ->
           wrapper formInt32T
       | x == "Int64Value" ->
@@ -940,6 +954,40 @@ dpptToFormType ctxt = \case
 -- * Code generation
 --
 
+-- | Given an identifier referencing a statement such as an enumeration or 
+-- message definition, produce a 'String' for the unqualified Haskell type name
+-- of the identifier.
+--
+-- ==== __Examples__
+--
+-- Obtaining the (unqualified) Haskell type name for a top-level identifier 
+-- @MyMessage@:
+--
+-- >>> toHaskellTypeName @(Either _) Nothing (Single "MyMessage")
+-- Right "MyMessage"
+--
+-- If the identifier is nested, then the parent identifier must be provided:
+--
+-- >>> toHaskellTypeName @(Either _) (Just (Single "OuterMessage")) (Single "InnerMessage")
+-- Right "OuterMessage_InnerMessage"
+--
+-- >>> toHaskellTypeName @(Either _) (Just (Single "QName" `Qualified` Single "OuterMessage")) (Single "InnerMessage")
+-- Left (InternalError "nestedTypeName: Qualified")
+toHaskellTypeName ::
+  MonadError CompileError m =>
+  -- | The parent (enclosing identifier), if any. If 'Nothing', then the given 
+  -- 'DotProtoIdentifier' must be a 'Single' identifier (i.e. a top-level name).
+  Maybe DotProtoIdentifier ->
+  -- | The identifier to convert to a Haskell name.
+  DotProtoIdentifier ->
+  -- | Returns the type-like Haskell name as a 'String'.
+  m String
+toHaskellTypeName Nothing idt = case idt of 
+  Single nm -> typeLikeName nm
+  other -> error ("toHaskellTypeName: cannot convert non-single identifier " ++ show other ++ " without a parent identifier")
+toHaskellTypeName (Just parentIdt) idt = do 
+  qualifiedMessageName parentIdt idt
+
 -- ** Generate instances for a 'DotProto' package
 
 dotProtoDefinitionD ::
@@ -947,16 +995,18 @@ dotProtoDefinitionD ::
   , (?stringType :: StringType)
   , (?typeLevelFormat :: Bool)
   ) =>
-  DotProtoPackageSpec ->
+  -- | The 'DotProtoIdentifier' of the package statement for the enclosing proto
+  -- file, if a package statement was present.
+  Maybe DotProtoIdentifier ->
   TypeContext ->
   DotProtoDefinition ->
   m [HsDecl]
 dotProtoDefinitionD pkgSpec ctxt = \case
   DotProtoMessage _ messageName messageParts ->
-    dotProtoMessageD ctxt Anonymous messageName messageParts
+    dotProtoMessageD ctxt Nothing messageName messageParts
 
   DotProtoEnum _ enumName enumParts ->
-    dotProtoEnumD Anonymous enumName enumParts
+    dotProtoEnumD Nothing enumName enumParts
 
   DotProtoService _ serviceName serviceParts ->
     dotProtoServiceD pkgSpec ctxt serviceName serviceParts
@@ -987,12 +1037,12 @@ dotProtoMessageD ::
   , (?typeLevelFormat :: Bool)
   ) =>
   TypeContext ->
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   [DotProtoMessagePart] ->
   m [HsDecl]
 dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
-    messageName <- qualifiedMessageName parentIdent messageIdent
+    messageName <- toHaskellTypeName parentIdent messageIdent
 
     let mkDataDecl flds =
           dataDecl_ messageName
@@ -1073,11 +1123,11 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     nestedDecls :: DotProtoDefinition -> m [HsDecl]
     nestedDecls (DotProtoMessage _ subMsgName subMessageDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoMessageD ctxt' parentIdent' subMsgName subMessageDef
+      dotProtoMessageD ctxt' (Just parentIdent') subMsgName subMessageDef
 
     nestedDecls (DotProtoEnum _ subEnumName subEnumDef) = do
       parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
-      dotProtoEnumD parentIdent' subEnumName subEnumDef
+      dotProtoEnumD (Just parentIdent') subEnumName subEnumDef
 
     nestedDecls _ = pure []
 
@@ -1131,12 +1181,12 @@ typeLevelInstsD ::
   , (?stringType :: StringType)
   ) =>
   TypeContext ->
-  DotProtoIdentifier->
+  Maybe DotProtoIdentifier->
   DotProtoIdentifier ->
   [DotProtoMessagePart]->
   m [HsDecl]
 typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
-    msgName <- qualifiedMessageName parentIdent msgIdent
+    msgName <- toHaskellTypeName parentIdent msgIdent
 
     qualifiedFields <- getQualifiedFields msgName messageParts
 
@@ -1250,12 +1300,12 @@ messageInstD ::
   , (?stringType :: StringType)
   ) =>
   TypeContext ->
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   [DotProtoMessagePart] ->
   m HsDecl
 messageInstD ctxt parentIdent msgIdent messageParts = do
-     msgName         <- qualifiedMessageName parentIdent msgIdent
+     msgName <- toHaskellTypeName parentIdent msgIdent
      qualifiedFields <- getQualifiedFields msgName messageParts
 
      encodedFields   <- mapM encodeMessageField qualifiedFields
@@ -1399,12 +1449,12 @@ toJSONPBMessageInstD ::
   , (?stringType :: StringType)
   ) =>
   TypeContext ->
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   [DotProtoMessagePart] ->
   m HsDecl
 toJSONPBMessageInstD ctxt parentIdent msgIdent messageParts = do
-    msgName    <- qualifiedMessageName parentIdent msgIdent
+    msgName    <- toHaskellTypeName parentIdent msgIdent
     qualFields <- getQualifiedFields msgName messageParts
 
     let applyE nm oneofNm = do
@@ -1517,12 +1567,13 @@ fromJSONPBMessageInstD ::
   , (?stringType :: StringType)
   ) =>
   TypeContext ->
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   [DotProtoMessagePart] ->
   m HsDecl
 fromJSONPBMessageInstD ctxt parentIdent msgIdent messageParts = do
-    msgName    <- qualifiedMessageName parentIdent msgIdent
+    msgName <- toHaskellTypeName parentIdent msgIdent
+
     qualFields <- getQualifiedFields msgName messageParts
 
     fieldParsers <- traverse parseField qualFields
@@ -1838,14 +1889,14 @@ toSchemaInstanceDeclaration ctxt messageName maybeConstructors fieldNamesEtc = d
 
 -- ** Generate types and instances for .proto enums
 
-dotProtoEnumD
-    :: MonadError CompileError m
-    => DotProtoIdentifier
-    -> DotProtoIdentifier
-    -> [DotProtoEnumPart]
-    -> m [HsDecl]
+dotProtoEnumD :: 
+  MonadError CompileError m =>
+  Maybe DotProtoIdentifier ->
+  DotProtoIdentifier ->
+  [DotProtoEnumPart] ->
+  m [HsDecl]
 dotProtoEnumD parentIdent enumIdent enumParts = do
-  enumName <- qualifiedMessageName parentIdent enumIdent
+  enumName <- toHaskellTypeName parentIdent enumIdent
 
   let enumeratorDecls =
         [ (i, conIdent) | DotProtoEnumField conIdent i _options <- enumParts ]
@@ -1973,7 +2024,9 @@ dotProtoServiceD ::
   ( MonadError CompileError m
   , (?stringType :: StringType)
   ) =>
-  DotProtoPackageSpec ->
+  -- | The 'DotProtoIdentifier' of the package statement for the enclosing proto
+  -- file, if a package statement was present.
+  Maybe DotProtoIdentifier ->
   TypeContext ->
   DotProtoIdentifier ->
   [DotProtoServicePart] ->
@@ -1983,10 +2036,10 @@ dotProtoServiceD pkgSpec ctxt serviceIdent service = do
 
      endpointPrefix <-
        case pkgSpec of
-         DotProtoPackageSpec pkgIdent -> do
+         Just pkgIdent -> do
            packageName <- dpIdentQualName pkgIdent
            pure $ "/" ++ packageName ++ "." ++ serviceName ++ "/"
-         DotProtoNoPackage -> pure $ "/" ++ serviceName ++ "/"
+         Nothing -> pure $ "/" ++ serviceName ++ "/"
 
      let serviceFieldD (DotProtoServiceRPCMethod RPCMethod{..}) = do
            fullName <- prefixedMethodName serviceName =<< dpIdentUnqualName rpcMethodName
@@ -2186,8 +2239,8 @@ fieldNumberE = paren . app fieldNumberC . intE . getFieldNumber
 
 dpIdentE :: DotProtoIdentifier -> HsExp
 dpIdentE (Single n) = apply singleC [ str_ n ]
-dpIdentE (Dots (Path (n NE.:| ns))) =
-  apply dotsC [ apply pathC [ paren (opApp (str_ n) neConsOp (list_ (map str_ ns))) ] ]
+dpIdentE (Dots (n NE.:| ns)) =
+  apply dotsC [ paren (opApp (str_ n) neConsOp (list_ (map str_ ns))) ]
 dpIdentE (Qualified a b)  = apply qualifiedC [ dpIdentE a, dpIdentE b ]
 dpIdentE Anonymous        = anonymousC
 

@@ -31,7 +31,8 @@ import           Data.Foldable
 import           Data.Functor.Compose
 import           Data.Int                  (Int32)
 import           Data.List                 (intercalate, sort)
-import qualified Data.List.NonEmpty        as NE
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map                  as M
 import           Data.Maybe                (fromMaybe)
 import qualified Data.Text                 as T
@@ -277,29 +278,29 @@ mergeIntervals = foldr step [] . sort
 -- Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
 --
 -- >>> toModulePath "google/protobuf/timestamp.proto"
--- Right (Path {components = "Google" :| ["Protobuf","Timestamp"]})
+-- Right ("Google" :| ["Protobuf","Timestamp"])
 --
 -- >>> toModulePath "a/b/c/google.protobuf.timestamp.proto"
--- Right (Path {components = "A" :| ["B","C","Google","Protobuf","Timestamp"]})
+-- Right ("A" :| ["B","C","Google","Protobuf","Timestamp"])
 --
 -- >>> toModulePath "foo/FiLeName_underscore.and.then.some.dots.proto"
--- Right (Path {components = "Foo" :| ["FiLeName_underscore","And","Then","Some","Dots"]})
+-- Right ("Foo" :| ["FiLeName_underscore","And","Then","Some","Dots"])
 --
 #if MIN_VERSION_turtle(1,6,0)
 -- >>> toModulePath "foo/bar/././baz/../boggle.proto"
 -- Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
 #else
 -- >>> toModulePath "foo/bar/././baz/../boggle.proto"
--- Right (Path {components = "Foo" :| ["Bar","Boggle"]})
+-- Right ("Foo" :| ["Bar","Boggle"])
 #endif
 --
 -- >>> toModulePath "./foo.proto"
--- Right (Path {components = "Foo" :| []})
+-- Right ("Foo" :| [])
 --
 -- NB: We ignore preceding single '.' characters
 -- >>> toModulePath ".foo.proto"
--- Right (Path {components = "Foo" :| []})
-toModulePath :: FilePath -> Either String Path
+-- Right ("Foo" :| [])
+toModulePath :: FilePath -> Either String (NonEmpty String)
 toModulePath fp0@(fromMaybe fp0 . Turtle.stripPrefix "./" -> fp)
   | Turtle.absolute fp
     = Left "expected include-relative path"
@@ -312,8 +313,8 @@ toModulePath fp0@(fromMaybe fp0 . Turtle.stripPrefix "./" -> fp)
           | T.isInfixOf ".." . Turtle.format F.fp . Turtle.collapse $ fp
             -> Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
           | otherwise
-            -> maybe (Left "empty path after canonicalization") (Right . Path)
-             . NE.nonEmpty
+            -> maybe (Left "empty path after canonicalization") Right
+             . NonEmpty.nonEmpty
              . dropWhile null -- Remove a potential preceding empty component which
                               -- arose from a preceding '.' in the input path, which we
                               -- want to ignore. E.g. ".foo.proto" => ["","Foo"].
@@ -344,7 +345,7 @@ importProto paths toplevelProto protoFP =
     Right (Just (mp, fp))
       -> liftEither . first CompileParseError =<< parseProtoFile mp fp
 
-type FindProtoResult = Either String (Maybe (Path, FilePath))
+type FindProtoResult = Either String (Maybe (NonEmpty String, FilePath))
 
 -- | Attempts to locate the first (if any) filename that exists on the given
 -- search paths, and constructs the "module path" from the given
@@ -420,20 +421,20 @@ type TypeContext = M.Map DotProtoIdentifier DotProtoTypeInfo
 
 -- | Information about messages and enumerations
 data DotProtoTypeInfo = DotProtoTypeInfo
-  { dotProtoTypeInfoPackage    :: DotProtoPackageSpec
+  { dotProtoTypeInfoPackage    :: [String]
      -- ^ The package this type is defined in
-  , dotProtoTypeInfoParent     :: DotProtoIdentifier
+  , dotProtoTypeInfoParent     :: Maybe String
     -- ^ The message this type is nested under, or 'Anonymous' if it's top-level
   , dotProtoTypeChildContext   :: TypeContext
     -- ^ The context that should be used for declarations within the
     --   scope of this type
   , dotProtoTypeInfoKind       :: DotProtoKind
     -- ^ Whether this type is an enumeration or message
-  , dotProtoTypeInfoModulePath :: Path
+  , dotProtoTypeInfoModulePath :: NonEmpty String
     -- ^ The include-relative module path used when importing this module
   } deriving Show
 
-tiParent :: Lens' DotProtoTypeInfo DotProtoIdentifier
+tiParent :: Lens' DotProtoTypeInfo (Maybe String)
 tiParent = lens dotProtoTypeInfoParent (\d p -> d{ dotProtoTypeInfoParent = p })
 
 -- | Whether a definition is an enumeration or a message
@@ -447,29 +448,38 @@ dotProtoTypeContext :: MonadError CompileError m => DotProto -> m TypeContext
 dotProtoTypeContext DotProto{..} =
   foldMapM (definitionTypeContext (metaModulePath protoMeta)) protoDefinitions
 
-definitionTypeContext :: MonadError CompileError m
-                      => Path -> DotProtoDefinition -> m TypeContext
-definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
-  let updateParent = tiParent (concatDotProtoIdentifier msgIdent)
+definitionTypeContext :: 
+  forall m.
+  MonadError CompileError m =>
+  NonEmpty String ->
+  DotProtoDefinition ->
+  m TypeContext
+definitionTypeContext modulePath (DotProtoMessage _ parIdt parts) = do
+  let updateParent :: DotProtoTypeInfo -> m DotProtoTypeInfo
+      updateParent = tiParent \case 
+        Just par -> pure (Just par)
+        Nothing -> case parIdt of 
+          Single parName -> pure (Just parName)
+          other -> error (show other ++ " unexpected in nested message parent update")
 
   childTyContext <- foldMapOfM (traverse . _DotProtoMessageDefinition)
                                (definitionTypeContext modulePath >=> traverse updateParent)
                                parts
 
-  qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier msgIdent) childTyContext
+  qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier (Just parIdt)) childTyContext
 
-  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
-                                , dotProtoTypeInfoParent =  Anonymous
+  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = []
+                                , dotProtoTypeInfoParent = Nothing
                                 , dotProtoTypeChildContext = childTyContext
                                 , dotProtoTypeInfoKind = DotProtoKindMessage
                                 , dotProtoTypeInfoModulePath = modulePath
                                 }
 
-  pure $ M.singleton msgIdent tyInfo <> qualifiedChildTyContext
+  pure $ M.singleton parIdt tyInfo <> qualifiedChildTyContext
 
 definitionTypeContext modulePath (DotProtoEnum _ enumIdent _) = do
-  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
-                                , dotProtoTypeInfoParent =  Anonymous
+  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = []
+                                , dotProtoTypeInfoParent = Nothing
                                 , dotProtoTypeChildContext = mempty
                                 , dotProtoTypeInfoKind = DotProtoKindEnum
                                 , dotProtoTypeInfoModulePath = modulePath
@@ -527,18 +537,19 @@ isMap _ = False
 
 concatDotProtoIdentifier ::
   MonadError CompileError m =>
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   m DotProtoIdentifier
 concatDotProtoIdentifier i1 i2 = case (i1, i2) of
-  (Qualified{}  ,  _           ) -> internalError "concatDotProtoIdentifier: Qualified"
-  (_            , Qualified{}  ) -> internalError "concatDotProtoIdentifier Qualified"
-  (Anonymous    , Anonymous    ) -> pure Anonymous
-  (Anonymous    , b            ) -> pure b
-  (a            , Anonymous    ) -> pure a
-  (Single a     , b            ) -> concatDotProtoIdentifier (Dots (Path (pure a))) b
-  (a            , Single b     ) -> concatDotProtoIdentifier a (Dots (Path (pure b)))
-  (Dots (Path a), Dots (Path b)) -> pure (Dots (Path (a <> b)))
+  (Nothing, b) -> pure b
+  (Just Qualified {},  _) -> internalError "concatDotProtoIdentifier: Qualified"
+  (Just _, Qualified {}) -> internalError "concatDotProtoIdentifier Qualified"
+  (Just Anonymous, Anonymous) -> pure Anonymous
+  (Just Anonymous, b) -> pure b
+  (Just a, Anonymous) -> pure a
+  (Just (Single a), b) -> concatDotProtoIdentifier (Just (Dots (pure a))) b
+  (Just a, Single b) -> concatDotProtoIdentifier (Just a) (Dots (pure b))
+  (Just (Dots a), Dots b) -> pure (Dots (a <> b))
 
 -- | @'toPascalCase' xs'@ sends a snake-case string @xs@ to a pascal-cased string. Trailing underscores are not dropped
 -- from the input string and exactly double underscores are replaced by a single underscore.
@@ -607,9 +618,21 @@ suffixBy p xs' = do
       | p x = Left (x : xs)
       | otherwise = Right ([x], xs)
 
--- | @'typeLikeName' xs@ produces either the pascal-cased version of the string @xs@ if it begins with an alphabetical
--- character or underscore - which is replaced with 'X'. A 'CompileError' is emitted if the starting character is
+-- | @'typeLikeName' xs@ produces either the pascal-cased version of the string
+-- @xs@ if it begins with an alphabetical character or underscore - which is 
+-- replaced with 'X'. A 'CompileError' is emitted if the starting character is
 -- non-alphabetic or if @xs == ""@.
+--
+-- ==== __Examples__
+--
+-- >>> typeLikeName @(Either CompileError) "my_type_name"
+-- Right "MyTypeName"
+--
+-- >>> typeLikeName @(Either CompileError) "MyTypeName"
+-- Right "MyTypeName"
+--
+-- >>> typeLikeName @(Either CompileError) "myTypeName"
+-- Right "MyTypeName"
 typeLikeName :: MonadError CompileError m => String -> m String
 typeLikeName "" = invalidTypeNameError "<empty name>"
 typeLikeName s@(x : xs)
@@ -635,26 +658,58 @@ typeLikeName s@(x : xs)
     -- First character of a Haskell name can only be "isAlpha".
     isValidNameChar ch = isAlphaNum ch || ch == '_'
 
--- | @'fieldLikeName' field@ is the casing transformation used to produce record selectors from message fields. If
--- @field@ is prefixed by a span of uppercase characters then that prefix will be lowercased while the remaining string
--- is left unchanged.
+-- | @'fieldLikeName' field@ is the casing transformation used to produce record
+-- selectors from message fields. If @field@ is prefixed by a span of uppercase 
+-- characters then that prefix will be lowercased while the remaining string is 
+-- left unchanged.
+--
+-- ==== __Examples__
+--
+-- >>> fieldLikeName "myField"
+-- "myField"
+--
+-- >>> fieldLikeName "MyField"
+-- "myField"
+--
+-- >>> fieldLikeName "my_field"
+-- "my_field"
 fieldLikeName :: String -> String
 fieldLikeName "" = ""
 fieldLikeName (x : xs)
   | isUpper x = map toLower prefix ++ suffix
   | otherwise = x : xs
-  where (prefix, suffix) = span isUpper (x : xs)
+  where 
+    (prefix, suffix) = span isUpper (x : xs)
 
 prefixedEnumFieldName :: String -> String -> String
 prefixedEnumFieldName enumName enumItem = enumName ++ enumItem
 
-prefixedConName :: MonadError CompileError m => String -> String -> m String
+prefixedConName :: 
+  MonadError CompileError m =>
+  -- | TODO: docs
+  String ->
+  -- | TODO: docs
+  String ->
+  -- | TODO: docs
+  m String
 prefixedConName msgName conName = do
   constructor <- typeLikeName conName
-  return (msgName ++ constructor)
+  pure (msgName ++ constructor)
 
--- | @'prefixedMethodName' service method@ produces a Haskell record selector name for the service method @method@ by
--- joining the names @service@, @method@ under concatenation on a camel-casing transformation.
+-- | @'prefixedMethodName' service method@ produces a Haskell record selector 
+-- name for the service method @method@ by joining the names @service@, 
+-- @method@ under concatenation on a camel-casing transformation.
+--
+-- ==== __Examples__
+--  
+-- >>> prefixedMethodName @(Either CompileError) "MyService" "GetItem"
+-- Right "myServiceGetItem"
+--
+-- >>> prefixedMethodName @(Either CompileError) "MyService" "get_item"
+-- Right "myServiceget_item"
+--
+-- >>> prefixedMethodName @(Either CompileError) "MyService" "getItem"
+-- Right "myServicegetItem"
 prefixedMethodName :: MonadError CompileError m => String -> String -> m String
 prefixedMethodName _ "" = invalidTypeNameError "<empty name>"
 prefixedMethodName serviceName (x : xs)
@@ -663,57 +718,101 @@ prefixedMethodName serviceName (x : xs)
       method <- typeLikeName (x : xs)
       return (fieldLikeName serviceName ++ method)
 
--- | @'prefixedFieldName' prefix field@ constructs a Haskell record selector name by prepending @prefix@ in camel-case
--- to the message field/service method name @field@.
-prefixedFieldName :: MonadError CompileError m => String -> String -> m String
+-- | @'prefixedFieldName' prefix field@ constructs a Haskell record selector 
+-- name by prepending @prefix@ in camel-case to the message field/service method 
+-- name @field@.
+--
+-- ==== __Examples__
+--
+-- >>> prefixedFieldName @(Either CompileError) "MyMessage" "myField"
+-- Right "myMessageMyField"
+--
+-- >>> prefixedFieldName @(Either CompileError) "MyMessage" "MyField"
+-- Right "myMessageMyField"
+--
+-- >>> prefixedFieldName @(Either CompileError) "MyMessage" "my_field"
+-- Right "myMessageMyField"
+prefixedFieldName :: 
+  MonadError CompileError m =>
+  -- | The name of the enclosing message.
+  String ->
+  -- | The name of the field.
+  String ->
+  -- | Returns the prefixed field Haskell name.
+  m String
 prefixedFieldName msgName fieldName = do
   field <- typeLikeName fieldName
   return (fieldLikeName msgName ++ field)
 
 dpIdentUnqualName :: MonadError CompileError m => DotProtoIdentifier -> m String
 dpIdentUnqualName (Single name)       = pure name
-dpIdentUnqualName (Dots (Path names)) = pure (NE.last names)
+dpIdentUnqualName (Dots names) = pure (NonEmpty.last names)
 dpIdentUnqualName (Qualified _ next)  = dpIdentUnqualName next
 dpIdentUnqualName Anonymous           = internalError "dpIdentUnqualName: Anonymous"
 
 dpIdentQualName :: MonadError CompileError m => DotProtoIdentifier -> m String
 dpIdentQualName (Single name)       = pure name
-dpIdentQualName (Dots (Path names)) = pure (intercalate "." (NE.toList names))
+dpIdentQualName (Dots names) = pure (intercalate "." (NonEmpty.toList names))
 dpIdentQualName (Qualified _ _)     = internalError "dpIdentQualName: Qualified"
 dpIdentQualName Anonymous           = internalError "dpIdentQualName: Anonymous"
 
 -- | Given a 'DotProtoIdentifier' for the parent type and the unqualified name
 -- of this type, generate the corresponding Haskell name
-nestedTypeName :: MonadError CompileError m => DotProtoIdentifier -> String -> m String
-nestedTypeName Anonymous             nm = typeLikeName nm
-nestedTypeName (Single parent)       nm = intercalate "_" <$> traverse typeLikeName [parent, nm]
-nestedTypeName (Dots (Path parents)) nm = intercalate "_" . (<> [nm]) <$> traverse typeLikeName (NE.toList parents)
-nestedTypeName (Qualified {})        _  = internalError "nestedTypeName: Qualified"
+nestedTypeName :: 
+  MonadError CompileError m => 
+  -- | The qualifying 'DotProtoIdentifier' of the parent type, if one exists.
+  -- Otherwise the 'String' name is assumed to be top-level.
+  Maybe DotProtoIdentifier -> 
+  -- | The 'String' name of the nested type.
+  String ->
+  -- | Returns the formatted name.
+  m String
+nestedTypeName (Just (Single parent))       nm = intercalate "_" <$> traverse typeLikeName [parent, nm]
+nestedTypeName (Just (Dots parents)) nm = intercalate "_" . (<> [nm]) <$> traverse typeLikeName (NonEmpty.toList parents)
+nestedTypeName (Just (Qualified {}))        _  = internalError "nestedTypeName: Qualified"
+nestedTypeName _ nm = typeLikeName nm
 
-qualifiedMessageName :: MonadError CompileError m => DotProtoIdentifier -> DotProtoIdentifier -> m String
-qualifiedMessageName parentIdent msgIdent = nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
+qualifiedMessageName :: 
+  MonadError CompileError m => 
+  -- | The 'DotProtoIdentifier' belonging to the parent of the qualified message
+  -- 'DotProtoIdentifier'.
+  DotProtoIdentifier -> 
+  -- | The 'DotProtoIdentifier' belonging to the qualified message.
+  DotProtoIdentifier -> 
+  -- | The qualified Haskell name of the message.
+  m String
+qualifiedMessageName parentIdent msgIdent = do
+  idt <- dpIdentUnqualName msgIdent 
+  nestedTypeName (Just parentIdent) idt
 
-qualifiedMessageTypeName :: MonadError CompileError m =>
-                            TypeContext ->
-                            DotProtoIdentifier ->
-                            DotProtoIdentifier ->
-                            m String
-qualifiedMessageTypeName ctxt parentIdent msgIdent = do
-  xs <- parents parentIdent []
+qualifiedMessageTypeName ::
+  MonadError CompileError m =>
+  TypeContext ->
+  DotProtoIdentifier ->
+  DotProtoIdentifier ->
+  m String
+qualifiedMessageTypeName ctxt Anonymous msgIdent = do
+  xs <- parents Nothing []
   case xs of
-    [] -> nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
-    x : xs' -> nestedTypeName (Dots . Path $ x NE.:| xs') =<< dpIdentUnqualName msgIdent
+    [] -> do 
+      nm <- dpIdentUnqualName msgIdent
+      nestedTypeName Nothing nm
+    x : xs' -> do 
+      nm <- dpIdentUnqualName msgIdent
+      nestedTypeName (Just (Dots (x :| xs'))) nm
   where
-    parents par@(Single x) xs =
-      case M.lookup par ctxt of
+    parents (Just x) xs =
+      case M.lookup (Single x) ctxt of
         Just (DotProtoTypeInfo { dotProtoTypeInfoParent = parentIdent' }) ->
           parents parentIdent' $ x : xs
         Nothing ->
           pure $ x : xs
-    parents Anonymous xs =
-      pure xs
-    parents par _ =
-      internalError $ "qualifiedMessageTypeName: wrong parent " <> show par
+    parents Nothing xs = pure xs
+qualifiedMessageTypeName _ (Single parentIdent) msgIdent = do
+  nm <- dpIdentUnqualName msgIdent
+  nestedTypeName (Just (Single parentIdent)) nm
+qualifiedMessageTypeName _ parentIdent _ = do
+  error (show parentIdent ++ " unexpected in qualifiedMessageTypeName")
 
 --------------------------------------------------------------------------------
 --
@@ -722,8 +821,8 @@ qualifiedMessageTypeName ctxt parentIdent msgIdent = do
 
 -- | Bookeeping for qualified fields
 data QualifiedField = QualifiedField
-  { recordFieldName   :: FieldName
-  , fieldInfo         :: FieldInfo
+  { recordFieldName :: FieldName
+  , fieldInfo       :: FieldInfo
   } deriving Show
 
 -- | Bookkeeping for fields
