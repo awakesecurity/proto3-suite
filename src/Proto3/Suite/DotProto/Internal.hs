@@ -423,7 +423,7 @@ type TypeContext = M.Map DotProtoIdentifier DotProtoTypeInfo
 data DotProtoTypeInfo = DotProtoTypeInfo
   { dotProtoTypeInfoPackage    :: Maybe DotProtoIdentifier
      -- ^ The package this type is defined in
-  , dotProtoTypeInfoParent     :: DotProtoIdentifier
+  , dotProtoTypeInfoParent     :: Maybe String
     -- ^ The message this type is nested under, or 'Anonymous' if it's top-level
   , dotProtoTypeChildContext   :: TypeContext
     -- ^ The context that should be used for declarations within the
@@ -434,7 +434,7 @@ data DotProtoTypeInfo = DotProtoTypeInfo
     -- ^ The include-relative module path used when importing this module
   } deriving Show
 
-tiParent :: Lens' DotProtoTypeInfo DotProtoIdentifier
+tiParent :: Lens' DotProtoTypeInfo (Maybe String)
 tiParent = lens dotProtoTypeInfoParent (\d p -> d{ dotProtoTypeInfoParent = p })
 
 -- | Whether a definition is an enumeration or a message
@@ -450,27 +450,31 @@ dotProtoTypeContext DotProto{..} =
 
 definitionTypeContext :: MonadError CompileError m
                       => NonEmpty String -> DotProtoDefinition -> m TypeContext
-definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
-  let updateParent = tiParent (concatDotProtoIdentifier (Just msgIdent))
+definitionTypeContext modulePath (DotProtoMessage _ parIdt parts) = do
+  let updateParent = tiParent \case 
+        Just par -> pure (Just par)
+        Nothing -> case parIdt of 
+          Single parName -> pure (Just parName)
+          other -> error (show other ++ " unexpected in nested message parent update")
 
   childTyContext <- foldMapOfM (traverse . _DotProtoMessageDefinition)
                                (definitionTypeContext modulePath >=> traverse updateParent)
                                parts
 
-  qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier (Just msgIdent)) childTyContext
+  qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier (Just parIdt)) childTyContext
 
   let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = Nothing
-                                , dotProtoTypeInfoParent =  Anonymous
+                                , dotProtoTypeInfoParent = Nothing
                                 , dotProtoTypeChildContext = childTyContext
                                 , dotProtoTypeInfoKind = DotProtoKindMessage
                                 , dotProtoTypeInfoModulePath = modulePath
                                 }
 
-  pure $ M.singleton msgIdent tyInfo <> qualifiedChildTyContext
+  pure $ M.singleton parIdt tyInfo <> qualifiedChildTyContext
 
 definitionTypeContext modulePath (DotProtoEnum _ enumIdent _) = do
   let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = Nothing
-                                , dotProtoTypeInfoParent =  Anonymous
+                                , dotProtoTypeInfoParent = Nothing
                                 , dotProtoTypeChildContext = mempty
                                 , dotProtoTypeInfoKind = DotProtoKindEnum
                                 , dotProtoTypeInfoModulePath = modulePath
@@ -782,26 +786,28 @@ qualifiedMessageTypeName ::
   DotProtoIdentifier ->
   DotProtoIdentifier ->
   m String
-qualifiedMessageTypeName ctxt parentIdent msgIdent = do
-  xs <- parents parentIdent []
+qualifiedMessageTypeName ctxt Anonymous msgIdent = do
+  xs <- parents Nothing []
   case xs of
     [] -> do 
       nm <- dpIdentUnqualName msgIdent
-      nestedTypeName (Just parentIdent) nm
+      nestedTypeName Nothing nm
     x : xs' -> do 
       nm <- dpIdentUnqualName msgIdent
       nestedTypeName (Just (Dots (x :| xs'))) nm
   where
-    parents par@(Single x) xs =
-      case M.lookup par ctxt of
+    parents (Just x) xs =
+      case M.lookup (Single x) ctxt of
         Just (DotProtoTypeInfo { dotProtoTypeInfoParent = parentIdent' }) ->
           parents parentIdent' $ x : xs
         Nothing ->
           pure $ x : xs
-    parents Anonymous xs =
-      pure xs
-    parents par _ =
-      internalError $ "qualifiedMessageTypeName: wrong parent " <> show par
+    parents Nothing xs = pure xs
+qualifiedMessageTypeName _ (Single parentIdent) msgIdent = do
+  nm <- dpIdentUnqualName msgIdent
+  nestedTypeName (Just (Single parentIdent)) nm
+qualifiedMessageTypeName _ parentIdent _ = do
+  error (show parentIdent ++ " unexpected in qualifiedMessageTypeName")
 
 --------------------------------------------------------------------------------
 --

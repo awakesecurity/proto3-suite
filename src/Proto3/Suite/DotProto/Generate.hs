@@ -506,11 +506,19 @@ ctxtImports =
 --   field of the 'DotProtoTypeInfo' parameter, instead demanding that we have
 --   been provided with a valid module path in its 'dotProtoTypeInfoModulePath'
 --   field. The latter describes the name of the Haskell module being generated.
-msgTypeFromDpTypeInfo :: MonadError CompileError m
-                      => TypeContext -> DotProtoTypeInfo -> DotProtoIdentifier -> m HsType
+msgTypeFromDpTypeInfo :: 
+  MonadError CompileError m => 
+  TypeContext -> 
+  DotProtoTypeInfo -> 
+  DotProtoIdentifier -> 
+  m HsType
 msgTypeFromDpTypeInfo ctxt DotProtoTypeInfo{..} ident = do
+    let parIdt = case dotProtoTypeInfoParent of
+          Nothing -> Anonymous
+          Just idt -> Single idt
+
     modName   <- modulePathModName dotProtoTypeInfoModulePath
-    identName <- qualifiedMessageTypeName ctxt dotProtoTypeInfoParent ident
+    identName <- qualifiedMessageTypeName ctxt parIdt ident
     pure $ typeNamed_ $ qual_ modName tcName identName
 
 modulePathModName :: MonadError CompileError m => NonEmpty String -> m Module
