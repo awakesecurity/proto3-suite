@@ -75,7 +75,8 @@ main = do
 
 tests :: Logger -> TestTree
 tests logger = testGroup "Tests"
-  [ qcProperties
+  [ docTests 
+  , qcProperties
   , encodeUnitTests
   , decodeUnitTests
   , parserUnitTests
@@ -91,6 +92,39 @@ tests logger = testGroup "Tests"
   , dhallTests
 #endif
   ]
+
+--------------------------------------------------------------------------------
+-- Doctests
+
+docTests :: TestTree
+docTests = testCase "doctests" $ do
+  putStrLn "Running all doctests..."
+  Test.DocTest.doctest
+    [ "--verbose"
+    , "-package"
+    , "ghc-lib-parser"
+    , "-isrc"
+    , "-XBlockArguments"
+#ifdef SWAGGER
+#ifdef SWAGGER_WRAPPER_FORMAT
+    , "-isrc/swagger-wrapper-format"
+    , "-DSWAGGER_WRAPPER_FORMAT"
+#else
+    , "-isrc/no-swagger-wrapper-format"
+#endif
+    , "-DSWAGGER"
+#endif
+#ifdef DHALL
+    , "-DDHALL"
+#endif
+#ifdef LARGE_RECORDS
+    , "-DLARGE_RECORDS"
+#endif
+    , "src/Proto3/Suite/DotProto/Internal.hs"
+    , "src/Proto3/Suite/DotProto/Generate.hs"
+    , "src/Proto3/Suite/JSONPB/Class.hs"
+    , "src/Proto3/Suite/Tutorial.hs"
+    ]
 
 --------------------------------------------------------------------------------
 -- QuickCheck properties
