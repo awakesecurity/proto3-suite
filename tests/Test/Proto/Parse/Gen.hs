@@ -7,11 +7,13 @@ module Test.Proto.Parse.Gen
   )
 where
 
-import Hedgehog (Gen)
-import qualified Hedgehog.Gen as Gen
-import qualified Hedgehog.Range as Range
+import Control.Applicative (liftA2)
 
-import qualified Data.List.NonEmpty as NonEmpty
+import Hedgehog (Gen)
+import Hedgehog.Gen qualified as Gen
+import Hedgehog.Range qualified as Range
+
+import Data.List.NonEmpty qualified as NonEmpty
 
 import Proto3.Suite.DotProto.AST
 

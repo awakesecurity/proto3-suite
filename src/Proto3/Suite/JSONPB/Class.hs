@@ -296,6 +296,7 @@ object fs = A.object . mconcat fs
 --
 -- >>> object [const []] defaultOptions
 -- Object (fromList [])
+--
 -- >>> objectOrNull [const []] defaultOptions
 -- Null
 objectOrNull :: [Options -> [A.Pair]] -> Options -> A.Value

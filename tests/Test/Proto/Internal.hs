@@ -1,10 +1,28 @@
+{-# LANGUAGE TypeApplications #-}
 
 module Test.Proto.Internal (testTree) where 
 
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Encoding qualified as Aeson.Encoding
+-- import Data.Default (Default (..))
 import Data.List.NonEmpty (NonEmpty(..))
 
+import GHC.Exts (IsList (..))
+
+import Proto3.Suite.Class (HasDefault (..))
+import Proto3.Suite.JSONPB.Class 
+  ( defaultOptions
+  , object
+  , objectOrNull
+  , pairs
+  , pairsOrNull
+  )
 import Proto3.Suite.DotProto.AST (Path(..))
-import Proto3.Suite.DotProto.Internal (toModulePath)
+import Proto3.Suite.DotProto.Generate (renameProtoFile)
+import Proto3.Suite.DotProto.Internal 
+  ( CompileError (..)
+  , toModulePath
+  )
 
 import Hedgehog (property, withTests, (===))
 
@@ -17,8 +35,42 @@ testTree :: TestTree
 testTree =
   testGroup
     "Internal"
-    [ testModulePath
+    [ testNullOrObject
+    , testPairsOrNull
+    , testDefaults 
+    , testRenameProtoFile
+    , testModulePath
     ]
+
+testNullOrObject :: TestTree 
+testNullOrObject = 
+  testProperty "nullOrObject" . withTests 1 $ property do 
+    object [const []] defaultOptions === Aeson.Object (fromList [])
+
+    objectOrNull [const []] defaultOptions === Aeson.Null
+
+testPairsOrNull :: TestTree 
+testPairsOrNull = 
+  testProperty "pairsOrNull" . withTests 1 $ property do 
+    pairs [const mempty] defaultOptions === Aeson.Encoding.emptyObject_
+
+    pairsOrNull [] defaultOptions === Aeson.Encoding.null_
+
+testDefaults :: TestTree
+testDefaults =
+  testProperty "defaults" . withTests 1 $ property do
+    isDefault (def :: Aeson.Encoding.Encoding) === True
+
+    isDefault (def :: Aeson.Value) === True
+
+testRenameProtoFile :: TestTree
+testRenameProtoFile =
+  testProperty "renameProtoFile" . withTests 1 $ property do
+    renameProtoFile @(Either CompileError) "abc_xyz" === Right "AbcXyz"
+
+    renameProtoFile @(Either CompileError) "abc_1bc" === Left (InvalidModuleName "abc_1bc")
+
+    renameProtoFile @(Either CompileError) "_" === Left (InvalidModuleName "_")
 
 testModulePath :: TestTree
 testModulePath = 
