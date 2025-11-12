@@ -559,6 +559,14 @@ toCamelCase xs =
     x : xs' -> toLower x : xs'
 
 -- | Uppercases the first character of a string.
+--
+-- ==== __Examples__
+--
+-- >>> toUpperFirst "abc"
+-- "Abc"
+--
+-- >>> toUpperFirst ""
+-- ""
 toUpperFirst :: String -> String
 toUpperFirst "" = ""
 toUpperFirst (x : xs) = toUpper x : xs
@@ -569,6 +577,11 @@ toUpperFirst (x : xs) = toUpper x : xs
 -- * 'Right' sublists containing elements satisfying @p@, otherwise;
 --
 -- * 'Left' sublists containing elements that do not satisfy @p@
+--
+-- ==== __Examples__
+--
+-- >>> segmentBy (\c -> c == '_') "abc_123_xyz"
+-- [Left "abc",Right "_",Left "123",Right "_",Left "xyz"]
 segmentBy :: (a -> Bool) -> [a] -> [Either [a] [a]]
 segmentBy p xs = case span p xs of
   ([], []) -> []
