@@ -43,7 +43,6 @@ import           Proto3.Wire.Decode          (ParseError)
 import qualified Proto3.Wire.Decode          as Decode
 import qualified Proto3.Wire.Reverse         as RB
 import           Proto3.Wire.Types           as P
-import qualified Test.DocTest
 import           Test.QuickCheck             (Arbitrary, Property, (.&&.), arbitrary, choose,
                                               counterexample, forAll, oneof, property)
 import           Test.Tasty
@@ -62,6 +61,7 @@ import           TestDhall
 import qualified Test.Proto.Generate.Name
 import qualified Test.Proto.Parse.Option
 import qualified Test.Proto.Interval
+import qualified Test.Proto.Internal
 import           Test.Proto.ToEncoder        (Iterator(Forward, Vector),
                                               Stripping(Keep, Strip), ToEncoder(..))
 
@@ -74,8 +74,7 @@ main = do
 
 tests :: Logger -> TestTree
 tests logger = testGroup "Tests"
-  [ docTests
-  , qcProperties
+  [ qcProperties
   , encodeUnitTests
   , decodeUnitTests
   , parserUnitTests
@@ -84,44 +83,12 @@ tests logger = testGroup "Tests"
   , Test.Proto.Generate.Name.testTree
   , Test.Proto.Parse.Option.testTree
   , Test.Proto.Interval.testTree
+  , Test.Proto.Internal.testTree
 
 #ifdef DHALL
   , dhallTests
 #endif
   ]
-
--- -----------------------------------------------------------------------------
--- Doctests
-
-docTests :: TestTree
-docTests = testCase "doctests" $ do
-  putStrLn "Running all doctests..."
-  Test.DocTest.doctest
-    [ "--verbose"
-    , "-package"
-    , "ghc-lib-parser"
-    , "-isrc"
-    , "-XBlockArguments"
-#ifdef SWAGGER
-#ifdef SWAGGER_WRAPPER_FORMAT
-    , "-isrc/swagger-wrapper-format"
-    , "-DSWAGGER_WRAPPER_FORMAT"
-#else
-    , "-isrc/no-swagger-wrapper-format"
-#endif
-    , "-DSWAGGER"
-#endif
-#ifdef DHALL
-    , "-DDHALL"
-#endif
-#ifdef LARGE_RECORDS
-    , "-DLARGE_RECORDS"
-#endif
-    , "src/Proto3/Suite/DotProto/Internal.hs"
-    , "src/Proto3/Suite/DotProto/Generate.hs"
-    , "src/Proto3/Suite/JSONPB/Class.hs"
-    , "src/Proto3/Suite/Tutorial.hs"
-    ]
 
 --------------------------------------------------------------------------------
 -- QuickCheck properties

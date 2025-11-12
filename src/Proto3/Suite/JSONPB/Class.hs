@@ -225,8 +225,7 @@ obj .: key = obj .:? keyFromText key A..!= def
   where
     (.:?) = A.explicitParseFieldMaybe parseJSONPB
 
-parseField :: FromJSONPB a
-           => A.Object -> Key -> A.Parser a
+parseField :: FromJSONPB a => A.Object -> Key -> A.Parser a
 parseField = A.explicitParseField parseJSONPB
 
 -- | >>> isDefault (def :: E.Encoding)

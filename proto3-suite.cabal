@@ -190,6 +190,7 @@ test-suite tests
     Test.Proto.Generate.Name.Gen
     Test.Proto.Parse
     Test.Proto.Parse.Core
+    Test.Proto.Internal
     Test.Proto.Interval
     Test.Proto.Parse.Gen
     Test.Proto.Parse.Option
