@@ -82,6 +82,7 @@ mapKeysM f = fmap M.fromList . traverse (fmap swap . traverse f . swap) . M.asso
 
 -- $setup
 -- >>> :set -XOverloadedStrings
+-- >>> :set -XNoQuasiQuotes
 
 dieLines :: MonadIO m => Text -> m a
 dieLines (Turtle.textToLines -> msg) = do
