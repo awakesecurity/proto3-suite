@@ -50,8 +50,8 @@ source-repository head
 
 common common
   default-extensions:
-    BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric
-    ImportQualifiedPost ViewPatterns
+    BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric 
+    DeriveLift ImportQualifiedPost PackageImports ViewPatterns
 
 library
   import: common
@@ -80,6 +80,7 @@ library
                        Proto3.Suite.DotProto.Generate.Record
                        Proto3.Suite.DotProto.Generate.Syntax
                        Proto3.Suite.DotProto.Parsing
+                       Proto3.Suite.DotProto.TH
                        Proto3.Suite.DotProto.Rendering
                        Proto3.Suite.Form
                        Proto3.Suite.Form.Encode
@@ -195,6 +196,7 @@ test-suite tests
     Test.Proto.Parse.Gen
     Test.Proto.Parse.Option
     Test.Proto.ToEncoder
+    Test.Proto.TH
 
   build-depends:
       aeson

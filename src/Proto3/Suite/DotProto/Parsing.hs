@@ -15,6 +15,7 @@ module Proto3.Suite.DotProto.Parsing
   ( ProtoParser
   , runProtoParser
   , parseProto
+  , parseProtoWithFile
   , parseProtoFile
 
     -- * Option Parsers
