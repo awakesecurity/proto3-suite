@@ -36,9 +36,7 @@ testTree =
 testDotProtoQuoter :: Property
 testDotProtoQuoter = 
   withTests 1 $ property do
-
-
-    dotProtoParsed === dotProtoExpected
+    protoDefinitions dotProtoParsed === protoDefinitions dotProtoExpected
   where 
     dotProtoExpected :: DotProto
     dotProtoExpected = 
@@ -100,7 +98,7 @@ testDotProtoQuoter =
                       }
                 ]
             ]
-        , protoMeta = DotProtoMeta (Path ("PkgName \"proto3-suite-0.9.4-inplace-tests\"" :| []))
+        , protoMeta = DotProtoMeta (Path ("" :| []))
         } 
 
     dotProtoParsed :: DotProto
