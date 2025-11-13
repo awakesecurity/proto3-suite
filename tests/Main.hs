@@ -75,7 +75,7 @@ main = do
 
 tests :: Logger -> TestTree
 tests logger = testGroup "Tests"
-  [ docTests 
+  [ docTests
   , qcProperties
   , encodeUnitTests
   , decodeUnitTests
