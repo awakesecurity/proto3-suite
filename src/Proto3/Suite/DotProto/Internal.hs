@@ -9,6 +9,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -48,6 +49,7 @@ import           Turtle                    (ExitCode (..), FilePath, Text,
                                             (</>))
 import           Turtle.Format             ((%))
 import qualified Turtle.Format             as F
+import NeatInterpolation qualified as Neat
 
 -------------------------------------------------------------------------------
 --
@@ -365,22 +367,22 @@ findProto searchPaths protoFP
 
 badModulePathErrorMsg :: FilePath -> String -> T.Text
 badModulePathErrorMsg (Turtle.format F.fp -> fp) (T.pack -> rsn) =
-  T.unlines
-    [ "Error: failed when computing the \"module path\" for \"" <> fp <> ": " <> rsn
-    , ""
-    , "Please ensure that the provided path to a .proto file is specified as"
-    , "relative to some --includeDir path and that it has the .proto suffix."
-    ]
+  [Neat.text|
+    Error: failed when computing the "module path" for "${fp}": ${rsn}
+
+    Please ensure that the provided path to a .proto file is specified as
+    relative to some --includeDir path and that it has the .proto suffix.
+  |]
 
 importNotFoundErrorMsg :: [FilePath] -> FilePath -> FilePath -> T.Text
 importNotFoundErrorMsg paths toplevelProto protoFP =
-    T.unlines
-      [ "Error: while processing include statements in \"" <> toplevelProtoText <> "\", failed"
-      , "to find the imported file \"" <> protoFPText <> "\", after looking in the following"
-      , "locations (controlled via the --includeDir switch(es)):"
-      , ""
-      , pathsText
-      ]
+    [Neat.text|
+      Error: while processing include statements in "${toplevelProtoText}", failed
+      to find the imported file "${protoFPText}", after looking in the following
+      locations (controlled via the --includeDir switch(es)):
+
+      $pathsText
+    |]
   where
     pathsText = T.unlines (Turtle.format ("  "%F.fp) . (</> protoFP) <$> paths)
     toplevelProtoText = Turtle.format F.fp toplevelProto
@@ -388,28 +390,28 @@ importNotFoundErrorMsg paths toplevelProto protoFP =
 
 toplevelNotFoundErrorMsg :: [FilePath] -> FilePath -> T.Text
 toplevelNotFoundErrorMsg searchPaths toplevelProto =
-    T.unlines
-      [ "Error: failed to find file \"" <> toplevelProtoText <> "\", after looking in"
-      , "the following locations (controlled via the --includeDir switch(es)):"
-      , ""
-      , searchPathsText
-      ]
+    [Neat.text|
+      Error: failed to find file "${toplevelProtoText}", after looking in
+      the following locations (controlled via the --includeDir switch(es)):
+
+      $searchPathsText
+    |]
   where
     searchPathsText   = T.unlines (Turtle.format ("  "%F.fp) . (</> toplevelProto) <$> searchPaths)
     toplevelProtoText = Turtle.format F.fp toplevelProto
 
 absolutePathErrorMsg :: T.Text
 absolutePathErrorMsg =
-  T.unlines
-    [ "Error: Absolute paths to .proto files, whether on the command line or"
-    , "in include directives, are not currently permitted; rather, all .proto"
-    , "filenames must be relative to the current directory, or relative to some"
-    , "search path specified via --includeDir."
-    , ""
-    , "This is because we currently use the include-relative name to decide"
-    , "the structure of the Haskell module tree that we emit during code"
-    , "generation."
-    ]
+  [Neat.text|
+    Error: Absolute paths to .proto files, whether on the command line or
+    in include directives, are not currently permitted; rather, all .proto
+    filenames must be relative to the current directory, or relative to some
+    search path specified via --includeDir.
+
+    This is because we currently use the include-relative name to decide
+    the structure of the Haskell module tree that we emit during code
+    generation.
+  |]
 
 --------------------------------------------------------------------------------
 --
