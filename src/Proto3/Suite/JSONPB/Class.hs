@@ -124,6 +124,11 @@ import qualified Proto3.Suite.Types
 import           Proto3.Wire.Class                (ProtoEnum(..))
 import           Test.QuickCheck.Arbitrary        (Arbitrary(..))
 
+--------------------------------------------------------------------------------
+
+-- $setup
+-- >>> import qualified Data.Aeson as A
+
 #if MIN_VERSION_aeson(2,0,0)
 type Key = A.Key
 keyFromText :: Text -> Key

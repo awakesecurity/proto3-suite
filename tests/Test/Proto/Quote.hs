@@ -1,6 +1,6 @@
 
-module Proto3.Suite.DotProto.TH (
-  proto3,
+module Test.Proto.Quote (
+  dotProto3Syntax,
 ) where
 
 import "template-haskell" Language.Haskell.TH as TH
@@ -12,8 +12,8 @@ import Proto3.Suite.DotProto.Parsing (parseProtoWithFile)
 
 --------------------------------------------------------------------------------
 
-proto3 :: QuasiQuoter
-proto3 = 
+dotProto3Syntax :: QuasiQuoter
+dotProto3Syntax = 
   QuasiQuoter 
     { quoteExp = quoteDotProto 
     , quotePat = \_ -> fail "proto3 quasiquoter does not support patterns"

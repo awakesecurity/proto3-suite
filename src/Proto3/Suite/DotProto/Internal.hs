@@ -11,7 +11,6 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ViewPatterns        #-}
 
 module Proto3.Suite.DotProto.Internal where
@@ -36,7 +35,6 @@ import qualified Data.Map                  as M
 import           Data.Maybe                (fromMaybe)
 import qualified Data.Text                 as T
 import           Data.Tuple                (swap)
-import qualified NeatInterpolation         as Neat
 import           Prelude                   hiding (FilePath)
 import           Proto3.Suite.DotProto.AST
 import           Proto3.Suite.DotProto.AST.Lens
@@ -79,6 +77,8 @@ foldMapOfM l f = fmap getConst . getCompose . l (Compose . fmap Const . f)
 
 mapKeysM :: (Monad m, Ord k2) => (k1 -> m k2) -> M.Map k1 a -> m (M.Map k2 a)
 mapKeysM f = fmap M.fromList . traverse (fmap swap . traverse f . swap) . M.assocs
+
+--------------------------------------------------------------------------------
 
 -- $setup
 -- >>> :set -XOverloadedStrings
@@ -365,22 +365,22 @@ findProto searchPaths protoFP
 
 badModulePathErrorMsg :: FilePath -> String -> T.Text
 badModulePathErrorMsg (Turtle.format F.fp -> fp) (T.pack -> rsn) =
-  [Neat.text|
-    Error: failed when computing the "module path" for "${fp}": ${rsn}
-
-    Please ensure that the provided path to a .proto file is specified as
-    relative to some --includeDir path and that it has the .proto suffix.
-  |]
+  T.unlines
+    [ "Error: failed when computing the \"module path\" for \"" <> fp <> ": " <> rsn
+    , ""
+    , "Please ensure that the provided path to a .proto file is specified as"
+    , "relative to some --includeDir path and that it has the .proto suffix."
+    ]
 
 importNotFoundErrorMsg :: [FilePath] -> FilePath -> FilePath -> T.Text
 importNotFoundErrorMsg paths toplevelProto protoFP =
-    [Neat.text|
-      Error: while processing include statements in "${toplevelProtoText}", failed
-      to find the imported file "${protoFPText}", after looking in the following
-      locations (controlled via the --includeDir switch(es)):
-
-      $pathsText
-    |]
+    T.unlines
+      [ "Error: while processing include statements in \"" <> toplevelProtoText <> "\", failed"
+      , "to find the imported file \"" <> protoFPText <> "\", after looking in the following"
+      , "locations (controlled via the --includeDir switch(es)):"
+      , ""
+      , pathsText
+      ]
   where
     pathsText = T.unlines (Turtle.format ("  "%F.fp) . (</> protoFP) <$> paths)
     toplevelProtoText = Turtle.format F.fp toplevelProto
@@ -388,28 +388,28 @@ importNotFoundErrorMsg paths toplevelProto protoFP =
 
 toplevelNotFoundErrorMsg :: [FilePath] -> FilePath -> T.Text
 toplevelNotFoundErrorMsg searchPaths toplevelProto =
-    [Neat.text|
-      Error: failed to find file "${toplevelProtoText}", after looking in
-      the following locations (controlled via the --includeDir switch(es)):
-
-      $searchPathsText
-    |]
+    T.unlines
+      [ "Error: failed to find file \"" <> toplevelProtoText <> "\", after looking in"
+      , "the following locations (controlled via the --includeDir switch(es)):"
+      , ""
+      , searchPathsText
+      ]
   where
     searchPathsText   = T.unlines (Turtle.format ("  "%F.fp) . (</> toplevelProto) <$> searchPaths)
     toplevelProtoText = Turtle.format F.fp toplevelProto
 
 absolutePathErrorMsg :: T.Text
 absolutePathErrorMsg =
-    [Neat.text|
-     Error: Absolute paths to .proto files, whether on the command line or
-     in include directives, are not currently permitted; rather, all .proto
-     filenames must be relative to the current directory, or relative to some
-     search path specified via --includeDir.
-
-     This is because we currently use the include-relative name to decide
-     the structure of the Haskell module tree that we emit during code
-     generation.
-    |]
+  T.unlines
+    [ "Error: Absolute paths to .proto files, whether on the command line or"
+    , "in include directives, are not currently permitted; rather, all .proto"
+    , "filenames must be relative to the current directory, or relative to some"
+    , "search path specified via --includeDir."
+    , ""
+    , "This is because we currently use the include-relative name to decide"
+    , "the structure of the Haskell module tree that we emit during code"
+    , "generation."
+    ]
 
 --------------------------------------------------------------------------------
 --

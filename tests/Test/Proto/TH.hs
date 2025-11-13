@@ -19,8 +19,8 @@ import Proto3.Suite.DotProto.AST
   , DotProtoType (..)
   )
 import Proto3.Suite.DotProto.Rendering ()
-import Proto3.Suite.DotProto.TH (proto3)
 
+import Test.Proto.Quote (dotProto3Syntax)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
 
@@ -102,7 +102,7 @@ testDotProtoQuoter =
         } 
 
     dotProtoParsed :: DotProto
-    dotProtoParsed = [proto3|
+    dotProtoParsed = [dotProto3Syntax|
       syntax = "proto3";
 
       message ShadowedMessage {

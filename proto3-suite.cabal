@@ -80,7 +80,6 @@ library
                        Proto3.Suite.DotProto.Generate.Record
                        Proto3.Suite.DotProto.Generate.Syntax
                        Proto3.Suite.DotProto.Parsing
-                       Proto3.Suite.DotProto.TH
                        Proto3.Suite.DotProto.Rendering
                        Proto3.Suite.Form
                        Proto3.Suite.Form.Encode
@@ -197,6 +196,7 @@ test-suite tests
     Test.Proto.Parse.Option
     Test.Proto.ToEncoder
     Test.Proto.TH
+    Test.Proto.Quote
 
   build-depends:
       aeson
@@ -219,6 +219,7 @@ test-suite tests
     , proto3-wire >= 1.4.6 && < 1.5
     , QuickCheck >=2.10 && <2.17
     , record-hasfield
+    , template-haskell
     , tasty >= 0.11 && <1.6
     , tasty-hedgehog
     , tasty-hunit >= 0.9 && <0.11

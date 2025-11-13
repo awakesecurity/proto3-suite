@@ -43,6 +43,7 @@ import           Proto3.Wire.Decode          (ParseError)
 import qualified Proto3.Wire.Decode          as Decode
 import qualified Proto3.Wire.Reverse         as RB
 import           Proto3.Wire.Types           as P
+import Test.DocTest qualified 
 import           Test.QuickCheck             (Arbitrary, Property, (.&&.), arbitrary, choose,
                                               counterexample, forAll, oneof, property)
 import           Test.Tasty
@@ -105,6 +106,7 @@ docTests = testCase "doctests" $ do
     , "ghc-lib-parser"
     , "-isrc"
     , "-XBlockArguments"
+    , "-XPackageImports"
 #ifdef SWAGGER
 #ifdef SWAGGER_WRAPPER_FORMAT
     , "-isrc/swagger-wrapper-format"
