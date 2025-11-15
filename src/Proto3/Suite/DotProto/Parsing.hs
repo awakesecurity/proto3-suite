@@ -69,7 +69,17 @@ import qualified Turtle.Compat as Turtle (encodeString, fromText)
 parseProto :: Path -> String -> Either ParseError DotProto
 parseProto modulePath = parseProtoWithFile modulePath ""
 
-parseProtoWithFile :: Path -> String -> String -> Either ParseError DotProto
+-- | Parse a protobuf source string with an associated module path and file 
+-- path. 
+parseProtoWithFile ::
+  -- | The module path to set in 'DotProtoMeta'.
+  Path ->
+  -- | The 'FilePath' the input protobuf string was read from.
+  FilePath ->
+  -- | The input protobuf 'String' to parse.
+  String ->
+  -- | Returns either a 'ParseError' or a 'DotProto'.
+  Either ParseError DotProto
 parseProtoWithFile modulePath filePath = parse (runProtoParser (topLevel modulePath)) filePath
 
 -- | @parseProtoFile mp fp@ reads and parses the .proto file found at @fp@. @mp@
