@@ -17,14 +17,18 @@ import System.Directory qualified as Directory
 
 --------------------------------------------------------------------------------
 
-dotProtoTestFile :: Maybe FilePath -> Text -> Q Exp 
+dotProtoTestFile :: 
+  -- | If specified, the 'FilePath' to write the given protobuf source to. 
+  -- Otherwise, 'dotProtoTestFile' will not write the source to a file.
+  Maybe FilePath -> 
+  -- | The protobuf source code to lift into a 'DotProto' AST.
+  Text -> 
+  -- | Returns the given protobuf source code in the 'DotProto' AST. 
+  Q Exp 
 dotProtoTestFile optFilepath src = do
   case optFilepath of 
     Nothing -> pure ()
-    Just filepath -> TH.runIO do
-      dir <- Directory.getCurrentDirectory
-      putStrLn ("getCurrentDirectory: " ++ dir)
-      Text.IO.writeFile filepath src
+    Just filepath -> TH.runIO (Text.IO.writeFile filepath src)
 
   TH.Module pkgName modName <- TH.thisModule
 
