@@ -36,6 +36,9 @@ testTree =
 testDotProtoQuoter :: Property
 testDotProtoQuoter = 
   withTests 1 $ property do
+    protoImports dotProtoParsed === protoImports dotProtoExpected
+    protoOptions dotProtoParsed === protoOptions dotProtoExpected
+    protoPackage dotProtoParsed === protoPackage dotProtoExpected
     protoDefinitions dotProtoParsed === protoDefinitions dotProtoExpected
   where 
     dotProtoExpected :: DotProto
