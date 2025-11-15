@@ -1,33 +1,36 @@
 
 module Test.Proto.Quote (
-  dotProto3Syntax,
+  dotProtoTestFile,
 ) where
+
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text.IO
 
 import "template-haskell" Language.Haskell.TH as TH
 import "template-haskell" Language.Haskell.TH.Syntax as TH
-import "template-haskell" Language.Haskell.TH.Quote (QuasiQuoter (..))
 
 import Proto3.Suite.DotProto.AST (Path (..))
 import Proto3.Suite.DotProto.Parsing (parseProtoWithFile)
 
+import System.Directory qualified as Directory
+
 --------------------------------------------------------------------------------
 
-dotProto3Syntax :: QuasiQuoter
-dotProto3Syntax = 
-  QuasiQuoter 
-    { quoteExp = quoteDotProto 
-    , quotePat = \_ -> fail "proto3 quasiquoter does not support patterns"
-    , quoteType = \_ -> fail "proto3 quasiquoter does not support types"
-    , quoteDec = \_ -> fail "proto3 quasiquoter does not support declarations"
-    }
+dotProtoTestFile :: Maybe FilePath -> Text -> Q Exp 
+dotProtoTestFile optFilepath src = do
+  case optFilepath of 
+    Nothing -> pure ()
+    Just filepath -> TH.runIO do
+      dir <- Directory.getCurrentDirectory
+      putStrLn ("getCurrentDirectory: " ++ dir)
+      Text.IO.writeFile filepath src
 
-quoteDotProto :: String -> Q Exp
-quoteDotProto input = do
   TH.Module pkgName modName <- TH.thisModule
 
   let pkg :: Path 
       pkg = Path (pure (show pkgName))
 
-  case parseProtoWithFile pkg (show modName) input of 
+  case parseProtoWithFile pkg (show modName) (Text.unpack src) of 
     Left err -> fail (show err)
-    Right expr -> TH.lift expr
+    Right dotProto -> TH.lift dotProto

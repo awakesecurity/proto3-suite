@@ -186,6 +186,7 @@ test-suite tests
     TestProtoOptional
     --TestProtoProtocPlugin
     TestProtoWrappers
+    Test.Proto.Files
     Test.Proto.Generate.Name
     Test.Proto.Generate.Name.Gen
     Test.Proto.Parse
@@ -206,11 +207,13 @@ test-suite tests
     , cereal >= 0.5.1 && <0.6
     , containers >=0.5 && <0.8
     , deepseq >=1.4 && <1.6
+    , directory
     , doctest
     , generic-arbitrary
     , ghc-lib-parser
     , hedgehog
     , mtl >=2.2 && <2.4
+    , neat-interpolation
     , parsec >= 3.1.9 && <3.2.0
     , pretty ==1.1.*
     , pretty-show >= 1.6.12 && < 2.0

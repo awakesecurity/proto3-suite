@@ -26,3 +26,4 @@ gen/*.hs
 gen/protos/*
 test-files/hs-tmp/*
 test-files/py-tmp/*
+test-files/*.proto */
