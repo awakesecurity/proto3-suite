@@ -24,6 +24,8 @@ test-files/test_files/
 # Ignore code generation artifacts
 gen/*.hs
 gen/protos/*
+gen/TestFiles/*
+test_files/
 test-files/hs-tmp/*
 test-files/py-tmp/*
 test-files/*.proto
