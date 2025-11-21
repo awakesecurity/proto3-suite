@@ -12,7 +12,6 @@ module Proto3.Suite.Haskell.Parser
 import qualified GHC.Data.EnumSet as EnumSet
 import GHC.Data.StringBuffer (StringBuffer)
 import GHC.Driver.Session (languageExtensions)
-import qualified GHC.Hs
 import qualified GHC.Parser
 import GHC.Parser.Lexer (P(..), PState, ParseResult(..))
 import GHC.Types.SrcLoc (Located, RealSrcLoc)
@@ -60,6 +59,7 @@ import GHC.Utils.Fingerprint (fingerprint0)
 import GHC.Utils.Logger (Logger, initLogger, putLogMsg)
 import GHC.Utils.Outputable (defaultSDocContext, mkErrStyle, renderWithContext, withPprStyle)
 #endif
+import Proto3.Suite.Haskell.Syntax (HsModule)
 
 -- | Parses the module with the specified location and content,
 -- returning 'Nothing' on parse failure.  Errors and warnings
@@ -71,11 +71,7 @@ parseModule ::
   Logger ->
   RealSrcLoc ->
   StringBuffer ->
-  IO (Maybe (Located (GHC.Hs.HsModule
-#if MIN_VERSION_ghc_lib_parser(9,6,0)
-                                      GHC.Hs.GhcPs
-#endif
-                     )))
+  IO (Maybe (Located HsModule))
 parseModule logger location input = do
     case unP GHC.Parser.parseModule initialState of
       POk _finalState m -> do

@@ -32,6 +32,7 @@ module Proto3.Suite.DotProto.Generate
   , compileDotProtoFileOrDie
   , renameProtoFile
   , hsModuleForDotProto
+  , getExtraInstances
   , renderHsModuleForDotProto
   , readDotProtoWithContext
   ) where
@@ -303,9 +304,39 @@ hsModuleForDotProto
 
        pure (module_ moduleName Nothing importDeclarations decls)
 
-getExtraInstances
-    :: (MonadIO m, MonadError CompileError m)
-    => Logger -> FilePath -> m ([HsImportDecl], [HsDecl])
+-- | Get extra instance declarations as a list of import declarations and 
+-- instance declarations from a Haskell source. 
+extraInstanceFromHsSource :: 
+  (MonadIO m, MonadError CompileError m) =>
+  -- | The 'StringBuffer' containing the Haskell source code.
+  GHC.StringBuffer -> 
+  -- | Returns the list of import declarations and instance declarations
+  -- found in the given file.
+  m (HsImportDecl, HsDecl)
+extraInstanceFromHsSource src = do 
+  result <- liftIO (parseModule logger location contents)
+
+  case result of 
+    Nothing -> 
+      internalError (T.unpack "Error: Failed to parse instance file")
+    Just hsModule -> do 
+      pure (_, _ hsModule)
+  where 
+    location :: GHC.RealSrcLoc 
+    location = GHC.mkRealSrcLoc (GHC.mkFastString extraInstanceFiles) 1 1
+
+-- | Get extra instance declarations as a list of import declarations and 
+-- instance declarations from a Haskell source file at the given 'FilePath'.
+getExtraInstances :: 
+  (MonadIO m, MonadError CompileError m) => 
+  -- | The GHC 'Logger' to use when parsing the instance file.
+  Logger -> 
+  -- | The 'FilePath' to the Haskell source file containing instance 
+  -- declarations.
+  FilePath -> 
+  -- | Returns the list of import declarations and instance declarations
+  -- found in the given file.
+  m ([HsImportDecl], [HsDecl])
 getExtraInstances logger (Turtle.encodeString -> extraInstanceFile) = do
   contents <- liftIO $ GHC.hGetStringBuffer extraInstanceFile
   let location = GHC.mkRealSrcLoc (GHC.mkFastString extraInstanceFile) 1 1

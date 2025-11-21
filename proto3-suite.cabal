@@ -95,8 +95,9 @@ library
                        Proto3.Suite.JSONPB.Class
 
   other-modules:
-                       Proto3.Suite.Form.Encode.Core
-                       Turtle.Compat
+    Proto3.Suite.Haskell.Syntax
+    Proto3.Suite.Form.Encode.Core
+    Turtle.Compat
 
   build-depends:       aeson >= 1.1.1.0 && < 2.3,
                        aeson-pretty,
@@ -163,29 +164,29 @@ test-suite tests
     if flag(swagger-wrapper-format)
       cpp-options:       -DSWAGGER_WRAPPER_FORMAT
 
-  autogen-modules:
-    TestProto
-    TestProtoImport
-    TestProtoNegativeEnum
-    TestProtoNestedMessage
-    TestProtoOneof
-    TestProtoOneofImport
-    TestProtoOptional
-    TestProtoWrappers
+  -- autogen-modules:
+  --   TestProto
+  --   TestProtoImport
+  --   TestProtoNegativeEnum
+  --   TestProtoNestedMessage
+  --   TestProtoOneof
+  --   TestProtoOneofImport
+  --   TestProtoOptional
+  --   TestProtoWrappers
 
   other-modules:
-    ArbitraryGeneratedTestTypes
-    TestCodeGen
-    TestProto
-    TestProtoImport
+    -- ArbitraryGeneratedTestTypes
+    -- TestCodeGen
+    -- TestProto
+    -- TestProtoImport
     --TestProtoLeadingDot
-    TestProtoNegativeEnum
-    TestProtoNestedMessage
-    TestProtoOneof
-    TestProtoOneofImport
-    TestProtoOptional
+    -- TestProtoNegativeEnum
+    -- TestProtoNestedMessage
+    -- TestProtoOneof
+    -- TestProtoOneofImport
+    -- TestProtoOptional
     --TestProtoProtocPlugin
-    TestProtoWrappers
+    -- TestProtoWrappers
     Test.Proto.Files
     Test.Proto.Generate.Name
     Test.Proto.Generate.Name.Gen

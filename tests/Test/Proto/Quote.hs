@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 
 module Test.Proto.Quote (
   dotProtoTestFile,
@@ -7,6 +8,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text.IO
 
+import GHC.Hs qualified as GHC
+import GHC.Hs.Type qualified as GHC
 import GHC.Utils.Logger (initLogger)
 
 import "template-haskell" Language.Haskell.TH as TH
@@ -18,11 +21,32 @@ import Proto3.Suite.DotProto.Generate (
   CompileArgs (..),
   StringType (..),
   compileDotProtoFile,
+  hsModuleForDotProto,
+  getExtraInstances,
+  readDotProtoWithContext,
  )
 
 import System.Directory qualified as Directory
 
 --------------------------------------------------------------------------------
+
+embedProtoDefinitions ::
+  -- | TODO: docs
+  CompileArgs -> 
+  -- | TODO: docs
+  Text -> 
+  -- | TODO: docs
+  Q [Dec]
+embedProtoDefinitions CompileArgs{..} src = do 
+  (dotProto, importTypeContext) <- readDotProtoWithContext includeDir inputProto
+
+  logger <- TH.runIO initLogger
+
+  extraInstances <- traverse (getExtraInstances logger) extraInstanceFiles
+   
+  GHC.HsModule _ _ _ _ decls <- hsModuleForDotProto (mconcat extraInstances) dotProto importTypeContext
+
+  _
 
 dotProtoTestFile :: 
   -- | If specified, the 'FilePath' to write the given protobuf source to. 
