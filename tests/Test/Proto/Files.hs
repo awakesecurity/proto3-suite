@@ -25,7 +25,7 @@ import Test.Proto.Quote (dotProtoTestFile)
 
 dotProtoEmptyField :: DotProto
 dotProtoEmptyField = 
-  $(dotProtoTestFile (Just "test_files/test_proto_empty_field.proto") [Neat.text|
+  $(dotProtoTestFile (Just "./test_files/test_proto_empty_field.proto") [Neat.text|
     syntax = "proto3";
 
     package TestProtoEmptyField;
@@ -45,7 +45,7 @@ dotProtoEmptyField =
 
 dotProtoImport :: DotProto
 dotProtoImport = 
-  $(dotProtoTestFile (Just "test_files/test_proto_import.proto") [Neat.text|
+  $(dotProtoTestFile (Just "./test_files/test_proto_import.proto") [Neat.text|
     syntax="proto3";
 
     package TestProtoImport;
@@ -62,12 +62,12 @@ dotProtoImport =
 
 dotProtoLeadingDot :: DotProto
 dotProtoLeadingDot =
-  $(dotProtoTestFile (Just "test_files/test_proto_leading_dot.proto") [Neat.text|
+  $(dotProtoTestFile (Just "./test_files/test_proto_leading_dot.proto") [Neat.text|
     syntax = "proto3";
 
     package LeadingDot.Rpc;
 
-    import "leading_dot/data.proto";
+    import "test_files/leading_dot/data.proto";
 
     message Request {
       uint32 foo = 1;
@@ -88,7 +88,7 @@ dotProtoLeadingDot =
 
 dotProtoNegativeEnum :: DotProto
 dotProtoNegativeEnum =
-  $(dotProtoTestFile (Just "test_files/test_proto_negative_enum.proto") [Neat.text|
+  $(dotProtoTestFile (Just "./test_files/test_proto_negative_enum.proto") [Neat.text|
     syntax="proto3";
 
     package TestProtoNegativeEnum;
@@ -112,7 +112,7 @@ dotProtoNegativeEnum =
 
 dotProtoNestedMessage :: DotProto
 dotProtoNestedMessage =
-  $(dotProtoTestFile (Just "test_files/test_proto_nested_message.proto") [Neat.text|
+  $(dotProtoTestFile (Just "./test_files/test_proto_nested_message.proto") [Neat.text|
     syntax = "proto3";
 
     package TestProto.NestedMessage;
@@ -133,7 +133,7 @@ dotProtoNestedMessage =
 
 dotProtoOneofImport :: DotProto
 dotProtoOneofImport =
-  $(dotProtoTestFile (Just "test_files/test_proto_oneof_import.proto") [Neat.text|
+  $(dotProtoTestFile (Just "./test_files/test_proto_oneof_import.proto") [Neat.text|
     syntax="proto3";
 
     package TestProtoOneofImport;
@@ -153,12 +153,12 @@ dotProtoOneofImport =
 
 dotProtoOneof :: DotProto
 dotProtoOneof = 
-  $(dotProtoTestFile (Just "test_files/test_proto_oneof.proto") [Neat.text|
+  $(dotProtoTestFile (Just "./test_files/test_proto_oneof.proto") [Neat.text|
     syntax = "proto3";
 
     package TestProtoOneof;
 
-    import "test_proto_oneof_import.proto";
+    import "test_files/test_proto_oneof_import.proto";
 
     message DummyMsg {
       int32 dummy = 1;
@@ -214,7 +214,7 @@ dotProtoOneof =
 
 dotProtoOptional :: DotProto
 dotProtoOptional =
-  $(dotProtoTestFile (Just "test_files/test_proto_optional.proto") [Neat.text|
+  $(dotProtoTestFile (Just "./test_files/test_proto_optional.proto") [Neat.text|
     syntax = "proto3";
 
     package TestProtoOptional;
@@ -252,7 +252,7 @@ dotProtoOptional =
 
 dotProtoProtocPlugin :: DotProto
 dotProtoProtocPlugin =
-  $(dotProtoTestFile (Just "test_files/test_proto_protoc_plugin.proto") [Neat.text|
+  $(dotProtoTestFile (Just "./test_files/test_proto_protoc_plugin.proto") [Neat.text|
     syntax = "proto3";
 
     package ProtocPlugin;
@@ -279,7 +279,7 @@ dotProtoProtocPlugin =
 
 dotProtoWrappers :: DotProto
 dotProtoWrappers =
-  $(dotProtoTestFile (Just "test_files/test_proto_wrappers.proto") [Neat.text|
+  $(dotProtoTestFile (Just "./test_files/test_proto_wrappers.proto") [Neat.text|
     syntax = "proto3";
 
     package TestProtoWrappers;
@@ -361,7 +361,7 @@ dotProtoWrappers =
 
 dotProtoCommon :: DotProto
 dotProtoCommon =
-  $(dotProtoTestFile (Just "test_files/test_proto.proto") [Neat.text|
+  $(dotProtoTestFile (Just "./test_files/test_proto.proto") [Neat.text|
     syntax = "proto3";
 
     package TestProto;

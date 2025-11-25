@@ -59,7 +59,14 @@ import GHC.Utils.Fingerprint (fingerprint0)
 import GHC.Utils.Logger (Logger, initLogger, putLogMsg)
 import GHC.Utils.Outputable (defaultSDocContext, mkErrStyle, renderWithContext, withPprStyle)
 #endif
-import Proto3.Suite.Haskell.Syntax (HsModule)
+
+import "ghc-lib-parser" Language.Haskell.Syntax qualified as GHC (HsModule)
+
+#if MIN_VERSION_ghc_lib_parser(9,6,0)
+import "ghc-lib-parser" GHC.Hs.Extension qualified as GHC
+  ( GhcPs 
+  )
+#endif
 
 -- | Parses the module with the specified location and content,
 -- returning 'Nothing' on parse failure.  Errors and warnings
@@ -71,7 +78,7 @@ parseModule ::
   Logger ->
   RealSrcLoc ->
   StringBuffer ->
-  IO (Maybe (Located HsModule))
+  IO (Maybe (Located (GHC.HsModule GHC.GhcPs)))
 parseModule logger location input = do
     case unP GHC.Parser.parseModule initialState of
       POk _finalState m -> do

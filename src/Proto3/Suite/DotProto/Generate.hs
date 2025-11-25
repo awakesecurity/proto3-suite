@@ -32,6 +32,7 @@ module Proto3.Suite.DotProto.Generate
   , compileDotProtoFileOrDie
   , renameProtoFile
   , hsModuleForDotProto
+  , extraInstanceFromHsSource
   , getExtraInstances
   , renderHsModuleForDotProto
   , readDotProtoWithContext
@@ -59,7 +60,7 @@ import           Data.Monoid
 import           Data.Ord                       (comparing)
 import qualified Data.Set                       as S
 import           Data.String                    (fromString)
-import           GHC.Hs                         (HsSigType(..))
+import           GHC.Hs                         (HsSigType(..), ImportDecl(..))
 import           GHC.Parser.Annotation          (noLocA)
 import           GHC.Types.Name.Occurrence      (dataName, tcName, varName)
 import qualified Data.Text                      as T
@@ -75,7 +76,7 @@ import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.AST.Lens
 import qualified Proto3.Suite.DotProto.Generate.Record as Record
 import           Proto3.Suite.DotProto.Generate.Syntax
-import           Proto3.Suite.Haskell.Parser    (Logger, parseModule, renderSDoc)
+import           Proto3.Suite.Haskell.Parser    (Logger, parseModule, renderSDoc, initLogger)
 import           Proto3.Suite.DotProto.Internal
 import           Proto3.Wire.Types              (FieldNumber (..))
 import Text.Parsec (Parsec, alphaNum, eof, parse, satisfy, try)
@@ -312,18 +313,25 @@ extraInstanceFromHsSource ::
   GHC.StringBuffer -> 
   -- | Returns the list of import declarations and instance declarations
   -- found in the given file.
-  m (HsImportDecl, HsDecl)
+  m ([ImportDecl GHC.GhcPs], [GHC.HsDecl GHC.GhcPs])
 extraInstanceFromHsSource src = do 
-  result <- liftIO (parseModule logger location contents)
+  logger <- liftIO initLogger
+  result <- liftIO (parseModule logger location src)
 
   case result of 
     Nothing -> 
       internalError (T.unpack "Error: Failed to parse instance file")
     Just hsModule -> do 
-      pure (_, _ hsModule)
+      let decls :: [GHC.HsDecl GHC.GhcPs]
+          decls = map GHC.unLoc (GHC.hsmodDecls (GHC.unLoc hsModule))
+
+      let imports :: [GHC.ImportDecl GHC.GhcPs] 
+          imports = map GHC.unLoc (GHC.hsmodImports (GHC.unLoc hsModule))
+
+      pure (imports, decls)
   where 
     location :: GHC.RealSrcLoc 
-    location = GHC.mkRealSrcLoc (GHC.mkFastString extraInstanceFiles) 1 1
+    location = GHC.mkRealSrcLoc (GHC.mkFastString (show src)) 1 1
 
 -- | Get extra instance declarations as a list of import declarations and 
 -- instance declarations from a Haskell source file at the given 'FilePath'.

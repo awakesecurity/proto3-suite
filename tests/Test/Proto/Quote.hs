@@ -1,16 +1,23 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Test.Proto.Quote (
+  embedProtoDefinitions,
   dotProtoTestFile,
 ) where
+
+import Control.Monad.Except (ExceptT, runExceptT)
 
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text.IO
+import Data.Maybe (fromMaybe)
 
 import GHC.Hs qualified as GHC
 import GHC.Hs.Type qualified as GHC
 import GHC.Utils.Logger (initLogger)
+import GHC.Types.SrcLoc qualified as GHC (unLoc)
 
 import "template-haskell" Language.Haskell.TH as TH
 import "template-haskell" Language.Haskell.TH.Syntax as TH
@@ -27,26 +34,53 @@ import Proto3.Suite.DotProto.Generate (
  )
 
 import System.Directory qualified as Directory
-
+import Proto3.Suite.Haskell.Syntax (hsDeclToDec)
 --------------------------------------------------------------------------------
 
+runExceptQ :: Show e => ExceptT e Q a -> Q a
+runExceptQ action = 
+  runExceptT action >>= \case
+    Left exn -> fail (show exn)
+    Right rx -> pure rx
+
 embedProtoDefinitions ::
-  -- | TODO: docs
-  CompileArgs -> 
+  -- ( (?stringType :: StringType)
+  -- , (?typeLevelFormat :: Bool)
+  -- ) =>
   -- | TODO: docs
   Text -> 
   -- | TODO: docs
   Q [Dec]
-embedProtoDefinitions CompileArgs{..} src = do 
-  (dotProto, importTypeContext) <- readDotProtoWithContext includeDir inputProto
-
+embedProtoDefinitions src = do
   logger <- TH.runIO initLogger
+  
+  TH.Module pkgName modName <- TH.thisModule
 
-  extraInstances <- traverse (getExtraInstances logger) extraInstanceFiles
-   
-  GHC.HsModule _ _ _ _ decls <- hsModuleForDotProto (mconcat extraInstances) dotProto importTypeContext
+  let pkg :: Path 
+      pkg = Path (pure (show pkgName))
 
-  _
+  let CompileArgs {..} = makeTestCompileArgs "quote.proto"
+
+  runExceptQ do 
+    extras <- traverse (getExtraInstances logger) extraInstanceFiles
+
+    let extraImports :: [GHC.LImportDecl GHC.GhcPs]
+        extraImports = foldr ((++) . fst) [] extras 
+
+    let extraDecls :: [GHC.LHsDecl GHC.GhcPs]
+        extraDecls = foldr ((++) . snd) [] extras
+
+    case parseProtoWithFile pkg (show modName) (Text.unpack src) of 
+      Left err -> fail (show err)
+      Right dotProto -> do 
+        -- (dotProto, importTypeContext) <- readDotProtoWithContext _ _
+
+        GHC.HsModule _ _ _ _ moduleDecls <- hsModuleForDotProto (extraImports, extraDecls) dotProto mempty
+
+        pure (map (hsDeclToDec . GHC.unLoc) moduleDecls)
+  where 
+    ?stringType = StringType "Data.String" "String"
+    ?typeLevelFormat = False
 
 dotProtoTestFile :: 
   -- | If specified, the 'FilePath' to write the given protobuf source to. 
@@ -76,19 +110,22 @@ compileTestFile :: FilePath -> Q ()
 compileTestFile filepath = do
   result <- TH.runIO do 
     logger <- initLogger
-    compileDotProtoFile logger compileArgs
+    compileDotProtoFile logger (makeTestCompileArgs filepath)
 
   case result of
     Left exn -> fail (show exn)
     Right () -> pure ()
-  where
-    compileArgs :: CompileArgs
-    compileArgs = 
-      CompileArgs
-        { includeDir = [ "./test_files/" ]
-        , extraInstanceFiles = []
-        , inputProto = filepath
-        , outputDir = "./gen/"
-        , stringType = StringType "Data.String" "String"
-        , typeLevelFormat = False
-        }
+
+makeTestCompileArgs :: FilePath -> CompileArgs
+makeTestCompileArgs filepath = 
+  CompileArgs
+    { includeDir = 
+        [ "./."
+        , "./test-files" 
+        ]
+    , extraInstanceFiles = []
+    , inputProto = filepath
+    , outputDir = "./gen/"
+    , stringType = StringType "Data.String" "String"
+    , typeLevelFormat = False
+    }
