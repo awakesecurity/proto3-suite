@@ -1,10 +1,13 @@
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE QuasiQuotes     #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Test.Proto.TH (testTree) where
 
 import Data.List.NonEmpty (NonEmpty (..))
 
 import Hedgehog (Property, property, (===), withTests)
+
+import NeatInterpolation qualified as Neat
 
 import Proto3.Suite.DotProto.AST 
   ( DotProto (..)
@@ -20,7 +23,7 @@ import Proto3.Suite.DotProto.AST
   )
 import Proto3.Suite.DotProto.Rendering ()
 
-import Test.Proto.Quote (dotProto3Syntax)
+import Test.Proto.Quote (dotProtoTestFile)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
 
@@ -104,20 +107,21 @@ testDotProtoQuoter =
         , protoMeta = DotProtoMeta (Path ("" :| []))
         } 
 
-    dotProtoParsed :: DotProto
-    dotProtoParsed = [dotProto3Syntax|
-      syntax = "proto3";
+dotProtoParsed :: DotProto
+dotProtoParsed = 
+  $(dotProtoTestFile Nothing [Neat.text|
+    syntax = "proto3";
 
+    message ShadowedMessage {
+      string name = 2;
+      int32 value = 1;
+    }
+
+    message MessageShadower {
       message ShadowedMessage {
-        string name = 2;
-        int32 value = 1;
+        string name = 1;
+        string value = 2;
       }
-
-      message MessageShadower {
-        message ShadowedMessage {
-          string name = 1;
-          string value = 2;
-        }
-        ShadowedMessage shadowed_message = 1;
-      }
-    |]
+      ShadowedMessage shadowed_message = 1;
+    }
+  |])

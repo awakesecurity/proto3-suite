@@ -32,6 +32,8 @@ module Proto3.Suite.DotProto.Generate
   , compileDotProtoFileOrDie
   , renameProtoFile
   , hsModuleForDotProto
+  , extraInstanceFromHsSource
+  , getExtraInstances
   , renderHsModuleForDotProto
   , readDotProtoWithContext
   ) where
@@ -58,7 +60,7 @@ import           Data.Monoid
 import           Data.Ord                       (comparing)
 import qualified Data.Set                       as S
 import           Data.String                    (fromString)
-import           GHC.Hs                         (HsSigType(..))
+import           GHC.Hs                         (HsSigType(..), ImportDecl(..))
 import           GHC.Parser.Annotation          (noLocA)
 import           GHC.Types.Name.Occurrence      (dataName, tcName, varName)
 import qualified Data.Text                      as T
@@ -74,7 +76,7 @@ import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.AST.Lens
 import qualified Proto3.Suite.DotProto.Generate.Record as Record
 import           Proto3.Suite.DotProto.Generate.Syntax
-import           Proto3.Suite.Haskell.Parser    (Logger, parseModule, renderSDoc)
+import           Proto3.Suite.Haskell.Parser    (Logger, parseModule, renderSDoc, initLogger)
 import           Proto3.Suite.DotProto.Internal
 import           Proto3.Wire.Types              (FieldNumber (..))
 import Text.Parsec (Parsec, alphaNum, eof, parse, satisfy, try)
@@ -106,9 +108,11 @@ data CompileArgs = CompileArgs
   , stringType         :: StringType
   , typeLevelFormat    :: Bool
   }
+  deriving (Eq, Ord, Show)
 
+-- | Qualified module name, then unqualified type name.
 data StringType = StringType String String
-  -- ^ Qualified module name, then unqualified type name.
+  deriving (Eq, Ord, Show)
 
 parseStringType :: String -> Either String StringType
 parseStringType str = case splitOn "." str of
@@ -303,9 +307,46 @@ hsModuleForDotProto
 
        pure (module_ moduleName Nothing importDeclarations decls)
 
-getExtraInstances
-    :: (MonadIO m, MonadError CompileError m)
-    => Logger -> FilePath -> m ([HsImportDecl], [HsDecl])
+-- | Get extra instance declarations as a list of import declarations and 
+-- instance declarations from a Haskell source. 
+extraInstanceFromHsSource :: 
+  (MonadIO m, MonadError CompileError m) =>
+  -- | The 'StringBuffer' containing the Haskell source code.
+  GHC.StringBuffer -> 
+  -- | Returns the list of import declarations and instance declarations
+  -- found in the given file.
+  m ([ImportDecl GHC.GhcPs], [GHC.HsDecl GHC.GhcPs])
+extraInstanceFromHsSource src = do 
+  logger <- liftIO initLogger
+  result <- liftIO (parseModule logger location src)
+
+  case result of 
+    Nothing -> 
+      internalError (T.unpack "Error: Failed to parse instance file")
+    Just hsModule -> do 
+      let decls :: [GHC.HsDecl GHC.GhcPs]
+          decls = map GHC.unLoc (GHC.hsmodDecls (GHC.unLoc hsModule))
+
+      let imports :: [GHC.ImportDecl GHC.GhcPs] 
+          imports = map GHC.unLoc (GHC.hsmodImports (GHC.unLoc hsModule))
+
+      pure (imports, decls)
+  where 
+    location :: GHC.RealSrcLoc 
+    location = GHC.mkRealSrcLoc (GHC.mkFastString (show src)) 1 1
+
+-- | Get extra instance declarations as a list of import declarations and 
+-- instance declarations from a Haskell source file at the given 'FilePath'.
+getExtraInstances :: 
+  (MonadIO m, MonadError CompileError m) => 
+  -- | The GHC 'Logger' to use when parsing the instance file.
+  Logger -> 
+  -- | The 'FilePath' to the Haskell source file containing instance 
+  -- declarations.
+  FilePath -> 
+  -- | Returns the list of import declarations and instance declarations
+  -- found in the given file.
+  m ([HsImportDecl], [HsDecl])
 getExtraInstances logger (Turtle.encodeString -> extraInstanceFile) = do
   contents <- liftIO $ GHC.hGetStringBuffer extraInstanceFile
   let location = GHC.mkRealSrcLoc (GHC.mkFastString extraInstanceFile) 1 1

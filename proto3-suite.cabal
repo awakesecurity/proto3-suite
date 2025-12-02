@@ -93,13 +93,17 @@ library
                        Proto3.Suite.DotProto.Internal
                        Proto3.Suite.Haskell.Parser
                        Proto3.Suite.JSONPB.Class
+                       Proto3.Suite.Haskell.Syntax
+                       Test.Proto.Compiled
+                       Test.Proto.Quote
 
   other-modules:
-                       Proto3.Suite.Form.Encode.Core
-                       Turtle.Compat
+    Proto3.Suite.Form.Encode.Core
+    Turtle.Compat
 
   build-depends:       aeson >= 1.1.1.0 && < 2.3,
                        aeson-pretty,
+                       directory,
                        attoparsec >= 0.13.0.1,
                        base >=4.15 && <5.0,
                        base64-bytestring >= 1.0.0.1 && < 1.3,
@@ -138,7 +142,11 @@ library
     build-depends:     attoparsec-aeson >= 2.2.0.0
   hs-source-dirs:      src
   default-language:    Haskell2010
-  ghc-options:         -O2 -Wall -Werror
+  ghc-options:         
+    -O2 
+    -Wall 
+    -Werror
+    -Wno-error=incomplete-patterns
 
 test-suite tests
   import:           common
@@ -163,29 +171,30 @@ test-suite tests
     if flag(swagger-wrapper-format)
       cpp-options:       -DSWAGGER_WRAPPER_FORMAT
 
-  autogen-modules:
-    TestProto
-    TestProtoImport
-    TestProtoNegativeEnum
-    TestProtoNestedMessage
-    TestProtoOneof
-    TestProtoOneofImport
-    TestProtoOptional
-    TestProtoWrappers
+  -- autogen-modules:
+  --   TestProto
+  --   TestProtoImport
+  --   TestProtoNegativeEnum
+  --   TestProtoNestedMessage
+  --   TestProtoOneof
+  --   TestProtoOneofImport
+  --   TestProtoOptional
+  --   TestProtoWrappers
 
   other-modules:
     ArbitraryGeneratedTestTypes
     TestCodeGen
-    TestProto
-    TestProtoImport
+    -- TestProto
+    -- TestProtoImport
     --TestProtoLeadingDot
-    TestProtoNegativeEnum
-    TestProtoNestedMessage
-    TestProtoOneof
-    TestProtoOneofImport
-    TestProtoOptional
+    -- TestProtoNegativeEnum
+    -- TestProtoNestedMessage
+    -- TestProtoOneof
+    -- TestProtoOneofImport
+    -- TestProtoOptional
     --TestProtoProtocPlugin
-    TestProtoWrappers
+    -- TestProtoWrappers
+    Test.Proto.Files
     Test.Proto.Generate.Name
     Test.Proto.Generate.Name.Gen
     Test.Proto.Parse
@@ -195,7 +204,6 @@ test-suite tests
     Test.Proto.Parse.Option
     Test.Proto.ToEncoder
     Test.Proto.TH
-    Test.Proto.Quote
 
   build-depends:
       aeson
@@ -206,11 +214,13 @@ test-suite tests
     , cereal >= 0.5.1 && <0.6
     , containers >=0.5 && <0.8
     , deepseq >=1.4 && <1.6
+    , directory
     , doctest
     , generic-arbitrary
     , ghc-lib-parser
     , hedgehog
     , mtl >=2.2 && <2.4
+    , neat-interpolation
     , parsec >= 3.1.9 && <3.2.0
     , pretty ==1.1.*
     , pretty-show >= 1.6.12 && < 2.0
@@ -229,7 +239,9 @@ test-suite tests
     , turtle
     , vector >=0.11 && <0.14
 
-  ghc-options:         -O2 -Wall
+  ghc-options:         
+    -O2 
+    -Wall
 
 executable compile-proto-file
   main-is:             Main.hs

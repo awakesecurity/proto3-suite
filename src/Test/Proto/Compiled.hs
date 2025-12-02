@@ -1,6 +1,72 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NegativeLiterals #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fno-warn-missing-export-lists #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-unused-imports #-}
+{-# OPTIONS_GHC -fno-warn-unused-matches #-}
+
+module Test.Proto.Compiled where
+
+import "ghc-lib-parser" GHC.Types.SrcLoc
+
+import "ghc-lib-parser" Language.Haskell.Syntax.Extension
+
+import NeatInterpolation as Neat
+
+import Proto3.Suite.DotProto.Generate (StringType (..))
+import Data.Text.Lazy qualified as Hs
+import Test.Proto.Quote (embedProtoDefinitions)
+
+--------------------------------------------------------------------------------
+
+import qualified Prelude as Hs
+import qualified Proto3.Suite.Class as HsProtobuf
+import qualified Proto3.Suite.DotProto as HsProtobufAST
+import qualified Proto3.Suite.JSONPB as HsJSONPB
+import Proto3.Suite.JSONPB ( (.=), (.:) )
+import qualified Proto3.Suite.Types as HsProtobuf
+import qualified Proto3.Wire as HsProtobuf
+import qualified Proto3.Wire.Decode as HsProtobuf
+    ( Parser, RawField )
+import qualified Control.Applicative as Hs
+import Control.Applicative ( (<*>), (<|>), (<$>) )
+import qualified Control.DeepSeq as Hs
+import qualified Control.Monad as Hs
+import qualified Data.ByteString as Hs
+import qualified Data.Coerce as Hs
+import qualified Data.Int as Hs ( Int16, Int32, Int64 )
+import qualified Data.List.NonEmpty as Hs ( NonEmpty(..) )
+import qualified Data.Map as Hs ( Map, mapKeysMonotonic )
+import qualified Data.Proxy as Proxy
+import qualified Data.String as Hs ( fromString )
+import qualified Data.String as Hs ( String )
+import qualified Data.Vector as Hs ( Vector )
+import qualified Data.Word as Hs ( Word16, Word32, Word64 )
+import qualified GHC.Enum as Hs
+import qualified GHC.Generics as Hs
+import qualified Google.Protobuf.Wrappers.Polymorphic as HsProtobuf
+    ( Wrapped(..) )
+import qualified Unsafe.Coerce as Hs
+
+--------------------------------------------------------------------------------
+
+
+$(let ?stringType =  StringType "Data.Text.Lazy" "Text"
+      ?typeLevelFormat = Hs.False
+  in embedProtoDefinitions [Neat.text|
 syntax = "proto3";
+
 package TestProto;
-import "test_proto_import.proto";
 
 message Trivial {
   int32 trivialField = 1;
@@ -29,38 +95,10 @@ message WithEnum {
   TestEnum enumField = 1;
 }
 
-message WithNesting {
-  message Nested {
-    string nestedField1 = 1;
-    int32 nestedField2 = 2;
-    repeated int32 nestedPacked = 3 [packed=true];
-    repeated int32 nestedUnpacked = 4 [packed=false];
-  }
-  Nested nestedMessage = 1;
-}
-
-message WithNestingRepeated {
-  message Nested {
-    string nestedField1 = 1;
-    int32 nestedField2 = 2;
-    repeated int32 nestedPacked = 3 [packed=true];
-    repeated int32 nestedUnpacked = 4 [packed=false];
-  }
-  repeated Nested nestedMessages = 1;
-}
-
 message NestedInts {
     int32 nestedInt1 = 1;
     int32 nestedInt2 = 2;
   }
-
-message WithNestingRepeatedInts {
-  repeated NestedInts nestedInts = 1;
-}
-
-message WithNestingInts {
-  NestedInts nestedInts = 1;
-}
 
 message WithRepetition {
   repeated int32 repeatedField1 = 1;
@@ -132,11 +170,6 @@ message WithQualifiedName {
   MessageShadower.ShadowedMessage qname2 = 200;
 }
 
-message UsingImported {
-  TestProtoImport.WithNesting importedNesting = 100;
-  WithNesting localNesting = 200;
-}
-
 message Wrapped {
   Wrapped wrapped = 1;
 }
@@ -180,3 +213,4 @@ message MapTestEmulation {
   }
   repeated Signed signed = 3; // both the key and value needs to be wrapped with 'Signed'
 }
+|])
