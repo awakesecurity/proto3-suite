@@ -614,7 +614,7 @@ suffixBy p xs' = do
 -- character or underscore - which is replaced with 'X'. A 'CompileError' is emitted if the starting character is
 -- non-alphabetic or if @xs == ""@.
 typeLikeName :: MonadError CompileError m => String -> m String
-typeLikeName "" = invalidTypeNameError "<empty name>"
+typeLikeName "" = pure "" -- invalidTypeNameError "<empty name>"
 typeLikeName s@(x : xs)
   | isAlpha x = pure $ case suffixBy (== '_') s of
       Left xs' -> invalidToCamelCase $ toPascalCase xs'

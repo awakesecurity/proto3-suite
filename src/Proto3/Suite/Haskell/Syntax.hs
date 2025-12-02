@@ -1,7 +1,15 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TupleSections #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE AllowAmbiguousTypes        #-}
+{-# LANGUAGE BangPatterns               #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE DerivingVia                #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE TemplateHaskellQuotes      #-}
+{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
 
 module Proto3.Suite.Haskell.Syntax
   ( -- * HsDecl
@@ -10,12 +18,10 @@ module Proto3.Suite.Haskell.Syntax
   , instDeclToDec
     -- * ClsInstDecl
   , clsInstDeclToDec
-    -- * HsBindLR
-  , hsBindLR
     -- * MatchGroup
   , matchGroupToClause  
     -- * Match
-  , hsMatchToClause
+  , matchToClause
     -- * HsExpr
   , hsExprToExp
     -- * PatSynBind
@@ -43,64 +49,88 @@ module Proto3.Suite.Haskell.Syntax
     -- * HsType
   , hsTypeToType
     -- * RdrName
-  , rdrNameToName
+  , toName
   ) where
 
 import Data.Char (isUpper)
 import Data.ByteString.Char8 qualified as ByteString
+import Data.List qualified as List
 
 import "template-haskell" Language.Haskell.TH.Syntax qualified as TH
 
-import "ghc-lib-parser" Language.Haskell.Syntax.Extension
-import "ghc-lib-parser" Language.Haskell.Syntax.Pat
-import "ghc-lib-parser" GHC.Types.SrcLoc
-import "ghc-lib-parser" Language.Haskell.Syntax.Binds qualified as GHC
-  ( PatSynBind (..)
+import "ghc-lib-parser" GHC.Data.FastString qualified as FastString
+import "ghc-lib-parser" GHC.Types.Basic qualified as GHC (OverlapMode (..))
+import "ghc-lib-parser" GHC.Types.Name.Reader qualified as GHC 
+  ( RdrName (..)
+  , nameRdrName
   )
--- import GHC.Hs.Type qualified as GHC 
---   ( HsBndrVar (..)
---   )
-import GHC.Hs.Pat ()
-import GHC.Hs.Decls qualified as GHC 
+import "ghc-lib-parser" GHC.Types.Name.Occurrence qualified as GHC 
+  ( occNameString
+  )
+import GHC.Types.SourceText qualified as GHC 
+  ( IntegralLit (..)
+  , rationalFromFractionalLit
+  )
+import "ghc-lib-parser" GHC.Types.SrcLoc qualified as GHC (GenLocated (..))
+import "ghc-lib-parser" GHC.Hs.Decls qualified as GHC 
   ( DerivClauseTys (..)
+  , InstDecl (..)
+  , XViaStrategyPs (..)
   )
-import GHC.Hs.Type qualified as GHC 
-  ( SrcStrictness (..)
-  , SrcUnpackedness (..)
+import "ghc-lib-parser" GHC.Hs.Type qualified as GHC (SrcStrictness (..), SrcUnpackedness (..))
+import "ghc-lib-parser" GHC.Types.SrcLoc qualified as GHC (unLoc)
+import "ghc-lib-parser" GHC.Types.Var qualified as GHC (Specificity (..))
+import "ghc-lib-parser" GHC.Utils.Outputable qualified as GHC 
+  ( Outputable (..)
+  , runSDoc
+  , defaultSDocContext
   )
-import "ghc-lib-parser" Language.Haskell.Syntax.Decls qualified as GHC
-  ( HsDataDefn (..)
-  , DataDefnCons (..)
-  , ConDecl (..)
-  , HsConDeclH98Details
-  )
-import "ghc-lib-parser" Language.Haskell.Syntax.Type qualified as GHC
-  ( FieldOcc (..)
-  , HsForAllTelescope (..)
-  , HsTyVarBndr (..)
-  , ConDeclField (..)
-  , hsScaledThing
-  )
--- import GHC.Utils.Outputable qualified as GHC (Outputable (..), runSDoc)
 import "ghc-lib-parser" Language.Haskell.Syntax.Binds qualified as GHC
   ( HsLocalBindsLR (..)
   , HsValBindsLR (..)
   , HsIPBinds (..)
+  , PatSynBind (..)
+  , Sig (..)
   )
-import "ghc-lib-parser" GHC.Types.Var qualified as GHC
-  ( Specificity (..)
+import "ghc-lib-parser" Language.Haskell.Syntax.Decls qualified as GHC
+  ( DataDefnCons (..)
+  , DataFamInstDecl (..)
+  , ConDecl (..)
+  , HsConDeclH98Details
+  , HsDataDefn (..)
+  , TyFamInstDecl (..)
   )
--- import "ghc-lib-parser" GHC.Unit.Types qualified as GHC (Module, moduleName)
+import "ghc-lib-parser" Language.Haskell.Syntax.Type qualified as GHC
+  ( ConDeclField (..)
+  , FieldOcc (..)
+  , HsForAllTelescope (..)
+  , HsTyVarBndr (..)
+  , hsScaledThing
+  )
+import "ghc-lib-parser" Language.Haskell.Syntax.Basic qualified as GHC
+  ( Boxity (..)
+  , FieldLabelString (..)
+  )
 import "ghc-lib-parser" Language.Haskell.Syntax.Expr qualified as GHC
-  ( GRHSs (..)
+  ( DotFieldOcc (..)
+  , FieldLabelStrings (..)
   , GRHS (..)
+  , GRHSs (..)
+  , HsDoFlavour (..)
+  , HsTupArg (..)
+  , LHsRecUpdFields (..)
   , StmtLR (..)
   )
 import "ghc-lib-parser" Language.Haskell.Syntax qualified as GHC
   ( ClsInstDecl (..)
+  , ModuleName (..)
   , HsDerivingClause (..)
-  , Sig (..)
+  , AmbiguousFieldOcc (..)
+  , HsOverLit (..)
+  , OverLitVal (..)
+  , HsOuterTyVarBndrs (..)
   , HsBndrVis (..)
+  , LHsType
   , LHsQTyVars (..)
   , TyClDecl (..)
   , HsSrcBang (..)
@@ -119,6 +149,7 @@ import "ghc-lib-parser" Language.Haskell.Syntax qualified as GHC
   , HsWildCardBndrs (..)
   , LHsExpr 
   , HsConDetails (..)
+  , HsArg (..)
   , RecordPatSynField (..)
   , HsPatSynDir (..)
   , HsTyPat (..)
@@ -129,22 +160,13 @@ import "ghc-lib-parser" Language.Haskell.Syntax qualified as GHC
   , HsPatSynDetails 
   , LFieldOcc
   , HsLit (..)
-  , InstDecl (..)
+  , FamEqn (..)
   , Match (..)
   , MatchGroup (..)
   , PromotionFlag (..)
   , Pat (..)
   , moduleNameString
   )
-import "ghc-lib-parser" GHC.Types.Name.Reader qualified as GHC (RdrName (..), nameRdrName)
-import "ghc-lib-parser" GHC.Types.Basic qualified as GHC (OverlapMode (..))
-import "ghc-lib-parser" GHC.Types.Name.Occurrence qualified as GHC (occNameString)
-import GHC.Types.SourceText qualified as GHC 
-  ( IntegralLit (..)
-  , rationalFromFractionalLit
-  )
-import GHC.Types.SrcLoc ()
-import "ghc-lib-parser" GHC.Data.FastString qualified as FastString
 
 #if MIN_VERSION_ghc_lib_parser(9,6,0)
 import "ghc-lib-parser" GHC.Hs.Extension qualified as GHC
@@ -152,14 +174,17 @@ import "ghc-lib-parser" GHC.Hs.Extension qualified as GHC
   )
 #endif
 
---- HsDecl ---------------------------------------------------------------------
+--- 
 
-hsDeclToDec :: GHC.HsDecl GHC.GhcPs -> TH.Dec
-hsDeclToDec hsDecl = case hsDecl of 
-  GHC.InstD _x instDecl -> instDeclToDec instDecl
-  GHC.DerivD _x deriveDecl -> hsDerivDeclToDec deriveDecl
-  GHC.TyClD _x tyClDecl -> hsTyClDeclToDec tyClDecl 
-  _other -> error "unsupported HsDecl in hsDeclToDec"
+
+matchGroupFirstBody :: 
+  GHC.MatchGroup GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> 
+  GHC.GRHS GHC.GhcPs (GHC.LHsExpr GHC.GhcPs)
+matchGroupFirstBody matchGroup = case List.uncons (GHC.unLoc (GHC.mg_alts matchGroup)) of 
+  Nothing -> error "impossible"
+  Just (x, _) -> case List.uncons (GHC.grhssGRHSs (GHC.m_grhss (GHC.unLoc x))) of 
+    Nothing -> error "impossible"
+    Just (y, _) -> GHC.unLoc y
 
 --- TyClDecl -------------------------------------------------------------------
 
@@ -167,130 +192,175 @@ hsTyClDeclToDec :: GHC.TyClDecl GHC.GhcPs -> TH.Dec
 hsTyClDeclToDec (GHC.DataDecl _x idt tyVars _fixity defn) = case GHC.dd_cons defn of 
   GHC.DataTypeCons _ cons -> 
     TH.DataD
-      (maybe [] (map (hsTypeToType . unLoc) . unLoc) (GHC.dd_ctxt defn))
-      (rdrNameToName (unLoc idt))
-      (map (hsTyVarBndrToTyVarBndr . unLoc) (GHC.hsq_explicit tyVars)) -- [TyVarBndr]
-      (fmap (hsTypeToType . unLoc) (GHC.dd_kindSig defn))
-      (map (conDeclToDec . unLoc) cons)
-      [] -- (map (_ . unLoc) (GHC.dd_derivs defn))
+      (maybe [] (map (hsTypeToType . GHC.unLoc) . GHC.unLoc) (GHC.dd_ctxt defn))
+      (toName (GHC.unLoc idt))
+      (map (hsTyVarBndrToTyVarBndr . GHC.unLoc) (GHC.hsq_explicit tyVars)) -- [TyVarBndr]
+      (fmap (hsTypeToType . GHC.unLoc) (GHC.dd_kindSig defn))
+      (map (conDeclToDec . GHC.unLoc) cons)
+      (foldr ((:) . hsDerivingClauseToDerivClause . GHC.unLoc) [] (GHC.dd_derivs defn))
   GHC.NewTypeCon con ->
     TH.NewtypeD
-      (maybe [] (map (hsTypeToType . unLoc) . unLoc) (GHC.dd_ctxt defn))
-      (rdrNameToName (unLoc idt))
-      (map (hsTyVarBndrToTyVarBndr . unLoc) (GHC.hsq_explicit tyVars)) -- [TyVarBndr]
-      (fmap (hsTypeToType . unLoc) (GHC.dd_kindSig defn))
-      (conDeclToDec (unLoc con))
-      (foldr ((++) . hsDerivingClauseToDerivClause . unLoc) (GHC.dd_derivs defn))
+      (maybe [] (map (hsTypeToType . GHC.unLoc) . GHC.unLoc) (GHC.dd_ctxt defn))
+      (toName (GHC.unLoc idt))
+      (map (hsTyVarBndrToTyVarBndr . GHC.unLoc) (GHC.hsq_explicit tyVars)) -- [TyVarBndr]
+      (fmap (hsTypeToType . GHC.unLoc) (GHC.dd_kindSig defn))
+      (conDeclToDec (GHC.unLoc con))
+      (foldr ((:) . hsDerivingClauseToDerivClause . GHC.unLoc) [] (GHC.dd_derivs defn))
 hsTyClDeclToDec (GHC.ClassDecl _x ctxt idt tyVars _fixity fds sigs meths _ats _atds _docs) =
   TH.ClassD
-    (maybe [] (map (hsTypeToType . unLoc) . unLoc) ctxt)
-    (rdrNameToName (unLoc idt))
-    (map (hsTyVarBndrToTyVarBndr . unLoc) (GHC.hsq_explicit tyVars)) -- [TyVarBndr]
-    (map (hsFunDepToFunDep . unLoc) fds)
+    (maybe [] (map (hsTypeToType . GHC.unLoc) . GHC.unLoc) ctxt)
+    (toName (GHC.unLoc idt))
+    (map (hsTyVarBndrToTyVarBndr . GHC.unLoc) (GHC.hsq_explicit tyVars)) -- [TyVarBndr]
+    (map (hsFunDepToFunDep . GHC.unLoc) fds)
     (mconcat 
-      [ foldr ((++) . sigToDec . unLoc) [] sigs
-      , foldr ((:) . hsBindLRToDec . unLoc) [] meths
+      [ foldr ((++) . sigToDec . GHC.unLoc) [] sigs
+      , foldr ((:) . hsBindLRToDec . GHC.unLoc) [] meths
       ]
     ) -- [Dec]
 hsTyClDeclToDec _other = 
   error "hsTyClDeclToDec: only ClassDecl is supported so far"
 
   
-hsDerivingClauseToDerivClause :: GHC.HsDerivingClause GHC.GhcPs -> [TH.DerivClause]
-hsDerivingClauseToDerivClause GHC.HsDerivingClause {..} = 
-  TH.DerivClause
-    (_ deriv_clause_strategy)
-    _
+hsDerivingClauseToDerivClause :: GHC.HsDerivingClause GHC.GhcPs -> TH.DerivClause
+hsDerivingClauseToDerivClause (GHC.HsDerivingClause _x strategy tys) = 
+  TH.DerivClause 
+    (fmap (derivStrategyToDerivStrategy . GHC.unLoc) strategy)
+    types
+  where 
+    types :: [TH.Type]
+    types = case GHC.unLoc tys of 
+      GHC.DctSingle _ t -> [hsSigTypeToType (GHC.unLoc t)]
+      GHC.DctMulti _ ts -> map (hsSigTypeToType . GHC.unLoc) ts
 
 derivStrategyToDerivStrategy :: GHC.DerivStrategy GHC.GhcPs -> TH.DerivStrategy
-derivStrategyToDerivStrategy GHC.StockStrategy {} = TH.StockStrategy
-derivStrategyToDerivStrategy GHC.NewtypeStrategy {} = TH.NewtypeStrategy
-derivStrategyToDerivStrategy GHC.AnyclassStrategy {} = TH.AnyclassStrategy
-derivStrategyToDerivStrategy (GHC.ViaStrategy sig) = _
-
+derivStrategyToDerivStrategy (GHC.StockStrategy _) = TH.StockStrategy
+derivStrategyToDerivStrategy (GHC.NewtypeStrategy _) = TH.NewtypeStrategy
+derivStrategyToDerivStrategy (GHC.AnyclassStrategy _) = TH.AnyclassStrategy
+derivStrategyToDerivStrategy (GHC.ViaStrategy (GHC.XViaStrategyPs _ ty)) = TH.ViaStrategy (hsSigTypeToType (GHC.unLoc ty))
 
 conDeclToDec :: GHC.ConDecl GHC.GhcPs -> TH.Con
 conDeclToDec (GHC.ConDeclGADT _x _idts _bndrs _ctxt _args _resTy _doc) = 
   error "conDeclToDec: GADT not yet implemented"
-
 conDeclToDec (GHC.ConDeclH98 _x idt fa _exs ctxt args _doc) 
   | fa = 
     TH.ForallC
       []
-      (maybe [] (map (hsTypeToType . unLoc) . unLoc) ctxt)
+      (maybe [] (map (hsTypeToType . GHC.unLoc) . GHC.unLoc) ctxt)
       (TH.NormalC 
-        (rdrNameToName (unLoc idt)) 
+        (toName (GHC.unLoc idt)) 
         (hsConDetailsToBangTypes args)   
       )
   | otherwise = case args of 
     GHC.PrefixCon _ conArgs -> 
       TH.NormalC 
-        (rdrNameToName (unLoc idt)) 
-        (map (hsTypeToBangType . unLoc . GHC.hsScaledThing) conArgs)
+        (toName (GHC.unLoc idt)) 
+        (map (hsTypeToBangType . GHC.unLoc . GHC.hsScaledThing) conArgs)
     GHC.RecCon r -> 
       TH.RecC 
-        (rdrNameToName (unLoc idt))
-        (foldr ((++) . conDeclFieldToVarBangType . unLoc) [] (unLoc r))
+        (toName (GHC.unLoc idt))
+        (foldr ((++) . conDeclFieldToVarBangType . GHC.unLoc) [] (GHC.unLoc r))
     GHC.InfixCon a b -> 
       TH.InfixC 
-        (hsTypeToBangType (unLoc (GHC.hsScaledThing a)))
-        (rdrNameToName (unLoc idt))
-        (hsTypeToBangType (unLoc (GHC.hsScaledThing b)))
+        (hsTypeToBangType (GHC.unLoc (GHC.hsScaledThing a)))
+        (toName (GHC.unLoc idt))
+        (hsTypeToBangType (GHC.unLoc (GHC.hsScaledThing b)))
   where 
 
 conDeclFieldToVarBangType :: GHC.ConDeclField GHC.GhcPs -> [TH.VarBangType]
 conDeclFieldToVarBangType GHC.ConDeclField {..} = 
-  map (makeVarBangType . unLoc . GHC.foLabel . unLoc) cd_fld_names
+  map (makeVarBangType . GHC.unLoc . GHC.foLabel . GHC.unLoc) cd_fld_names
   where 
     makeVarBangType :: GHC.RdrName -> TH.VarBangType
-    makeVarBangType idt = case hsTypeToBangType (unLoc cd_fld_type) of
-      (bang, ty) -> (rdrNameToName idt, bang, ty)
+    makeVarBangType idt = case hsTypeToBangType (GHC.unLoc cd_fld_type) of
+      (bang, ty) -> (toName idt, bang, ty)
 
 hsConDetailsToBangTypes :: GHC.HsConDeclH98Details GHC.GhcPs -> [TH.BangType]
 hsConDetailsToBangTypes (GHC.PrefixCon _tyArgs args) = 
-  map (hsTypeToBangType . unLoc . GHC.hsScaledThing) args
+  map (hsTypeToBangType . GHC.unLoc . GHC.hsScaledThing) args
 hsConDetailsToBangTypes (GHC.InfixCon lhs rhs) = 
-  [ (hsTypeToBangType (unLoc (GHC.hsScaledThing lhs)))
-  , (hsTypeToBangType (unLoc (GHC.hsScaledThing rhs)))
+  [ (hsTypeToBangType (GHC.unLoc (GHC.hsScaledThing lhs)))
+  , (hsTypeToBangType (GHC.unLoc (GHC.hsScaledThing rhs)))
   ]
 hsConDetailsToBangTypes (GHC.RecCon recFields) =
-  foldr ((++) . map adapt . conDeclFieldToBangType . unLoc) [] (unLoc recFields)
+  foldr ((++) . map adapt . conDeclFieldToBangType . GHC.unLoc) [] (GHC.unLoc recFields)
   where 
     adapt :: TH.VarBangType -> TH.BangType
     adapt (_, bang, ty) = (bang, ty)
 
 conDeclFieldToBangType :: GHC.ConDeclField GHC.GhcPs -> [TH.VarBangType]
 conDeclFieldToBangType GHC.ConDeclField {..} = 
-  map (makeBangType . rdrNameToName . unLoc . GHC.foLabel . unLoc) cd_fld_names 
+  map (makeBangType . toName . GHC.unLoc . GHC.foLabel . GHC.unLoc) cd_fld_names 
   where 
     makeBangType :: TH.Name -> TH.VarBangType
-    makeBangType name = case hsTypeToBangType (unLoc cd_fld_type) of 
+    makeBangType name = case hsTypeToBangType (GHC.unLoc cd_fld_type) of 
       (bang, ty) -> (name, bang, ty)
 
 sigToDec :: GHC.Sig GHC.GhcPs -> [TH.Dec]
 sigToDec sig = case sig of 
   GHC.TypeSig _x idts hsSigType -> 
-    map (\idt -> TH.SigD (rdrNameToName (unLoc idt)) (hsSigTypeToType (unLoc (GHC.hswc_body hsSigType)))) idts
+    map (\idt -> TH.SigD (toName (GHC.unLoc idt)) (hsSigTypeToType (GHC.unLoc (GHC.hswc_body hsSigType)))) idts
   _other -> error "sigToDec: only TypeSig is supported so far"
 
-hsBindLRToDec :: GHC.HsBindLR GHC.GhcPs GHC.GhcPs -> TH.Dec
-hsBindLRToDec bind = case bind of 
-  GHC.FunBind _x idt matches -> 
-    TH.FunD
-      (rdrNameToName (unLoc idt))
-      (matchGroupToClause matches)
-  _other -> error "hsBindLRToDec: only FunBind is supported so far"
+matchGroupToPat :: GHC.MatchGroup GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> [TH.Pat]
+matchGroupToPat (GHC.MG _x alts) = 
+  foldr ((++) . hsMatchToPat . GHC.unLoc) [] (GHC.unLoc alts)
+  where 
+    hsMatchToPat :: GHC.Match GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> [TH.Pat]
+    hsMatchToPat = map (hsPatToPat . GHC.unLoc) . GHC.m_pats 
+
+-- matchGroupExprToClause :: 
+--   GHC.MatchGroup GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> 
+--   [TH.Clause]
+-- matchGroupExprToClause (GHC.MG _x alts) = 
+--   foldr ((++) . matchToClause . GHC.unLoc) [] (GHC.unLoc alts)
+
+matchToClause :: 
+  GHC.Match GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> 
+  [TH.Clause]
+matchToClause (GHC.Match _x _ pats grhs) =
+  [ TH.Clause 
+      (map (hsPatToPat . GHC.unLoc) pats)
+      body
+      locals
+  ]
+  where 
+    locals :: [TH.Dec]
+    locals = case GHC.grhssLocalBinds grhs of 
+      GHC.EmptyLocalBinds _x -> []
+      GHC.HsValBinds _ (GHC.ValBinds _ binds sigs) ->
+        foldr ((:) . hsBindLRToDec . GHC.unLoc) [] binds 
+          ++ foldr ((++) . sigToDec . GHC.unLoc) [] sigs
+      GHC.HsIPBinds _ _ipBinds -> 
+        error ("matchToClause: HsIPBinds (not yet implemented)")
+    
+    body :: TH.Body
+    body = TH.GuardedB (foldr ((:) . gRHSExprToGuardedExpr . GHC.unLoc) [] (GHC.grhssGRHSs grhs))
+
+-- gRHSsExprToBody :: GHC.GRHSs GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> TH.Body
+-- gRHSsExprToBody (GHC.GRHSs _ grhss _) = TH.GuardedB guardedExps 
+--   where 
+--     guardedExps :: [(TH.Guard, TH.Exp)] 
+--     guardedExps = foldr ((:) . gRHSExprToGuardedExpr . GHC.unLoc) [] grhss
+
+gRHSExprToGuardedExpr :: GHC.GRHS GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> (TH.Guard, TH.Exp)
+gRHSExprToGuardedExpr (GHC.GRHS _x stmts body) = (TH.PatG stmts', body')
+  where 
+    body' :: TH.Exp
+    body' = hsExprToExp (GHC.unLoc body)
+
+    stmts' :: [TH.Stmt]
+    stmts' = map (stmtLRToStmt . GHC.unLoc) stmts
 
 hsTyVarBndrToTyVarBndr :: GHC.HsTyVarBndr (GHC.HsBndrVis GHC.GhcPs) GHC.GhcPs -> TH.TyVarBndr TH.BndrVis
 hsTyVarBndrToTyVarBndr (GHC.UserTyVar _x specificity idt) =
     TH.PlainTV 
-      (rdrNameToName (unLoc idt)) 
+      (toName (GHC.unLoc idt)) 
       (hsBndrVisToBndrVis specificity)
 hsTyVarBndrToTyVarBndr (GHC.KindedTyVar _x specificity idt ki) =
   TH.KindedTV 
-    (rdrNameToName (unLoc idt)) 
+    (toName (GHC.unLoc idt)) 
     (hsBndrVisToBndrVis specificity)
-    (hsTypeToType (unLoc ki))
+    (hsTypeToType (GHC.unLoc ki))
 
 hsBndrVisToBndrVis :: GHC.HsBndrVis GHC.GhcPs -> TH.BndrVis
 hsBndrVisToBndrVis (GHC.HsBndrRequired _x) = TH.BndrReq
@@ -299,183 +369,207 @@ hsBndrVisToBndrVis (GHC.HsBndrInvisible _x) = TH.BndrInvis
 hsFunDepToFunDep :: GHC.FunDep GHC.GhcPs -> TH.FunDep
 hsFunDepToFunDep (GHC.FunDep _x xs ys) = 
   TH.FunDep 
-    (map (rdrNameToName . unLoc) xs) 
-    (map (rdrNameToName . unLoc) ys)
+    (map (toName . GHC.unLoc) xs) 
+    (map (toName . GHC.unLoc) ys)
 
 --- DerivDecl ------------------------------------------------------------------
 
 hsDerivDeclToDec :: GHC.DerivDecl GHC.GhcPs -> TH.Dec
 hsDerivDeclToDec GHC.DerivDecl{deriv_type = GHC.HsWC _x body, ..} =
   TH.StandaloneDerivD
-    (fmap (hsDerivStrategyToDerivStrategy . unLoc) deriv_strategy)
+    (fmap (derivStrategyToDerivStrategy . GHC.unLoc) deriv_strategy)
     []
-    (hsSigTypeToType (unLoc body))
+    (hsSigTypeToType (GHC.unLoc body))
 
-hsDerivStrategyToDerivStrategy :: GHC.DerivStrategy GHC.GhcPs -> TH.DerivStrategy
-hsDerivStrategyToDerivStrategy GHC.StockStrategy {} = TH.StockStrategy
-hsDerivStrategyToDerivStrategy GHC.NewtypeStrategy {} = TH.NewtypeStrategy
-hsDerivStrategyToDerivStrategy GHC.AnyclassStrategy {} = TH.AnyclassStrategy
-hsDerivStrategyToDerivStrategy GHC.ViaStrategy {} = error "ViaStrategy not yet implemented"
-
--- --- InstDecl -------------------------------------------------------------------
+--- InstDecl -------------------------------------------------------------------
 
 instDeclToDec :: GHC.InstDecl GHC.GhcPs -> TH.Dec
 instDeclToDec instDecl = case instDecl of
   GHC.ClsInstD {..} -> clsInstDeclToDec cid_inst
-  GHC.DataFamInstD {} -> error "DataFamInstD not yet implemented"
-  GHC.TyFamInstD {} -> error "TyFamInstD not yet implemented"
+  GHC.DataFamInstD {} ->
+    -- @ 
+    -- 
+    -- @
+    error "DataFamInstD not yet implemented"
+  GHC.TyFamInstD {} ->
+    -- @ 
+    -- 
+    -- @
+    error "TyFamInstD not yet implemented"
 
 --- ClsInstDecl ----------------------------------------------------------------
 
+-- | TODO: docs
+--
+-- @ 
+-- class [overlapMode] (polyTy :: 'Type') where 
+--    [typeFamInsts :: [TyFamInstDecl]]
+--    
+--    [dataFamInsts :: [DataFamInstDecl]]
+--
+--    [sigs :: [Sig]]
+--
+--    [binds :: [HsBindLR]]
+-- @
 clsInstDeclToDec :: GHC.ClsInstDecl GHC.GhcPs -> TH.Dec
-clsInstDeclToDec GHC.ClsInstDecl{..} = 
+clsInstDeclToDec (GHC.ClsInstDecl _x polyTy binds sigs tyFamInsts dataFamInsts overlapMode) = 
   TH.InstanceD
-    (overlapModeToOverlap . unLoc =<< cid_overlap_mode) 
-    [] 
-    (hsSigTypeToType (unLoc cid_poly_ty)) 
-    (map hsBindLR (foldr ((:) . unLoc) [] cid_binds))
+    (overlapModeToOverlap . GHC.unLoc =<< overlapMode) 
+    []
+    (hsSigTypeToType (GHC.unLoc polyTy)) 
+    (mconcat 
+      [ map (TH.TySynInstD . dataFamInstDecl . GHC.unLoc) dataFamInsts
+      , map (TH.TySynInstD . tyFamInstDeclToTySynEqn . GHC.unLoc) tyFamInsts
+      , foldr ((++) . sigToDec . GHC.unLoc) [] sigs
+      , map hsBindLRToDec (foldr ((:) . GHC.unLoc) [] binds)
+      ])
+
+dataFamInstDecl :: GHC.DataFamInstDecl GHC.GhcPs -> TH.TySynEqn 
+dataFamInstDecl (GHC.DataFamInstDecl eqn) = dataFamEqnToTySynEqn eqn
+    
+dataFamEqnToTySynEqn :: GHC.FamEqn GHC.GhcPs (GHC.HsDataDefn GHC.GhcPs) -> TH.TySynEqn
+dataFamEqnToTySynEqn (GHC.FamEqn _x _tyCon bndrs pats _fixity rhs) = 
+  TH.TySynEqn
+    (hsOuterTyVarBndrs bndrs)
+    (hsArgToTypeFamilyLHS pats)
+    (hsDataDefnToType rhs)
+
+hsDataDefnToType :: GHC.HsDataDefn GHC.GhcPs -> TH.Type
+hsDataDefnToType (GHC.HsDataDefn _x _ctxt _ctype _kindSig _cons _derivs) = 
+  error "hsDataDefnToType: not yet implemented"
+
+-- | TODO: docs
+--
+-- @ 
+-- 
+-- @ 
+tyFamInstDeclToTySynEqn :: GHC.TyFamInstDecl GHC.GhcPs -> TH.TySynEqn
+tyFamInstDeclToTySynEqn (GHC.TyFamInstDecl _x eqn) = 
+  TH.TySynEqn
+    (hsOuterTyVarBndrs (GHC.feqn_bndrs eqn))
+    -- lhs eqn
+    (hsArgToTypeFamilyLHS (GHC.feqn_pats eqn))
+    -- rhs eqn
+    (hsTypeToType (GHC.unLoc (GHC.feqn_rhs eqn)))
 
 --- HsBindLR -------------------------------------------------------------------
 
-hsBindLR :: GHC.HsBindLR GHC.GhcPs GHC.GhcPs -> TH.Dec
-hsBindLR (GHC.PatSynBind _x bind) = patSynBindToDec bind
-hsBindLR (GHC.FunBind _x idt matches) = 
+hsArgToTypeFamilyLHS :: 
+  [GHC.HsArg GHC.GhcPs (GHC.LHsType GHC.GhcPs) (GHC.LHsType GHC.GhcPs)] -> 
+  TH.Type
+hsArgToTypeFamilyLHS [] = error "hsArgToTypeFamilyLHS: empty args"
+hsArgToTypeFamilyLHS (arg : args) = 
+  foldl 
+    (\acc x -> TH.AppT acc (hsArgToTypePat x)) 
+    (hsArgToTypePat arg) 
+    args
+
+hsOuterTyVarBndrs :: GHC.HsOuterTyVarBndrs () GHC.GhcPs -> Maybe [TH.TyVarBndr ()]
+hsOuterTyVarBndrs (GHC.HsOuterImplicit _x) = Nothing
+hsOuterTyVarBndrs (GHC.HsOuterExplicit _x binders) = Just (map (hsHsTyVarBndrToTyVarBndr . GHC.unLoc) binders)
+
+hsHsTyVarBndrToTyVarBndr :: GHC.HsTyVarBndr () GHC.GhcPs -> TH.TyVarBndr ()
+hsHsTyVarBndrToTyVarBndr (GHC.UserTyVar _x () var) = 
+  TH.PlainTV (toName (GHC.unLoc var)) ()
+hsHsTyVarBndrToTyVarBndr (GHC.KindedTyVar _x () var ki) = 
+  TH.KindedTV (toName (GHC.unLoc var)) () (hsTypeToType (GHC.unLoc ki))
+
+hsArgToTypePat :: GHC.HsArg GHC.GhcPs (GHC.LHsType GHC.GhcPs) (GHC.LHsType GHC.GhcPs) -> TH.Type
+hsArgToTypePat (GHC.HsValArg _ x) = hsTypeToType (GHC.unLoc x)
+hsArgToTypePat (GHC.HsTypeArg _ x) = hsTypeToType (GHC.unLoc x)
+
+hsBindLRToDec :: GHC.HsBindLR GHC.GhcPs GHC.GhcPs -> TH.Dec
+hsBindLRToDec (GHC.FunBind _x idt matches) = 
   TH.FunD
-    (rdrNameToName (unLoc idt))
+    (toName (GHC.unLoc idt))
     (matchGroupToClause matches)
-hsBindLR (GHC.PatBind _x _lhs _mult _rhs) = 
-  error "hsBindLR: PatBind not yet implemented"
-hsBindLR (GHC.VarBind _x idt rhs) = 
+hsBindLRToDec (GHC.PatBind _x lhs _mult rhs) = 
+  TH.ValD 
+    (hsPatToPat (GHC.unLoc lhs))
+    (TH.GuardedB (foldr ((:) . gRHSExprToGuardedExpr . GHC.unLoc) [] (GHC.grhssGRHSs rhs)))
+    (bindsToDecs (GHC.grhssLocalBinds rhs))
+hsBindLRToDec (GHC.VarBind _x idt rhs) = 
   TH.ValD
-    (TH.VarP (rdrNameToName idt))
-    (TH.NormalB (hsExprToExp (unLoc rhs)))
+    (TH.VarP (toName idt))
+    (TH.NormalB (hsExprToExp (GHC.unLoc rhs)))
     []
+hsBindLRToDec (GHC.PatSynBind _x bind) = 
+    patSynBindToDec bind
 
 --- MatchGroup -----------------------------------------------------------------
 
 matchGroupToClause :: GHC.MatchGroup GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> [TH.Clause]
-matchGroupToClause GHC.MG {..} = map (hsMatchToClause . unLoc) (unLoc mg_alts)
+matchGroupToClause (GHC.MG _ alts) = foldMap (matchToClause . GHC.unLoc) (GHC.unLoc alts)
 
 --- Match ----------------------------------------------------------------------
 
-hsMatchToClause :: GHC.Match GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> TH.Clause
-hsMatchToClause (GHC.Match _x _ctxt pats grRHS) = 
-  TH.Clause 
-    thPats 
-    (TH.GuardedB (foldr ((++) . conv . unLoc) [] (GHC.grhssGRHSs grRHS)))
-    (bindsToDecs (GHC.grhssLocalBinds grRHS))
-  where 
-    thPats :: [TH.Pat]
-    thPats = map (hsPatToPat . unLoc) pats
-
-    conv :: GHC.GRHS GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> [(TH.Guard, TH.Exp)]
-    conv (GHC.GRHS _x guards body) = 
-      [(stmtLRToGuard (unLoc guard), hsExprToExp (unLoc body)) | guard <- guards]
-
-    bindsToDecs :: GHC.HsLocalBindsLR GHC.GhcPs GHC.GhcPs -> [TH.Dec]
-    bindsToDecs (GHC.HsValBinds _x (GHC.ValBinds _x2 binds _sigs)) = 
-      map hsBindLR (foldr ((:) . unLoc) [] binds)
-    bindsToDecs (GHC.HsIPBinds _x (GHC.IPBinds _x2 _hsIPBinds)) = 
-      error "hsMatchToClause: HsIPBinds not yet implemented"
-    bindsToDecs (GHC.HsValBinds _x (GHC.XValBindsLR _x2)) = 
-      error "hsMatchToClause: XValBindsLR impossible!"
-    bindsToDecs (GHC.EmptyLocalBinds _x) = 
-      []
-
--- gRhsToGuardedExp :: GHC.GRHS GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> ([TH.Guard], TH.Exp)
--- gRhsToGuardedExp (GHC.GRHS _x guards body) = (thGuards, thExp) 
---   where 
---     thGuards :: [TH.Guard]
---     thGuards = map (stmtLRToGuard . unLoc) guards
-
---     thExp :: TH.Exp
---     thExp = hsExprToExp (unLoc body)
-
-stmtLRToGuard :: GHC.StmtLR GHC.GhcPs GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> TH.Guard
-stmtLRToGuard (GHC.BindStmt _x pat body) = 
-  TH.PatG [TH.BindS (hsPatToPat (unLoc pat)) (hsExprToExp (unLoc body))]
-stmtLRToGuard (GHC.BodyStmt _x body _stxl _stxr) = 
-  TH.NormalG (hsExprToExp (unLoc body))
-stmtLRToGuard (GHC.LetStmt _x _locals) = 
-  error ("'LetStmt' statement in guard: not supported; no body expression")
-stmtLRToGuard (GHC.LastStmt _x _body _mb _stx) = 
-  error ("'LastStmt' statement in guard: not supported; no body expression")
-stmtLRToGuard (GHC.ParStmt _x _parStmtBlock _hsExpr _stx) = 
+stmtLRToStmt :: GHC.StmtLR GHC.GhcPs GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> TH.Stmt
+stmtLRToStmt (GHC.BindStmt _x pat body) = 
+  TH.BindS (hsPatToPat (GHC.unLoc pat)) (hsExprToExp (GHC.unLoc body))
+stmtLRToStmt (GHC.BodyStmt _x body _stxl _stxr) = 
+  TH.NoBindS (hsExprToExp (GHC.unLoc body))
+stmtLRToStmt (GHC.LetStmt _x locals) = 
+  TH.LetS (bindsToDecs locals)
+stmtLRToStmt (GHC.LastStmt _x body _mb _stx) = 
+  TH.NoBindS (hsExprToExp (GHC.unLoc body))
+stmtLRToStmt (GHC.ParStmt _x _parStmtBlock _hsExpr _stx) = 
   error ("'ParStmt' statement in guard: not supported")
-stmtLRToGuard (GHC.TransStmt _x _form _stmts _bndrs _usingExpr _byExpr _stxret _stxbind _fmapExpr) = 
+stmtLRToStmt (GHC.TransStmt _x _form _stmts _bndrs _usingExpr _byExpr _stxret _stxbind _fmapExpr) = 
   error ("'TransStmt' statement in guard: not supported")
-stmtLRToGuard (GHC.RecStmt _x _stmts _later_ids _rec_ids _stxbind_fn _stxret_fn _stxmfix_fn) = 
-  error ("'RecStmt' statement in guard: not supported")
-stmtLRToGuard (GHC.ApplicativeStmt _x _args _stx) = 
+stmtLRToStmt (GHC.RecStmt _x stmts _later_ids _rec_ids _stxbind_fn _stxret_fn _stxmfix_fn) = 
+  TH.RecS (map (stmtLRToStmt . GHC.unLoc) (GHC.unLoc stmts))
+stmtLRToStmt (GHC.ApplicativeStmt _x _args _stx) = 
   error ("'ApplicativeStmt' statement in guard: not supported")
 
---- HsExpr ---------------------------------------------------------------------
 
-hsExprToExp :: GHC.HsExpr GHC.GhcPs -> TH.Exp
-hsExprToExp (GHC.HsVar _ idt) = TH.VarE (rdrNameToName (unLoc idt))
-hsExprToExp (GHC.HsLit _ lit) = TH.LitE (hsLitToLit lit)
-hsExprToExp (GHC.HsApp _ func arg) = 
-  TH.AppE 
-    (hsExprToExp (unLoc func)) 
-    (hsExprToExp (unLoc arg))
-hsExprToExp (GHC.HsUnboundVar _x idt) = 
-  TH.VarE (rdrNameToName idt)
-hsExprToExp (GHC.HsPar _x expr) = 
-  TH.ParensE (hsExprToExp (unLoc expr))
-hsExprToExp (GHC.HsOverLit _x _overLit) =
-  error "hsExprToExp: HsOverLit not yet implemented"
-hsExprToExp (GHC.HsRecSel _x fldOcc) =
-  TH.VarE (rdrNameToName (unLoc (GHC.foLabel fldOcc)))
-hsExprToExp (GHC.HsAppType _x expr ty) =
-  TH.AppTypeE 
-    (hsExprToExp (unLoc expr)) 
-    (hsTypeToType (unLoc (GHC.hswc_body ty)))
-hsExprToExp (GHC.OpApp _ lhs op rhs) = 
-  TH.InfixE 
-    (Just (hsExprToExp (unLoc lhs))) 
-    (hsExprToExp (unLoc op))
-    (Just (hsExprToExp (unLoc rhs)))
-hsExprToExp (GHC.NegApp _x expr _) = 
-  TH.UInfixE 
-    (TH.LitE (TH.IntegerL 0)) 
-    (TH.VarE (TH.mkName "-")) 
-    (hsExprToExp (unLoc expr))
-hsExprToExp (GHC.SectionL _x expr op) =
-  TH.InfixE 
-    (Just (hsExprToExp (unLoc expr)))
-    (hsExprToExp (unLoc op)) 
-    Nothing
-hsExprToExp (GHC.SectionR _x expr op) =
-  TH.InfixE 
-    Nothing
-    (hsExprToExp (unLoc op)) 
-    (Just (hsExprToExp (unLoc expr)))
-hsExprToExp _other = 
-  error ("hsExprToExp: unsupported HsExpr: ")
+hsRecFieldsToFieldExps :: GHC.HsRecFields GHC.GhcPs (GHC.LHsExpr GHC.GhcPs) -> [TH.FieldExp]
+hsRecFieldsToFieldExps (GHC.HsRecFields fields _) = map (hsFieldBindToFieldExp . GHC.unLoc) fields
+
+hsFieldBindToFieldExp :: IsName a => GHC.HsFieldBind a (GHC.LHsExpr GHC.GhcPs) -> (TH.Name, TH.Exp) -- ~ TH.FieldExp
+hsFieldBindToFieldExp (GHC.HsFieldBind _ lhs rhs _) = (toName lhs, hsExprToExp (GHC.unLoc rhs))
+
+bindsToDecs :: GHC.HsLocalBindsLR GHC.GhcPs GHC.GhcPs -> [TH.Dec]
+bindsToDecs (GHC.HsValBinds _x (GHC.ValBinds _x2 binds _sigs)) = 
+  map hsBindLRToDec (foldr ((:) . GHC.unLoc) [] binds)
+bindsToDecs (GHC.HsIPBinds _x (GHC.IPBinds _x2 _hsIPBinds)) = 
+  error "hsExprToExp: HsIPBinds not yet implemented"
+bindsToDecs (GHC.EmptyLocalBinds _x) = 
+  []
+
+hsDoFlavorToMaybeModName :: GHC.HsDoFlavour -> Maybe TH.ModName
+hsDoFlavorToMaybeModName (GHC.DoExpr modName) = fmap moduleNameToModName modName 
+hsDoFlavorToMaybeModName (GHC.MDoExpr modName) = fmap moduleNameToModName modName
+hsDoFlavorToMaybeModName _ = Nothing
+
+moduleNameToModName :: GHC.ModuleName -> TH.ModName
+moduleNameToModName (GHC.ModuleName fs) = TH.ModName (FastString.unpackFS fs)
+
+clauseToMatch :: TH.Clause -> [TH.Match]
+clauseToMatch (TH.Clause pats body decs) = map (\pat -> TH.Match pat body decs) pats
 
 -- HsPatSynDir -----------------------------------------------------------------
 
 hsPatSynDirToPatSynDir :: GHC.HsPatSynDir GHC.GhcPs -> TH.PatSynDir
 hsPatSynDirToPatSynDir GHC.Unidirectional = TH.Unidir
 hsPatSynDirToPatSynDir GHC.ImplicitBidirectional = TH.ImplBidir
-hsPatSynDirToPatSynDir (GHC.ExplicitBidirectional expr) = TH.ExplBidir (map (hsMatchToClause . unLoc) (unLoc (GHC.mg_alts expr)))
+hsPatSynDirToPatSynDir (GHC.ExplicitBidirectional expr) = TH.ExplBidir (foldr ((++) . matchToClause . GHC.unLoc) [] (GHC.unLoc (GHC.mg_alts expr)))
 
 --- HsPatSynDetails ------------------------------------------------------------
 
 hsPatSynDetailsToPatSynDetails :: GHC.HsPatSynDetails GHC.GhcPs -> TH.PatSynArgs
-hsPatSynDetailsToPatSynDetails (GHC.PrefixCon _tyArgs args) = TH.PrefixPatSyn (map (rdrNameToName . unLoc) args)
-hsPatSynDetailsToPatSynDetails (GHC.InfixCon lhs rhs) = TH.InfixPatSyn (rdrNameToName (unLoc lhs)) (rdrNameToName (unLoc rhs))
-hsPatSynDetailsToPatSynDetails (GHC.RecCon r) = TH.RecordPatSyn (map (rdrNameToName . unLoc . GHC.recordPatSynPatVar) r)
+hsPatSynDetailsToPatSynDetails (GHC.PrefixCon _tyArgs args) = TH.PrefixPatSyn (map (toName . GHC.unLoc) args)
+hsPatSynDetailsToPatSynDetails (GHC.InfixCon lhs rhs) = TH.InfixPatSyn (toName (GHC.unLoc lhs)) (toName (GHC.unLoc rhs))
+hsPatSynDetailsToPatSynDetails (GHC.RecCon r) = TH.RecordPatSyn (map (toName . GHC.unLoc . GHC.recordPatSynPatVar) r)
 
 --- PatSynBind -----------------------------------------------------------------
 
 patSynBindToDec :: GHC.PatSynBind GHC.GhcPs GHC.GhcPs -> TH.Dec
 patSynBindToDec GHC.PSB {..} = 
   TH.PatSynD
-    (rdrNameToName (unLoc psb_id))
+    (toName (GHC.unLoc psb_id))
     (hsPatSynDetailsToPatSynDetails psb_args)
     (hsPatSynDirToPatSynDir psb_dir)
-    (hsPatToPat (unLoc psb_def))
+    (hsPatToPat (GHC.unLoc psb_def))
 
 hsLitToLit :: GHC.HsLit GHC.GhcPs -> TH.Lit
 hsLitToLit (GHC.HsChar _x c) = TH.CharL c
@@ -507,45 +601,51 @@ integralLitToInteger GHC.IL {..} = if il_neg then negate il_value else il_value
 
 hsPatToPat :: GHC.Pat GHC.GhcPs -> TH.Pat
 hsPatToPat (GHC.WildPat _x) = TH.WildP
-hsPatToPat (GHC.VarPat _x idt) = TH.VarP (rdrNameToName (unLoc idt))
-hsPatToPat (GHC.LazyPat _x pat) = TH.TildeP (hsPatToPat (unLoc pat)) 
-hsPatToPat (GHC.AsPat _x idt pat) = TH.AsP (rdrNameToName (unLoc idt)) (hsPatToPat (unLoc pat))
-hsPatToPat (GHC.ParPat _x pat) = TH.ParensP (hsPatToPat (unLoc pat))
-hsPatToPat (GHC.BangPat _x pat) = TH.BangP (hsPatToPat (unLoc pat))
-hsPatToPat (GHC.ListPat _x pats) = TH.ListP (map (hsPatToPat . unLoc) pats)
-hsPatToPat (GHC.TuplePat _x pats _boxity) = TH.TupP (map (hsPatToPat . unLoc) pats)
+hsPatToPat (GHC.VarPat _x idt) = TH.VarP (toName (GHC.unLoc idt))
+hsPatToPat (GHC.LazyPat _x pat) = TH.TildeP (hsPatToPat (GHC.unLoc pat)) 
+hsPatToPat (GHC.AsPat _x idt pat) = TH.AsP (toName (GHC.unLoc idt)) (hsPatToPat (GHC.unLoc pat))
+hsPatToPat (GHC.ParPat _x pat) = TH.ParensP (hsPatToPat (GHC.unLoc pat))
+hsPatToPat (GHC.BangPat _x pat) = TH.BangP (hsPatToPat (GHC.unLoc pat))
+hsPatToPat (GHC.ListPat _x pats) = TH.ListP (map (hsPatToPat . GHC.unLoc) pats)
+hsPatToPat (GHC.TuplePat _x pats _boxity) = TH.TupP (map (hsPatToPat . GHC.unLoc) pats)
 -- hsPatToPat (GHC.OrPat _x pats) = _
 hsPatToPat (GHC.SumPat _x _pat _conTag _sumWith) = error "hsPatToPat: SumPat not yet implemented"
--- hsPatToPat (GHC.SumPat _x pat conTag sumWith) = TH.SumP (hsPatToPat (unLoc pat)) conTag sumWith
+-- hsPatToPat (GHC.SumPat _x pat conTag sumWith) = TH.SumP (hsPatToPat (GHC.unLoc pat)) conTag sumWith
 hsPatToPat (GHC.ConPat _x conPat details) = case details of 
   GHC.PrefixCon tyArgs args ->
     TH.ConP
-      name
+      (toName conPat)
       (map hsConPatTyArgToType tyArgs) 
-      (map (hsPatToPat . unLoc) args)
+      (map (hsPatToPat . GHC.unLoc) args)
   GHC.InfixCon lhs rhs ->
     TH.InfixP
-      (hsPatToPat (unLoc lhs))
-      name
-      (hsPatToPat (unLoc rhs))
+      (hsPatToPat (GHC.unLoc lhs))
+      (toName conPat)
+      (hsPatToPat (GHC.unLoc rhs))
   GHC.RecCon r ->
     TH.RecP
-      name
+      (toName conPat)
       (hsRecFieldsToFieldPat r) 
-  where 
-    name :: TH.Name
-    name = conPatToName conPat 
-hsPatToPat (GHC.ViewPat _x lhs rhs) = TH.ViewP (hsExprToExp (unLoc lhs)) (hsPatToPat (unLoc rhs))
+hsPatToPat (GHC.ViewPat _x lhs rhs) = TH.ViewP (hsExprToExp (GHC.unLoc lhs)) (hsPatToPat (GHC.unLoc rhs))
 hsPatToPat (GHC.SplicePat _x _spl) = error "hsPatToPat: SplicePat not yet implemented"
 hsPatToPat (GHC.LitPat _x lit) = TH.LitP (hsLitToLit lit)
-hsPatToPat (GHC.NPat _x _hsOverLit _optStxExpr _stxExpr) = error "hsPatToPat: n pattern not supportedf"
+hsPatToPat (GHC.NPat _x hsOverLit _optStxExpr _stxExpr) = TH.LitP (hsOverLitToLit (GHC.unLoc hsOverLit))
 hsPatToPat (GHC.NPlusKPat _x _idt _hsOverLit _optStxExpr _stxExpr _v) = error "hsPatToPat: n plus k pattern not supported"
-hsPatToPat (GHC.SigPat _x pat sig) = TH.SigP (hsPatToPat (unLoc pat)) (hsPatSigTypeToType sig)
+hsPatToPat (GHC.SigPat _x pat sig) = TH.SigP (hsPatToPat (GHC.unLoc pat)) (hsPatSigTypeToType sig)
 hsPatToPat (GHC.EmbTyPat _x tyPat) = TH.TypeP (hsTyPatToType tyPat)
 hsPatToPat (GHC.InvisPat _x tyPat) = TH.InvisP (hsTyPatToType tyPat)
 
-conPatToName :: XRec GHC.GhcPs (ConLikeP GHC.GhcPs) -> TH.Name
-conPatToName = rdrNameToName . unLoc
+hsOverLitToLit :: GHC.HsOverLit GHC.GhcPs -> TH.Lit
+hsOverLitToLit = overLitValToLit . GHC.ol_val
+
+overLitValToLit :: GHC.OverLitVal -> TH.Lit
+overLitValToLit (GHC.HsIntegral n) = TH.IntegerL (GHC.il_value n)
+overLitValToLit (GHC.HsFractional q) = TH.RationalL (GHC.rationalFromFractionalLit q)
+overLitValToLit (GHC.HsIsString _ s) = TH.StringL (FastString.unpackFS s)
+
+hsRecUpdFields :: GHC.LHsRecUpdFields GHC.GhcPs -> [TH.FieldExp]
+hsRecUpdFields (GHC.RegularRecUpdFields _ fields) = map (hsFieldBindToFieldExp . GHC.unLoc) fields
+hsRecUpdFields (GHC.OverloadedRecUpdFields _ fields) = map (hsFieldBindToFieldExp . GHC.unLoc) fields
 
 --- HsConPatTyArg --------------------------------------------------------------
 
@@ -555,7 +655,7 @@ hsConPatTyArgToType (GHC.HsConPatTyArg _x tyPat) = hsTyPatToType tyPat
 --- HsRecFields ----------------------------------------------------------------
 
 hsRecFieldsToFieldPat :: GHC.HsRecFields GHC.GhcPs (GHC.LPat GHC.GhcPs) -> [TH.FieldPat]
-hsRecFieldsToFieldPat = map (hsFieldBindToFieldPat . unLoc) . GHC.rec_flds 
+hsRecFieldsToFieldPat = map (hsFieldBindToFieldPat . GHC.unLoc) . GHC.rec_flds 
 
 --- HsFieldBind ----------------------------------------------------------------
 
@@ -563,20 +663,20 @@ hsFieldBindToFieldPat :: GHC.HsFieldBind (GHC.LFieldOcc GHC.GhcPs) (GHC.LPat GHC
 hsFieldBindToFieldPat hsFieldBind = (fieldIdt, fieldPat)
   where 
     fieldIdt :: TH.Name
-    fieldIdt = rdrNameToName (unLoc (GHC.foLabel (unLoc (GHC.hfbLHS hsFieldBind))))
+    fieldIdt = toName (GHC.unLoc (GHC.foLabel (GHC.unLoc (GHC.hfbLHS hsFieldBind))))
 
     fieldPat :: TH.Pat
-    fieldPat = hsPatToPat (unLoc (GHC.hfbRHS hsFieldBind))
+    fieldPat = hsPatToPat (GHC.unLoc (GHC.hfbRHS hsFieldBind))
 
 --- HsPatSigType ---------------------------------------------------------------
 
 hsPatSigTypeToType :: GHC.HsPatSigType GHC.GhcPs -> TH.Type
-hsPatSigTypeToType = hsTypeToType . unLoc . GHC.hsps_body 
+hsPatSigTypeToType = hsTypeToType . GHC.unLoc . GHC.hsps_body 
 
 --- HsTyPat --------------------------------------------------------------------
 
 hsTyPatToType :: GHC.HsTyPat GHC.GhcPs -> TH.Type
-hsTyPatToType (GHC.HsTP _x body) = hsTypeToType (unLoc body)
+hsTyPatToType (GHC.HsTP _x body) = hsTypeToType (GHC.unLoc body)
 
 --- OverlapMode ----------------------------------------------------------------
 
@@ -591,7 +691,7 @@ overlapModeToOverlap GHC.NonCanonical {} = Nothing
 --- HsSigType ------------------------------------------------------------------
 
 hsSigTypeToType :: GHC.HsSigType GHC.GhcPs -> TH.Type
-hsSigTypeToType = hsTypeToType . unLoc . GHC.sig_body
+hsSigTypeToType = hsTypeToType . GHC.unLoc . GHC.sig_body
 
 --- HsType ---------------------------------------------------------------------
 
@@ -603,7 +703,7 @@ hsSigTypeToType = hsTypeToType . unLoc . GHC.sig_body
 
 hsTypeToBangType :: GHC.HsType GHC.GhcPs -> TH.BangType
 hsTypeToBangType hsType = case hsType of 
-  GHC.HsBangTy _x bang ty -> (hsSrcBangToBang bang, hsTypeToType (unLoc ty))
+  GHC.HsBangTy _x bang ty -> (hsSrcBangToBang bang, hsTypeToType (GHC.unLoc ty))
   other -> (TH.Bang TH.NoSourceUnpackedness TH.NoSourceStrictness, hsTypeToType other)
 
 hsSrcBangToBang :: GHC.HsSrcBang -> TH.Bang
@@ -617,83 +717,108 @@ hsSrcBangToBang (GHC.HsSrcBang _x s u) = TH.Bang (toSrcPackedness s) (toSrcStric
     toSrcStrictness GHC.SrcStrict = TH.SourceStrict
     toSrcStrictness GHC.SrcLazy = TH.SourceLazy
 
+
+hsTyLitToType :: GHC.HsTyLit GHC.GhcPs -> TH.TyLit
+hsTyLitToType (GHC.HsNumTy _x n) = TH.NumTyLit n
+hsTyLitToType (GHC.HsStrTy _x s) = TH.StrTyLit (FastString.unpackFS s)
+hsTyLitToType (GHC.HsCharTy _x c) = TH.CharTyLit c
+
+hsTyVarBndrToTyVarBndrWith :: 
+  (flag -> flag') -> 
+  GHC.HsTyVarBndr flag GHC.GhcPs -> 
+  TH.TyVarBndr flag'
+hsTyVarBndrToTyVarBndrWith  f (GHC.KindedTyVar _x specificity binder kind) =
+  TH.KindedTV (toName (GHC.unLoc binder)) (f specificity) (hsTypeToType (GHC.unLoc kind))
+hsTyVarBndrToTyVarBndrWith f (GHC.UserTyVar _x specificity binder) =
+  TH.PlainTV (toName (GHC.unLoc binder)) (f specificity)
+
+hsSpecifityToSpecificity :: GHC.Specificity -> TH.Specificity
+hsSpecifityToSpecificity GHC.SpecifiedSpec = TH.SpecifiedSpec
+hsSpecifityToSpecificity GHC.InferredSpec = TH.InferredSpec
+
+--- HsDecl ---------------------------------------------------------------------
+
+hsDeclToDec :: GHC.HsDecl GHC.GhcPs -> [TH.Dec]
+hsDeclToDec (GHC.InstD _x instDecl) = pure (instDeclToDec instDecl)
+hsDeclToDec (GHC.DerivD _x deriveDecl) = pure (hsDerivDeclToDec deriveDecl)
+hsDeclToDec (GHC.TyClD _x tyClDecl) = pure (hsTyClDeclToDec tyClDecl )
+hsDeclToDec (GHC.SigD _x sig) = sigToDec sig
+hsDeclToDec (GHC.ValD _x bind) = pure (hsBindLRToDec bind)
+hsDeclToDec _other = []
+
+--- HsType ---------------------------------------------------------------------
+
 hsTypeToType :: GHC.HsType GHC.GhcPs -> TH.Type
+hsTypeToType (GHC.HsListTy _x a) = TH.ListT `TH.AppT` hsTypeToType (GHC.unLoc a)
+hsTypeToType (GHC.HsStarTy _ _p) = TH.StarT
+hsTypeToType (GHC.HsTyLit _ tyLit) = TH.LitT (hsTyLitToType tyLit)
+hsTypeToType (GHC.HsWildCardTy _) = TH.WildCardT
+hsTypeToType (GHC.HsAppTy _x a b) = hsTypeToType (GHC.unLoc a) `TH.AppT` hsTypeToType (GHC.unLoc b)
+hsTypeToType (GHC.HsAppKindTy _x a b) = hsTypeToType (GHC.unLoc a) `TH.AppKindT` hsTypeToType (GHC.unLoc b)
 hsTypeToType (GHC.HsTyVar _x promotionFlag idt)
-  | promotionFlag == GHC.IsPromoted = TH.PromotedT (rdrNameToName (unLoc idt))
+  | promotionFlag == GHC.IsPromoted = TH.PromotedT (toName (GHC.unLoc idt))
   | otherwise = case TH.nameBase name of 
     "" -> error "hsTypeToType: empty name"
     c : _ 
-      | isUpper c -> TH.ConT name
-      | otherwise -> TH.VarT name
-  where 
-    name :: TH.Name 
-    name = rdrNameToName (unLoc idt)
+      | isUpper c -> TH.ConT name 
+      | otherwise -> TH.VarT name 
+    where 
+      name :: TH.Name 
+      name = toName (GHC.unLoc idt)
 hsTypeToType (GHC.HsForAllTy _x telescope body) = case telescope of
   GHC.HsForAllVis {..} -> 
     TH.ForallT 
-      (map (hsTyVarBndrToTyVarBndrWith (const TH.SpecifiedSpec) . unLoc) hsf_vis_bndrs)
+      (map (hsTyVarBndrToTyVarBndrWith (const TH.SpecifiedSpec) . GHC.unLoc) hsf_vis_bndrs)
       []
-      (hsTypeToType (unLoc body))
+      (hsTypeToType (GHC.unLoc body))
   GHC.HsForAllInvis {..} -> 
     TH.ForallT 
-      (map (hsTyVarBndrToTyVarBndrWith hsSpecifityToSpecificity . unLoc) hsf_invis_bndrs) 
+      (map (hsTyVarBndrToTyVarBndrWith hsSpecifityToSpecificity . GHC.unLoc) hsf_invis_bndrs) 
       []
-      (hsTypeToType (unLoc body))
+      (hsTypeToType (GHC.unLoc body))
 hsTypeToType (GHC.HsQualTy _x ctxt body) =
   TH.ForallT 
     []
-    (map (hsTypeToType . unLoc) (unLoc ctxt))
-    (hsTypeToType (unLoc body))
-hsTypeToType (GHC.HsAppTy _x a b) =
-  TH.AppT (hsTypeToType (unLoc a))  (hsTypeToType (unLoc b))
-hsTypeToType (GHC.HsAppKindTy _x a b) =
-  TH.AppKindT (hsTypeToType (unLoc a)) (hsTypeToType (unLoc b))
+    (map (hsTypeToType . GHC.unLoc) (GHC.unLoc ctxt))
+    (hsTypeToType (GHC.unLoc body))
 hsTypeToType (GHC.HsFunTy _x hsArrow a b) = case hsArrow of 
   GHC.HsUnrestrictedArrow _x -> 
     TH.ArrowT 
-      `TH.AppT` hsTypeToType (unLoc a)
-      `TH.AppT` hsTypeToType (unLoc b)
+      `TH.AppT` hsTypeToType (GHC.unLoc a)
+      `TH.AppT` hsTypeToType (GHC.unLoc b)
   GHC.HsLinearArrow _x -> 
     TH.MulArrowT 
       `TH.AppT` TH.LitT (TH.NumTyLit 1)
-      `TH.AppT` hsTypeToType (unLoc a)
-      `TH.AppT` hsTypeToType (unLoc b)
+      `TH.AppT` hsTypeToType (GHC.unLoc a)
+      `TH.AppT` hsTypeToType (GHC.unLoc b)
   GHC.HsExplicitMult _x mult ->
     TH.MulArrowT 
-      `TH.AppT` hsTypeToType (unLoc mult)
-      `TH.AppT` hsTypeToType (unLoc a)
-      `TH.AppT` hsTypeToType (unLoc b)
-hsTypeToType (GHC.HsListTy _x a) =
-  TH.AppT 
-    TH.ListT 
-    (hsTypeToType (unLoc a))
+      `TH.AppT` hsTypeToType (GHC.unLoc mult)
+      `TH.AppT` hsTypeToType (GHC.unLoc a)
+      `TH.AppT` hsTypeToType (GHC.unLoc b)
 hsTypeToType (GHC.HsTupleTy _x boxity args) =
   let tup :: TH.Type
       tup = case boxity of 
         GHC.HsUnboxedTuple -> TH.UnboxedTupleT (length args)
         GHC.HsBoxedOrConstraintTuple -> TH.TupleT (length args)
-    in foldl (\x y -> x `TH.AppT` hsTypeToType (unLoc y)) tup args
-hsTypeToType (GHC.HsSumTy _x _args) =
-  error "hsTypeToType: SumTy not yet implemented"
+    in foldl (\x y -> x `TH.AppT` hsTypeToType (GHC.unLoc y)) tup args
 hsTypeToType (GHC.HsOpTy _x promotion lhsTy opIdt rhsTy) = case promotion of
   GHC.IsPromoted ->
-    TH.InfixT 
-      (hsTypeToType (unLoc lhsTy)) 
-      (rdrNameToName (unLoc opIdt)) 
-      (hsTypeToType (unLoc rhsTy))
+    TH.PromotedInfixT 
+      (hsTypeToType (GHC.unLoc lhsTy)) 
+      (toName (GHC.unLoc opIdt)) 
+      (hsTypeToType (GHC.unLoc rhsTy))
   GHC.NotPromoted ->
     TH.InfixT 
-      (hsTypeToType (unLoc lhsTy)) 
-      (rdrNameToName (unLoc opIdt)) 
-      (hsTypeToType (unLoc rhsTy))
+      (hsTypeToType (GHC.unLoc lhsTy)) 
+      (toName (GHC.unLoc opIdt)) 
+      (hsTypeToType (GHC.unLoc rhsTy))
 hsTypeToType (GHC.HsParTy _x ty) =
-  TH.ParensT (hsTypeToType (unLoc ty))
+  TH.ParensT (hsTypeToType (GHC.unLoc ty))
 hsTypeToType (GHC.HsIParamTy _x _hsIPName _ty) =
   error "hsTypeToType: HsIParamTy impossible"
-hsTypeToType (GHC.HsStarTy _x _p) =
-  TH.StarT
 hsTypeToType (GHC.HsKindSig _x ty ki) =
-  TH.SigT (hsTypeToType (unLoc ty)) (hsTypeToType (unLoc ki))
+  TH.SigT (hsTypeToType (GHC.unLoc ty)) (hsTypeToType (GHC.unLoc ki))
 hsTypeToType (GHC.HsSpliceTy _x _s) =
   error "hsTypeToType: HsSpliceTy impossible!"
 hsTypeToType (GHC.HsDocTy _x _ty _doc) =
@@ -706,50 +831,151 @@ hsTypeToType (GHC.HsExplicitListTy _x _promotion _tys) =
   error "hsTypeToType: HsExplicitListTy impossible"
 hsTypeToType (GHC.HsExplicitTupleTy _x _tys) =
   error "hsTypeToType: HsExplicitTupleTy impossible"
-hsTypeToType (GHC.HsTyLit _x tyLit) =
-  TH.LitT (hsTyLitToType tyLit)
-hsTypeToType (GHC.HsWildCardTy _x) =
-  TH.WildCardT
 hsTypeToType (GHC.XHsType _x) =
   error "hsTypeToType: XHsType impossible"
+hsTypeToType (GHC.HsSumTy _x _args) =
+  error "hsTypeToType: SumTy not yet implemented"
 
-hsTyLitToType :: GHC.HsTyLit GHC.GhcPs -> TH.TyLit
-hsTyLitToType (GHC.HsNumTy _x n) = TH.NumTyLit n
-hsTyLitToType (GHC.HsStrTy _x s) = TH.StrTyLit (FastString.unpackFS s)
-hsTyLitToType (GHC.HsCharTy _x c) = TH.CharTyLit c
+--- HsExpr ---------------------------------------------------------------------
+isConName :: TH.Name -> Bool
+isConName name = case TH.nameBase name of 
+  [] -> False
+  (c : _) -> isUpper c || c == ':'
 
-hsTyVarBndrToTyVarBndrWith :: 
-  (flag -> flag') -> 
-  GHC.HsTyVarBndr flag GHC.GhcPs -> 
-  TH.TyVarBndr flag'
-hsTyVarBndrToTyVarBndrWith  f (GHC.KindedTyVar _x specificity binder kind) =
-  TH.KindedTV (rdrNameToName (unLoc binder)) (f specificity) (hsTypeToType (unLoc kind))
-hsTyVarBndrToTyVarBndrWith f (GHC.UserTyVar _x specificity binder) =
-  TH.PlainTV (rdrNameToName (unLoc binder)) (f specificity)
+hsExprToExp :: GHC.HsExpr GHC.GhcPs -> TH.Exp
+hsExprToExp (GHC.HsVar _ idt) 
+  | isConName name = TH.ConE name 
+  | otherwise = TH.VarE name
+  where 
+    name :: TH.Name
+    name = toName (GHC.unLoc idt)
+hsExprToExp (GHC.HsUnboundVar _ idt) 
+  | isConName name = TH.ConE name
+  | otherwise = TH.VarE name 
+  where 
+    name :: TH.Name
+    name = toName idt
+hsExprToExp (GHC.HsLit _ lit) = TH.LitE (hsLitToLit lit)
+hsExprToExp (GHC.HsApp _ func arg) = 
+  TH.AppE 
+    (hsExprToExp (GHC.unLoc func)) 
+    (hsExprToExp (GHC.unLoc arg))
+hsExprToExp (GHC.HsPar _x expr) = 
+  TH.ParensE (hsExprToExp (GHC.unLoc expr))
+hsExprToExp (GHC.HsOverLit _x overLit) =
+  TH.LitE (hsOverLitToLit overLit)
+hsExprToExp (GHC.HsRecSel _x fldOcc) =
+  TH.VarE (toName (GHC.unLoc (GHC.foLabel fldOcc)))
+hsExprToExp (GHC.HsAppType _x expr ty) =
+  TH.AppTypeE 
+    (hsExprToExp (GHC.unLoc expr)) 
+    (hsTypeToType (GHC.unLoc (GHC.hswc_body ty)))
+hsExprToExp (GHC.OpApp _ lhs op rhs) = 
+  TH.InfixE 
+    (Just (hsExprToExp (GHC.unLoc lhs))) 
+    (hsExprToExp (GHC.unLoc op))
+    (Just (hsExprToExp (GHC.unLoc rhs)))
+hsExprToExp (GHC.NegApp _x expr _) = 
+  TH.UInfixE 
+    (TH.LitE (TH.IntegerL 0)) 
+    (TH.VarE (TH.mkName "-")) 
+    (hsExprToExp (GHC.unLoc expr))
+hsExprToExp (GHC.SectionL _x expr op) =
+  TH.InfixE 
+    (Just (hsExprToExp (GHC.unLoc expr)))
+    (hsExprToExp (GHC.unLoc op)) 
+    Nothing
+hsExprToExp (GHC.SectionR _x expr op) =
+  TH.InfixE 
+    Nothing
+    (hsExprToExp (GHC.unLoc op)) 
+    (Just (hsExprToExp (GHC.unLoc expr)))
+hsExprToExp (GHC.HsLet _x locals expr) =
+  TH.LetE 
+    (bindsToDecs locals)
+    (hsExprToExp (GHC.unLoc expr))
+hsExprToExp (GHC.HsCase _x expr matchGroup) = 
+  TH.CaseE 
+    (hsExprToExp (GHC.unLoc expr))
+    (foldr ((++) . clauseToMatch) [] (matchGroupToClause matchGroup))
+hsExprToExp (GHC.ExplicitList _x exprs) =
+  TH.ListE (map (hsExprToExp . GHC.unLoc) exprs)
+hsExprToExp (GHC.HsLam _x _ matchGroup) =
+  case matchGroupFirstBody matchGroup of 
+    GHC.GRHS _x [] bodyExpr -> 
+      TH.LamE 
+        (matchGroupToPat matchGroup)
+        (hsExprToExp (GHC.unLoc bodyExpr))
+    _other -> 
+      error "hsExprToExp: only single-clause lambdas without guards are supported so far"
+hsExprToExp (GHC.HsDo _x modName stmts) =
+  TH.DoE 
+    (hsDoFlavorToMaybeModName modName) 
+    (map (stmtLRToStmt . GHC.unLoc) 
+    (GHC.unLoc stmts))
+hsExprToExp (GHC.RecordCon _x con fields) = 
+  TH.RecConE 
+    (toName (GHC.unLoc con))
+    (hsRecFieldsToFieldExps fields)
+hsExprToExp (GHC.RecordUpd _x expr fields) = 
+  TH.RecUpdE 
+    (hsExprToExp (GHC.unLoc expr))
+    (hsRecUpdFields fields)
+hsExprToExp (GHC.ExplicitTuple _ args boxity)
+  | boxity == GHC.Boxed = 
+      TH.TupE (map hsTupArgToExp args)
+  | boxity == GHC.Unboxed = 
+      TH.UnboxedTupE (map hsTupArgToExp args)
+  where 
+    hsTupArgToExp :: GHC.HsTupArg GHC.GhcPs -> Maybe TH.Exp
+    hsTupArgToExp (GHC.Present _x expr) = Just (hsExprToExp (GHC.unLoc expr))
+    hsTupArgToExp (GHC.Missing _x) = Nothing
+hsExprToExp _other = 
+  error ("hsExprToExp: unsupported HsExpr: " ++ show (GHC.runSDoc (GHC.ppr _other) GHC.defaultSDocContext))
 
-hsSpecifityToSpecificity :: GHC.Specificity -> TH.Specificity
-hsSpecifityToSpecificity GHC.SpecifiedSpec = TH.SpecifiedSpec
-hsSpecifityToSpecificity GHC.InferredSpec = TH.InferredSpec
+--- IsName ---------------------------------------------------------------------
 
---- RdrName --------------------------------------------------------------------
+class IsName a where 
+  toName :: a -> TH.Name
 
+instance IsName FastString.FastString where 
+  toName = TH.mkName . FastString.unpackFS
 
+instance IsName GHC.RdrName where
+  toName (GHC.Exact name) = toName (GHC.nameRdrName name)
+  toName (GHC.Unqual occName) = TH.mkName (GHC.occNameString occName) 
+  toName (GHC.Orig _mdl occName) =
+    error ("toName: Orig not yet implemented" ++ GHC.occNameString occName)
+  toName (GHC.Qual moduleName occName) 
+    | null modNameStr = TH.mkName occNameStr
+    | otherwise =
+      TH.Name 
+        (TH.OccName (GHC.occNameString occName)) 
+        (TH.NameQ (TH.ModName modNameStr))
+    where 
+      occNameStr :: String
+      occNameStr = GHC.occNameString occName
 
-rdrNameToName :: GHC.RdrName -> TH.Name
-rdrNameToName rdrName = case rdrName of
-  GHC.Unqual occName -> 
-    TH.mkName (GHC.occNameString occName) 
-  GHC.Exact name -> 
-    rdrNameToName (GHC.nameRdrName name)
-  GHC.Orig _mdl occName -> 
-    error ("rdrNameToName: Orig not yet implemented" ++ GHC.occNameString occName)
-    -- TH.Name
-    --   (TH.OccName (GHC.occNameString occName)) 
-    --   (TH.NameG TH.VarName (TH.PkgName "proto3-suite") (ghcModuleNameToTHModuleName mdl))
-  GHC.Qual moduleName occName -> 
-    TH.Name 
-      (TH.OccName (GHC.occNameString occName)) 
-      (TH.NameQ (TH.ModName (GHC.moduleNameString moduleName)))
-  -- where 
-  --   ghcModuleNameToTHModuleName :: GHC.Module -> TH.ModName
-  --   ghcModuleNameToTHModuleName mdl = TH.ModName (GHC.moduleNameString (GHC.moduleName mdl))
+      modNameStr :: String
+      modNameStr = GHC.moduleNameString moduleName
+
+instance IsName (GHC.FieldOcc GHC.GhcPs) where 
+  toName = toName . GHC.unLoc . GHC.foLabel
+
+instance IsName GHC.FieldLabelString where
+  toName = toName . GHC.field_label
+
+instance IsName (GHC.DotFieldOcc GHC.GhcPs) where
+  toName = toName . GHC.dfoLabel
+
+instance IsName (GHC.FieldLabelStrings GHC.GhcPs) where
+  toName (GHC.FieldLabelStrings occs) = case List.uncons occs of 
+    Nothing -> error "impossible" 
+    Just (o, _) -> toName o
+
+instance IsName (GHC.AmbiguousFieldOcc GHC.GhcPs) where
+  toName (GHC.Unambiguous _ idt) = toName idt
+  toName (GHC.Ambiguous _ idt) = toName idt
+
+instance IsName a => IsName (GHC.GenLocated s a) where 
+  toName = toName . GHC.unLoc

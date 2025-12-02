@@ -1,5 +1,16 @@
-{-# LANGUAGE QuasiQuotes     #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NegativeLiterals #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fno-warn-missing-export-lists #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-unused-imports #-}
+{-# OPTIONS_GHC -fno-warn-unused-matches #-}
 
 module Test.Proto.Files 
   ( dotProtoEmptyField
@@ -67,7 +78,7 @@ dotProtoLeadingDot =
 
     package LeadingDot.Rpc;
 
-    import "test_files/leading_dot/data.proto";
+    import "./leading_dot/data.proto";
 
     message Request {
       uint32 foo = 1;
@@ -366,7 +377,7 @@ dotProtoCommon =
 
     package TestProto;
 
-    import "test_proto_import.proto";
+    import "test_files/test_proto_import.proto";
 
     message Trivial {
       int32 trivialField = 1;

@@ -108,9 +108,11 @@ data CompileArgs = CompileArgs
   , stringType         :: StringType
   , typeLevelFormat    :: Bool
   }
+  deriving (Eq, Ord, Show)
 
+-- | Qualified module name, then unqualified type name.
 data StringType = StringType String String
-  -- ^ Qualified module name, then unqualified type name.
+  deriving (Eq, Ord, Show)
 
 parseStringType :: String -> Either String StringType
 parseStringType str = case splitOn "." str of
