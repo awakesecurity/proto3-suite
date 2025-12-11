@@ -12,10 +12,13 @@ module Proto3.Suite.DotProto.Generate.Syntax where
 
 import Data.Functor ((<&>))
 import Data.Maybe (maybeToList)
+#if !MIN_VERSION_ghc_lib_parser(9,12,0)
 import GHC.Data.Bag (listToBag)
+#endif
 import GHC.Data.FastString (mkFastString)
 import qualified GHC.Hs as GHC
          (HsDecl(..), HsDerivingClause(..), HsModule(..), HsTyVarBndr(..), HsType(..))
+
 import GHC.Types.Basic (Origin(..))
 import GHC.Types.Name.Occurrence (NameSpace, dataName, mkOccName, tcName, tvName, varName)
 import GHC.Types.Name.Reader (mkRdrQual, mkRdrUnqual, rdrNameSpace)
@@ -419,7 +422,11 @@ unrestrictedArrow_ :: HsArrow GhcPs
 unrestrictedArrow_ = HsUnrestrictedArrow synDef
 
 unbangedTy_ :: HsType -> HsBangType
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+unbangedTy_ = noLocA . GHC.HsBangTy noAnn (HsBang NoSrcUnpack NoSrcStrict) . parenTy
+#else
 unbangedTy_ = noLocA . GHC.HsBangTy synDef (HsSrcBang synDef NoSrcUnpack NoSrcStrict) . parenTy
+#endif
 
 #if MIN_VERSION_ghc_lib_parser(9,6,0)
 -- https://hackage.haskell.org/package/ghc-lib-parser-9.6.2.20231121/docs/GHC-Hs.html#t:HsModule
@@ -527,7 +534,11 @@ dataDecl_ messageName bndrs constructors derivedInstances = noLocA $ GHC.TyClD N
     , tcdTyVars = HsQTvs NoExtField bndrs
     , tcdFixity = Prefix
     , tcdDataDefn = HsDataDefn
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+        { dd_ext = noAnn
+#else
         { dd_ext = NoExtField
+#endif
 #if !MIN_VERSION_ghc_lib_parser(9,6,0)
         , dd_ND = maybe DataType (const NewType) newtypeCtor
 #endif
@@ -561,7 +572,11 @@ dataDecl_ messageName bndrs constructors derivedInstances = noLocA $ GHC.TyClD N
 
 recDecl_ :: HsName -> [([HsName], HsBangType)] -> HsConDecl
 recDecl_ name fields = noLocA ConDeclH98
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+  { con_ext = noAnn
+#else
   { con_ext = synDef
+#endif
   , con_name = name
   , con_forall = False
   , con_ex_tvs = []
@@ -583,7 +598,11 @@ recDecl_ name fields = noLocA ConDeclH98
 
 conDecl_ :: HsName -> [HsBangType] -> HsConDecl
 conDecl_ name fields = noLocA ConDeclH98
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+  { con_ext = noAnn
+#else
   { con_ext = synDef
+#endif
   , con_name = name
   , con_forall = False
   , con_ex_tvs = []
@@ -636,9 +655,17 @@ instDecl_ :: HsQName -> [HsType] -> [HsBind] -> HsDecl
 instDecl_ className classArgs binds = noLocA $ GHC.InstD NoExtField ClsInstD
   { cid_d_ext = NoExtField
   , cid_inst = ClsInstDecl
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+      { cid_ext = (Nothing, noAnn, NoAnnSortKey)
+#else
       { cid_ext = synDef
+#endif
       , cid_poly_ty = noLocA $ HsSig NoExtField implicitOuterSigTyVarBinders_ (tyConApply className classArgs)
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+      , cid_binds = binds
+#else
       , cid_binds = listToBag binds
+#endif
       , cid_sigs = []
       , cid_tyfam_insts = []
       , cid_datafam_insts = []
@@ -663,7 +690,11 @@ closedTyFamDecl_ ::
   HsDecl
 closedTyFamDecl_ tyFamName famBndrs resultKind eqns =
   noLocA $ GHC.TyClD NoExtField $ FamDecl synDef $ FamilyDecl
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+    { fdExt = noAnn
+#else
     { fdExt = synDef
+#endif
     , fdInfo = ClosedTypeFamily (Just (map onEqn eqns))
     , fdTopLevel = TopLevel
     , fdLName = tyFamName
@@ -762,12 +793,19 @@ functionLike_ strictness name alts = noLocA $ mkFunBind generated name (map matc
 #endif
 
     match :: ([HsPat], HsExp) -> HsMatch
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+    match (pats, rhs) = mkSimpleMatch ctxt (noLocA pats) rhs
+#else
     match (pats, rhs) = mkSimpleMatch ctxt pats rhs
+#endif
 
     ctxt = FunRhs
       { mc_fun = name
       , mc_fixity = Prefix
       , mc_strictness = strictness
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+      , mc_an = noAnn
+#endif
       }
 
 typeSig_ :: [HsName] -> HsOuterSigTyVarBndrs -> HsType -> HsDecl
@@ -783,10 +821,18 @@ implicitOuterSigTyVarBinders_ :: HsOuterSigTyVarBndrs
 implicitOuterSigTyVarBinders_ = HsOuterImplicit NoExtField
 
 userTyVar_ :: flag -> HsName -> LHsTyVarBndr flag GhcPs
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+userTyVar_ flag nm = noLocA $ GHC.HsTvb noAnn flag (HsBndrVar NoExtField nm) (HsBndrNoKind NoExtField)
+#else
 userTyVar_ flag nm = noLocA $ GHC.UserTyVar synDef flag nm
+#endif
 
 kindedTyVar_ :: flag -> HsName -> HsType -> LHsTyVarBndr flag GhcPs
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+kindedTyVar_ flag nm ty = noLocA $ GHC.HsTvb noAnn flag (HsBndrVar NoExtField nm) (HsBndrKind NoExtField ty)
+#else
 kindedTyVar_ flag nm ty = noLocA $ GHC.KindedTyVar synDef flag nm ty
+#endif
 
 wild_ :: HsPat
 wild_ = noLocA $ WildPat NoExtField
@@ -828,6 +874,9 @@ recordCtor_ nm fields = noLocA RecordCon
   , rcon_flds = HsRecFields
       { rec_flds = fields
       , rec_dotdot = Nothing
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+      , rec_ext = NoExtField
+#endif
       }
   }
 
@@ -839,7 +888,11 @@ fieldUpd_ nm val = noLocA
 #if MIN_VERSION_ghc_lib_parser(9,4,0)
   HsFieldBind
     { hfbAnn = synDef
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+    , hfbLHS = noLocA $ FieldOcc NoExtField nm
+#else
     , hfbLHS = noLocA $ Ambiguous NoExtField nm
+#endif
     , hfbRHS = val
     , hfbPun = False
     }
@@ -912,6 +965,9 @@ recPat :: HsQName -> [LHsRecField GhcPs HsPat] -> HsPat
 recPat ctor fields = noLocA $ ConPat synDef ctor $ RecCon $ HsRecFields
   { rec_flds = fields
   , rec_dotdot = Nothing
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+  , rec_ext = NoExtField
+#endif
   }
 
 fieldPunPat :: HsName -> LHsRecField GhcPs HsPat
@@ -958,22 +1014,37 @@ let_ locals e =
     noLocA $ HsLet synDef binds e
 #endif
   where
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+    binds = HsValBinds synDef (ValBinds synDef locals [])
+#else
     binds = HsValBinds synDef (ValBinds synDef (listToBag locals) [])
+#endif
 
 -- | Lambda abstraction.
 lambda_ :: [HsPat] -> HsExp -> HsExp
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+lambda_ = mkHsLam . noLocA
+#else
 lambda_ = mkHsLam
+#endif
 
 if_ :: HsExp -> HsExp -> HsExp -> HsExp
 if_ c t f = noLocA $ mkHsIf c t f synDef
 
 -- | A boxed tuple with all components present.
 tuple_ :: [HsExp] -> HsExp
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+tuple_ xs = mkLHsTupleExpr xs noAnn
+#else
 tuple_ xs = mkLHsTupleExpr xs synDef
+#endif
 
 -- | A promoted boxed tuple value with all components present.
 tupleT_ :: [HsType] -> HsType
 tupleT_ = noLocA . HsExplicitTupleTy synDef
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+                          NotPromoted
+#endif
 
 list_ :: [HsExp] -> HsExp
 list_ = nlList
@@ -1126,7 +1197,11 @@ do_ = noLocA . mkHsDo (DoExpr Nothing) . noLocA
 letStmt_ :: [HsBind] -> ExprLStmt GhcPs
 letStmt_ locals = noLocA $ LetStmt synDef binds
   where
+#if MIN_VERSION_ghc_lib_parser(9,12,0)
+    binds = HsValBinds synDef (ValBinds synDef locals [])
+#else
     binds = HsValBinds synDef (ValBinds synDef (listToBag locals) [])
+#endif
 
 bindStmt_ :: HsPat -> HsExp -> ExprLStmt GhcPs
 bindStmt_ p e = noLocA $ mkPsBindStmt synDef p e
