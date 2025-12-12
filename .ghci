@@ -1,0 +1,13 @@
+-- Default `-Werror` flags that should be disabled in GHCi
+:set -Wno-error=identities
+:set -Wno-error=redundant-constraints
+:set -Wno-error=unused-imports
+
+-- Default warning flags that should be disabled in GHCi
+:set -Wno-unused-local-binds
+:set -Wno-unused-packages
+:set -Wno-unused-pattern-binds
+:set -Wno-unused-top-binds
+
+-- Set the GHCi prompt for "proto3-suite" sessions.
+:set prompt "proto3-suite> "

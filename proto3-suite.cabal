@@ -23,6 +23,12 @@ build-type:          Simple
 data-files:          test-files/*.bin tests/encode.sh tests/decode.sh
 extra-source-files:  CHANGELOG.md, gen/.gitignore
 
+
+flag development
+  Description:   Switch for "development" mode, which enables stricter warnings and -Werror. 
+  Default:       False
+  Manual:        True
+
 flag dhall
   Description:   Turn on Dhall interpret and inject codegen
   Default:       False
@@ -52,6 +58,14 @@ common common
   default-extensions:
     BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric
     ImportQualifiedPost ViewPatterns
+
+  ghc-options:
+    -O2 
+    -Wall
+
+  if flag(development)
+    ghc-options:
+      -Werror
 
 library
   import: common
@@ -138,7 +152,6 @@ library
     build-depends:     attoparsec-aeson >= 2.2.0.0
   hs-source-dirs:      src
   default-language:    Haskell2010
-  ghc-options:         -O2 -Wall -Werror
 
 test-suite tests
   import:           common
@@ -226,8 +239,6 @@ test-suite tests
     , turtle
     , vector >=0.11 && <0.14
 
-  ghc-options:         -O2 -Wall
-
 executable compile-proto-file
   main-is:             Main.hs
   hs-source-dirs:      tools/compile-proto-file
@@ -239,7 +250,6 @@ executable compile-proto-file
                        , system-filepath
                        , text
                        , turtle
-  ghc-options:         -O2 -Wall -Werror
 
 executable canonicalize-proto-file
   import:              common
@@ -254,4 +264,3 @@ executable canonicalize-proto-file
                        , proto3-wire >= 1.4.6 && < 1.5
                        , system-filepath
                        , turtle
-  ghc-options:         -O2 -Wall -Werror
