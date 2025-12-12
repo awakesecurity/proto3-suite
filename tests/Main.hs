@@ -43,7 +43,7 @@ import           Proto3.Wire.Decode          (ParseError)
 import qualified Proto3.Wire.Decode          as Decode
 import qualified Proto3.Wire.Reverse         as RB
 import           Proto3.Wire.Types           as P
-import qualified Test.DocTest
+import Test.DocTest qualified 
 import           Test.QuickCheck             (Arbitrary, Property, (.&&.), arbitrary, choose,
                                               counterexample, forAll, oneof, property)
 import           Test.Tasty
@@ -62,6 +62,7 @@ import           TestDhall
 import qualified Test.Proto.Generate.Name
 import qualified Test.Proto.Parse.Option
 import qualified Test.Proto.Interval
+import qualified Test.Proto.TH
 import           Test.Proto.ToEncoder        (Iterator(Forward, Vector),
                                               Stripping(Keep, Strip), ToEncoder(..))
 
@@ -84,13 +85,14 @@ tests logger = testGroup "Tests"
   , Test.Proto.Generate.Name.testTree
   , Test.Proto.Parse.Option.testTree
   , Test.Proto.Interval.testTree
+  , Test.Proto.TH.testTree
 
 #ifdef DHALL
   , dhallTests
 #endif
   ]
 
--- -----------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Doctests
 
 docTests :: TestTree
@@ -102,6 +104,7 @@ docTests = testCase "doctests" $ do
     , "ghc-lib-parser"
     , "-isrc"
     , "-XBlockArguments"
+    , "-XPackageImports"
 #ifdef SWAGGER
 #ifdef SWAGGER_WRAPPER_FORMAT
     , "-isrc/swagger-wrapper-format"
