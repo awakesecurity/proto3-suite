@@ -44,6 +44,11 @@ flag attoparsec-aeson
   Manual:        False
     -- "Manual: False" to automatically skip "attoparsec-aeson" if it is not available
 
+flag development
+  description: Enable development-specific options.
+  default: False 
+  manual: true
+
 source-repository head
   type:     git
   location: https://github.com/awakesecurity/proto3-suite
@@ -52,6 +57,10 @@ common common
   default-extensions:
     BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric
     ImportQualifiedPost ViewPatterns
+
+  if flag(development)
+    ghc-options:
+      -Werror
 
 library
   import: common
@@ -111,7 +120,7 @@ library
                        contravariant >=1.4 && <1.6,
                        filepath,
                        foldl,
-                       ghc-lib-parser >=9.2.8 && <9.13,
+                       ghc-lib-parser >=9.2.8 && <9.11,
                        hashable,
                        insert-ordered-containers,
                        lens,
@@ -138,7 +147,7 @@ library
     build-depends:     attoparsec-aeson >= 2.2.0.0
   hs-source-dirs:      src
   default-language:    Haskell2010
-  ghc-options:         -O2 -Wall -Werror
+  ghc-options:         -O2 -Wall
 
 test-suite tests
   import:           common
@@ -226,7 +235,7 @@ test-suite tests
     , turtle
     , vector >=0.11 && <0.14
 
-  ghc-options:         -O2 -Wall
+  ghc-options:         -O2
 
 executable compile-proto-file
   main-is:             Main.hs
@@ -239,7 +248,7 @@ executable compile-proto-file
                        , system-filepath
                        , text
                        , turtle
-  ghc-options:         -O2 -Wall -Werror
+  ghc-options:         -O2 -Wall
 
 executable canonicalize-proto-file
   import:              common
@@ -254,4 +263,4 @@ executable canonicalize-proto-file
                        , proto3-wire >= 1.4.6 && < 1.5
                        , system-filepath
                        , turtle
-  ghc-options:         -O2 -Wall -Werror
+  ghc-options:         -O2 -Wall
