@@ -120,7 +120,7 @@ library
                        contravariant >=1.4 && <1.6,
                        filepath,
                        foldl,
-                       ghc-lib-parser >=9.2.8 && <9.11,
+                       ghc-lib-parser >=9.2.8 && <9.13,
                        hashable,
                        insert-ordered-containers,
                        lens,
@@ -235,7 +235,7 @@ test-suite tests
     , turtle
     , vector >=0.11 && <0.14
 
-  ghc-options:         -O2
+  ghc-options:         -O2 -Wall
 
 executable compile-proto-file
   main-is:             Main.hs
