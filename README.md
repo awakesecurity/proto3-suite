@@ -44,14 +44,15 @@ testing). From the root of this repository, run:
 
 ```bash
 $ nix-shell
+[nix-shell]$ cabal configure -f development
 [nix-shell]$ cabal build
 ```
 
-Once your source code compiles and you want to test, run this instead:
+To enable testing, configure `cabal` with `--enable-test` and (optionally) with the [`development`](./proto3-suite.cabal) flag to enable `-Werror`. Once your source code compiles and you want to test, run:
 
 ```bash
 $ nix-shell
-[nix-shell]$ cabal configure --enable-tests
+[nix-shell]$ cabal configure -f development --enable-tests
 [nix-shell]$ cabal build
 [nix-shell]$ cabal test
 ```
