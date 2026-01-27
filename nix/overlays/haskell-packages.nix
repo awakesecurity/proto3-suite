@@ -140,6 +140,10 @@ in {
 
                   postPatch = (oldArgs.postPatch or "") + copyGeneratedCode + patchTestScripts;
 
+                  configureFlags = (oldArgs.configureFlags or []) ++ [
+                    "-fdevelopment"
+                  ];
+
                   testHaskellDepends =
                     (oldArgs.testHaskellDepends or [ ]) ++ [
                       haskellPackagesNew.proto3-suite-boot
