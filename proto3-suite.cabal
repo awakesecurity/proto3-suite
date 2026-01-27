@@ -47,7 +47,7 @@ flag attoparsec-aeson
 flag development
   description: Enable development-specific options.
   default: False 
-  manual: true
+  manual: True
 
 source-repository head
   type:     git
