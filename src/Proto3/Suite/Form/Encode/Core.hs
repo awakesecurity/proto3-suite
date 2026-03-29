@@ -1,6 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -77,7 +76,7 @@ import Proto3.Suite.Form
          (Association, NumberOf, OneOfOf, Packing(..), Cardinality(..),
           CardinalityOf, ProtoType(..), ProtoTypeOf, Wrapper)
 import Proto3.Wire.Encode qualified as Encode
-import Proto3.Wire.Encode.Repeated (Repeated(..), ToRepeated(..), mapRepeated)
+import Proto3.Wire.Encode.Repeated (Repeated, ToRepeated(..), mapRepeated, toRepeated)
 import Proto3.Wire.Types (FieldNumber, fieldNumber)
 
 -- | Annotates 'Encode.MessageBuilder' with the type of protobuf message it encodes.
@@ -378,16 +377,7 @@ class Field name a message
     -- See also 'fieldForm'.
     field :: forall names . a -> FieldsEncoder message names (Occupy message name names)
 
-instance forall (name :: Symbol)
-#if defined(__GLASGOW_HASKELL__) && 904 <= __GLASGOW_HASKELL__
-                r (a :: TYPE r)
-#else
-                (a :: Type)
-                  -- Regarding the call to @coerce@, GHC 9.2.8 would say:
-                  -- "Cannot use function with levity-polymorphic arguments".
-                  -- So we just drop support for unlifted arguments until GHC 9.4.
-#endif
-                (message :: Type) .
+instance forall (name :: Symbol) (a :: Type) (message :: Type) .
          ( KnownFieldNumber message name
          , FieldForm (CardinalityOf message name) (ProtoTypeOf message name) a
          ) =>
@@ -456,7 +446,7 @@ instance forall (name :: Symbol)
 -- defined in "Proto3.Suite.Form", which declare message format without
 -- specifying any policy regarding how to efficiently encode or which
 -- Haskell types may be encoded.
-type FieldForm :: Cardinality -> ProtoType -> forall {r} . TYPE r -> Constraint
+type FieldForm :: Cardinality -> ProtoType -> Type -> Constraint
 class FieldForm cardinality protoType a
   where
     -- | Encodes a message field with the
@@ -493,31 +483,24 @@ instance ( ToRepeated c e
 -- accept both packed and unpacked primitives regardless of packing preference.)
 instance ( ToRepeated c e
          , PackedFieldForm protoType e
-         , FieldForm 'Optional protoType (Identity e)
          ) =>
          FieldForm ('Repeated 'Packed) protoType c
   where
-    fieldForm _ ty !fn (toRepeated -> !xs@(ReverseRepeated prediction reversed))
-        | isEmpty = mempty  -- 0 elements can be expressed implicitly
-        | otherwise = packedFieldForm ty fn xs  -- at least one packed element
-            -- From <https://protobuf.dev/programming-guides/encoding/>, "Repeated Elements":
-            --
-            --   "Protocol buffer parsers must be able to parse repeated fields
-            --    that were compiled as packed as if they were not packed, and
-            --    vice versa. This permits adding [packed=true] to existing
-            --    fields in a forward- and backward-compatible way."
-            --
-            -- Therefore in principle we could save one octet by using unpacked
-            -- format for a repeated field containing exactly one element.
-            --
-            -- But at present the @proto3-suite@ decoder rejects unpacked format
-            -- when parsing a repeated field it expects to be packed.  And even
-            -- after we improve compatibility, saving just one octet might not
-            -- justify a larger and perhaps slower generated encoder.
-      where
-        isEmpty = case prediction of
-          Just count -> count <= 0
-          Nothing -> null reversed
+    fieldForm _ ty !fn = packedFieldForm ty fn . toRepeated
+      -- From <https://protobuf.dev/programming-guides/encoding/>, "Repeated Elements":
+      --
+      --   "Protocol buffer parsers must be able to parse repeated fields
+      --    that were compiled as packed as if they were not packed, and
+      --    vice versa. This permits adding [packed=true] to existing
+      --    fields in a forward- and backward-compatible way."
+      --
+      -- Therefore in principle we could save one octet by using unpacked
+      -- format for a repeated field containing exactly one element.
+      --
+      -- But at present the @proto3-suite@ decoder rejects unpacked format
+      -- when parsing a repeated field it expects to be packed.  And even
+      -- after we improve compatibility, saving just one octet might not
+      -- justify a larger and perhaps slower generated encoder.
     {-# INLINE fieldForm #-}
 
 instance FieldForm 'Optional ('Message inner) (Identity (MessageEncoder inner))
@@ -538,7 +521,6 @@ instance FieldForm 'Optional ('Map key value) (Identity (MessageEncoder (Associa
 
 -- | 'FieldForm' delegates to this type class when encoding
 -- packed repeated fields containing two or more elements.
-type PackedFieldForm :: ProtoType -> forall {r} . TYPE r -> Constraint
 class PackedFieldForm protoType a
   where
     -- | 'fieldForm' delegates to this method when encoding

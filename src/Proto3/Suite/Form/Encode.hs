@@ -156,6 +156,7 @@ import Proto3.Wire.Encode qualified as Encode
 import Proto3.Wire.Encode.Repeated (ToRepeated, mapRepeated)
 import Proto3.Wire.Reverse qualified as RB
 import Proto3.Wire.Types (FieldNumber, fieldNumber)
+import Proto3.Wire.Types qualified as Wire (WireType(..))
 
 -- | The unsafe but fast inverse of 'messageEncoderToByteString'.
 unsafeByteStringToMessageEncoder :: B.ByteString -> MessageEncoder message
@@ -246,20 +247,21 @@ cachedFieldsEncoding = UnsafeFieldsEncoder . Encode.unsafeFromByteString . untyp
 {-# INLINE cachedFieldsEncoding #-}
 
 $(instantiatePackableField
-  [t| 'UInt32 |] [t| Word32 |] [| Encode.uint32 |] [| Encode.packedUInt32R |]
+  [t| 'UInt32 |] [t| Word32 |] [| Encode.uint32 |] [| Encode.packedField @'Wire.Varint |]
   [ ([t| Word16 |], [| fromIntegral @Word16 @Word32 |], [t| 'UInt32 |])
   , ([t|  Word8 |], [| fromIntegral  @Word8 @Word32 |], [t| 'UInt32 |])
   ] True)
 
 $(instantiatePackableField
-  [t| 'UInt64 |] [t| Word64 |] [| Encode.uint64 |] [| Encode.packedUInt64R |]
+  [t| 'UInt64 |] [t| Word64 |] [| Encode.uint64 |] [| Encode.packedField @'Wire.Varint |]
   [ ([t| Word32 |], [|                           id |], [t| 'UInt32 |])
   , ([t| Word16 |], [| fromIntegral @Word16 @Word32 |], [t| 'UInt32 |])
   , ([t|  Word8 |], [| fromIntegral  @Word8 @Word32 |], [t| 'UInt32 |])
   ] True)
 
 $(instantiatePackableField
-  [t| 'Int32 |] [t| Int32 |] [| Encode.int32 |] [| Encode.packedInt32R |]
+  [t| 'Int32 |] [t| Int32 |] [| Encode.int32 |]
+  [| \(!fn) -> Encode.packedField @'Wire.Varint fn . fmap (fromIntegral @Int32 @Word64) |]
   [ ([t|  Int16 |], [| fromIntegral   @Int16 @Int32 |], [t|  'Int32 |])
   , ([t|   Int8 |], [| fromIntegral    @Int8 @Int32 |], [t|  'Int32 |])
   -- Because the encoding for @int32@ is just a conversion to the 64-bit unsigned
@@ -271,7 +273,8 @@ $(instantiatePackableField
   ] True)
 
 $(instantiatePackableField
-  [t| 'Int64 |] [t| Int64 |] [| Encode.int64 |] [| Encode.packedInt64R |]
+  [t| 'Int64 |] [t| Int64 |] [| Encode.int64 |]
+  [| \(!fn) -> Encode.packedField @'Wire.Varint fn . fmap (fromIntegral @Int64 @Word64) |]
   [ ([t|  Int32 |], [| fromIntegral  @Int32 @Int64 |], [t| 'Int64 |])
   , ([t|  Int16 |], [| fromIntegral  @Int16 @Int64 |], [t| 'Int64 |])
   , ([t|   Int8 |], [| fromIntegral   @Int8 @Int64 |], [t| 'Int64 |])
@@ -285,7 +288,10 @@ $(instantiatePackableField
   ] True)
 
 $(instantiatePackableField
-  [t| 'SInt32 |] [t| Int32 |] [| Encode.sint32 |] [| Encode.packedSInt32R |]
+  [t| 'SInt32 |] [t| Int32 |] [| Encode.sint32 |]
+  [| \(!fn) ->
+       Encode.packedField @'Wire.Varint fn .
+       fmap (fromIntegral @Int32 @Word32 . Encode.zigZagEncode) |]
   [ ([t|  Int16 |], [| fromIntegral  @Int16 @Int32 |], [t| 'SInt32 |])
   , ([t|   Int8 |], [| fromIntegral   @Int8 @Int32 |], [t| 'SInt32 |])
   , ([t| Word16 |], [| fromIntegral @Word16 @Int32 |], [t| 'SInt32 |])
@@ -293,7 +299,10 @@ $(instantiatePackableField
   ] False)
 
 $(instantiatePackableField
-  [t| 'SInt64 |] [t| Int64 |] [| Encode.sint64 |] [| Encode.packedSInt64R |]
+  [t| 'SInt64 |] [t| Int64 |] [| Encode.sint64 |]
+  [| \(!fn) ->
+       Encode.packedField @'Wire.Varint fn .
+       fmap (fromIntegral @Int64 @Word64 . Encode.zigZagEncode) |]
   [ ([t|  Int32 |], [|                          id |], [t| 'SInt32 |])
   , ([t|  Int16 |], [|                          id |], [t| 'SInt32 |])
   , ([t|   Int8 |], [|                          id |], [t| 'SInt32 |])
@@ -303,20 +312,21 @@ $(instantiatePackableField
   ] False)
 
 $(instantiatePackableField
-  [t| 'Fixed32 |] [t| Word32 |] [| Encode.fixed32 |] [| Encode.packedFixed32R |]
+  [t| 'Fixed32 |] [t| Word32 |] [| Encode.fixed32 |] [| Encode.packedField @'Wire.Fixed32 |]
   [ ([t| Word16 |], [| fromIntegral @Word16 @Word32 |], [t| 'Fixed32 |])
   , ([t|  Word8 |], [| fromIntegral  @Word8 @Word32 |], [t| 'Fixed32 |])
   ] False)
 
 $(instantiatePackableField
-  [t| 'Fixed64 |] [t| Word64 |] [| Encode.fixed64 |] [| Encode.packedFixed64R |]
+  [t| 'Fixed64 |] [t| Word64 |] [| Encode.fixed64 |] [| Encode.packedField @'Wire.Fixed64 |]
   [ ([t| Word32 |], [| fromIntegral @Word32 @Word64 |], [t| 'Fixed64 |])
   , ([t| Word16 |], [| fromIntegral @Word16 @Word64 |], [t| 'Fixed64 |])
   , ([t|  Word8 |], [| fromIntegral  @Word8 @Word64 |], [t| 'Fixed64 |])
   ] False)
 
 $(instantiatePackableField
-  [t| 'SFixed32 |] [t| Int32 |] [| Encode.sfixed32 |] [| Encode.packedSFixed32R |]
+  [t| 'SFixed32 |] [t| Int32 |] [| Encode.sfixed32 |]
+  [| \(!fn) -> Encode.packedField @'Wire.Fixed32 fn . fmap (fromIntegral @Int32 @Word32) |]
   [ ([t|  Int16 |], [| fromIntegral  @Int16 @Int32 |], [t| 'SFixed32 |])
   , ([t|   Int8 |], [| fromIntegral   @Int8 @Int32 |], [t| 'SFixed32 |])
   , ([t| Word16 |], [| fromIntegral @Word16 @Int32 |], [t| 'SFixed32 |])
@@ -324,7 +334,8 @@ $(instantiatePackableField
   ] False)
 
 $(instantiatePackableField
-  [t| 'SFixed64 |] [t| Int64 |] [| Encode.sfixed64 |] [| Encode.packedSFixed64R |]
+  [t| 'SFixed64 |] [t| Int64 |] [| Encode.sfixed64 |]
+  [| \(!fn) -> Encode.packedField @'Wire.Fixed64 fn . fmap (fromIntegral @Int64 @Word64) |]
   [ ([t|  Int32 |], [| fromIntegral  @Int32 @Int64 |], [t| 'SFixed64 |])
   , ([t|  Int16 |], [| fromIntegral  @Int16 @Int64 |], [t| 'SFixed64 |])
   , ([t|   Int8 |], [| fromIntegral   @Int8 @Int64 |], [t| 'SFixed64 |])
@@ -334,15 +345,15 @@ $(instantiatePackableField
   ] False)
 
 $(instantiatePackableField
-  [t| 'Bool |] [t| Bool |] [| Encode.bool |] [| Encode.packedBoolsR |]
+  [t| 'Bool |] [t| Bool |] [| Encode.bool |] [| Encode.packedField @'Wire.Varint |]
   [] True)
 
 $(instantiatePackableField
-  [t| 'Float |] [t| Float |] [| Encode.float |] [| Encode.packedFloatsR |]
+  [t| 'Float |] [t| Float |] [| Encode.float |] [| Encode.packedField @'Wire.Fixed32 |]
   [] True)
 
 $(instantiatePackableField
-  [t| 'Double |] [t| Double |] [| Encode.double |] [| Encode.packedDoublesR |]
+  [t| 'Double |] [t| Double |] [| Encode.double |] [| Encode.packedField @'Wire.Fixed64 |]
   [ ([t| Float |], [| realToFrac @Float @Double |], [t| 'Double |])
   ] True)
 
