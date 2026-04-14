@@ -3,6 +3,7 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -82,9 +83,14 @@ pythonInteroperation logger = testGroup "Python interoperation" $ do
   tt <- ["Data.Text.Lazy.Text", "Data.Text.Text", "Data.Text.Short.ShortText"]
   format <- ["Binary", "Jsonpb"]
   testEncode <- [True, False]
+  testDecode <- [False, True]
   direct <- [False, True]
   guard $ not direct || (testEncode && format == "Binary")
-  let f = if testEncode then simpleEncodeDotProto direct else simpleDecodeDotProto
+  f <- if
+         | testEncode, testDecode -> [roundTripDotProto direct]
+         | testEncode -> [simpleEncodeDotProto direct]
+         | testDecode -> [simpleDecodeDotProto]
+         | otherwise -> []
   pure @[] (f logger tt format)
 
 #ifdef SWAGGER
@@ -197,6 +203,7 @@ setPythonPath :: IO ()
 setPythonPath = Turtle.export "PYTHONPATH" .
   maybe pyTmpDir (\p -> pyTmpDir <> ":" <> p) =<< Turtle.need "PYTHONPATH"
 
+-- | Haskell encoder -> Python decoder.
 simpleEncodeDotProto :: Bool -> Logger -> String -> T.Text -> TestTree
 simpleEncodeDotProto direct logger chosenStringType format =
     testCase ("generate code for a simple .proto and then use it to encode messages" ++
@@ -206,13 +213,8 @@ simpleEncodeDotProto direct logger chosenStringType format =
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
          compileTestDotProtos logger decodedStringType direct
-         -- Compile our generated encoder
-         let encodeCmd = "tests/encode.sh " <> hsTmpDir
-                           <> (if direct then " -DTYPE_LEVEL_FORMAT" else "")
-#if DHALL
-                           <> " -DDHALL"
-#endif
-         Turtle.shell encodeCmd empty >>= (@?= ExitSuccess)
+
+         compileHaskellEncoder direct
 
          -- The python test of encoding exits with a special error code to indicate
          -- all tests were successful.  When directly encoding without an intermediate
@@ -241,6 +243,7 @@ simpleEncodeDotProto direct logger chosenStringType format =
          Turtle.rmtree hsTmpDir
          Turtle.rmtree pyTmpDir
 
+-- | Python encoder -> Haskell decoder.
 simpleDecodeDotProto :: Logger -> String -> T.Text -> TestTree
 simpleDecodeDotProto logger chosenStringType format =
     testCase ("generate code for a simple .proto and then use it to decode messages" ++
@@ -249,16 +252,49 @@ simpleDecodeDotProto logger chosenStringType format =
          decodedStringType <- either die pure (parseStringType chosenStringType)
 
          compileTestDotProtos logger decodedStringType False
-         -- Compile our generated decoder
-         let decodeCmd = "tests/decode.sh " <> hsTmpDir
-#if DHALL
-                           <> " -DDHALL"
-#endif
-         Turtle.shell decodeCmd empty >>= (@?= ExitSuccess)
+
+         compileHaskellDecoder
 
          setPythonPath
          let cmd = "python tests/send_simple_dot_proto.py " <> format <> " | FORMAT=" <> format <> " " <> hsTmpDir <> "/simpleDecodeDotProto "
          Turtle.shell cmd empty >>= (@?= ExitSuccess)
+
+         -- Not using bracket so that we can inspect the output to fix the tests
+         Turtle.rmtree hsTmpDir
+         Turtle.rmtree pyTmpDir
+
+-- | Haskell encoder -> Haskell decoder.
+roundTripDotProto :: Bool -> Logger -> String -> T.Text -> TestTree
+roundTripDotProto direct logger chosenStringType format =
+    testCase ("generate code for a simple .proto and then use it to encode and decode messages" ++
+              " with string type " ++ chosenStringType ++ " in format " ++ show format ++
+              (if direct then ", direct mode" else ", intermediate mode"))
+    $ do
+         decodedStringType <- either die pure (parseStringType chosenStringType)
+
+         compileTestDotProtos logger decodedStringType direct
+
+         compileHaskellEncoder direct
+
+         compileHaskellDecoder
+
+         let iterators :: [Iterator]
+             iterators
+               | direct = [minBound .. maxBound]
+               | otherwise = [minBound]  -- Just an unused placeholder
+             strippings :: [Stripping]
+             strippings
+               | direct = [minBound .. maxBound]
+               | otherwise = [minBound]  -- Just an unused placeholder
+         forM_ iterators $ \(iterator :: Iterator) -> do
+           forM_ strippings $ \(stripping :: Stripping) -> do
+             when direct $ do
+               putStrLn $ "        iterator: " ++ show iterator
+               putStrLn $ "        stripping: " ++ show stripping
+             let cmd = hsTmpDir <> "/simpleEncodeDotProto " <> format <>
+                       " " <> T.pack (show iterator) <> " " <> T.pack (show stripping) <>
+                       " | FORMAT=" <> format <> " " <> hsTmpDir <> "/simpleDecodeDotProto "
+             Turtle.shell cmd empty >>= (@?= ExitSuccess)
 
          -- Not using bracket so that we can inspect the output to fix the tests
          Turtle.rmtree hsTmpDir
@@ -312,6 +348,25 @@ compileTestDotProtos logger decodedStringType typeLevel = do
     Turtle.shell cmd empty >>= (@?= ExitSuccess)
 
   Turtle.touch (pyTmpDir Turtle.</> "__init__.py")
+
+-- | Compile our generated encoder
+compileHaskellEncoder :: Bool -> IO ()
+compileHaskellEncoder direct = do
+  let encodeCmd = "tests/encode.sh " <> hsTmpDir
+                    <> (if direct then " -DTYPE_LEVEL_FORMAT" else "")
+#if DHALL
+                    <> " -DDHALL"
+#endif
+  Turtle.shell encodeCmd empty >>= (@?= ExitSuccess)
+
+-- | Compile our generated decoder
+compileHaskellDecoder :: IO ()
+compileHaskellDecoder = do
+  let decodeCmd = "tests/decode.sh " <> hsTmpDir
+#if DHALL
+                    <> " -DDHALL"
+#endif
+  Turtle.shell decodeCmd empty >>= (@?= ExitSuccess)
 
 dotProtoTests :: TestTree
 dotProtoTests = testGroup "dotProto method tests"

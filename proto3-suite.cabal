@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                proto3-suite
-version:             0.9.4
+version:             0.9.5
 synopsis:            A higher-level API to the proto3-wire library
 description:
   This library provides a higher-level API to <https://github.com/awakesecurity/proto3-wire the `proto3-wire` library>
@@ -22,12 +22,12 @@ category:            Codec
 build-type:          Simple
 
 data-files:
-  test-files/*.bin 
-  tests/encode.sh 
+  test-files/*.bin
+  tests/encode.sh
   tests/decode.sh
 
 extra-source-files:
-  CHANGELOG.md, 
+  CHANGELOG.md,
   gen/.gitignore
 
 flag dhall
@@ -53,7 +53,7 @@ flag attoparsec-aeson
 
 flag development
   Description: Enable development-specific options.
-  Default:     False 
+  Default:     False
   Manual:      True
 
 source-repository head
@@ -75,7 +75,7 @@ common common
     , proto3-wire >= 1.4.6 && < 1.5
 
   ghc-options:
-    -O2 
+    -O2
     -Wall
 
 library
@@ -91,7 +91,7 @@ library
     build-depends:
       swagger2 >=2.1.6 && <2.9
 
-    cpp-options:       
+    cpp-options:
       -DSWAGGER
 
     exposed-modules:
@@ -103,7 +103,7 @@ library
     else
       hs-source-dirs: src/no-swagger-wrapper-format
 
-  exposed-modules:     
+  exposed-modules:
     Proto3.Suite
     Proto3.Suite.Class
     Proto3.Suite.DotProto
@@ -131,7 +131,7 @@ library
     Proto3.Suite.Form.Encode.Core
     Turtle.Compat
 
-  build-depends:       
+  build-depends:
       aeson >= 1.1.1.0 && < 2.3
     , aeson-pretty
     , attoparsec >= 0.13.0.1
@@ -259,7 +259,7 @@ executable compile-proto-file
   hs-source-dirs:   tools/compile-proto-file
   default-language: Haskell2010
 
-  build-depends: 
+  build-depends:
       base >=4.15 && <5.0
     , ghc-lib-parser
     , optparse-applicative
@@ -277,7 +277,7 @@ executable canonicalize-proto-file
   main-is:          Main.hs
   hs-source-dirs:   tools/canonicalize-proto-file
 
-  build-depends:       
+  build-depends:
       containers >=0.5 && <0.8
     , mtl >=2.2 && <2.4
     , optparse-generic

@@ -497,22 +497,28 @@ instance ( ToRepeated c e
          ) =>
          FieldForm ('Repeated 'Packed) protoType c
   where
-    fieldForm _ ty !fn (toRepeated -> !xs@(ReverseRepeated prediction reversed)) =
-        case prediction of
-          Just count
-            | 2 <= count -> packedFieldForm ty fn xs  -- multiple packed elements
-            | otherwise -> fieldForm (proxy# :: Proxy# ('Repeated 'Unpacked)) ty fn xs  -- 0 or 1
-          Nothing -> case foldr singletonOp Empty reversed of
-            Empty -> mempty  -- 0 elements can be expressed implicitly
-            Singleton x -> fieldForm (proxy# :: Proxy# 'Optional) ty fn (Identity x) -- unpacked
-            Multiple -> packedFieldForm ty fn xs  -- multiple packed elements
+    fieldForm _ ty !fn (toRepeated -> !xs@(ReverseRepeated prediction reversed))
+        | isEmpty = mempty  -- 0 elements can be expressed implicitly
+        | otherwise = packedFieldForm ty fn xs  -- at least one packed element
+            -- From <https://protobuf.dev/programming-guides/encoding/>, "Repeated Elements":
+            --
+            --   "Protocol buffer parsers must be able to parse repeated fields
+            --    that were compiled as packed as if they were not packed, and
+            --    vice versa. This permits adding [packed=true] to existing
+            --    fields in a forward- and backward-compatible way."
+            --
+            -- Therefore in principle we could save one octet by using unpacked
+            -- format for a repeated field containing exactly one element.
+            --
+            -- But at present the @proto3-suite@ decoder rejects unpacked format
+            -- when parsing a repeated field it expects to be packed.  And even
+            -- after we improve compatibility, saving just one octet might not
+            -- justify a larger and perhaps slower generated encoder.
       where
-        singletonOp :: a -> Singleton a -> Singleton a
-        singletonOp x Empty = Singleton x
-        singletonOp _ _ = Multiple
+        isEmpty = case prediction of
+          Just count -> count <= 0
+          Nothing -> null reversed
     {-# INLINE fieldForm #-}
-
-data Singleton a = Empty | Singleton a | Multiple
 
 instance FieldForm 'Optional ('Message inner) (Identity (MessageEncoder inner))
   where
