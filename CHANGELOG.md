@@ -1,8 +1,8 @@
 # 0.9.5
 * [#305](https://github.com/awakesecurity/proto3-suite/pull/305) Avoid unpacked packed fields
   * The new system of typed builders exploited parser behavior that is required
-    by the protobuf standard but not yet implemented by @proto3-suite@, causing
-    decoding errors when the decoder is @proto3-suite@.  This change avoids that
+    by the protobuf standard but not yet implemented by `proto3-suite`, causing
+    decoding errors when the decoder is `proto3-suite`.  This change avoids that
     incompatibility and expands round-trip testing to cover more scenarios.
 
 # 0.9.4
