@@ -26,7 +26,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Proto3.Suite.Tutorial where
 
@@ -38,6 +37,8 @@ import Proto3.Suite (Enumerated, Nested, NestedVec, PackedVec,
                      Message, Named, Finite, DotProtoDefinition,
                      enum, message, packageFromDefs, toProtoFileDef)
 import Proto3.Wire.Class (ProtoEnum)
+
+--------------------------------------------------------------------------------
 
 -- $setup
 -- >>> :set -XOverloadedStrings

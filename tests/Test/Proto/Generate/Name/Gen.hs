@@ -13,11 +13,12 @@ module Test.Proto.Generate.Name.Gen
   )
 where
 
+import Control.Applicative (liftA2)
+
 import Hedgehog (MonadGen, Range)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
-import Control.Applicative
 import Data.Char qualified as Char
 
 -- -----------------------------------------------------------------------------

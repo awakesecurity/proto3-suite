@@ -52,6 +52,7 @@ import qualified Text.PrettyPrint          as PP
 import           Text.PrettyPrint.HughesPJClass (Pretty(..))
 import           Turtle                    (FilePath)
 import           Turtle.Compat             (encodeString)
+import "template-haskell" Language.Haskell.TH.Syntax (Lift (..))
 
 -- | The name of a message
 newtype MessageName = MessageName
@@ -64,7 +65,7 @@ instance Show MessageName where
 -- | The name of some field
 newtype FieldName = FieldName
   { getFieldName :: String }
-  deriving (Data, Eq, Generic, IsString, Ord)
+  deriving (Data, Eq, Generic, IsString, Lift, Ord)
 
 instance Show FieldName where
   show = show . getFieldName
@@ -72,14 +73,14 @@ instance Show FieldName where
 -- | The name of the package
 newtype PackageName = PackageName
   { getPackageName :: String }
-  deriving (Data, Eq, Generic, IsString, Ord)
+  deriving (Data, Eq, Generic, IsString, Lift, Ord)
 
 instance Show PackageName where
   show = show . getPackageName
 
 newtype Path = Path
   { components :: NE.NonEmpty String }
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 -- Used for testing
 fakePath :: Path
@@ -90,7 +91,7 @@ data DotProtoIdentifier
   | Dots   Path
   | Qualified DotProtoIdentifier DotProtoIdentifier
   | Anonymous -- [recheck] is there a better way to represent unnamed things
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Pretty DotProtoIdentifier where
   pPrint (Single name)                    = PP.text name
@@ -103,7 +104,7 @@ data DotProtoImport = DotProtoImport
   { dotProtoImportQualifier :: DotProtoImportQualifier
   , dotProtoImportPath      :: FilePath
   }
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Pretty DotProtoImport where
   pPrint (DotProtoImport q i) =
@@ -121,7 +122,7 @@ data DotProtoImportQualifier
   = DotProtoImportPublic
   | DotProtoImportWeak
   | DotProtoImportDefault
-  deriving (Bounded, Data, Enum, Eq, Generic, Ord, Show)
+  deriving (Bounded, Data, Enum, Eq, Generic, Lift, Ord, Show)
 
 instance Pretty DotProtoImportQualifier where
   pPrint DotProtoImportDefault = PP.empty
@@ -139,7 +140,7 @@ instance Arbitrary DotProtoImportQualifier where
 data DotProtoPackageSpec
   = DotProtoPackageSpec DotProtoIdentifier
   | DotProtoNoPackage
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Pretty DotProtoPackageSpec where
   pPrint (DotProtoPackageSpec p) = PP.text "package" <+> pPrint p PP.<> PP.text ";"
@@ -156,7 +157,7 @@ instance Arbitrary DotProtoPackageSpec where
 data DotProtoOption = DotProtoOption
   { dotProtoOptionIdentifier :: DotProtoIdentifier
   , dotProtoOptionValue      :: DotProtoValue
-  } deriving (Data, Eq, Generic, Ord, Show)
+  } deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Pretty DotProtoOption where
   pPrint (DotProtoOption key value) = pPrint key <+> PP.text "=" <+> pPrint value
@@ -175,7 +176,7 @@ data DotProtoDefinition
   = DotProtoMessage String DotProtoIdentifier [DotProtoMessagePart]
   | DotProtoEnum    String DotProtoIdentifier [DotProtoEnumPart]
   | DotProtoService String DotProtoIdentifier [DotProtoServicePart]
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Arbitrary DotProtoDefinition where
   arbitrary = oneof [arbitraryMessage, arbitraryEnum]
@@ -202,7 +203,7 @@ data DotProtoMeta = DotProtoMeta
     -- path values are constructed. See
     -- 'Proto3.Suite.DotProto.Generate.modulePathModName' to see how it is used
     -- during code generation.
-  } deriving (Data, Eq, Generic, Ord, Show)
+  } deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Arbitrary DotProtoMeta where
   arbitrary = pure (DotProtoMeta fakePath)
@@ -217,7 +218,8 @@ data DotProto = DotProto
   , protoPackage     :: DotProtoPackageSpec
   , protoDefinitions :: [DotProtoDefinition]
   , protoMeta        :: DotProtoMeta
-  } deriving (Data, Eq, Generic, Ord, Show)
+  } 
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Arbitrary DotProto where
   arbitrary = do
@@ -236,7 +238,7 @@ data DotProtoValue
   | IntLit     Int
   | FloatLit   Double
   | BoolLit    Bool
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Pretty DotProtoValue where
   pPrint (Identifier value) = pPrint value
@@ -272,7 +274,7 @@ data DotProtoPrimType
   | Double
   | Named DotProtoIdentifier
   -- ^ A named type, referring to another message or enum defined in the same file
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Pretty DotProtoPrimType where
   pPrint (Named i)  = pPrint i
@@ -317,7 +319,7 @@ instance Arbitrary DotProtoPrimType where
 data Packing
   = PackedField
   | UnpackedField
-  deriving (Bounded, Data, Enum, Eq, Generic, Ord, Show)
+  deriving (Bounded, Data, Enum, Eq, Generic, Lift, Ord, Show)
 
 instance Arbitrary Packing where
   arbitrary = elements [PackedField, UnpackedField]
@@ -331,7 +333,7 @@ data DotProtoType
   | Repeated       DotProtoPrimType
   | NestedRepeated DotProtoPrimType
   | Map            DotProtoPrimType DotProtoPrimType
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Pretty DotProtoType where
   pPrint (Prim           ty) = pPrint ty
@@ -349,7 +351,7 @@ data DotProtoEnumPart
   = DotProtoEnumField DotProtoIdentifier DotProtoEnumValue [DotProtoOption]
   | DotProtoEnumOption DotProtoOption
   | DotProtoEnumReserved   [DotProtoReservedField]
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Arbitrary DotProtoEnumPart where
   arbitrary = oneof [arbitraryField, arbitraryOption]
@@ -367,7 +369,7 @@ instance Arbitrary DotProtoEnumPart where
 data Streaming
   = Streaming
   | NonStreaming
-  deriving (Bounded, Data, Enum, Eq, Generic, Ord, Show)
+  deriving (Bounded, Data, Enum, Eq, Generic, Lift, Ord, Show)
 
 instance Pretty Streaming where
   pPrint Streaming    = PP.text "stream"
@@ -379,7 +381,7 @@ instance Arbitrary Streaming where
 data DotProtoServicePart
   = DotProtoServiceRPCMethod RPCMethod
   | DotProtoServiceOption DotProtoOption
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Pretty DotProtoServicePart where
   pPrint (DotProtoServiceRPCMethod RPCMethod{..})
@@ -407,7 +409,7 @@ data RPCMethod = RPCMethod
   , rpcMethodResponseStreaming :: Streaming
   , rpcMethodOptions :: [DotProtoOption]
   }
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Arbitrary RPCMethod where
   arbitrary = do
@@ -425,7 +427,7 @@ data DotProtoMessagePart
   | DotProtoMessageDefinition DotProtoDefinition
   | DotProtoMessageReserved   [DotProtoReservedField]
   | DotProtoMessageOption DotProtoOption
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Arbitrary DotProtoMessagePart where
   arbitrary = oneof
@@ -463,7 +465,7 @@ data DotProtoField = DotProtoField
   , dotProtoFieldOptions :: [DotProtoOption]
   , dotProtoFieldComment :: String
   }
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Arbitrary DotProtoField where
   arbitrary = do
@@ -479,7 +481,7 @@ data DotProtoReservedField
   = SingleField Int
   | FieldRange  Int Int
   | ReservedIdentifier String
-  deriving (Data, Eq, Generic, Ord, Show)
+  deriving (Data, Eq, Generic, Lift, Ord, Show)
 
 instance Pretty DotProtoReservedField where
   pPrint (SingleField num)      = PP.text $ show num

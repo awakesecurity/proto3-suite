@@ -124,6 +124,8 @@ import qualified Proto3.Suite.Types
 import           Proto3.Wire.Class                (ProtoEnum(..))
 import           Test.QuickCheck.Arbitrary        (Arbitrary(..))
 
+--------------------------------------------------------------------------------
+
 #if MIN_VERSION_aeson(2,0,0)
 type Key = A.Key
 keyFromText :: Text -> Key
@@ -225,8 +227,7 @@ obj .: key = obj .:? keyFromText key A..!= def
   where
     (.:?) = A.explicitParseFieldMaybe parseJSONPB
 
-parseField :: FromJSONPB a
-           => A.Object -> Key -> A.Parser a
+parseField :: FromJSONPB a => A.Object -> Key -> A.Parser a
 parseField = A.explicitParseField parseJSONPB
 
 -- | >>> isDefault (def :: E.Encoding)
@@ -297,6 +298,7 @@ object fs = A.object . mconcat fs
 --
 -- >>> object [const []] defaultOptions
 -- Object (fromList [])
+--
 -- >>> objectOrNull [const []] defaultOptions
 -- Null
 objectOrNull :: [Options -> [A.Pair]] -> Options -> A.Value

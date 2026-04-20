@@ -63,8 +63,8 @@ source-repository head
 common common
   default-language: Haskell2010
   default-extensions:
-    BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric
-    ImportQualifiedPost ViewPatterns
+    BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric 
+    DeriveLift ImportQualifiedPost PackageImports ViewPatterns
 
   if flag(development)
     ghc-options:
@@ -224,6 +224,8 @@ test-suite tests
     Test.Proto.Parse.Gen
     Test.Proto.Parse.Option
     Test.Proto.ToEncoder
+    Test.Proto.TH
+    Test.Proto.Quote
 
   build-depends:
       aeson
@@ -244,6 +246,7 @@ test-suite tests
     , proto3-suite
     , QuickCheck >=2.10 && <2.17
     , record-hasfield
+    , template-haskell
     , tasty >= 0.11 && <1.6
     , tasty-hedgehog
     , tasty-hunit >= 0.9 && <0.11

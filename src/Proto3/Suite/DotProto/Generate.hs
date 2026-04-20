@@ -9,13 +9,13 @@
 {-# LANGUAGE MultiWayIf                #-}
 {-# LANGUAGE NamedFieldPuns            #-}
 {-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE QuasiQuotes               #-}
 {-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE TupleSections             #-}
 {-# LANGUAGE TypeApplications          #-}
 {-# LANGUAGE TypeOperators             #-}
+{-# LANGUAGE QuasiQuotes               #-}
 {-# LANGUAGE ViewPatterns              #-}
 
 {-| This module provides functions to generate Haskell declarations for protobuf
@@ -69,7 +69,6 @@ import qualified GHC.Types.Name                 as GHC
 import qualified GHC.Types.Name.Reader          as GHC
 import qualified GHC.Types.SrcLoc               as GHC
 import qualified GHC.Utils.Outputable           as GHC
-import qualified NeatInterpolation              as Neat
 import           Prelude                        hiding (FilePath)
 import           Proto3.Suite.DotProto
 import           Proto3.Suite.DotProto.AST.Lens
@@ -83,6 +82,7 @@ import qualified Text.Parsec as Parsec
 import qualified Turtle hiding (encodeString)
 import qualified Turtle.Compat as Turtle (encodeString)
 import           Turtle                         (FilePath, (</>), (<.>))
+import NeatInterpolation qualified as Neat
 
 #if !MIN_VERSION_ghc_lib_parser(9,6,0)
 import qualified GHC.Unit.Module.Name           as GHC
@@ -91,7 +91,7 @@ import qualified GHC.Types.Basic                as GHC (PromotionFlag(..))
 
 
 -- $setup
--- >>> :set -XTypeApplications
+-- >>> :set -XNoQuasiQuotes
 
 --------------------------------------------------------------------------------
 
@@ -147,6 +147,7 @@ compileDotProtoFileOrDie logger args = compileDotProtoFile logger args >>= \case
     -- TODO: pretty print the error messages
     let errText          = Turtle.format Turtle.w  e
     let dotProtoPathText = Turtle.format Turtle.fp (inputProto args)
+
     dieLines [Neat.text|
       Error: failed to compile "${dotProtoPathText}":
 
@@ -212,7 +213,10 @@ renderHsModuleForDotProto ::
 renderHsModuleForDotProto extraInstanceFiles dotProto importCtxt = do
     haskellModule <- hsModuleForDotProto extraInstanceFiles dotProto importCtxt
 
-    let languagePragmas = textUnlines $ map (\extn -> "{-# LANGUAGE " <> extn <> " #-}") $ sort extensions
+    let languagePragmas :: T.Text
+        languagePragmas = textUnlines $ map (\extn -> "{-# LANGUAGE " <> extn <> " #-}") $ sort extensions
+
+        ghcOptionPragmas :: T.Text
         ghcOptionPragmas = textUnlines $ map (\opt -> "{-# OPTIONS_GHC " <> opt <> " #-}") $ sort options
 
         extensions :: [T.Text]
@@ -228,6 +232,7 @@ renderHsModuleForDotProto extraInstanceFiles dotProto importCtxt = do
           , "TypeOperators"
           ] ++
           (if ?typeLevelFormat then [ "TypeFamilies", "UndecidableInstances" ] else [])
+
         options :: [T.Text]
         options = [ "-fno-warn-unused-imports"
                   , "-fno-warn-name-shadowing"

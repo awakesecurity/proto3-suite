@@ -7,9 +7,9 @@
 {-# LANGUAGE MultiWayIf          #-}
 {-# LANGUAGE NamedFieldPuns      #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -36,7 +36,6 @@ import qualified Data.Map                  as M
 import           Data.Maybe                (fromMaybe)
 import qualified Data.Text                 as T
 import           Data.Tuple                (swap)
-import qualified NeatInterpolation         as Neat
 import           Prelude                   hiding (FilePath)
 import           Proto3.Suite.DotProto.AST
 import           Proto3.Suite.DotProto.AST.Lens
@@ -50,6 +49,7 @@ import           Turtle                    (ExitCode (..), FilePath, Text,
                                             (</>))
 import           Turtle.Format             ((%))
 import qualified Turtle.Format             as F
+import NeatInterpolation qualified as Neat
 
 -------------------------------------------------------------------------------
 --
@@ -80,8 +80,11 @@ foldMapOfM l f = fmap getConst . getCompose . l (Compose . fmap Const . f)
 mapKeysM :: (Monad m, Ord k2) => (k1 -> m k2) -> M.Map k1 a -> m (M.Map k2 a)
 mapKeysM f = fmap M.fromList . traverse (fmap swap . traverse f . swap) . M.assocs
 
+--------------------------------------------------------------------------------
+
 -- $setup
 -- >>> :set -XOverloadedStrings
+-- >>> :set -XNoQuasiQuotes
 
 dieLines :: MonadIO m => Text -> m a
 dieLines (Turtle.textToLines -> msg) = do
@@ -399,16 +402,16 @@ toplevelNotFoundErrorMsg searchPaths toplevelProto =
 
 absolutePathErrorMsg :: T.Text
 absolutePathErrorMsg =
-    [Neat.text|
-     Error: Absolute paths to .proto files, whether on the command line or
-     in include directives, are not currently permitted; rather, all .proto
-     filenames must be relative to the current directory, or relative to some
-     search path specified via --includeDir.
+  [Neat.text|
+    Error: Absolute paths to .proto files, whether on the command line or
+    in include directives, are not currently permitted; rather, all .proto
+    filenames must be relative to the current directory, or relative to some
+    search path specified via --includeDir.
 
-     This is because we currently use the include-relative name to decide
-     the structure of the Haskell module tree that we emit during code
-     generation.
-    |]
+    This is because we currently use the include-relative name to decide
+    the structure of the Haskell module tree that we emit during code
+    generation.
+  |]
 
 --------------------------------------------------------------------------------
 --
