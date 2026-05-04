@@ -33,7 +33,7 @@ in {
               source = pkgsNew.fetchFromGitHub {
                 owner = "awakesecurity";
                 repo = "proto3-wire";
-                rev = "3c689a9de13abbfb5666a0d25152c8d2c4a00159"; # 1.5.0
+                rev = "796950b8b5f4bca67cb4d632639e55a64d10c001"; # 1.5.0
                 sha256 = "XIMGw3AgNA1AvdA7dIKhTfHGkuqwqIQDsMxKsDQVF1w=";
               };
             in
