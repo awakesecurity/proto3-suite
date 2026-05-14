@@ -257,7 +257,7 @@ hsModuleForDotProto ::
   , (?stringType :: StringType)
   , (?typeLevelFormat :: Bool)
   ) =>
-  -- | Extra user-define instances that override default generated instances
+  -- | Extra user-defined instances and standalone deriving declarations that override default generated instances
   ([HsImportDecl], [HsDecl]) ->
   -- |
   DotProto ->

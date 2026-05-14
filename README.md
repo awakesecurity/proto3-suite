@@ -138,10 +138,11 @@ Available options:
                            repeated, and paths will be searched in order; the
                            current directory is used if this option is not
                            provided)
-  --extraInstanceFile FILE Additional file to provide instances that would
-                           otherwise be generated. Can be used multiple times.
-                           Types for which instance overrides are given must be
-                           fully qualified.
+  --extraInstanceFile FILE Additional file to provide instance declarations or
+                           standalone deriving declarations that would otherwise
+                           be generated. Can be used multiple times. Types for
+                           which instance overrides are given must be fully
+                           qualified.
   --proto FILE             Path to input .proto file
   --out DIR                Output directory path where generated Haskell modules
                            will be written (directory is created if it does not

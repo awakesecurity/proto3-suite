@@ -32,7 +32,7 @@ parseArgs = info (helper <*> parser) (fullDesc <> progDesc "Compiles a .proto fi
     extraInstances = many $ strOption $
       long "extraInstanceFile"
         <> metavar "FILE"
-        <> help "Additional file to provide instances that would otherwise be generated. Can be used multiple times. Types for which instance overrides are given must be fully qualified."
+        <> help "Additional file to provide instance declarations or standalone deriving declarations that would otherwise be generated. Can be used multiple times. Types for which instance overrides are given must be fully qualified."
 
     proto = strOption $
       long "proto"
