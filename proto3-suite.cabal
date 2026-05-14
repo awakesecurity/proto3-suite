@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                proto3-suite
-version:             0.10.1
+version:             0.10.0
 synopsis:            A higher-level API to the proto3-wire library
 description:
   This library provides a higher-level API to <https://github.com/awakesecurity/proto3-wire the `proto3-wire` library>
@@ -29,6 +29,7 @@ data-files:
 extra-source-files:
   CHANGELOG.md,
   gen/.gitignore
+  tests/Test/Proto/Generate/CodeGen.hs
 
 flag dhall
   Description:   Turn on Dhall interpret and inject codegen
