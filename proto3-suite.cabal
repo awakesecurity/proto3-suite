@@ -64,8 +64,8 @@ source-repository head
 common common
   default-language: Haskell2010
   default-extensions:
-    BlockArguments ExplicitNamespaces DeriveDataTypeable DeriveGeneric
-    ImportQualifiedPost ViewPatterns
+    BlockArguments ExplicitNamespaces DeriveGeneric DerivingStrategies 
+    DeriveDataTypeable ImportQualifiedPost PatternSynonyms ViewPatterns
 
   if flag(development)
     ghc-options:

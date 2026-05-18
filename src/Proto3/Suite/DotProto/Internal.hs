@@ -458,7 +458,7 @@ definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
 
   qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier msgIdent) childTyContext
 
-  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
+  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoPackageSpec Anonymous
                                 , dotProtoTypeInfoParent =  Anonymous
                                 , dotProtoTypeChildContext = childTyContext
                                 , dotProtoTypeInfoKind = DotProtoKindMessage
@@ -468,7 +468,7 @@ definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
   pure $ M.singleton msgIdent tyInfo <> qualifiedChildTyContext
 
 definitionTypeContext modulePath (DotProtoEnum _ enumIdent _) = do
-  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
+  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoPackageSpec Anonymous
                                 , dotProtoTypeInfoParent =  Anonymous
                                 , dotProtoTypeChildContext = mempty
                                 , dotProtoTypeInfoKind = DotProtoKindEnum
