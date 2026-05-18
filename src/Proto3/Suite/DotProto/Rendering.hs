@@ -106,7 +106,7 @@ prettyPrintProtoDefinition opts = defn where
   field :: DotProtoIdentifier -> DotProtoField -> PP.Doc
   field msgName (DotProtoField number mtype name options comments)
     =   pPrint mtype
-    <+> roSelectorName opts msgName name number
+    <+> maybe PP.empty (\n -> roSelectorName opts msgName n number) name
     <+> PP.text "="
     <+> pPrintFieldNumber number
     <+> optionAnnotation options
