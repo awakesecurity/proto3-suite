@@ -13,6 +13,8 @@ module TestCodeGen where
 
 import           ArbitraryGeneratedTestTypes    ()
 import           Control.Applicative
+import           Control.Monad.Except           (runExceptT)
+import           Data.List                      (sort)
 import           Control.Monad
 #ifdef SWAGGER
 import qualified Data.Aeson
@@ -41,7 +43,8 @@ import           Proto3.Suite.DotProto          (fieldLikeName, prefixedEnumFiel
 import           Proto3.Suite.DotProto.AST      (DotProtoField(..), DotProtoIdentifier(..),
                                                  DotProtoType(..), DotProtoPrimType(..))
 import           Proto3.Suite.DotProto.Generate
-import           Proto3.Suite.Haskell.Parser    (Logger)
+import           Proto3.Suite.Haskell.Parser    (Logger, renderSDoc)
+import qualified GHC.Utils.Outputable           as GHC
 import           Proto3.Suite.JSONPB            (FromJSONPB (..), Options (..),
                                                  ToJSONPB (..), defaultOptions,
                                                  eitherDecode, encode,
@@ -50,7 +53,7 @@ import           Proto3.Suite.Types             (Enumerated(..))
 import           System.Exit
 import           Test.Proto.ToEncoder           (Iterator, Stripping)
 import           Test.Tasty
-import           Test.Tasty.HUnit               (testCase, (@?=))
+import           Test.Tasty.HUnit               (assertEqual, assertFailure, testCase, (@?=))
 import           Test.Tasty.QuickCheck          (Arbitrary, (===), testProperty)
 import qualified Turtle
 import qualified Turtle.Format                  as F
@@ -72,6 +75,7 @@ codeGenTests logger = testGroup "Code generator unit tests"
   , don'tAlterEnumFieldNames
   , knownTypeMessages
   , pythonInteroperation logger
+  , extraInstanceParsing logger
 #ifdef SWAGGER
   , swaggerTests
   , swaggerWrapperFormat
@@ -92,6 +96,22 @@ pythonInteroperation logger = testGroup "Python interoperation" $ do
          | testDecode -> [simpleDecodeDotProto]
          | otherwise -> []
   pure @[] (f logger tt format)
+
+extraInstanceParsing :: Logger -> TestTree
+extraInstanceParsing logger =
+  testCase "getExtraInstances includes standalone deriving declarations" $ do
+    result <- runExceptT $ getExtraInstances logger "test-files/extra_instances_deriving.hs"
+    case result of
+      Left err -> assertFailure (show err)
+      Right (_imports, decls) -> do
+        assertEqual "expected 2 declarations (1 instance + 1 standalone deriving)"
+          2 (length decls)
+        let names = sort (map (renderSDoc . GHC.ppr) decls)
+        assertEqual "parsed instance names should match the instances in extra_instances_deriving.hs"
+          [ "deriving instance Eq Foo"
+          , "instance Show Foo where\n  show _ = \"Foo\""
+          ]
+          names
 
 #ifdef SWAGGER
 swaggerWrapperFormat :: TestTree

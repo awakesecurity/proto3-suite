@@ -34,6 +34,7 @@ module Proto3.Suite.DotProto.Generate
   , hsModuleForDotProto
   , renderHsModuleForDotProto
   , readDotProtoWithContext
+  , getExtraInstances
   ) where
 
 import           Control.Applicative
@@ -256,7 +257,7 @@ hsModuleForDotProto ::
   , (?stringType :: StringType)
   , (?typeLevelFormat :: Bool)
   ) =>
-  -- | Extra user-define instances that override default generated instances
+  -- | Extra user-defined instances and standalone deriving declarations that override default generated instances
   ([HsImportDecl], [HsDecl]) ->
   -- |
   DotProto ->
@@ -309,8 +310,9 @@ getExtraInstances logger (Turtle.encodeString -> extraInstanceFile) = do
     Nothing ->
       internalError (T.unpack "Error: Failed to parse instance file")
     Just (GHC.L _ m) -> do
-      let isInstDecl (GHC.L _ GHC.InstD{}) = True
-          isInstDecl _                     = False
+      let isInstDecl (GHC.L _ GHC.InstD{})  = True
+          isInstDecl (GHC.L _ GHC.DerivD{}) = True
+          isInstDecl _                      = False
       pure (GHC.hsmodImports m, filter isInstDecl (GHC.hsmodDecls m))
 
 -- | This very specific function will only work for the qualification on the very first type

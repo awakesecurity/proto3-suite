@@ -84,7 +84,6 @@ tests logger = testGroup "Tests"
   , Test.Proto.Generate.Name.testTree
   , Test.Proto.Parse.Option.testTree
   , Test.Proto.Interval.testTree
-
 #ifdef DHALL
   , dhallTests
 #endif

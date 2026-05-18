@@ -1,6 +1,8 @@
 # 0.10.0
 * [#306](https://github.com/awakesecurity/proto3-suite/pull/306) 0.10.0: Use proto3-wire 1.5.0
   * Support proto3-wire 1.5 instead of proto3-wire 1.4.
+* Fix `--extraInstanceFile` to support standalone deriving declarations in
+  addition to regular instance declarations.
 
 # 0.9.5
 * [#305](https://github.com/awakesecurity/proto3-suite/pull/305) Avoid unpacked packed fields
