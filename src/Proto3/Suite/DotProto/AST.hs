@@ -89,14 +89,12 @@ data DotProtoIdentifier
   = Single String
   | Dots   Path
   | Qualified DotProtoIdentifier DotProtoIdentifier
-  | Anonymous -- [recheck] is there a better way to represent unnamed things
   deriving (Data, Eq, Generic, Ord, Show)
 
 instance Pretty DotProtoIdentifier where
   pPrint (Single name)                    = PP.text name
   pPrint (Dots (Path names))              = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> NE.toList names
   pPrint (Qualified qualifier identifier) = PP.parens (pPrint qualifier) <> PP.text "." <> pPrint identifier
-  pPrint Anonymous                        = PP.empty
 
 -- | Top-level import declaration
 data DotProtoImport = DotProtoImport
@@ -459,7 +457,7 @@ instance Arbitrary DotProtoMessagePart where
 data DotProtoField = DotProtoField
   { dotProtoFieldNumber  :: FieldNumber
   , dotProtoFieldType    :: DotProtoType
-  , dotProtoFieldName    :: DotProtoIdentifier
+  , dotProtoFieldName    :: Maybe DotProtoIdentifier
   , dotProtoFieldOptions :: [DotProtoOption]
   , dotProtoFieldComment :: String
   }
@@ -469,7 +467,7 @@ instance Arbitrary DotProtoField where
   arbitrary = do
     dotProtoFieldNumber  <- arbitrary
     dotProtoFieldType    <- arbitrary
-    dotProtoFieldName    <- arbitraryIdentifier
+    dotProtoFieldName    <- Just <$> arbitraryIdentifier
     dotProtoFieldOptions <- smallListOf arbitrary
     -- TODO: Generate random comments once the parser supports comments
     dotProtoFieldComment <- pure mempty

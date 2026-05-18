@@ -193,7 +193,7 @@ instance Canonicalize DotProtoField where
   canonicalize DotProtoField{..} = DotProtoField
     { dotProtoFieldNumber = dotProtoFieldNumber
     , dotProtoFieldType = canonicalize dotProtoFieldType
-    , dotProtoFieldName = canonicalize dotProtoFieldName
+    , dotProtoFieldName = fmap canonicalize dotProtoFieldName
     , dotProtoFieldOptions = canonicalize dotProtoFieldOptions
     , dotProtoFieldComment = ""  -- In future we might add a command-line
                                  -- option to preserve comments.
@@ -276,4 +276,3 @@ instance Canonicalize DotProtoIdentifier where
     Dots (Path (part NE.:| [])) -> Single part
     Dots path -> Dots path
     Qualified x y -> Qualified (canonicalize x) (canonicalize y)
-    Anonymous -> Anonymous

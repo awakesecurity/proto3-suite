@@ -115,7 +115,7 @@ import           Data.Functor           (($>))
 import           Data.Int               (Int32, Int64)
 import           Data.Kind              (Type)
 import qualified Data.Map               as M
-import           Data.Maybe             (fromMaybe, isNothing)
+import           Data.Maybe             (isNothing)
 import           Data.Proxy             (Proxy (..))
 import           Data.String            (IsString (..))
 import qualified Data.Text              as T
@@ -599,7 +599,7 @@ messageField :: DotProtoType -> Maybe Packing -> DotProtoField
 messageField ty packing = DotProtoField
     { dotProtoFieldNumber = fieldNumber 1
     , dotProtoFieldType = ty
-    , dotProtoFieldName = Anonymous
+    , dotProtoFieldName = Nothing
     , dotProtoFieldOptions = packingOption
     , dotProtoFieldComment = ""
     }
@@ -892,7 +892,7 @@ instance (MessageField a, Primitive a) => Message (Wrapped a) where
     [ DotProtoField
         (FieldNumber 1)
         (Prim (primType (proxy# :: Proxy# a)))
-        (Single "value")
+        (Just (Single "value"))
         []
         ""
     ]
@@ -923,7 +923,7 @@ dotProtoWrapper proxy =
   [ DotProtoField
       (FieldNumber 1)
       (Prim (primType proxy))
-      (Single "value")
+      (Just (Single "value"))
       []
       ""
   ]
@@ -1058,7 +1058,7 @@ instance (Selector s, GenericMessage f) => GenericMessage (M1 S s f) where
   genericDotProto _                 = map applyName $ genericDotProto (proxy# :: Proxy# f)
     where
       applyName :: DotProtoField -> DotProtoField
-      applyName mp = mp { dotProtoFieldName = fromMaybe Anonymous newName}
+      applyName mp = mp { dotProtoFieldName = newName }
       -- [issue] this probably doesn't match the intended name generating semantics
 
       newName :: Maybe DotProtoIdentifier

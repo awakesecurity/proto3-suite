@@ -955,10 +955,10 @@ dotProtoDefinitionD ::
   m [HsDecl]
 dotProtoDefinitionD pkgSpec ctxt = \case
   DotProtoMessage _ messageName messageParts ->
-    dotProtoMessageD ctxt Anonymous messageName messageParts
+    dotProtoMessageD ctxt Nothing messageName messageParts
 
   DotProtoEnum _ enumName enumParts ->
-    dotProtoEnumD Anonymous enumName enumParts
+    dotProtoEnumD Nothing enumName enumParts
 
   DotProtoService _ serviceName serviceParts ->
     dotProtoServiceD pkgSpec ctxt serviceName serviceParts
@@ -989,7 +989,7 @@ dotProtoMessageD ::
   , (?typeLevelFormat :: Bool)
   ) =>
   TypeContext ->
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   [DotProtoMessagePart] ->
   m [HsDecl]
@@ -1060,7 +1060,7 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
 
     messagePartFieldD :: String -> DotProtoMessagePart -> m [([HsName], HsBangType)]
     messagePartFieldD messageName (DotProtoMessageField DotProtoField{..}) = do
-      fullName <- prefixedFieldName messageName =<< dpIdentUnqualName dotProtoFieldName
+      fullName <- prefixedFieldName messageName =<< maybe (internalError "messagePartFieldD: missing field name") dpIdentUnqualName dotProtoFieldName
       fullTy <- dptToHsType WithinMessage ctxt' dotProtoFieldType
       pure [ ([unqual_ varName fullName], unbangedTy_ fullTy) ]
 
@@ -1074,11 +1074,11 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
 
     nestedDecls :: DotProtoDefinition -> m [HsDecl]
     nestedDecls (DotProtoMessage _ subMsgName subMessageDef) = do
-      parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
+      parentIdent' <- Just <$> maybe (pure messageIdent) (\p -> concatDotProtoIdentifier p messageIdent) parentIdent
       dotProtoMessageD ctxt' parentIdent' subMsgName subMessageDef
 
     nestedDecls (DotProtoEnum _ subEnumName subEnumDef) = do
-      parentIdent' <- concatDotProtoIdentifier parentIdent messageIdent
+      parentIdent' <- Just <$> maybe (pure messageIdent) (\p -> concatDotProtoIdentifier p messageIdent) parentIdent
       dotProtoEnumD parentIdent' subEnumName subEnumDef
 
     nestedDecls _ = pure []
@@ -1111,7 +1111,7 @@ dotProtoMessageD ctxt parentIdent messageIdent messageParts = do
     oneOfCons :: String -> DotProtoField -> m (HsConDecl, HsName)
     oneOfCons fullName DotProtoField{..} = do
        consTy <- dptToHsType WithinOneOf ctxt' dotProtoFieldType
-       consName <- prefixedConName fullName =<< dpIdentUnqualName dotProtoFieldName
+       consName <- prefixedConName fullName =<< maybe (internalError "oneOfCons: missing field name") dpIdentUnqualName dotProtoFieldName
        let ident = unqual_ dataName consName
        pure (conDecl_ ident [unbangedTy_ consTy], ident)
 
@@ -1133,9 +1133,9 @@ typeLevelInstsD ::
   , (?stringType :: StringType)
   ) =>
   TypeContext ->
-  DotProtoIdentifier->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
-  [DotProtoMessagePart]->
+  [DotProtoMessagePart] ->
   m [HsDecl]
 typeLevelInstsD ctxt parentIdent msgIdent messageParts = do
     msgName <- qualifiedMessageName parentIdent msgIdent
@@ -1252,7 +1252,7 @@ messageInstD ::
   , (?stringType :: StringType)
   ) =>
   TypeContext ->
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   [DotProtoMessagePart] ->
   m HsDecl
@@ -1301,7 +1301,7 @@ messageInstD ctxt parentIdent msgIdent messageParts = do
            pure $ apply dotProtoFieldC
                         [ fieldNumberE dotProtoFieldNumber
                         , dpTypeE dotProtoFieldType
-                        , dpIdentE dotProtoFieldName
+                        , maybe nothingC (app justC . dpIdentE) dotProtoFieldName
                         , list_ (map optionE dotProtoFieldOptions)
                         , str_ dotProtoFieldComment
                         ]
@@ -1401,7 +1401,7 @@ toJSONPBMessageInstD ::
   , (?stringType :: StringType)
   ) =>
   TypeContext ->
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   [DotProtoMessagePart] ->
   m HsDecl
@@ -1519,7 +1519,7 @@ fromJSONPBMessageInstD ::
   , (?stringType :: StringType)
   ) =>
   TypeContext ->
-  DotProtoIdentifier ->
+  Maybe DotProtoIdentifier ->
   DotProtoIdentifier ->
   [DotProtoMessagePart] ->
   m HsDecl
@@ -1647,7 +1647,7 @@ getFieldNameForSchemaInstanceDeclaration
   => DotProtoField
   -> m (Maybe ([DotProtoOption], DotProtoType), String)
 getFieldNameForSchemaInstanceDeclaration fld = do
-  unqual <- dpIdentUnqualName (dotProtoFieldName fld)
+  unqual <- maybe (internalError "getFieldNameForSchemaInstanceDeclaration: missing field name") dpIdentUnqualName (dotProtoFieldName fld)
   let optsType = (dotProtoFieldOptions fld, dotProtoFieldType fld)
   pure (Just optsType, unqual)
 
@@ -1842,7 +1842,7 @@ toSchemaInstanceDeclaration ctxt messageName maybeConstructors fieldNamesEtc = d
 
 dotProtoEnumD
     :: MonadError CompileError m
-    => DotProtoIdentifier
+    => Maybe DotProtoIdentifier
     -> DotProtoIdentifier
     -> [DotProtoEnumPart]
     -> m [HsDecl]
@@ -2191,7 +2191,6 @@ dpIdentE (Single n) = apply singleC [ str_ n ]
 dpIdentE (Dots (Path (n NE.:| ns))) =
   apply dotsC [ apply pathC [ paren (opApp (str_ n) neConsOp (list_ (map str_ ns))) ] ]
 dpIdentE (Qualified a b)  = apply qualifiedC [ dpIdentE a, dpIdentE b ]
-dpIdentE Anonymous        = anonymousC
 
 dpValueE :: DotProtoValue -> HsExp
 dpValueE (Identifier nm) = apply identifierC [ dpIdentE nm ]
