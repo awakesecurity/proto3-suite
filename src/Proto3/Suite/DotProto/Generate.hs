@@ -475,7 +475,7 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
 
       qualifiedTypeContext <- mapKeysM prefixWithPackageName importTypeContext
 
-      let isPublic (DotProtoImport q _) = q == DotProtoImportPublic
+      let isPublic (DotProtoImport q _) = q == Just DotProtoImportPublic
       transitiveImportsTC <-
         foldMapOfM (traverse . filtered isPublic)
                    (readImportTypeContext searchPaths toplevelFP (S.insert path alreadyRead))
@@ -520,7 +520,7 @@ modulePathModName (Path comps) =
 
 _pkgIdentModName :: MonadError CompileError m => DotProtoIdentifier -> m Module
 _pkgIdentModName (Single s)  = GHC.mkModuleName <$> typeLikeName s
-_pkgIdentModName (Dots path) = modulePathModName path
+_pkgIdentModName (Dots path) = modulePathModName (Path path)
 _pkgIdentModName x           = throwError (InvalidPackageName x)
 
 
@@ -701,7 +701,7 @@ dpptToHsTypeWrapped ctxt | StringType _ stringType <- ?stringType = \case
     pure $ primType_ "Float"
   Double ->
     pure $ primType_ "Double"
-  Named (Dots (Path ("google" :| ["protobuf", x])))
+  Named (Dots ("google" :| ["protobuf", x]))
     | x == "Int32Value" ->
         pure $ protobufWrappedType_ $ primType_ "Int32"
     | x == "Int64Value" ->
@@ -807,7 +807,7 @@ dpptToHsType ctxt | StringType _ stringType <- ?stringType = \case
   Bool     -> pure $ primType_ "Bool"
   Float    -> pure $ primType_ "Float"
   Double   -> pure $ primType_ "Double"
-  Named (Dots (Path ("google" :| ["protobuf", x])))
+  Named (Dots ("google" :| ["protobuf", x]))
     | x == "Int32Value" -> pure $ primType_ "Int32"
     | x == "Int64Value" -> pure $ primType_ "Int64"
     | x == "UInt32Value" -> pure $ primType_ "Word32"
@@ -908,7 +908,7 @@ dpptToFormType ctxt = \case
       pure formFloatT
     Double ->
       pure formDoubleT
-    Named (Dots (Path ("google" :| ["protobuf", x])))
+    Named (Dots ("google" :| ["protobuf", x]))
       | x == "Int32Value" ->
           wrapper formInt32T
       | x == "Int64Value" ->
@@ -2188,9 +2188,9 @@ fieldNumberE = paren . app fieldNumberC . intE . getFieldNumber
 
 dpIdentE :: DotProtoIdentifier -> HsExp
 dpIdentE (Single n) = apply singleC [ str_ n ]
-dpIdentE (Dots (Path (n NE.:| ns))) =
-  apply dotsC [ apply pathC [ paren (opApp (str_ n) neConsOp (list_ (map str_ ns))) ] ]
-dpIdentE (Qualified a b)  = apply qualifiedC [ dpIdentE a, dpIdentE b ]
+dpIdentE (Dots (n NE.:| ns)) =
+  apply dotsC [ paren (opApp (str_ n) neConsOp (list_ (map str_ ns))) ]
+dpIdentE (Qualified a b) = apply qualifiedC [ dpIdentE a, dpIdentE b ]
 
 dpValueE :: DotProtoValue -> HsExp
 dpValueE (Identifier nm) = apply identifierC [ dpIdentE nm ]

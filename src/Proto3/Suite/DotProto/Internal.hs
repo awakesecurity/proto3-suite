@@ -531,11 +531,8 @@ concatDotProtoIdentifier ::
   DotProtoIdentifier ->
   m DotProtoIdentifier
 concatDotProtoIdentifier i1 i2 = case (i1, i2) of
-  (Qualified{}  ,  _           ) -> internalError "concatDotProtoIdentifier: Qualified"
-  (_            , Qualified{}  ) -> internalError "concatDotProtoIdentifier: Qualified"
-  (Single a     , b            ) -> concatDotProtoIdentifier (Dots (Path (pure a))) b
-  (a            , Single b     ) -> concatDotProtoIdentifier a (Dots (Path (pure b)))
-  (Dots (Path a), Dots (Path b)) -> pure (Dots (Path (a <> b)))
+  (Dots a, Dots b) -> pure (Dots (a <> b))
+  _                -> internalError "concatDotProtoIdentifier: qualified identifier"
 
 -- | @'toPascalCase' xs'@ sends a snake-case string @xs@ to a pascal-cased string. Trailing underscores are not dropped
 -- from the input string and exactly double underscores are replaced by a single underscore.
@@ -668,22 +665,19 @@ prefixedFieldName msgName fieldName = do
   return (fieldLikeName msgName ++ field)
 
 dpIdentUnqualName :: MonadError CompileError m => DotProtoIdentifier -> m String
-dpIdentUnqualName (Single name)       = pure name
-dpIdentUnqualName (Dots (Path names)) = pure (NE.last names)
-dpIdentUnqualName (Qualified _ next)  = dpIdentUnqualName next
+dpIdentUnqualName (DotProtoIdentifier segs) = pure (NE.last (NE.last segs))
 
 dpIdentQualName :: MonadError CompileError m => DotProtoIdentifier -> m String
-dpIdentQualName (Single name)       = pure name
-dpIdentQualName (Dots (Path names)) = pure (intercalate "." (NE.toList names))
-dpIdentQualName (Qualified _ _)     = internalError "dpIdentQualName: Qualified"
+dpIdentQualName (Dots names) = pure (intercalate "." (NE.toList names))
+dpIdentQualName _            = internalError "dpIdentQualName: qualified identifier"
 
 -- | Given a 'DotProtoIdentifier' for the parent type and the unqualified name
 -- of this type, generate the corresponding Haskell name
 nestedTypeName :: MonadError CompileError m => Maybe DotProtoIdentifier -> String -> m String
-nestedTypeName Nothing                  nm = typeLikeName nm
-nestedTypeName (Just (Single parent))   nm = intercalate "_" <$> traverse typeLikeName [parent, nm]
-nestedTypeName (Just (Dots (Path parents))) nm = intercalate "_" . (<> [nm]) <$> traverse typeLikeName (NE.toList parents)
-nestedTypeName (Just (Qualified {}))    _  = internalError "nestedTypeName: Qualified"
+nestedTypeName Nothing             nm = typeLikeName nm
+nestedTypeName (Just (Dots parents)) nm =
+  intercalate "_" . (<> [nm]) <$> traverse typeLikeName (NE.toList parents)
+nestedTypeName _ _ = internalError "nestedTypeName: qualified identifier"
 
 qualifiedMessageName :: MonadError CompileError m => Maybe DotProtoIdentifier -> DotProtoIdentifier -> m String
 qualifiedMessageName parentIdent msgIdent = nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
@@ -697,7 +691,7 @@ qualifiedMessageTypeName ctxt parentIdent msgIdent = do
   xs <- parents parentIdent []
   case xs of
     [] -> nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
-    x : xs' -> nestedTypeName (Just (Dots (Path (x NE.:| xs')))) =<< dpIdentUnqualName msgIdent
+    x : xs' -> nestedTypeName (Just (Dots (x NE.:| xs'))) =<< dpIdentUnqualName msgIdent
   where
     parents (Just par@(Single x)) xs =
       case M.lookup par ctxt of

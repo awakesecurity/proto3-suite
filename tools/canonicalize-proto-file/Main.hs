@@ -15,7 +15,6 @@ module Main where
 import Control.Monad.Except (runExceptT)
 
 import Data.List (sort, sortOn)
-import Data.List.NonEmpty qualified as NE
 import Data.Semigroup (Min(..))
 
 import GHC.Generics (Generic)
@@ -46,7 +45,6 @@ import Proto3.Suite.DotProto.AST
   , DotProtoReservedField (..)
   , DotProtoType (..)
   , DotProtoValue (..)
-  , Path (..)
   , RPCMethod (..)
   )
 import Proto3.Suite.DotProto.Generate (readDotProtoWithContext)
@@ -271,8 +269,4 @@ instance Canonicalize DotProtoValue where
     BoolLit b -> BoolLit b
 
 instance Canonicalize DotProtoIdentifier where
-  canonicalize = \case
-    Single part -> Single part
-    Dots (Path (part NE.:| [])) -> Single part
-    Dots path -> Dots path
-    Qualified x y -> Qualified (canonicalize x) (canonicalize y)
+  canonicalize = id

@@ -114,7 +114,7 @@ _identifier :: ProtoParser DotProtoIdentifier
 _identifier = identifierName `sepBy1` string "." >>= \case
                 []  -> fail "impossible"
                 [i] -> pure (Single i)
-                (i:is) -> pure (Dots (Path (i NE.:| is)))
+                (i:is) -> pure (Dots (i NE.:| is))
 
 singleIdentifier :: ProtoParser DotProtoIdentifier
 singleIdentifier = Single <$> token identifierName
@@ -289,13 +289,15 @@ topStatement =
     ]
 
 import_ :: ProtoParser DotProtoImport
-import_ = do symbol "import"
-             qualifier <- option DotProtoImportDefault $
-                                 symbol "weak" $> DotProtoImportWeak
-                             <|> symbol "public" $> DotProtoImportPublic
-             target <- Turtle.fromText . T.pack <$> strLit
-             semi
-             return $ DotProtoImport qualifier target
+import_ = do
+  symbol "import"
+  qualifier <-
+    try (symbol "weak") $> Just DotProtoImportWeak
+      <|> try (symbol "public") $> Just DotProtoImportPublic
+      <|> pure Nothing
+  target <- Turtle.fromText . T.pack <$> strLit
+  semi
+  return $ DotProtoImport qualifier target
 
 package :: ProtoParser DotProtoPackageSpec
 package = do symbol "package"
@@ -363,7 +365,7 @@ pOptionId =
       nms <- many (char '.' *> identifierName)
       if null nms
         then pure (Single nm)
-        else pure (Dots (Path (nm :| nms)))
+        else pure (Dots (nm :| nms))
 
     pOptionQName :: ProtoParser DotProtoIdentifier
     pOptionQName = token $ do
