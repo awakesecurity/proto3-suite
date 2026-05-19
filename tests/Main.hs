@@ -837,7 +837,7 @@ dotProtoUnitTests = testGroup ".proto parsing tests"
   ]
 
 trivialDotProto :: DotProto
-trivialDotProto = DotProto [] [] DotProtoNoPackage [] (DotProtoMeta (Path $ "test-files" NE.:| ["test_trivial"]))
+trivialDotProto = DotProto [] [] Nothing [] (DotProtoMeta (Path $ "test-files" NE.:| ["test_trivial"]))
 
 dotProtoParseTrivial :: TestTree
 dotProtoParseTrivial = testCase
@@ -859,7 +859,7 @@ dotProtoParseEmptyStatement =
     dotProtoAST :: DotProto
     dotProtoAST =
       DotProto [] []
-        (DotProtoPackageSpec (Single "TestProtoEmptyField"))
+        (Just (Single "TestProtoEmptyField"))
         [ DotProtoEnum
             ""
             (Single "EnumWithEmptyField")
@@ -893,7 +893,7 @@ dotProtoRoundtripTrivial = testCase
   testDotProtoRoundtrip trivialDotProto
 
 dotProtoSimpleMessage :: DotProto
-dotProtoSimpleMessage = DotProto [] [] DotProtoNoPackage
+dotProtoSimpleMessage = DotProto [] [] Nothing
   [ DotProtoMessage "" (Single "MessageTest")
       [ DotProtoMessageField $
           DotProtoField (fieldNumber 1) (Prim Int32) (Just (Single "testfield")) [] ""
@@ -933,7 +933,7 @@ qcDotProtoRoundtrip = testProperty
 dotProtoRoundtripExtend :: TestTree
 dotProtoRoundtripExtend =
   let expected :: DotProto
-      expected = DotProto [] [] DotProtoNoPackage [] (DotProtoMeta (Path ("test-files" NE.:| ["test_proto_extend"])))
+      expected = DotProto [] [] Nothing [] (DotProtoMeta (Path ("test-files" NE.:| ["test_proto_extend"])))
    in testCase
         "Round-trip for a message extension"
         (testDotProtoRoundtrip expected)
@@ -942,7 +942,7 @@ dotProtoRoundtripExtend =
 -- Helpers
 
 dotProtoFor :: (Named a, Message a) => Proxy# a -> DotProto
-dotProtoFor proxy = DotProto [] [] DotProtoNoPackage
+dotProtoFor proxy = DotProto [] [] Nothing
   [ DotProtoMessage
       "" (Single (nameOf proxy)) (DotProtoMessageField <$> dotProto proxy)
   ]

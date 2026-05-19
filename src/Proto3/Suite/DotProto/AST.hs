@@ -17,7 +17,7 @@ module Proto3.Suite.DotProto.AST
     , DotProtoIdentifier(DotProtoIdentifier, getDotProtoIdentifier, Single, Dots, Qualified)
     , DotProtoImport(..)
     , DotProtoImportQualifier(..)
-    , DotProtoPackageSpec(..)
+    , renderPackage
     , DotProtoOption(..)
     , DotProtoDefinition(..)
     , DotProtoMeta(..)
@@ -148,22 +148,9 @@ instance Arbitrary DotProtoImportQualifier where
     , DotProtoImportPublic
     ]
 
--- | The namespace declaration
-data DotProtoPackageSpec
-  = DotProtoPackageSpec DotProtoIdentifier
-  | DotProtoNoPackage
-  deriving (Data, Eq, Generic, Ord, Show)
-
-instance Pretty DotProtoPackageSpec where
-  pPrint (DotProtoPackageSpec p) = PP.text "package" <+> pPrint p PP.<> PP.text ";"
-  pPrint (DotProtoNoPackage)     = PP.empty
-
-instance Arbitrary DotProtoPackageSpec where
-  arbitrary = oneof
-    [ return DotProtoNoPackage
-    , fmap DotProtoPackageSpec arbitrarySingleIdentifier
-    , fmap DotProtoPackageSpec arbitraryPathIdentifier
-    ]
+renderPackage :: Maybe DotProtoIdentifier -> PP.Doc
+renderPackage Nothing  = PP.empty
+renderPackage (Just p) = PP.text "package" <+> pPrint p PP.<> PP.text ";"
 
 -- | An option id/value pair, can be attached to many types of statements
 data DotProtoOption = DotProtoOption
@@ -227,7 +214,7 @@ instance Arbitrary DotProtoMeta where
 data DotProto = DotProto
   { protoImports     :: [DotProtoImport]
   , protoOptions     :: [DotProtoOption]
-  , protoPackage     :: DotProtoPackageSpec
+  , protoPackage     :: Maybe DotProtoIdentifier
   , protoDefinitions :: [DotProtoDefinition]
   , protoMeta        :: DotProtoMeta
   } deriving (Data, Eq, Generic, Ord, Show)
@@ -236,7 +223,11 @@ instance Arbitrary DotProto where
   arbitrary = do
     protoImports     <- smallListOf arbitrary
     protoOptions     <- smallListOf arbitrary
-    protoPackage     <- arbitrary
+    protoPackage     <- oneof
+                           [ pure Nothing
+                           , Just <$> arbitrarySingleIdentifier
+                           , Just <$> arbitraryPathIdentifier
+                           ]
     protoDefinitions <- smallListOf arbitrary
     protoMeta        <- arbitrary
     return (DotProto {..})

@@ -420,8 +420,8 @@ type TypeContext = M.Map DotProtoIdentifier DotProtoTypeInfo
 
 -- | Information about messages and enumerations
 data DotProtoTypeInfo = DotProtoTypeInfo
-  { dotProtoTypeInfoPackage    :: DotProtoPackageSpec
-     -- ^ The package this type is defined in
+  { dotProtoTypeInfoPackage    :: Maybe DotProtoIdentifier
+     -- ^ The package this type is defined in, or 'Nothing' if unpackaged
   , dotProtoTypeInfoParent     :: Maybe DotProtoIdentifier
     -- ^ The message this type is nested under, or 'Nothing' if it's top-level
   , dotProtoTypeChildContext   :: TypeContext
@@ -458,7 +458,7 @@ definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
 
   qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier msgIdent) childTyContext
 
-  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
+  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = Nothing
                                 , dotProtoTypeInfoParent = Nothing
                                 , dotProtoTypeChildContext = childTyContext
                                 , dotProtoTypeInfoKind = DotProtoKindMessage
@@ -468,7 +468,7 @@ definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
   pure $ M.singleton msgIdent tyInfo <> qualifiedChildTyContext
 
 definitionTypeContext modulePath (DotProtoEnum _ enumIdent _) = do
-  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
+  let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = Nothing
                                 , dotProtoTypeInfoParent = Nothing
                                 , dotProtoTypeChildContext = mempty
                                 , dotProtoTypeInfoKind = DotProtoKindEnum

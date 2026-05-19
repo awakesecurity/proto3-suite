@@ -42,7 +42,7 @@ import Control.Monad (fail)
 import Control.Monad.Fail
 #endif
 import qualified Data.Char as Char
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, listToMaybe)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NE
 import Data.Functor
@@ -248,7 +248,7 @@ syntaxSpec = void $ do
 
 data DotProtoStatement
   = DPSOption     DotProtoOption
-  | DPSPackage    DotProtoPackageSpec
+  | DPSPackage    DotProtoIdentifier
   | DPSImport     DotProtoImport
   | DPSDefinition DotProtoDefinition
   | DPSEmpty
@@ -258,13 +258,10 @@ sortStatements :: Path -> [DotProtoStatement] -> DotProto
 sortStatements modulePath statements
   = DotProto { protoOptions     =       [ x | DPSOption     x <- statements]
              , protoImports     =       [ x | DPSImport     x <- statements]
-             , protoPackage     = adapt [ x | DPSPackage    x <- statements]
+             , protoPackage     = listToMaybe [ x | DPSPackage    x <- statements]
              , protoDefinitions =       [ x | DPSDefinition x <- statements]
              , protoMeta        = DotProtoMeta modulePath
              }
-  where
-    adapt (x:_) = x
-    adapt _     = DotProtoNoPackage
 
 topLevel :: Path -> ProtoParser DotProto
 topLevel modulePath = do
@@ -299,11 +296,11 @@ import_ = do
   semi
   return $ DotProtoImport qualifier target
 
-package :: ProtoParser DotProtoPackageSpec
+package :: ProtoParser DotProtoIdentifier
 package = do symbol "package"
              p <- identifier
              semi
-             return $ DotProtoPackageSpec p
+             return p
 
 definition :: ProtoParser DotProtoDefinition
 definition =

@@ -40,7 +40,6 @@ import Proto3.Suite.DotProto.AST
   , DotProtoImport (..)
   , DotProtoMessagePart (..)
   , DotProtoOption (..)
-  , DotProtoPackageSpec (..)
   , DotProtoServicePart (..)
   , DotProtoReservedField (..)
   , DotProtoType (..)
@@ -93,7 +92,7 @@ instance Canonicalize DotProto where
   canonicalize DotProto{..} = DotProto
     { protoImports     = canonicalize protoImports
     , protoOptions     = canonicalize protoOptions
-    , protoPackage     = canonicalize protoPackage
+    , protoPackage     = protoPackage
     , protoDefinitions = canonicalize protoDefinitions
     , protoMeta        = protoMeta
     }
@@ -114,10 +113,6 @@ instance Canonicalize DotProtoOption where
     , dotProtoOptionValue      = canonicalize dotProtoOptionValue
     }
 
-instance Canonicalize DotProtoPackageSpec where
-  canonicalize = \case
-    DotProtoPackageSpec name -> DotProtoPackageSpec (canonicalize name)
-    DotProtoNoPackage -> DotProtoNoPackage
 
 instance Canonicalize [DotProtoDefinition] where canonicalize = canonicalSort
 
