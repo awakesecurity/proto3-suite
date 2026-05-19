@@ -59,10 +59,8 @@ import           Turtle.Compat             (encodeString)
 -- | The name of a message
 newtype MessageName = MessageName
   { getMessageName :: String }
-  deriving (Data, Eq, Generic, IsString, Ord)
-
-instance Show MessageName where
-  show = show . getMessageName
+  deriving (Data, Generic)
+  deriving newtype (Eq, Ord, IsString, Show)
 
 -- | The name of some field
 newtype FieldName = FieldName
