@@ -138,7 +138,7 @@ compileDotProtoFile logger CompileArgs{..} = runExceptT $ do
   liftIO (writeFile (Turtle.encodeString modulePath) haskellModule)
   where
     toModuleComponents :: DotProto -> NonEmpty String
-    toModuleComponents = components . metaModulePath . protoMeta
+    toModuleComponents = metaModulePath . protoMeta
 
 -- | Same as 'compileDotProtoFile', except terminates the program with an error
 -- message on failure.
@@ -514,13 +514,13 @@ msgTypeFromDpTypeInfo ctxt DotProtoTypeInfo{..} ident = do
     identName <- qualifiedMessageTypeName ctxt dotProtoTypeInfoParent ident
     pure $ typeNamed_ $ qual_ modName tcName identName
 
-modulePathModName :: MonadError CompileError m => Path -> m Module
-modulePathModName (Path comps) =
+modulePathModName :: MonadError CompileError m => NE.NonEmpty String -> m Module
+modulePathModName comps =
   GHC.mkModuleName . intercalate "." <$> traverse typeLikeName (NE.toList comps)
 
 _pkgIdentModName :: MonadError CompileError m => DotProtoIdentifier -> m Module
 _pkgIdentModName (Single s)  = GHC.mkModuleName <$> typeLikeName s
-_pkgIdentModName (Dots path) = modulePathModName (Path path)
+_pkgIdentModName (Dots path) = modulePathModName path
 _pkgIdentModName x           = throwError (InvalidPackageName x)
 
 

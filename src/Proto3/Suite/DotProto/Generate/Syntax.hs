@@ -1069,7 +1069,7 @@ symT = noLocA . HsTyLit synDef . HsStrTy NoSourceText . mkFastString
 nothingN, justN :: HsQName
 
 dotProtoFieldC, primC, optionalC, repeatedC, nestedRepeatedC, namedC, mapC,
-  fieldNumberC, singleC, dotsC, pathC, qualifiedC, dotProtoOptionC,
+  fieldNumberC, singleC, dotsC, qualifiedC, dotProtoOptionC,
   identifierC, stringLitC, intLitC, floatLitC, boolLitC, trueC, falseC, nothingC,
   justC, forceEmitC, encodeMessageFieldE, fromStringE, decodeMessageFieldE,
   pureE, returnE, mappendE, memptyE, msumE, atE, oneofE, fmapE :: HsExp
@@ -1085,7 +1085,6 @@ namedC               = var_ (protobufASTName tcName "Named")
 mapC                 = var_ (protobufASTName dataName  "Map")
 fieldNumberC         = var_ (protobufName dataName "FieldNumber")
 singleC              = var_ (protobufASTName dataName "Single")
-pathC                = var_ (protobufASTName dataName "Path")
 dotsC                = var_ (protobufASTName dataName "Dots")
 qualifiedC           = var_ (protobufASTName dataName "Qualified")
 dotProtoOptionC      = var_ (protobufASTName tcName "DotProtoOption")

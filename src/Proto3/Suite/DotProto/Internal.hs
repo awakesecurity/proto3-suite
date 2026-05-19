@@ -277,29 +277,29 @@ mergeIntervals = foldr step [] . sort
 -- Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
 --
 -- >>> toModulePath "google/protobuf/timestamp.proto"
--- Right (Path {components = "Google" :| ["Protobuf","Timestamp"]})
+-- Right ("Google" :| ["Protobuf","Timestamp"])
 --
 -- >>> toModulePath "a/b/c/google.protobuf.timestamp.proto"
--- Right (Path {components = "A" :| ["B","C","Google","Protobuf","Timestamp"]})
+-- Right ("A" :| ["B","C","Google","Protobuf","Timestamp"])
 --
 -- >>> toModulePath "foo/FiLeName_underscore.and.then.some.dots.proto"
--- Right (Path {components = "Foo" :| ["FiLeName_underscore","And","Then","Some","Dots"]})
+-- Right ("Foo" :| ["FiLeName_underscore","And","Then","Some","Dots"])
 --
 #if MIN_VERSION_turtle(1,6,0)
 -- >>> toModulePath "foo/bar/././baz/../boggle.proto"
 -- Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
 #else
 -- >>> toModulePath "foo/bar/././baz/../boggle.proto"
--- Right (Path {components = "Foo" :| ["Bar","Boggle"]})
+-- Right ("Foo" :| ["Bar","Boggle"])
 #endif
 --
 -- >>> toModulePath "./foo.proto"
--- Right (Path {components = "Foo" :| []})
+-- Right ("Foo" :| [])
 --
 -- NB: We ignore preceding single '.' characters
 -- >>> toModulePath ".foo.proto"
--- Right (Path {components = "Foo" :| []})
-toModulePath :: FilePath -> Either String Path
+-- Right ("Foo" :| [])
+toModulePath :: FilePath -> Either String (NE.NonEmpty String)
 toModulePath fp0@(fromMaybe fp0 . Turtle.stripPrefix "./" -> fp)
   | Turtle.absolute fp
     = Left "expected include-relative path"
@@ -312,7 +312,7 @@ toModulePath fp0@(fromMaybe fp0 . Turtle.stripPrefix "./" -> fp)
           | T.isInfixOf ".." . Turtle.format F.fp . Turtle.collapse $ fp
             -> Left "path contained unexpected .. after canonicalization, please use form x.y.z.proto"
           | otherwise
-            -> maybe (Left "empty path after canonicalization") (Right . Path)
+            -> maybe (Left "empty path after canonicalization") Right
              . NE.nonEmpty
              . dropWhile null -- Remove a potential preceding empty component which
                               -- arose from a preceding '.' in the input path, which we
@@ -344,7 +344,7 @@ importProto paths toplevelProto protoFP =
     Right (Just (mp, fp))
       -> liftEither . first CompileParseError =<< parseProtoFile mp fp
 
-type FindProtoResult = Either String (Maybe (Path, FilePath))
+type FindProtoResult = Either String (Maybe (NE.NonEmpty String, FilePath))
 
 -- | Attempts to locate the first (if any) filename that exists on the given
 -- search paths, and constructs the "module path" from the given
@@ -429,7 +429,7 @@ data DotProtoTypeInfo = DotProtoTypeInfo
     --   scope of this type
   , dotProtoTypeInfoKind       :: DotProtoKind
     -- ^ Whether this type is an enumeration or message
-  , dotProtoTypeInfoModulePath :: Path
+  , dotProtoTypeInfoModulePath :: NE.NonEmpty String
     -- ^ The include-relative module path used when importing this module
   } deriving Show
 
@@ -448,7 +448,7 @@ dotProtoTypeContext DotProto{..} =
   foldMapM (definitionTypeContext (metaModulePath protoMeta)) protoDefinitions
 
 definitionTypeContext :: MonadError CompileError m
-                      => Path -> DotProtoDefinition -> m TypeContext
+                      => NE.NonEmpty String -> DotProtoDefinition -> m TypeContext
 definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
   let updateParent = tiParent (fmap Just . maybe (pure msgIdent) (concatDotProtoIdentifier msgIdent))
 

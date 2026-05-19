@@ -65,10 +65,10 @@ import qualified Turtle.Compat as Turtle (encodeString, fromText)
 -- | @parseProto mp inp@ attempts to parse @inp@ as a 'DotProto'. @mp@ is the
 -- module path to be injected into the AST as part of 'DotProtoMeta' metadata on
 -- a successful parse.
-parseProto :: Path -> String -> Either ParseError DotProto
+parseProto :: NE.NonEmpty String -> String -> Either ParseError DotProto
 parseProto modulePath = parseProtoWithFile modulePath ""
 
-parseProtoWithFile :: Path -> String -> String -> Either ParseError DotProto
+parseProtoWithFile :: NE.NonEmpty String -> String -> String -> Either ParseError DotProto
 parseProtoWithFile modulePath filePath = parse (runProtoParser (topLevel modulePath)) filePath
 
 -- | @parseProtoFile mp fp@ reads and parses the .proto file found at @fp@. @mp@
@@ -76,7 +76,7 @@ parseProtoWithFile modulePath filePath = parse (runProtoParser (topLevel moduleP
 -- which are a function of the source .proto file's filename and its path
 -- relative to some @--includeDir@.
 parseProtoFile :: Turtle.MonadIO m
-               => Path -> Turtle.FilePath -> m (Either ParseError DotProto)
+               => NE.NonEmpty String -> Turtle.FilePath -> m (Either ParseError DotProto)
 parseProtoFile modulePath (Turtle.encodeString -> fp) =
   parseProtoWithFile modulePath fp <$> Turtle.liftIO (readFile fp)
 
@@ -254,7 +254,7 @@ data DotProtoStatement
   | DPSEmpty
   deriving Show
 
-sortStatements :: Path -> [DotProtoStatement] -> DotProto
+sortStatements :: NE.NonEmpty String -> [DotProtoStatement] -> DotProto
 sortStatements modulePath statements
   = DotProto { protoOptions     =       [ x | DPSOption     x <- statements]
              , protoImports     =       [ x | DPSImport     x <- statements]
@@ -263,7 +263,7 @@ sortStatements modulePath statements
              , protoMeta        = DotProtoMeta modulePath
              }
 
-topLevel :: Path -> ProtoParser DotProto
+topLevel :: NE.NonEmpty String -> ProtoParser DotProto
 topLevel modulePath = do
   whiteSpace
   syntaxSpec

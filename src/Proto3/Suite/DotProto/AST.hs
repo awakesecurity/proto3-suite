@@ -25,7 +25,7 @@ module Proto3.Suite.DotProto.AST
     , DotProtoValue(..)
     , DotProtoPrimType(..)
     , Packing(..)
-    , Path(..), fakePath
+    , fakePath
     , DotProtoType(..)
     , DotProtoEnumValue
     , DotProtoEnumPart(..)
@@ -74,13 +74,8 @@ newtype PackageName = PackageName
   deriving stock (Data, Generic)
   deriving newtype (Eq, IsString, Ord, Show)
 
-newtype Path = Path
-  { components :: NE.NonEmpty String }
-  deriving (Data, Eq, Generic, Ord, Show)
-
--- Used for testing
-fakePath :: Path
-fakePath = Path ("fakePath" NE.:| [])
+fakePath :: NE.NonEmpty String
+fakePath = "fakePath" NE.:| []
 
 newtype DotProtoIdentifier = DotProtoIdentifier
   { getDotProtoIdentifier :: NE.NonEmpty (NE.NonEmpty String) }
@@ -194,7 +189,7 @@ instance Arbitrary DotProtoDefinition where
 
 -- | Tracks misc metadata about the AST
 data DotProtoMeta = DotProtoMeta
-  { metaModulePath :: Path
+  { metaModulePath :: NE.NonEmpty String
     -- ^ The "module path" associated with the .proto file from which this AST
     -- was parsed. The "module path" is derived from the `--includeDir`-relative
     -- .proto filename passed to `Proto3.Suite.DotProto.Parsing.parseProtoFile`. See
