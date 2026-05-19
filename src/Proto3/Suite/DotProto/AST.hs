@@ -60,23 +60,19 @@ import           Turtle.Compat             (encodeString)
 newtype MessageName = MessageName
   { getMessageName :: String }
   deriving (Data, Generic)
-  deriving newtype (Eq, Ord, IsString, Show)
+  deriving newtype (Eq, IsString, Ord, Show)
 
 -- | The name of some field
 newtype FieldName = FieldName
   { getFieldName :: String }
-  deriving (Data, Eq, Generic, IsString, Ord)
-
-instance Show FieldName where
-  show = show . getFieldName
+  deriving stock (Data, Generic)
+  deriving newtype (Eq, IsString, Ord, Show)
 
 -- | The name of the package
 newtype PackageName = PackageName
   { getPackageName :: String }
-  deriving (Data, Eq, Generic, IsString, Ord)
-
-instance Show PackageName where
-  show = show . getPackageName
+  deriving stock (Data, Generic)
+  deriving newtype (Eq, IsString, Ord, Show)
 
 newtype Path = Path
   { components :: NE.NonEmpty String }
