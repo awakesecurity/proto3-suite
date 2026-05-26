@@ -138,7 +138,7 @@ compileDotProtoFile logger CompileArgs{..} = runExceptT $ do
   liftIO (writeFile (Turtle.encodeString modulePath) haskellModule)
   where
     toModuleComponents :: DotProto -> NonEmpty String
-    toModuleComponents = components . metaModulePath . protoMeta
+    toModuleComponents = metaModulePath . protoMeta
 
 -- | Same as 'compileDotProtoFile', except terminates the program with an error
 -- message on failure.
@@ -470,12 +470,12 @@ readImportTypeContext searchPaths toplevelFP alreadyRead (DotProtoImport _ path)
 
       let prefixWithPackageName =
             case importPkgSpec of
-              DotProtoPackageSpec packageName -> concatDotProtoIdentifier packageName
-              DotProtoNoPackage -> pure
+              Just packageName -> concatDotProtoIdentifier packageName
+              Nothing -> pure
 
       qualifiedTypeContext <- mapKeysM prefixWithPackageName importTypeContext
 
-      let isPublic (DotProtoImport q _) = q == DotProtoImportPublic
+      let isPublic (DotProtoImport q _) = q == Just DotProtoImportPublic
       transitiveImportsTC <-
         foldMapOfM (traverse . filtered isPublic)
                    (readImportTypeContext searchPaths toplevelFP (S.insert path alreadyRead))
@@ -514,8 +514,8 @@ msgTypeFromDpTypeInfo ctxt DotProtoTypeInfo{..} ident = do
     identName <- qualifiedMessageTypeName ctxt dotProtoTypeInfoParent ident
     pure $ typeNamed_ $ qual_ modName tcName identName
 
-modulePathModName :: MonadError CompileError m => Path -> m Module
-modulePathModName (Path comps) =
+modulePathModName :: MonadError CompileError m => NE.NonEmpty String -> m Module
+modulePathModName comps =
   GHC.mkModuleName . intercalate "." <$> traverse typeLikeName (NE.toList comps)
 
 _pkgIdentModName :: MonadError CompileError m => DotProtoIdentifier -> m Module
@@ -701,7 +701,7 @@ dpptToHsTypeWrapped ctxt | StringType _ stringType <- ?stringType = \case
     pure $ primType_ "Float"
   Double ->
     pure $ primType_ "Double"
-  Named (Dots (Path ("google" :| ["protobuf", x])))
+  Named (Dots ("google" :| ["protobuf", x]))
     | x == "Int32Value" ->
         pure $ protobufWrappedType_ $ primType_ "Int32"
     | x == "Int64Value" ->
@@ -807,7 +807,7 @@ dpptToHsType ctxt | StringType _ stringType <- ?stringType = \case
   Bool     -> pure $ primType_ "Bool"
   Float    -> pure $ primType_ "Float"
   Double   -> pure $ primType_ "Double"
-  Named (Dots (Path ("google" :| ["protobuf", x])))
+  Named (Dots ("google" :| ["protobuf", x]))
     | x == "Int32Value" -> pure $ primType_ "Int32"
     | x == "Int64Value" -> pure $ primType_ "Int64"
     | x == "UInt32Value" -> pure $ primType_ "Word32"
@@ -908,7 +908,7 @@ dpptToFormType ctxt = \case
       pure formFloatT
     Double ->
       pure formDoubleT
-    Named (Dots (Path ("google" :| ["protobuf", x])))
+    Named (Dots ("google" :| ["protobuf", x]))
       | x == "Int32Value" ->
           wrapper formInt32T
       | x == "Int64Value" ->
@@ -949,7 +949,7 @@ dotProtoDefinitionD ::
   , (?stringType :: StringType)
   , (?typeLevelFormat :: Bool)
   ) =>
-  DotProtoPackageSpec ->
+  Maybe DotProtoIdentifier ->
   TypeContext ->
   DotProtoDefinition ->
   m [HsDecl]
@@ -1975,7 +1975,7 @@ dotProtoServiceD ::
   ( MonadError CompileError m
   , (?stringType :: StringType)
   ) =>
-  DotProtoPackageSpec ->
+  Maybe DotProtoIdentifier ->
   TypeContext ->
   DotProtoIdentifier ->
   [DotProtoServicePart] ->
@@ -1985,10 +1985,10 @@ dotProtoServiceD pkgSpec ctxt serviceIdent service = do
 
      endpointPrefix <-
        case pkgSpec of
-         DotProtoPackageSpec pkgIdent -> do
+         Just pkgIdent -> do
            packageName <- dpIdentQualName pkgIdent
            pure $ "/" ++ packageName ++ "." ++ serviceName ++ "/"
-         DotProtoNoPackage -> pure $ "/" ++ serviceName ++ "/"
+         Nothing -> pure $ "/" ++ serviceName ++ "/"
 
      let serviceFieldD (DotProtoServiceRPCMethod RPCMethod{..}) = do
            fullName <- prefixedMethodName serviceName =<< dpIdentUnqualName rpcMethodName
@@ -2188,9 +2188,9 @@ fieldNumberE = paren . app fieldNumberC . intE . getFieldNumber
 
 dpIdentE :: DotProtoIdentifier -> HsExp
 dpIdentE (Single n) = apply singleC [ str_ n ]
-dpIdentE (Dots (Path (n NE.:| ns))) =
-  apply dotsC [ apply pathC [ paren (opApp (str_ n) neConsOp (list_ (map str_ ns))) ] ]
-dpIdentE (Qualified a b)  = apply qualifiedC [ dpIdentE a, dpIdentE b ]
+dpIdentE (Dots (n NE.:| ns)) =
+  apply dotsC [ paren (opApp (str_ n) neConsOp (list_ (map str_ ns))) ]
+dpIdentE (Qualified a b) = apply qualifiedC [ dpIdentE a, dpIdentE b ]
 
 dpValueE :: DotProtoValue -> HsExp
 dpValueE (Identifier nm) = apply identifierC [ dpIdentE nm ]

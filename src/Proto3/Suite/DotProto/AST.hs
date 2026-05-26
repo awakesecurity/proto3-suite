@@ -1,20 +1,23 @@
 -- | Fairly straightforward AST encoding of the .proto grammar
 
+{-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE PatternSynonyms            #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 module Proto3.Suite.DotProto.AST
   ( -- * Types
       MessageName(..)
     , FieldName(..)
     , PackageName(..)
-    , DotProtoIdentifier(..)
+    , DotProtoIdentifier(DotProtoIdentifier, getDotProtoIdentifier, Single, Dots, Qualified)
     , DotProtoImport(..)
     , DotProtoImportQualifier(..)
-    , DotProtoPackageSpec(..)
+    , renderPackage
     , DotProtoOption(..)
     , DotProtoDefinition(..)
     , DotProtoMeta(..)
@@ -22,7 +25,7 @@ module Proto3.Suite.DotProto.AST
     , DotProtoValue(..)
     , DotProtoPrimType(..)
     , Packing(..)
-    , Path(..), fakePath
+    , fakePath
     , DotProtoType(..)
     , DotProtoEnumValue
     , DotProtoEnumPart(..)
@@ -56,56 +59,66 @@ import           Turtle.Compat             (encodeString)
 -- | The name of a message
 newtype MessageName = MessageName
   { getMessageName :: String }
-  deriving (Data, Eq, Generic, IsString, Ord)
-
-instance Show MessageName where
-  show = show . getMessageName
+  deriving (Data, Generic)
+  deriving newtype (Eq, IsString, Ord, Show)
 
 -- | The name of some field
 newtype FieldName = FieldName
   { getFieldName :: String }
-  deriving (Data, Eq, Generic, IsString, Ord)
-
-instance Show FieldName where
-  show = show . getFieldName
+  deriving stock (Data, Generic)
+  deriving newtype (Eq, IsString, Ord, Show)
 
 -- | The name of the package
 newtype PackageName = PackageName
   { getPackageName :: String }
-  deriving (Data, Eq, Generic, IsString, Ord)
+  deriving stock (Data, Generic)
+  deriving newtype (Eq, IsString, Ord, Show)
 
-instance Show PackageName where
-  show = show . getPackageName
+fakePath :: NE.NonEmpty String
+fakePath = "fakePath" NE.:| []
 
-newtype Path = Path
-  { components :: NE.NonEmpty String }
-  deriving (Data, Eq, Generic, Ord, Show)
+newtype DotProtoIdentifier = DotProtoIdentifier
+  { getDotProtoIdentifier :: NE.NonEmpty (NE.NonEmpty String) }
+  deriving stock (Data, Generic)
+  deriving newtype (Eq, Ord, Semigroup, Show)
 
--- Used for testing
-fakePath :: Path
-fakePath = Path ("fakePath" NE.:| [])
+pattern Single :: String -> DotProtoIdentifier
+pattern Single x = DotProtoIdentifier ((x NE.:| []) NE.:| [])
 
-data DotProtoIdentifier
-  = Single String
-  | Dots   Path
-  | Qualified DotProtoIdentifier DotProtoIdentifier
-  deriving (Data, Eq, Generic, Ord, Show)
+pattern Dots :: NE.NonEmpty String -> DotProtoIdentifier
+pattern Dots xs = DotProtoIdentifier (xs NE.:| [])
+
+pattern Qualified :: DotProtoIdentifier -> DotProtoIdentifier -> DotProtoIdentifier
+pattern Qualified x y <- (splitQualified -> Just (x, y))
+  where Qualified x y = x <> y
+
+{-# COMPLETE Dots, Qualified #-}
+
+splitQualified :: DotProtoIdentifier -> Maybe (DotProtoIdentifier, DotProtoIdentifier)
+splitQualified (DotProtoIdentifier (_ NE.:| [])) = Nothing
+splitQualified (DotProtoIdentifier (x NE.:| (y : ys))) =
+  Just (DotProtoIdentifier (x NE.:| []), DotProtoIdentifier (y NE.:| ys))
 
 instance Pretty DotProtoIdentifier where
-  pPrint (Single name)                    = PP.text name
-  pPrint (Dots (Path names))              = PP.hcat . PP.punctuate (PP.text ".") $ PP.text <$> NE.toList names
-  pPrint (Qualified qualifier identifier) = PP.parens (pPrint qualifier) <> PP.text "." <> pPrint identifier
+  pPrint (DotProtoIdentifier (seg NE.:| [])) = pPrintSeg seg
+  pPrint (DotProtoIdentifier (seg NE.:| segs)) =
+    PP.parens (pPrintSeg seg) <>
+    foldMap (\s -> PP.text "." <> pPrintSeg s) segs
+
+pPrintSeg :: NE.NonEmpty String -> PP.Doc
+pPrintSeg names = PP.hcat (PP.punctuate (PP.text ".") (PP.text <$> NE.toList names))
 
 -- | Top-level import declaration
 data DotProtoImport = DotProtoImport
-  { dotProtoImportQualifier :: DotProtoImportQualifier
+  { dotProtoImportQualifier :: Maybe DotProtoImportQualifier
   , dotProtoImportPath      :: FilePath
   }
   deriving (Data, Eq, Generic, Ord, Show)
 
 instance Pretty DotProtoImport where
-  pPrint (DotProtoImport q i) =
-    PP.text "import" <+> pPrint q <+> strLit fp PP.<> PP.text ";"
+  pPrint (DotProtoImport q i) = case q of
+    Nothing -> PP.text "import" <+> strLit fp PP.<> PP.text ";"
+    Just qualifier -> PP.text "import" <+> pPrint qualifier <+> strLit fp PP.<> PP.text ";"
     where
       fp = encodeString i
 
@@ -118,37 +131,21 @@ instance Arbitrary DotProtoImport where
 data DotProtoImportQualifier
   = DotProtoImportPublic
   | DotProtoImportWeak
-  | DotProtoImportDefault
   deriving (Bounded, Data, Enum, Eq, Generic, Ord, Show)
 
 instance Pretty DotProtoImportQualifier where
-  pPrint DotProtoImportDefault = PP.empty
   pPrint DotProtoImportPublic  = PP.text "public"
   pPrint DotProtoImportWeak    = PP.text "weak"
 
 instance Arbitrary DotProtoImportQualifier where
   arbitrary = elements
-    [ DotProtoImportDefault
-    , DotProtoImportWeak
+    [ DotProtoImportWeak
     , DotProtoImportPublic
     ]
 
--- | The namespace declaration
-data DotProtoPackageSpec
-  = DotProtoPackageSpec DotProtoIdentifier
-  | DotProtoNoPackage
-  deriving (Data, Eq, Generic, Ord, Show)
-
-instance Pretty DotProtoPackageSpec where
-  pPrint (DotProtoPackageSpec p) = PP.text "package" <+> pPrint p PP.<> PP.text ";"
-  pPrint (DotProtoNoPackage)     = PP.empty
-
-instance Arbitrary DotProtoPackageSpec where
-  arbitrary = oneof
-    [ return DotProtoNoPackage
-    , fmap DotProtoPackageSpec arbitrarySingleIdentifier
-    , fmap DotProtoPackageSpec arbitraryPathIdentifier
-    ]
+renderPackage :: Maybe DotProtoIdentifier -> PP.Doc
+renderPackage Nothing  = PP.empty
+renderPackage (Just p) = PP.text "package" <+> pPrint p PP.<> PP.text ";"
 
 -- | An option id/value pair, can be attached to many types of statements
 data DotProtoOption = DotProtoOption
@@ -192,7 +189,7 @@ instance Arbitrary DotProtoDefinition where
 
 -- | Tracks misc metadata about the AST
 data DotProtoMeta = DotProtoMeta
-  { metaModulePath :: Path
+  { metaModulePath :: NE.NonEmpty String
     -- ^ The "module path" associated with the .proto file from which this AST
     -- was parsed. The "module path" is derived from the `--includeDir`-relative
     -- .proto filename passed to `Proto3.Suite.DotProto.Parsing.parseProtoFile`. See
@@ -212,7 +209,7 @@ instance Arbitrary DotProtoMeta where
 data DotProto = DotProto
   { protoImports     :: [DotProtoImport]
   , protoOptions     :: [DotProtoOption]
-  , protoPackage     :: DotProtoPackageSpec
+  , protoPackage     :: Maybe DotProtoIdentifier
   , protoDefinitions :: [DotProtoDefinition]
   , protoMeta        :: DotProtoMeta
   } deriving (Data, Eq, Generic, Ord, Show)
@@ -221,7 +218,11 @@ instance Arbitrary DotProto where
   arbitrary = do
     protoImports     <- smallListOf arbitrary
     protoOptions     <- smallListOf arbitrary
-    protoPackage     <- arbitrary
+    protoPackage     <- oneof
+                           [ pure Nothing
+                           , Just <$> arbitrarySingleIdentifier
+                           , Just <$> arbitraryPathIdentifier
+                           ]
     protoDefinitions <- smallListOf arbitrary
     protoMeta        <- arbitrary
     return (DotProto {..})
@@ -524,7 +525,7 @@ arbitraryPathIdentifier :: Gen DotProtoIdentifier
 arbitraryPathIdentifier = do
   name  <- arbitraryIdentifierName
   names <- smallListOf1 arbitraryIdentifierName
-  pure . Dots . Path $ name NE.:| names
+  pure . Dots $ name NE.:| names
 
 arbitraryNestedIdentifier :: Gen DotProtoIdentifier
 arbitraryNestedIdentifier = do

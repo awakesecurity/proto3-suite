@@ -42,7 +42,7 @@ import Control.Monad (fail)
 import Control.Monad.Fail
 #endif
 import qualified Data.Char as Char
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, listToMaybe)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NE
 import Data.Functor
@@ -65,10 +65,10 @@ import qualified Turtle.Compat as Turtle (encodeString, fromText)
 -- | @parseProto mp inp@ attempts to parse @inp@ as a 'DotProto'. @mp@ is the
 -- module path to be injected into the AST as part of 'DotProtoMeta' metadata on
 -- a successful parse.
-parseProto :: Path -> String -> Either ParseError DotProto
+parseProto :: NE.NonEmpty String -> String -> Either ParseError DotProto
 parseProto modulePath = parseProtoWithFile modulePath ""
 
-parseProtoWithFile :: Path -> String -> String -> Either ParseError DotProto
+parseProtoWithFile :: NE.NonEmpty String -> String -> String -> Either ParseError DotProto
 parseProtoWithFile modulePath filePath = parse (runProtoParser (topLevel modulePath)) filePath
 
 -- | @parseProtoFile mp fp@ reads and parses the .proto file found at @fp@. @mp@
@@ -76,7 +76,7 @@ parseProtoWithFile modulePath filePath = parse (runProtoParser (topLevel moduleP
 -- which are a function of the source .proto file's filename and its path
 -- relative to some @--includeDir@.
 parseProtoFile :: Turtle.MonadIO m
-               => Path -> Turtle.FilePath -> m (Either ParseError DotProto)
+               => NE.NonEmpty String -> Turtle.FilePath -> m (Either ParseError DotProto)
 parseProtoFile modulePath (Turtle.encodeString -> fp) =
   parseProtoWithFile modulePath fp <$> Turtle.liftIO (readFile fp)
 
@@ -114,7 +114,7 @@ _identifier :: ProtoParser DotProtoIdentifier
 _identifier = identifierName `sepBy1` string "." >>= \case
                 []  -> fail "impossible"
                 [i] -> pure (Single i)
-                (i:is) -> pure (Dots (Path (i NE.:| is)))
+                (i:is) -> pure (Dots (i NE.:| is))
 
 singleIdentifier :: ProtoParser DotProtoIdentifier
 singleIdentifier = Single <$> token identifierName
@@ -248,25 +248,22 @@ syntaxSpec = void $ do
 
 data DotProtoStatement
   = DPSOption     DotProtoOption
-  | DPSPackage    DotProtoPackageSpec
+  | DPSPackage    DotProtoIdentifier
   | DPSImport     DotProtoImport
   | DPSDefinition DotProtoDefinition
   | DPSEmpty
   deriving Show
 
-sortStatements :: Path -> [DotProtoStatement] -> DotProto
+sortStatements :: NE.NonEmpty String -> [DotProtoStatement] -> DotProto
 sortStatements modulePath statements
   = DotProto { protoOptions     =       [ x | DPSOption     x <- statements]
              , protoImports     =       [ x | DPSImport     x <- statements]
-             , protoPackage     = adapt [ x | DPSPackage    x <- statements]
+             , protoPackage     = listToMaybe [ x | DPSPackage    x <- statements]
              , protoDefinitions =       [ x | DPSDefinition x <- statements]
              , protoMeta        = DotProtoMeta modulePath
              }
-  where
-    adapt (x:_) = x
-    adapt _     = DotProtoNoPackage
 
-topLevel :: Path -> ProtoParser DotProto
+topLevel :: NE.NonEmpty String -> ProtoParser DotProto
 topLevel modulePath = do
   whiteSpace
   syntaxSpec
@@ -289,19 +286,21 @@ topStatement =
     ]
 
 import_ :: ProtoParser DotProtoImport
-import_ = do symbol "import"
-             qualifier <- option DotProtoImportDefault $
-                                 symbol "weak" $> DotProtoImportWeak
-                             <|> symbol "public" $> DotProtoImportPublic
-             target <- Turtle.fromText . T.pack <$> strLit
-             semi
-             return $ DotProtoImport qualifier target
+import_ = do
+  symbol "import"
+  qualifier <-
+    try (symbol "weak") $> Just DotProtoImportWeak
+      <|> try (symbol "public") $> Just DotProtoImportPublic
+      <|> pure Nothing
+  target <- Turtle.fromText . T.pack <$> strLit
+  semi
+  return $ DotProtoImport qualifier target
 
-package :: ProtoParser DotProtoPackageSpec
+package :: ProtoParser DotProtoIdentifier
 package = do symbol "package"
              p <- identifier
              semi
-             return $ DotProtoPackageSpec p
+             return p
 
 definition :: ProtoParser DotProtoDefinition
 definition =
@@ -363,7 +362,7 @@ pOptionId =
       nms <- many (char '.' *> identifierName)
       if null nms
         then pure (Single nm)
-        else pure (Dots (Path (nm :| nms)))
+        else pure (Dots (nm :| nms))
 
     pOptionQName :: ProtoParser DotProtoIdentifier
     pOptionQName = token $ do

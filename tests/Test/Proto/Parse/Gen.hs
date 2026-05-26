@@ -29,7 +29,7 @@ optionName =
     nms <- Gen.nonEmpty range gNameString
     pure $ if null (NonEmpty.tail nms)
       then Single (NonEmpty.head nms)
-      else Dots (Path nms)
+      else Dots nms
   where
     gNameString :: Gen String
     gNameString =

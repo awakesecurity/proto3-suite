@@ -54,7 +54,7 @@ defEnumMemberName = const pPrint
 renderDotProto :: RenderingOptions -> DotProto -> PP.Doc
 renderDotProto opts DotProto{..}
   = PP.text "syntax = \"proto3\";"
- $$ pPrint protoPackage
+ $$ renderPackage protoPackage
  $$ (PP.vcat $ pPrint    <$> protoImports)
  $$ (PP.vcat $ topOption <$> protoOptions)
  $$ (PP.vcat $ prettyPrintProtoDefinition opts <$> protoDefinitions)
@@ -140,4 +140,4 @@ toProtoFileDef = toProtoFile defRenderingOptions
 
 packageFromDefs :: String -> [DotProtoDefinition] -> DotProto
 packageFromDefs package defs =
-  DotProto [] [] (DotProtoPackageSpec $ Single package) defs (DotProtoMeta fakePath)
+  DotProto [] [] (Just (Single package)) defs (DotProtoMeta fakePath)
