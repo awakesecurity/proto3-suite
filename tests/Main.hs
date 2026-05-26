@@ -872,14 +872,14 @@ dotProtoParseEmptyStatement =
             [ DotProtoMessageField (DotProtoField
                 { dotProtoFieldNumber = 1
                 , dotProtoFieldType = Prim UInt32
-                , dotProtoFieldName = Single "foo"
+                , dotProtoFieldName = Just (Single "foo")
                 , dotProtoFieldOptions = []
                 , dotProtoFieldComment = ""
                 })
             , DotProtoMessageField (DotProtoField
                 { dotProtoFieldNumber = 2
                 , dotProtoFieldType = Prim UInt32
-                , dotProtoFieldName = Single "bar"
+                , dotProtoFieldName = Just (Single "bar")
                 , dotProtoFieldOptions = []
                 , dotProtoFieldComment = ""
                 })
@@ -896,7 +896,7 @@ dotProtoSimpleMessage :: DotProto
 dotProtoSimpleMessage = DotProto [] [] DotProtoNoPackage
   [ DotProtoMessage "" (Single "MessageTest")
       [ DotProtoMessageField $
-          DotProtoField (fieldNumber 1) (Prim Int32) (Single "testfield") [] ""
+          DotProtoField (fieldNumber 1) (Prim Int32) (Just (Single "testfield")) [] ""
       ]
   ]
   (DotProtoMeta (Path ("test-files" NE.:| ["simple"])))
