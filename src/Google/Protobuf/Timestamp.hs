@@ -88,13 +88,13 @@ instance HsProtobuf.Message Timestamp where
     [ HsProtobuf.DotProtoField
         (HsProtobuf.FieldNumber 1)
         (HsProtobuf.Prim HsProtobuf.Int64)
-        (HsProtobuf.Single "seconds")
+        (Hs.Just (HsProtobuf.Single "seconds"))
         []
         "",
       HsProtobuf.DotProtoField
         (HsProtobuf.FieldNumber 2)
         (HsProtobuf.Prim HsProtobuf.Int32)
-        (HsProtobuf.Single "nanos")
+        (Hs.Just (HsProtobuf.Single "nanos"))
         []
         ""
     ]

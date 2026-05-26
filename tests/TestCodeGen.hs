@@ -391,51 +391,51 @@ compileHaskellDecoder = do
 dotProtoTests :: TestTree
 dotProtoTests = testGroup "dotProto method tests"
   [ dotProtoTest @TestProto.Trivial
-      [ DotProtoField 1 (Prim Int32) (Single "trivialField") [] ""
+      [ DotProtoField 1 (Prim Int32) (Just (Single "trivialField")) [] ""
       ]
   , dotProtoTest @TestProto.MultipleFields
-      [ DotProtoField 1 (Prim Double) (Single "multiFieldDouble") [] ""
-      , DotProtoField 2 (Prim Float) (Single "multiFieldFloat") [] ""
-      , DotProtoField 3 (Prim Int32) (Single "multiFieldInt32") [] ""
-      , DotProtoField 4 (Prim Int64) (Single "multiFieldInt64") [] ""
-      , DotProtoField 5 (Prim String) (Single "multiFieldString") [] ""
-      , DotProtoField 6 (Prim Bool) (Single "multiFieldBool") [] ""
+      [ DotProtoField 1 (Prim Double) (Just (Single "multiFieldDouble")) [] ""
+      , DotProtoField 2 (Prim Float) (Just (Single "multiFieldFloat")) [] ""
+      , DotProtoField 3 (Prim Int32) (Just (Single "multiFieldInt32")) [] ""
+      , DotProtoField 4 (Prim Int64) (Just (Single "multiFieldInt64")) [] ""
+      , DotProtoField 5 (Prim String) (Just (Single "multiFieldString")) [] ""
+      , DotProtoField 6 (Prim Bool) (Just (Single "multiFieldBool")) [] ""
       ]
   , dotProtoTest @TestProto.SignedInts
-      [ DotProtoField 1 (Prim SInt32) (Single "signed32") [] ""
-      , DotProtoField 2 (Prim SInt64) (Single "signed64") [] ""
+      [ DotProtoField 1 (Prim SInt32) (Just (Single "signed32")) [] ""
+      , DotProtoField 2 (Prim SInt64) (Just (Single "signed64")) [] ""
       ]
   , dotProtoTest @TestProto.MapTest
-      [ DotProtoField 1 (Map String SInt32) (Single "prim") [] ""
-      , DotProtoField 2 (Map Int32 (Named (Single "WrappedTrivial"))) (Single "trivial") [] ""
-      , DotProtoField 3 (Map SInt32 SInt32) (Single "signed") [] ""
+      [ DotProtoField 1 (Map String SInt32) (Just (Single "prim")) [] ""
+      , DotProtoField 2 (Map Int32 (Named (Single "WrappedTrivial"))) (Just (Single "trivial")) [] ""
+      , DotProtoField 3 (Map SInt32 SInt32) (Just (Single "signed")) [] ""
           -- Current parser discards comments.
       ]
   , dotProtoTest @TestProto.WithNestingRepeatedInts
-      [ DotProtoField 1 (Repeated (Named (Single "NestedInts"))) (Single "nestedInts") [] ""
+      [ DotProtoField 1 (Repeated (Named (Single "NestedInts"))) (Just (Single "nestedInts")) [] ""
       ]
   , dotProtoTest @TestProto.WithRepeatedSigned
-      [ DotProtoField 1 (Repeated SInt32) (Single "r32") [] ""
-      , DotProtoField 2 (Repeated SInt64) (Single "r64") [] ""
+      [ DotProtoField 1 (Repeated SInt32) (Just (Single "r32")) [] ""
+      , DotProtoField 2 (Repeated SInt64) (Just (Single "r64")) [] ""
       ]
   , dotProtoTest @TestProtoOptional.WithOptional
-      [ DotProtoField 10 (Optional Double) (Single "optionalDouble") [] ""
-      , DotProtoField 20 (Optional Float) (Single "optionalFloat") [] ""
-      , DotProtoField 30 (Optional Int32) (Single "optionalInt32") [] ""
-      , DotProtoField 40 (Optional Int64) (Single "optionalInt64") [] ""
-      , DotProtoField 50 (Optional UInt32) (Single "optionalUint32") [] ""
-      , DotProtoField 60 (Optional UInt64) (Single "optionalUint64") [] ""
-      , DotProtoField 70 (Optional SInt32) (Single "optionalSint32") [] ""
-      , DotProtoField 80 (Optional SInt64) (Single "optionalSint64") [] ""
-      , DotProtoField 90 (Optional Fixed32) (Single "optionalFixed32") [] ""
-      , DotProtoField 100 (Optional Fixed64) (Single "optionalFixed64") [] ""
-      , DotProtoField 110 (Optional SFixed32) (Single "optionalSfixed32") [] ""
-      , DotProtoField 120 (Optional SFixed64) (Single "optionalSfixed64") [] ""
-      , DotProtoField 130 (Optional Bool) (Single "optionalBool") [] ""
-      , DotProtoField 140 (Optional String) (Single "optionalString") [] ""
-      , DotProtoField 150 (Optional Bytes) (Single "optionalBytes") [] ""
-      , DotProtoField 160 (Optional (Named (Single "Enum"))) (Single "optionalEnum") [] ""
-      , DotProtoField 170 (Optional (Named (Single "Submessage"))) (Single "optionalSubmessage") [] ""
+      [ DotProtoField 10 (Optional Double) (Just (Single "optionalDouble")) [] ""
+      , DotProtoField 20 (Optional Float) (Just (Single "optionalFloat")) [] ""
+      , DotProtoField 30 (Optional Int32) (Just (Single "optionalInt32")) [] ""
+      , DotProtoField 40 (Optional Int64) (Just (Single "optionalInt64")) [] ""
+      , DotProtoField 50 (Optional UInt32) (Just (Single "optionalUint32")) [] ""
+      , DotProtoField 60 (Optional UInt64) (Just (Single "optionalUint64")) [] ""
+      , DotProtoField 70 (Optional SInt32) (Just (Single "optionalSint32")) [] ""
+      , DotProtoField 80 (Optional SInt64) (Just (Single "optionalSint64")) [] ""
+      , DotProtoField 90 (Optional Fixed32) (Just (Single "optionalFixed32")) [] ""
+      , DotProtoField 100 (Optional Fixed64) (Just (Single "optionalFixed64")) [] ""
+      , DotProtoField 110 (Optional SFixed32) (Just (Single "optionalSfixed32")) [] ""
+      , DotProtoField 120 (Optional SFixed64) (Just (Single "optionalSfixed64")) [] ""
+      , DotProtoField 130 (Optional Bool) (Just (Single "optionalBool")) [] ""
+      , DotProtoField 140 (Optional String) (Just (Single "optionalString")) [] ""
+      , DotProtoField 150 (Optional Bytes) (Just (Single "optionalBytes")) [] ""
+      , DotProtoField 160 (Optional (Named (Single "Enum"))) (Just (Single "optionalEnum")) [] ""
+      , DotProtoField 170 (Optional (Named (Single "Submessage"))) (Just (Single "optionalSubmessage")) [] ""
       ]
   ]
 

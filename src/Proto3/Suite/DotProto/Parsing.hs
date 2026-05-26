@@ -470,7 +470,7 @@ messageFieldFor parseType = do mtype <- parseType
                                mnumber <- fieldNumber
                                moptions <- pFieldOptions
                                semi
-                               return $ DotProtoField mnumber mtype mname moptions mempty
+                               return $ DotProtoField mnumber mtype (Just mname) moptions mempty
 
 --------------------------------------------------------------------------------
 -- enumerations

@@ -422,8 +422,8 @@ type TypeContext = M.Map DotProtoIdentifier DotProtoTypeInfo
 data DotProtoTypeInfo = DotProtoTypeInfo
   { dotProtoTypeInfoPackage    :: DotProtoPackageSpec
      -- ^ The package this type is defined in
-  , dotProtoTypeInfoParent     :: DotProtoIdentifier
-    -- ^ The message this type is nested under, or 'Anonymous' if it's top-level
+  , dotProtoTypeInfoParent     :: Maybe DotProtoIdentifier
+    -- ^ The message this type is nested under, or 'Nothing' if it's top-level
   , dotProtoTypeChildContext   :: TypeContext
     -- ^ The context that should be used for declarations within the
     --   scope of this type
@@ -433,7 +433,7 @@ data DotProtoTypeInfo = DotProtoTypeInfo
     -- ^ The include-relative module path used when importing this module
   } deriving Show
 
-tiParent :: Lens' DotProtoTypeInfo DotProtoIdentifier
+tiParent :: Lens' DotProtoTypeInfo (Maybe DotProtoIdentifier)
 tiParent = lens dotProtoTypeInfoParent (\d p -> d{ dotProtoTypeInfoParent = p })
 
 -- | Whether a definition is an enumeration or a message
@@ -450,7 +450,7 @@ dotProtoTypeContext DotProto{..} =
 definitionTypeContext :: MonadError CompileError m
                       => Path -> DotProtoDefinition -> m TypeContext
 definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
-  let updateParent = tiParent (concatDotProtoIdentifier msgIdent)
+  let updateParent = tiParent (fmap Just . maybe (pure msgIdent) (concatDotProtoIdentifier msgIdent))
 
   childTyContext <- foldMapOfM (traverse . _DotProtoMessageDefinition)
                                (definitionTypeContext modulePath >=> traverse updateParent)
@@ -459,7 +459,7 @@ definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
   qualifiedChildTyContext <- mapKeysM (concatDotProtoIdentifier msgIdent) childTyContext
 
   let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
-                                , dotProtoTypeInfoParent =  Anonymous
+                                , dotProtoTypeInfoParent = Nothing
                                 , dotProtoTypeChildContext = childTyContext
                                 , dotProtoTypeInfoKind = DotProtoKindMessage
                                 , dotProtoTypeInfoModulePath = modulePath
@@ -469,7 +469,7 @@ definitionTypeContext modulePath (DotProtoMessage _ msgIdent parts) = do
 
 definitionTypeContext modulePath (DotProtoEnum _ enumIdent _) = do
   let tyInfo = DotProtoTypeInfo { dotProtoTypeInfoPackage = DotProtoNoPackage
-                                , dotProtoTypeInfoParent =  Anonymous
+                                , dotProtoTypeInfoParent = Nothing
                                 , dotProtoTypeChildContext = mempty
                                 , dotProtoTypeInfoKind = DotProtoKindEnum
                                 , dotProtoTypeInfoModulePath = modulePath
@@ -532,10 +532,7 @@ concatDotProtoIdentifier ::
   m DotProtoIdentifier
 concatDotProtoIdentifier i1 i2 = case (i1, i2) of
   (Qualified{}  ,  _           ) -> internalError "concatDotProtoIdentifier: Qualified"
-  (_            , Qualified{}  ) -> internalError "concatDotProtoIdentifier Qualified"
-  (Anonymous    , Anonymous    ) -> pure Anonymous
-  (Anonymous    , b            ) -> pure b
-  (a            , Anonymous    ) -> pure a
+  (_            , Qualified{}  ) -> internalError "concatDotProtoIdentifier: Qualified"
   (Single a     , b            ) -> concatDotProtoIdentifier (Dots (Path (pure a))) b
   (a            , Single b     ) -> concatDotProtoIdentifier a (Dots (Path (pure b)))
   (Dots (Path a), Dots (Path b)) -> pure (Dots (Path (a <> b)))
@@ -674,43 +671,41 @@ dpIdentUnqualName :: MonadError CompileError m => DotProtoIdentifier -> m String
 dpIdentUnqualName (Single name)       = pure name
 dpIdentUnqualName (Dots (Path names)) = pure (NE.last names)
 dpIdentUnqualName (Qualified _ next)  = dpIdentUnqualName next
-dpIdentUnqualName Anonymous           = internalError "dpIdentUnqualName: Anonymous"
 
 dpIdentQualName :: MonadError CompileError m => DotProtoIdentifier -> m String
 dpIdentQualName (Single name)       = pure name
 dpIdentQualName (Dots (Path names)) = pure (intercalate "." (NE.toList names))
 dpIdentQualName (Qualified _ _)     = internalError "dpIdentQualName: Qualified"
-dpIdentQualName Anonymous           = internalError "dpIdentQualName: Anonymous"
 
 -- | Given a 'DotProtoIdentifier' for the parent type and the unqualified name
 -- of this type, generate the corresponding Haskell name
-nestedTypeName :: MonadError CompileError m => DotProtoIdentifier -> String -> m String
-nestedTypeName Anonymous             nm = typeLikeName nm
-nestedTypeName (Single parent)       nm = intercalate "_" <$> traverse typeLikeName [parent, nm]
-nestedTypeName (Dots (Path parents)) nm = intercalate "_" . (<> [nm]) <$> traverse typeLikeName (NE.toList parents)
-nestedTypeName (Qualified {})        _  = internalError "nestedTypeName: Qualified"
+nestedTypeName :: MonadError CompileError m => Maybe DotProtoIdentifier -> String -> m String
+nestedTypeName Nothing                  nm = typeLikeName nm
+nestedTypeName (Just (Single parent))   nm = intercalate "_" <$> traverse typeLikeName [parent, nm]
+nestedTypeName (Just (Dots (Path parents))) nm = intercalate "_" . (<> [nm]) <$> traverse typeLikeName (NE.toList parents)
+nestedTypeName (Just (Qualified {}))    _  = internalError "nestedTypeName: Qualified"
 
-qualifiedMessageName :: MonadError CompileError m => DotProtoIdentifier -> DotProtoIdentifier -> m String
+qualifiedMessageName :: MonadError CompileError m => Maybe DotProtoIdentifier -> DotProtoIdentifier -> m String
 qualifiedMessageName parentIdent msgIdent = nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
 
 qualifiedMessageTypeName :: MonadError CompileError m =>
                             TypeContext ->
-                            DotProtoIdentifier ->
+                            Maybe DotProtoIdentifier ->
                             DotProtoIdentifier ->
                             m String
 qualifiedMessageTypeName ctxt parentIdent msgIdent = do
   xs <- parents parentIdent []
   case xs of
     [] -> nestedTypeName parentIdent =<< dpIdentUnqualName msgIdent
-    x : xs' -> nestedTypeName (Dots . Path $ x NE.:| xs') =<< dpIdentUnqualName msgIdent
+    x : xs' -> nestedTypeName (Just (Dots (Path (x NE.:| xs')))) =<< dpIdentUnqualName msgIdent
   where
-    parents par@(Single x) xs =
+    parents (Just par@(Single x)) xs =
       case M.lookup par ctxt of
         Just (DotProtoTypeInfo { dotProtoTypeInfoParent = parentIdent' }) ->
           parents parentIdent' $ x : xs
         Nothing ->
           pure $ x : xs
-    parents Anonymous xs =
+    parents Nothing xs =
       pure xs
     parents par _ =
       internalError $ "qualifiedMessageTypeName: wrong parent " <> show par
@@ -751,7 +746,7 @@ getQualifiedFields :: MonadError CompileError m
                    => String -> [DotProtoMessagePart] -> m [QualifiedField]
 getQualifiedFields msgName msgParts = flip foldMapM msgParts $ \case
   DotProtoMessageField DotProtoField{..} -> do
-    fieldName <- dpIdentUnqualName dotProtoFieldName
+    fieldName <- maybe (internalError "getQualifiedFields: missing field name") dpIdentUnqualName dotProtoFieldName
     qualName <- prefixedFieldName msgName fieldName
     pure . (:[]) $ QualifiedField { recordFieldName = coerce qualName
                                   , fieldInfo = FieldNormal (coerce fieldName)
@@ -769,7 +764,7 @@ getQualifiedFields msgName msgParts = flip foldMapM msgParts $ \case
     oneofTypeName <- prefixedConName msgName ident
 
     let mkSubfield DotProtoField{..} = do
-            s <- dpIdentUnqualName dotProtoFieldName
+            s <- maybe (internalError "getQualifiedFields: missing oneof field name") dpIdentUnqualName dotProtoFieldName
             c <- prefixedConName oneofTypeName s
             pure [ OneofSubfield
                      { subfieldNumber       = dotProtoFieldNumber
