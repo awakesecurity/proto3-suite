@@ -2,25 +2,16 @@
 , enableDhall
 , enableSwagger
 , swaggerWrapperFormat
+, gitignoreSource
+, proto3-wire-src
 }:
 
 pkgsNew: pkgsOld:
 
-let
-  gitignoreSource =
-    let
-      source = pkgsNew.fetchFromGitHub {
-        owner = "hercules-ci";
-        repo = "gitignore.nix";
-        rev = "a20de23b925fd8264fd7fad6454652e142fd7f73";
-        sha256 = "sha256-8DFJjXG8zqoONA1vXtgeKXy68KdJL5UaXR8NtVMUbx8=";
-      };
-    in (import source { inherit (pkgsNew) lib; }).gitignoreSource;
-
-in {
+{
   haskellPackages = pkgsOld.haskell.packages."${compiler}".override (old: {
     overrides =
-      pkgsNew.lib.fold pkgsNew.lib.composeExtensions
+      pkgsNew.lib.foldr pkgsNew.lib.composeExtensions
         (old.overrides or (_: _: { }))
         [ (pkgsNew.haskell.lib.packagesFromDirectory { directory = ../packages; })
 
@@ -29,16 +20,8 @@ in {
           attoparsec = pkgsNew.haskell.lib.compose.dontCheckIf pkgsNew.stdenv.hostPlatform.isDarwin haskellPackagesOld.attoparsec;
 
           proto3-wire =
-            let
-              source = pkgsNew.fetchFromGitHub {
-                owner = "awakesecurity";
-                repo = "proto3-wire";
-                rev = "796950b8b5f4bca67cb4d632639e55a64d10c001"; # 1.5.0
-                sha256 = "XIMGw3AgNA1AvdA7dIKhTfHGkuqwqIQDsMxKsDQVF1w=";
-              };
-            in
-              pkgsNew.haskell.lib.doJailbreak
-                (haskellPackagesNew.callCabal2nix "proto3-wire" source { });
+            pkgsNew.haskell.lib.doJailbreak
+              (haskellPackagesNew.callCabal2nix "proto3-wire" proto3-wire-src { });
 
           proto3-suite-base =
             let

@@ -1,16 +1,33 @@
-{ compiler ? "ghc948"
+{ compiler ? "ghc910"
 , enableDhall ? false
 , enableSwagger ? true
 , swaggerWrapperFormat ? false
 }:
 
 let
-  pkgs = import ./nix/pkgs.nix {
-    inherit compiler enableDhall enableSwagger swaggerWrapperFormat;
+  lock = builtins.fromJSON (builtins.readFile ./flake.lock);
+
+  flake-compat-input = lock.nodes.flake-compat.locked;
+
+  flake-compat = fetchTarball {
+    url = "https://github.com/${flake-compat-input.owner}/${flake-compat-input.repo}/archive/${flake-compat-input.rev}.tar.gz";
+    sha256 = flake-compat-input.narHash;
+  };
+
+  flake = (import flake-compat { src = ./.; }).defaultNix;
+
+  result = flake.lib.mkProto3Suite {
+    system = builtins.currentSystem;
+
+    inherit
+      compiler
+      enableDhall
+      enableSwagger
+      swaggerWrapperFormat;
   };
 
 in {
-  proto3-suite-boot = pkgs.haskellPackages.proto3-suite-boot;
-
-  proto3-suite = pkgs.haskellPackages.proto3-suite;
+  inherit (result)
+    proto3-suite
+    proto3-suite-boot;
 }

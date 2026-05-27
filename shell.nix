@@ -1,32 +1,36 @@
-# Entering the shell for `proto3-suite` requires rebuilding `proto3-suite`
-# when basically _any_ file changes, which makes development painful.
-#
-# If you don't need to run the test suite, you can forgo test dependencies
-# and skip `compile-proto-file` codegen by running:
-#
-#   $ nix-shell --arg fast true
-#
 { fast ? false
-, compiler ? "ghc9101"
+, compiler ? "ghc910"
 , enableDhall ? false
 , enableSwagger ? true
 , swaggerWrapperFormat ? false
 }:
 
 let
-  pkgs = import ./nix/pkgs.nix {
+  lock = builtins.fromJSON (builtins.readFile ./flake.lock);
+
+  flake-compat-input = lock.nodes.flake-compat.locked;
+
+  flake-compat = fetchTarball {
+    url = "https://github.com/${flake-compat-input.owner}/${flake-compat-input.repo}/archive/${flake-compat-input.rev}.tar.gz";
+    sha256 = flake-compat-input.narHash;
+  };
+
+  flake = (import flake-compat { src = ./.; }).defaultNix;
+
+  result = flake.lib.mkProto3Suite {
+    system = builtins.currentSystem;
     inherit compiler enableDhall enableSwagger swaggerWrapperFormat;
   };
 
   proto3-suite =
     if fast then
-      pkgs.haskellPackages.proto3-suite-boot
+      result.proto3-suite-boot
     else
-      pkgs.haskellPackages.proto3-suite;
+      result.proto3-suite;
 
 in proto3-suite.env.overrideAttrs (old: {
   buildInputs = (old.buildInputs or []) ++ [
-    pkgs.protobuf
-    pkgs.python3Packages.virtualenv
+    result.pkgs.protobuf
+    result.pkgs.python3Packages.virtualenv
   ];
 })
