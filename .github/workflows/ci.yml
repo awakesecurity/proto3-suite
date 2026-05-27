@@ -34,6 +34,9 @@ jobs:
         name: Checkout
       - uses: cachix/install-nix-action@v31
         name: Install Nix
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
       - uses: cachix/cachix-action@v16
         name: Set up Cachix
         with:
