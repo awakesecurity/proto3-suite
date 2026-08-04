@@ -1,3 +1,11 @@
+# 0.10.1
+* Add support for the file-level custom option `haskell_module`, which
+  overrides the name of the generated Haskell module for the enclosing
+  `.proto` file. The override is honored both when compiling the file and
+  when generating imports for files that import it. The package now ships
+  `proto-files/haskell_options.proto`, which declares the corresponding
+  `google.protobuf.FileOptions` extension for compatibility with `protoc`.
+
 # 0.10.0
 * [#306](https://github.com/awakesecurity/proto3-suite/pull/306) 0.10.0: Use proto3-wire 1.5.0
   * Support proto3-wire 1.5 instead of proto3-wire 1.4.
