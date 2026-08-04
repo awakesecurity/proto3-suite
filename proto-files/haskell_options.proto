@@ -1,0 +1,21 @@
+// Declares the custom file-level options recognized by proto3-suite, so
+// that .proto files using them remain compatible with protoc. proto3-suite
+// itself recognizes these options without requiring this import.
+//
+// Usage:
+//
+//   import "haskell_options.proto";
+//
+//   option (haskell_module) = "My.Custom.Module";
+
+syntax = "proto3";
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FileOptions {
+  // Overrides the name of the Haskell module that proto3-suite generates
+  // for the enclosing file. The value is used verbatim: it must consist of
+  // dot-separated components, each beginning with an uppercase letter
+  // followed by zero or more alphanumeric characters.
+  optional string haskell_module = 50843;
+}

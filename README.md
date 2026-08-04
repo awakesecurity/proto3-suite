@@ -216,6 +216,30 @@ module name and path.
 This is essentially the same module naming scheme as the `protoc` Python plugin
 uses when compiling `.proto` files.
 
+### Overriding the generated module name
+
+The file-level custom option `haskell_module` overrides the name of the
+generated Haskell module (and thus its output path) for the enclosing `.proto`
+file:
+
+```protobuf
+syntax = "proto3";
+
+option (haskell_module) = "My.Custom.Module";
+
+message MyMessage {}
+```
+
+Compiling this file produces `My/Custom/Module.hs` containing the module
+`My.Custom.Module`, regardless of the `.proto` filename. The override is also
+honored when the file is imported by another `.proto` file: code generated for
+the importing file refers to `My.Custom.Module` in its import statements.
+
+`compile-proto-file` recognizes this option without any extension declaration.
+For compatibility with `protoc`, this package ships
+`proto-files/haskell_options.proto`, which declares the corresponding extension
+of `google.protobuf.FileOptions` and can be imported by your `.proto` files.
+
 ## Docker
 
 For those unable to run Nix locally, a Dockerfile is provided:

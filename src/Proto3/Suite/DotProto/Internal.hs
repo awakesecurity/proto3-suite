@@ -342,7 +342,41 @@ importProto paths toplevelProto protoFP =
       | otherwise
         -> dieLines (importNotFoundErrorMsg paths toplevelProto protoFP)
     Right (Just (mp, fp))
-      -> liftEither . first CompileParseError =<< parseProtoFile mp fp
+      -> applyHaskellModuleOption
+           =<< liftEither . first CompileParseError
+           =<< parseProtoFile mp fp
+
+-- | If the given file sets the @haskell_module@ file-level option, replaces
+-- the module path that was derived from the filename with the module name
+-- given by the option.
+--
+-- The option value must be a string literal consisting of dot-separated
+-- components, each beginning with an uppercase letter followed by zero or
+-- more alphanumeric characters. The value is used verbatim as the name of
+-- the generated Haskell module.
+applyHaskellModuleOption :: MonadError CompileError m => DotProto -> m DotProto
+applyHaskellModuleOption dp =
+  case filter isHaskellModuleOption (protoOptions dp) of
+    [] -> pure dp
+    [DotProtoOption _ (StringLit name)] -> do
+      path <- parseHaskellModule name
+      pure dp { protoMeta = DotProtoMeta path }
+    [DotProtoOption _ value] ->
+      throwError (InvalidHaskellModuleOption ("expected string literal, but found: " ++ show value))
+    _ -> throwError (InvalidHaskellModuleOption "option given more than once")
+  where
+    isHaskellModuleOption (DotProtoOption idt _) = idt == Single "haskell_module"
+
+    parseHaskellModule name =
+      maybe (throwError badName) (pure . Path) $
+        NE.nonEmpty =<< traverse component (splitDots name)
+      where
+        badName = InvalidHaskellModuleOption ("invalid Haskell module name: " ++ name)
+
+    splitDots = map T.unpack . T.splitOn "." . T.pack
+
+    component (c : cs) | isUpper c && all isAlphaNum cs = Just (c : cs)
+    component _ = Nothing
 
 type FindProtoResult = Either String (Maybe (Path, FilePath))
 
@@ -817,6 +851,10 @@ data CompileError
   | InvalidPackageName DotProtoIdentifier
   | InvalidMethodName DotProtoIdentifier
   | InvalidModuleName String
+  | InvalidHaskellModuleOption String
+      -- ^ The value of a @haskell_module@ file option was not a string
+      -- literal forming a valid Haskell module name, or the option was
+      -- given more than once.
   | InvalidTypeName String
   | InvalidMapKeyType String
   | NoPackageDeclaration
