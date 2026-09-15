@@ -32,8 +32,13 @@ import           Data.Aeson                      (Value (String))
 import           Data.Aeson.Encode.Pretty        (encodePretty)
 import qualified Data.ByteString.Lazy.Char8      as LC8
 import           Data.Hashable                   (Hashable)
+#if MIN_VERSION_swagger2(2,9,0)
+import           Data.HashMap.Strict.InsOrd.Compat (InsOrdHashMap)
+import qualified Data.HashMap.Strict.InsOrd.Compat
+#else
 import           Data.HashMap.Strict.InsOrd      (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd
+#endif
 import           Data.Swagger
 import qualified Data.Text                       as T
 import           Data.Proxy
@@ -51,7 +56,11 @@ import           Proto3.Suite.DotProto.Generate.Swagger.Wrappers ()
 -- | Convenience re-export so that users of generated code don't have to add
 --   an explicit dependency on @insert-ordered-containers@
 insOrdFromList :: (Eq k, Hashable k) => [(k, v)] -> InsOrdHashMap k v
+#if MIN_VERSION_swagger2(2,9,0)
+insOrdFromList = Data.HashMap.Strict.InsOrd.Compat.fromList
+#else
 insOrdFromList = Data.HashMap.Strict.InsOrd.fromList
+#endif
 
 -- Distinctions between varint and fixed-width formats do not matter to JSONPB.
 deriving newtype instance ToSchema a => ToSchema (Fixed a)
